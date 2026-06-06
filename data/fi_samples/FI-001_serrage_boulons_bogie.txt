@@ -1,0 +1,155 @@
+FICHE D'INSTRUCTIONS — ALSTOM CRL
+═══════════════════════════════════════════════════════════════════════════════
+
+TITRE        : Serrage des boulons de fixation de bogie sur caisse de tramway
+NUMÉRO       : FI-MECA-001
+RÉVISION     : Rev. 03
+DATE         : 15/05/2026
+AUTEUR       : Jean-Pierre Dubois — Ingénieur Méthodes
+APPROBATEUR  : Marie Lambert — Responsable Qualité Production
+DOMAINE D'APPLICATION : Ligne d'assemblage Tram T3000 — Atelier B2
+
+═══════════════════════════════════════════════════════════════════════════════
+1. OBJET ET DOMAINE D'APPLICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Cette fiche d'instructions décrit la procédure complète de serrage des boulons
+de fixation de bogie sur la caisse de tramway T3000. Elle s'applique à toutes
+les opérations d'assemblage final sur la ligne T3000 de l'atelier B2.
+
+Document de référence : SPEC-MECA-0042-Rev4
+Gamme associée        : GAMME-T3000-BOGIE-012
+
+═══════════════════════════════════════════════════════════════════════════════
+2. SÉCURITÉ — CONSIGNES OBLIGATOIRES
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️  RISQUES IDENTIFIÉS :
+  - Risque de chute d'objets lourds (pièces de bogie > 50 kg)
+  - Risque de coincement des membres supérieurs
+  - Risque de projection de graisse lors du serrage hydraulique
+  - Risque bruit > 85 dB lors de l'utilisation de la clé à chocs
+
+ÉQUIPEMENTS DE PROTECTION INDIVIDUELLE (EPI) OBLIGATOIRES :
+  □ Casque de protection homologué EN 397
+  □ Gants anti-coupure niveau 3 (EN 388)
+  □ Lunettes de protection anti-projection
+  □ Chaussures de sécurité S3 (embout acier + protection métatarse)
+  □ Bouchons d'oreille ou casque antibruit (SNR ≥ 27 dB)
+  □ Gilet haute visibilité classe 2
+
+MISE EN SÉCURITÉ PRÉALABLE :
+  - Vérifier que la caisse est stabilisée sur les chandelles de supportage
+  - Activer le balisage de zone (cônes rouges, ruban de signalisation)
+  - S'assurer de l'absence de personnel sous la caisse avant toute manœuvre
+  - Vérifier l'état du dynamomètre : calibration valide (étiquette à jour)
+  - Consigner l'armoire de puissance si intervention sous la caisse
+
+═══════════════════════════════════════════════════════════════════════════════
+3. OUTILLAGE ET ÉQUIPEMENTS REQUIS
+═══════════════════════════════════════════════════════════════════════════════
+
+OUTILLAGE :
+  ┌────────────────────────────────────────────┬─────────────────────┐
+  │ Désignation                                │ Référence outil     │
+  ├────────────────────────────────────────────┼─────────────────────┤
+  │ Clé dynamométrique 0–400 Nm                │ TOOL-DYN-001        │
+  │ Clé à chocs pneumatique 3/4"              │ TOOL-CHOC-012       │
+  │ Douille hexagonale 30 mm                   │ TOOL-DOU-030        │
+  │ Douille hexagonale 27 mm                   │ TOOL-DOU-027        │
+  │ Rallonge 200 mm                            │ TOOL-RAL-200        │
+  │ Graisse filetage haute température MoS₂   │ CONS-GRAI-003       │
+  │ Marqueur indélébile (témoin de serrage)    │ CONS-MARQ-001       │
+  └────────────────────────────────────────────┴─────────────────────┘
+
+ÉQUIPEMENTS :
+  - Pont roulant 10 T (homologué, visite périodique valide)
+  - Table de travail réglable en hauteur
+  - Éclairage de zone ≥ 500 lux
+
+═══════════════════════════════════════════════════════════════════════════════
+4. MODE OPÉRATOIRE
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 — PRÉPARATION DES BOULONS
+  1.1  Vérifier la référence : M30 × 120 — Grade 10.9 — Réf. BOLT-M30-120-109
+  1.2  Contrôle visuel : absence de corrosion, filetage intact
+  1.3  Appliquer la graisse MoS₂ sur le filetage et la face d'appui de l'écrou
+  1.4  Ne jamais réutiliser un boulon ayant été serré au couple nominal
+
+ÉTAPE 2 — POSITIONNEMENT DU BOGIE
+  2.1  Positionner le bogie sous la caisse avec le pont roulant
+  2.2  Aligner les perçages de fixation (tolérance : ± 1 mm)
+  2.3  Introduire les boulons à la main sans forcer
+  2.4  Vérifier le positionnement de l'antivibrateur (plan P-T3000-BOGIE-042)
+
+ÉTAPE 3 — PRÉ-SERRAGE (séquence en croix)
+  3.1  Pré-serrer tous les boulons à la main jusqu'au contact
+  3.2  Clé à chocs — pré-serrage : 80 Nm
+  3.3  Respecter l'ordre en croix :
+
+         ①—③
+         |  |
+         ④—②
+
+  3.4  Réaliser 2 passages complets de pré-serrage
+
+ÉTAPE 4 — SERRAGE FINAL AU COUPLE
+  4.1  Régler le dynamomètre : 320 Nm (+0 / −10 Nm)
+  4.2  Vérifier date de calibration (maxi 6 mois)
+  4.3  Appliquer le couple dans l'ordre en croix (identique étape 3)
+  4.4  Réaliser 3 passages complets au couple nominal
+  4.5  Apposer le marqueur témoin sur chaque boulon serré
+
+ÉTAPE 5 — FINITION
+  5.1  Nettoyer les excédents de graisse
+  5.2  Renseigner le bordereau de traçabilité (section 6)
+
+═══════════════════════════════════════════════════════════════════════════════
+5. CONTRÔLE QUALITÉ — AUTOCONTRÔLE OBLIGATOIRE
+═══════════════════════════════════════════════════════════════════════════════
+
+POINTS DE CONTRÔLE :
+
+  □ CQ-01 : Couple de serrage final (10 % des boulons au hasard)
+            Critère d'acceptation : 310 à 320 Nm
+            Si hors tolérance → re-serrage de TOUS les boulons
+
+  □ CQ-02 : Contrôle visuel des traits témoins
+            Critère d'acceptation : trait continu visible sur chaque boulon
+
+  □ CQ-03 : Inspection jeu d'assemblage bogie / caisse
+            Critère d'acceptation : contact uniforme, jeu maxi 0,5 mm local
+
+  □ CQ-04 : Position de l'antivibrateur
+            Critère d'acceptation : cote plan ± 2 mm
+
+FRÉQUENCE : 100 % des assemblages
+
+═══════════════════════════════════════════════════════════════════════════════
+6. TRAÇABILITÉ
+═══════════════════════════════════════════════════════════════════════════════
+
+À renseigner dans SAP (transaction QM02) :
+  - Numéro de caisse / Numéro de bogie / Lot de boulons
+  - Couple de serrage appliqué
+  - Résultats CQ-01 à CQ-04
+  - Nom de l'opérateur / Date / Réf. dynamomètre + date calibration
+
+═══════════════════════════════════════════════════════════════════════════════
+7. RÉFÉRENCES DOCUMENTAIRES
+═══════════════════════════════════════════════════════════════════════════════
+
+  - SPEC-MECA-0042 Rev4     Spécification assemblage bogie T3000
+  - PLAN-T3000-BOGIE-042    Plan positionnement antivibrateur
+  - PROC-QUALITE-SSQ-021    Procédure autocontrôle
+  - ISO 4017                Vis hexagonales filetage total
+  - EN 14399-4              Boulons structuraux haute résistance
+
+═══════════════════════════════════════════════════════════════════════════════
+HISTORIQUE DES RÉVISIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+  Rev. 01 | 12/01/2025 | J.-P. Dubois | Création initiale
+  Rev. 02 | 03/03/2025 | J.-P. Dubois | Ajout séquence en croix (§3.3)
+  Rev. 03 | 15/05/2026 | J.-P. Dubois | Mise à jour couple 300 → 320 Nm

@@ -1,0 +1,155 @@
+FICHE D'INSTRUCTIONS — ALSTOM CRL
+═══════════════════════════════════════════════════════════════════════════════
+
+TITRE        : Assemblage complet du bogie motorisé B73
+NUMÉRO       : FI-BOGIE-002
+RÉVISION     : Rev. 02
+DATE         : 10/03/2026
+AUTEUR       : Sophie Renard — Technicienne Méthodes
+APPROBATEUR  : Luc Vandenberghe — Chef Atelier Bogies
+DOMAINE D'APPLICATION : Atelier Bogies — Zone B1 — Tramway T4000
+
+═══════════════════════════════════════════════════════════════════════════════
+1. OBJET ET CHAMP D'APPLICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Cette fiche d'instructions décrit les opérations d'assemblage du bogie motorisé B73
+pour tramway T4000. Elle couvre l'assemblage du châssis, la pose des essieux motorisés,
+l'installation du système de freinage et du système de suspension primaire.
+
+S'applique à : toutes les unités de production de la série T4000 (n° 001 à 050)
+
+Références :
+  - SPEC-BOGIE-B73-002 Rev3    Spécification technique bogie B73
+  - PLAN-BOGIE-B73-ASS-001     Plan d'assemblage général
+  - PROC-ESSIEU-MOT-007        Procédure de pose essieux motorisés
+
+═══════════════════════════════════════════════════════════════════════════════
+2. SÉCURITÉ — CONSIGNES OBLIGATOIRES
+═══════════════════════════════════════════════════════════════════════════════
+
+DANGERS PRINCIPAUX :
+  ⚠️  Pièces lourdes — châssis bogie ≈ 800 kg, essieux ≈ 200 kg/unité
+  ⚠️  Risque d'écrasement lors de la manutention par pont roulant
+  ⚠️  Risque électrique — moteurs de traction 750 V DC (ne pas approcher si alimentés)
+  ⚠️  Risque chimique — graisse, huiles de boîte d'essieux
+
+ÉQUIPEMENTS DE PROTECTION INDIVIDUELLE (EPI) OBLIGATOIRES :
+  □ Casque de chantier EN 397 — obligatoire en permanence
+  □ Gants de manutention EN 388 catégorie 3
+  □ Chaussures de sécurité S3 (protection métatarse obligatoire)
+  □ Lunettes de protection lors de toute opération de graissage
+  □ Gilet haute visibilité lors des opérations de levage
+  □ Protecteurs auditifs si niveau sonore > 85 dB
+
+PÉRIMÈTRE DE SÉCURITÉ :
+  - Zone d'exclusion de 2 m autour de toute charge suspendue
+  - Consignation électrique obligatoire avant toute intervention sur les moteurs
+  - Utilisation des chandelles de sécurité pour tout maintien du bogie surélevé
+
+═══════════════════════════════════════════════════════════════════════════════
+3. OUTILLAGE ET ÉQUIPEMENTS REQUIS
+═══════════════════════════════════════════════════════════════════════════════
+
+OUTILLAGE :
+  ┌────────────────────────────────────────────┬─────────────────────┐
+  │ Désignation                                │ Référence           │
+  ├────────────────────────────────────────────┼─────────────────────┤
+  │ Clé dynamométrique 50–500 Nm               │ TOOL-DYN-002        │
+  │ Clé dynamométrique 5–50 Nm                 │ TOOL-DYN-003        │
+  │ Clé à chocs pneumatique 1"                 │ TOOL-CHOC-020       │
+  │ Jeu de clés polygonales 10–36 mm           │ TOOL-POL-SET-001    │
+  │ Presse hydraulique 20 T (pose roulements)  │ TOOL-PRES-020       │
+  │ Comparateur à cadran (jeu axial)           │ TOOL-COMP-001       │
+  │ Masse de montage caoutchouc                │ TOOL-MASS-003       │
+  │ Graisse roulements SKF LGEP2               │ CONS-GRAI-SKF-001   │
+  │ Huile boîte d'essieux SAE 90               │ CONS-HUILE-SAE90    │
+  └────────────────────────────────────────────┴─────────────────────┘
+
+ÉQUIPEMENTS :
+  - Pont roulant 5 T (Atelier B1 — homologué, visite annuelle valide)
+  - Élingues certifiées SWL ≥ 1 000 kg
+  - Pupitre de retournement bogie
+  - Établi de montage bogie
+
+═══════════════════════════════════════════════════════════════════════════════
+4. MODE OPÉRATOIRE
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 — RÉCEPTION ET CONTRÔLE DU CHÂSSIS BOGIE
+  1.1  Contrôler la conformité du châssis avec le plan PLAN-BOGIE-B73-ASS-001
+  1.2  Vérifier l'absence de déformation, fissure ou défaut de soudure
+  1.3  Contrôler la géométrie : longueur d'empattement 1 800 ± 2 mm
+  1.4  Nettoyer les portées de roulements (dégraissant CONS-DEG-001)
+
+ÉTAPE 2 — POSE DES ROULEMENTS D'ESSIEU
+  2.1  Chauffer les roulements à 80°C (étuve — ne pas dépasser 120°C)
+  2.2  Engager les roulements sur les portées d'essieu côté moteur en premier
+  2.3  Utiliser la presse hydraulique — force d'enfoncement maxi : 15 T
+  2.4  Appliquer la graisse LGEP2 (dose : 60 % du volume de la cage)
+  2.5  Vérifier le jeu axial : 0,05 à 0,15 mm au comparateur
+
+ÉTAPE 3 — POSE DES ESSIEUX MOTORISÉS
+  3.1  Positionner les essieux motorisés sur le châssis avec le pont roulant
+  3.2  Introduire les fusées dans les boîtes d'essieux
+  3.3  Serrer les brides de boîte d'essieux : couple 280 Nm (dynamomètre TOOL-DYN-002)
+  3.4  Effectuer la rotation manuelle de chaque essieu — doit tourner librement
+
+ÉTAPE 4 — INSTALLATION DU SYSTÈME DE SUSPENSION PRIMAIRE
+  4.1  Poser les ressorts hélicoïdaux primaires (Réf. RESS-PRIM-B73-001)
+  4.2  Comprimer les ressorts avec l'outil dédié avant introduction
+  4.3  Visser les écrous de chapeau : couple 120 Nm
+  4.4  Vérifier la hauteur libre de la suspension : 185 ± 5 mm (sans charge)
+
+ÉTAPE 5 — INSTALLATION DU SYSTÈME DE FREINAGE
+  5.1  Monter les étriers de frein (4 étriers par bogie, Réf. FREI-ETR-B73-002)
+  5.2  Positionner les disques de frein — ne pas toucher les surfaces de friction
+  5.3  Serrer les boulons d'étrier : couple 95 Nm
+  5.4  Régler l'entrejeu étrier / disque : 0,3 à 0,7 mm de chaque côté
+
+ÉTAPE 6 — REMPLISSAGE HUILE ET VÉRIFICATIONS FINALES
+  6.1  Remplir les boîtes d'essieux avec l'huile SAE 90 (volume : 0,8 L/boîte)
+  6.2  Vérifier l'étanchéité de chaque joint
+  6.3  Effectuer une rotation complète de chaque essieu (minimum 5 tours)
+  6.4  Contrôler l'absence de bruit anormal (grondement → roulement défectueux)
+
+═══════════════════════════════════════════════════════════════════════════════
+5. CONTRÔLE QUALITÉ — POINTS DE CONTRÔLE OBLIGATOIRES
+═══════════════════════════════════════════════════════════════════════════════
+
+  □ CQ-01 : Contrôle géométrique châssis (longueur empattement, perpendicularité)
+            Critère : 1 800 ± 2 mm ; équerrage < 1 mm/m
+
+  □ CQ-02 : Jeu axial des essieux au comparateur
+            Critère d'acceptation : 0,05 à 0,15 mm
+
+  □ CQ-03 : Couple de serrage brides boîtes d'essieux
+            Critère d'acceptation : 280 ± 15 Nm (10 % des boulons vérifiés)
+
+  □ CQ-04 : Hauteur de suspension primaire à vide
+            Critère d'acceptation : 185 ± 5 mm
+
+  □ CQ-05 : Entrejeu frein / disque
+            Critère d'acceptation : 0,3 à 0,7 mm de chaque côté
+
+  □ CQ-06 : Contrôle d'étanchéité huile (30 min après remplissage)
+            Critère : aucune fuite visible
+
+FRÉQUENCE : 100 % des bogies assemblés
+Enregistrement : Fiche de contrôle FICHE-CQ-BOGIE-B73 (à archiver 10 ans)
+
+═══════════════════════════════════════════════════════════════════════════════
+6. TRAÇABILITÉ
+═══════════════════════════════════════════════════════════════════════════════
+
+Renseigner dans SAP (QM02) :
+  - N° de bogie / N° de châssis / N° lot roulements / N° lot essieux
+  - Résultats de tous les contrôles CQ-01 à CQ-06
+  - Opérateur(s) / Date / Outillage utilisé (n° série dynamomètre)
+
+═══════════════════════════════════════════════════════════════════════════════
+HISTORIQUE DES RÉVISIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+  Rev. 01 | 05/09/2025 | S. Renard     | Création
+  Rev. 02 | 10/03/2026 | S. Renard     | Ajout §5 contrôle étanchéité

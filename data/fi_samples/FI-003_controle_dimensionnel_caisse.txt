@@ -1,0 +1,99 @@
+FICHE D'INSTRUCTIONS — ALSTOM CRL
+═══════════════════════════════════════════════════════════════════════════════
+
+TITRE   : Contrôle dimensionnel de la caisse de tramway T3000
+NUMÉRO  : FI-QUAL-003
+RÉVISION: Rev. 01
+DATE    : 22/11/2025
+AUTEUR  : Paul Lecomte — Ingénieur Qualité
+DOMAINE D'APPLICATION : Poste de contrôle géométrique — Fin de ligne assemblage caisse
+
+═══════════════════════════════════════════════════════════════════════════════
+1. OBJET
+═══════════════════════════════════════════════════════════════════════════════
+
+Cette procédure s'applique au contrôle dimensionnel complet de la caisse finie avant
+envoi au poste de peinture. Elle concerne les cotes fonctionnelles critiques
+(interfaces bogie, portes, vitrages).
+
+═══════════════════════════════════════════════════════════════════════════════
+2. SÉCURITÉ
+═══════════════════════════════════════════════════════════════════════════════
+
+Risques identifiés lors de ce contrôle :
+  - Risque de chute lors de l'accès en partie haute de la caisse (échelle)
+  - Risque de coupure sur arêtes vives de tôle
+
+EPI requis :
+  - Gants de manutention (protection coupure)
+  - Chaussures de sécurité S2
+  - Casque si travail en hauteur (accès toit)
+  - Lunettes si utilisation du marbre et des outils de mesure par projection
+
+═══════════════════════════════════════════════════════════════════════════════
+3. OUTILLAGE ET MATÉRIEL DE MESURE
+═══════════════════════════════════════════════════════════════════════════════
+
+Matériel nécessaire pour ce contrôle :
+  ┌──────────────────────────────────────┬────────────────────────────────────┐
+  │ Désignation                          │ Référence / Calibration            │
+  ├──────────────────────────────────────┼────────────────────────────────────┤
+  │ Bras de mesure 3D Faro Arm 4 m       │ TOOL-FARO-001 — Calibr. 03/2026   │
+  │ Règle de précision 2 000 mm          │ TOOL-REG-2000                      │
+  │ Équerre de contrôle 500 mm           │ TOOL-EQU-500                       │
+  │ Jauge de profondeur 0–300 mm         │ TOOL-JAUGE-300                     │
+  │ Ruban d'acier 5 m                    │ TOOL-RUB-005                       │
+  │ Niveau laser rotatif                 │ TOOL-NIV-LASER-001                 │
+  └──────────────────────────────────────┴────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+4. MODE OPÉRATOIRE — SÉQUENCE DE CONTRÔLE
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 — MISE EN POSITION DE LA CAISSE
+  1.1  Positionner la caisse sur les appuis de contrôle (4 points de référence)
+  1.2  Vérifier la mise à niveau : écart maxi 2 mm sur la longueur totale
+  1.3  Renseigner le numéro de caisse sur la fiche de contrôle
+
+ÉTAPE 2 — CONTRÔLE DES COTES DE STRUCTURE
+  2.1  Longueur totale hors tout : 32 400 ± 5 mm
+  2.2  Largeur maximale (aux appuis de bogie) : 2 400 ± 3 mm
+  2.3  Hauteur de plancher (côte Z1) : 820 ± 2 mm
+  2.4  Entraxe des interfaces bogie avant / arrière : 14 200 ± 3 mm
+  2.5  Planéité du plancher : < 3 mm sur toute la surface
+
+ÉTAPE 3 — CONTRÔLE DES INTERFACES BOGIE
+  3.1  Mesurer les 8 perçages d'interface bogie au bras Faro
+  3.2  Position en X, Y, Z par rapport à l'origine plan : tolérance ± 1,5 mm
+  3.3  Diamètre des perçages : 32 +0,05 / 0 mm (calibre passage / non-passage)
+  3.4  Planéité des faces d'appui bogie : < 0,5 mm
+
+ÉTAPE 4 — CONTRÔLE DES BAIES DE PORTES
+  4.1  Contrôler les 4 baies de portes (2 par côté)
+  4.2  Largeur de baie : 1 300 ± 2 mm
+  4.3  Hauteur de baie : 2 100 ± 2 mm
+  4.4  Équerrage des angles : < 1 mm/m
+
+ÉTAPE 5 — CONTRÔLE DES BAIES DE VITRAGE
+  5.1  Vérifier les 12 emplacements de vitrage latéral
+  5.2  Largeur des baies de vitrage : selon plan P-T3000-VITR-002 ± 2 mm
+  5.3  Planéité du joint d'étanchéité : < 1 mm
+
+═══════════════════════════════════════════════════════════════════════════════
+5. CRITÈRES D'ACCEPTATION ET CONTRÔLE QUALITÉ
+═══════════════════════════════════════════════════════════════════════════════
+
+Toutes les cotes hors tolérance constituent une NON-CONFORMITÉ.
+
+STATUTS POSSIBLES :
+  ✅ CONFORME    — toutes les cotes dans les tolérances → poste suivant autorisé
+  ⚠️  DÉROGATION — cote hors tolérance mineure → avis ingénieur qualité requis
+  ❌ NON CONFORME — retour en reprise avant contrôle suivant
+
+Enregistrement obligatoire : FICHE-CQ-CAISSE-003 (traçabilité 10 ans, archivage SAP)
+
+═══════════════════════════════════════════════════════════════════════════════
+HISTORIQUE DES RÉVISIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+  Rev. 01 | 22/11/2025 | P. Lecomte | Création
