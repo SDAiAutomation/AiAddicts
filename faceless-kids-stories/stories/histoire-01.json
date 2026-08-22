@@ -1,0 +1,45 @@
+{
+  "title": "Le Petit Hibou Courageux",
+  "theme": "courage, amitié, forêt enchantée",
+  "voice_id": "REMPLACE_PAR_VOICE_ID_CELINE",
+  "aspect_ratio": "9:16",
+  "style_prompt": "3D animation style, Pixar/DreamWorks-inspired, soft cinematic lighting, warm and vibrant color palette, cute rounded character design, high detail, smooth textures, magical storybook atmosphere",
+  "blocks": [
+    {
+      "vo": "Dans la Forêt Enchantée, quand la nuit tombait, tous les animaux se cachaient... sauf un petit hibou nommé Hugo, qui avait très peur du noir.",
+      "visual": "A small round baby owl with big scared round eyes, perched in a tree hollow at dusk, glowing fireflies floating around, enchanted forest"
+    },
+    {
+      "vo": "Chaque soir, Hugo fermait les yeux très fort et attendait le matin, blotti contre son arbre, sans jamais oser voler.",
+      "visual": "Baby owl Hugo squeezing his eyes shut, wings wrapped tightly around himself, sitting alone on a mossy branch under a starry sky"
+    },
+    {
+      "vo": "Un soir, un petit lapin nommé Théo se perdit dans les bois sombres et se mit à pleurer doucement.",
+      "visual": "A small fluffy rabbit lost among tall dark trees, tears in its eyes, soft moonlight filtering through the leaves"
+    },
+    {
+      "vo": "Hugo entendit les pleurs de Théo au loin. Son petit cœur battait très fort, mais il pensa : je dois l'aider.",
+      "visual": "Close-up of owl Hugo's determined little face, one eye opening bravely, moonlight reflecting in his big eyes"
+    },
+    {
+      "vo": "Pour la toute première fois, Hugo ouvrit grand ses ailes et s'envola dans la nuit noire.",
+      "visual": "Baby owl Hugo spreading his wings wide and taking flight through the dark forest, soft glowing trail of light behind him"
+    },
+    {
+      "vo": "Il suivit les pleurs de Théo à travers les grands arbres, guidé par la douce lumière de la lune.",
+      "visual": "Owl flying gracefully between tall trees, gentle moonbeams lighting the path, magical glowing forest atmosphere"
+    },
+    {
+      "vo": "Hugo trouva enfin Théo, tremblant sous un buisson, et se posa tout doucement à côté de lui.",
+      "visual": "Owl landing gently next to a scared little rabbit under a bush, warm friendly expression, soft golden light"
+    },
+    {
+      "vo": "Ensemble, main dans la patte, ils retrouvèrent le chemin de la maison, guidés par les étoiles.",
+      "visual": "Owl and rabbit walking and flying together through the forest, following a sparkling trail of stars, joyful warm scene"
+    },
+    {
+      "vo": "Depuis ce soir-là, Hugo n'eut plus jamais peur du noir, car il avait découvert que le courage grandit quand on aide les autres.",
+      "visual": "Owl Hugo perched proudly on a branch under a beautiful starry sky, rabbit friend curled up nearby, warm heartwarming finale shot"
+    }
+  ]
+}

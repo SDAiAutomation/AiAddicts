@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+output/audio/*
+output/video_clips/*
+output/final/*
+output/tmp/
+!output/audio/.gitkeep
+!output/video_clips/.gitkeep
+!output/final/.gitkeep
