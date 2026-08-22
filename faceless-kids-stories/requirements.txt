@@ -1,1 +1,4 @@
 requests
+fastapi
+uvicorn[standard]
+httpx  # requis par fastapi.testclient pour les tests de l'API
