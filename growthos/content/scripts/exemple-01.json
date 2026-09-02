@@ -1,0 +1,16 @@
+{
+  "title": "L'erreur n°1 en prospection",
+  "niche": "coach-business",
+  "account": "test-account-01",
+  "voice_id": "REMPLACER_PAR_UN_VOICE_ID_ELEVENLABS",
+  "aspect_ratio": "9:16",
+  "cta": "Suivez pour un conseil business chaque semaine.",
+  "hashtags": ["#coachbusiness", "#prospection", "#consultantb2b", "#leadsgen"],
+  "blocks": [
+    {"role": "hook", "text": "Voici l'erreur numero un qui empeche vos prospects de vous faire confiance."},
+    {"role": "point", "text": "Vous parlez de vos services avant d'avoir prouve que vous comprenez leur probleme."},
+    {"role": "point", "text": "Un prospect qui ne se sent pas compris n'ecoute plus votre offre, meme si elle est excellente."},
+    {"role": "point", "text": "Commencez toujours par nommer sa situation exacte, avant de parler de la solution."},
+    {"role": "cta", "text": "Suivez pour un conseil business chaque semaine."}
+  ]
+}
