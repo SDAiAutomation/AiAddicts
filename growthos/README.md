@@ -13,7 +13,7 @@ Portée volontaire de ce cycle 1 (semaines 1-2 du plan "Résultats d'abord") :
 ```bash
 pip install -r requirements.txt
 # ffmpeg doit être installé sur la machine (apt install ffmpeg / brew install ffmpeg)
-cp .env.example .env   # puis renseigner ELEVENLABS_API_KEY
+cp .env.example .env   # puis renseigner ELEVENLABS_API_KEY et SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ## Lancer une génération
@@ -36,7 +36,40 @@ Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `ac
 
 ## Suivi hebdomadaire
 
-Après chaque publication réelle, ajouter une ligne dans `metrics/suivi-hebdo.csv` (6 métriques du plan "Résultats d'abord" : publications/semaine, vues moyennes, watch time, abonnés nets, engagement, leads). Pas de dashboard à ce stade, c'est la V0 volontairement plate — le Dashboard produit viendra une fois la boucle validée.
+Après chaque publication réelle, ajouter une ligne dans `metrics/suivi-hebdo.csv` (6 métriques du plan "Résultats d'abord" : publications/semaine, vues moyennes, watch time, abonnés nets, engagement, leads). Pas de dashboard à ce stade, c'est la V0 volontairement plate. Le Dashboard produit viendra une fois la boucle validée.
+
+## Base de données (Supabase)
+
+Projet Supabase dédié, séparé de tout autre projet : **growthos**, ref `lclesqfokgetznhepgmj`, région `eu-west-1`, plan gratuit.
+
+Schéma complet posé d'avance (comptes, rôles, tokens OAuth, stratégie vivante, pipeline de contenu, crédits, audit), pas seulement scripts + métriques :
+
+| Table | Rôle |
+|---|---|
+| `organizations` | tenant (workspace agence ou solopreneur), plan, solde de crédits |
+| `profiles` / `organization_members` | utilisateurs + rôle (`owner` / `strategist` / `editor` / `client_viewer`) |
+| `accounts` | comptes faceless (plateforme, niche, statut) |
+| `account_oauth_tokens` | tokens OAuth **chiffrés côté application** avant insertion (jamais en clair) |
+| `strategies` | stratégie vivante par compte (objectifs, audience, ton, score de maturité) |
+| `content_items` / `content_performance` | pipeline idée → script → vidéo → publié, et mesures par vidéo |
+| `insights` / `recommendations` | mémoire de compte (hooks/formats gagnants) et recommandations hebdo avec score de confiance |
+| `credits_ledger` | grand livre des crédits consommés |
+| `audit.events` | journal d'audit **append-only** (triggers qui bloquent tout UPDATE/DELETE, même en SQL direct) |
+
+Isolation multi-tenant : RLS activé sur toutes les tables, chaque politique passe par `organization_members` (fonctions `internal.current_user_org_ids()` / `internal.has_org_role()`, dans un schéma non exposé par l'API pour ne pas devenir un endpoint RPC public). Advisor sécurité Supabase : 0 alerte.
+
+Migrations SQL versionnées dans `supabase/migrations/` (déjà appliquées sur le projet hébergé). Pour rejouer sur un autre projet :
+
+```bash
+supabase link --project-ref lclesqfokgetznhepgmj
+supabase db push
+```
+
+Deux clés dans `.env` :
+- `SUPABASE_ANON_KEY` — publique par design (protégée par RLS), déjà dans `.env.example`.
+- `SUPABASE_SERVICE_ROLE_KEY` — secrète, **contourne RLS**, à récupérer sur le dashboard Supabase (Project Settings → API) et à garder strictement côté backend (écriture `audit.events`, ajustement de crédits, jobs).
+
+Rien dans le code Python n'utilise encore la base (le pipeline actuel reste sur `content/scripts/*.json` + `metrics/suivi-hebdo.csv`). `config.py` et `engine/db.py` posent la connexion (`get_client()` en anon/RLS, `get_service_client()` en service_role) pour le prochain cycle : brancher `content_items`/`content_performance` à la place des fichiers plats.
 
 ## Tests
 
