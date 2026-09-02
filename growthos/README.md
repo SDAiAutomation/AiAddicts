@@ -30,13 +30,23 @@ Produit, dans `output/<compte>-<titre>/` :
 4. `publish/caption.txt` — caption + hashtags prêts à copier-coller
 5. `publish/checklist.md` — checklist avant publication manuelle
 
+Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas encore, puis une ligne `content_items` (statut `video`, script complet en JSON, chemin de la vidéo). L'id du content_item s'affiche en fin de run, à réutiliser pour `log_metrics.py`.
+
 ## Écrire une nouvelle histoire
 
-Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `voice_id`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Voir `exemple-01.json`.
+Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `voice_id`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). `platform` (défaut `tiktok`) et `organization` (défaut `GrowthOS Dogfooding`) sont optionnels. Voir `exemple-01.json`.
 
 ## Suivi hebdomadaire
 
-Après chaque publication réelle, ajouter une ligne dans `metrics/suivi-hebdo.csv` (6 métriques du plan "Résultats d'abord" : publications/semaine, vues moyennes, watch time, abonnés nets, engagement, leads). Pas de dashboard à ce stade, c'est la V0 volontairement plate. Le Dashboard produit viendra une fois la boucle validée.
+Après chaque publication réelle, logger les métriques dans Supabase plutôt que dans un fichier :
+
+```bash
+python log_metrics.py <content_item_id> --mark-published \
+  --views 1200 --watch-time-pct 45.5 --likes 30 --comments 5 --shares 2 \
+  --followers-delta 8 --leads 3
+```
+
+`--mark-published` (seulement au premier log après la publication réelle) passe le `content_item` en statut `published`. Chaque appel ajoute une ligne dans `content_performance`, liée au `content_item`. Pas de dashboard à ce stade, c'est la V0 volontairement plate. Le Dashboard produit (§4.1 du design system) viendra une fois la boucle validée.
 
 ## Base de données (Supabase)
 
@@ -69,7 +79,7 @@ Deux clés dans `.env` :
 - `SUPABASE_ANON_KEY` — publique par design (protégée par RLS), déjà dans `.env.example`.
 - `SUPABASE_SERVICE_ROLE_KEY` — secrète, **contourne RLS**, à récupérer sur le dashboard Supabase (Project Settings → API) et à garder strictement côté backend (écriture `audit.events`, ajustement de crédits, jobs).
 
-Rien dans le code Python n'utilise encore la base (le pipeline actuel reste sur `content/scripts/*.json` + `metrics/suivi-hebdo.csv`). `config.py` et `engine/db.py` posent la connexion (`get_client()` en anon/RLS, `get_service_client()` en service_role) pour le prochain cycle : brancher `content_items`/`content_performance` à la place des fichiers plats.
+`config.py` et `engine/db.py` posent la connexion (`get_client()` en anon/RLS, `get_service_client()` en service_role). Le pipeline (`main.py` → `engine/assembler.py`) et `log_metrics.py` écrivent tous les deux via `get_service_client()` : ce sont des scripts lancés directement par le propriétaire du compte, il n'y a pas de session Supabase Auth à scoper en anon/RLS ici. `get_client()` est prêt pour le jour où une vraie interface (avec login) arrive.
 
 ## Tests
 
@@ -77,7 +87,7 @@ Rien dans le code Python n'utilise encore la base (le pipeline actuel reste sur 
 python -m unittest discover -s tests
 ```
 
-Aucun appel réseau ni ffmpeg dans les tests (logique pure : validation de script, timestamps SRT, CSV de métriques).
+Aucun appel réseau ni ffmpeg dans les tests (logique pure : validation de script, timestamps SRT, config Supabase). `engine/repo.py` (accès DB) n'est pas testé unitairement pour la même raison que `tts.py`/`video.py` : il ne fait rien d'autre que des appels réseau.
 
 ## Prochaines étapes
 

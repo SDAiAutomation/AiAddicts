@@ -3,7 +3,9 @@ import json
 from pathlib import Path
 
 ALLOWED_ROLES = {"hook", "point", "cta"}
+ALLOWED_PLATFORMS = {"tiktok", "instagram", "youtube"}  # matches the accounts table's check constraint
 REQUIRED_TOP_LEVEL = ("title", "niche", "account", "voice_id", "blocks")
+DEFAULT_ORGANIZATION = "GrowthOS Dogfooding"
 
 
 def load_script(path: str) -> dict:
@@ -11,6 +13,8 @@ def load_script(path: str) -> dict:
     validate_script(data)
     data.setdefault("aspect_ratio", "9:16")
     data.setdefault("hashtags", [])
+    data.setdefault("platform", "tiktok")
+    data.setdefault("organization", DEFAULT_ORGANIZATION)
     return data
 
 
@@ -18,6 +22,10 @@ def validate_script(data: dict) -> None:
     for field in REQUIRED_TOP_LEVEL:
         if not data.get(field):
             raise ValueError(f"champ requis manquant ou vide : '{field}'")
+
+    platform = data.get("platform")
+    if platform is not None and platform not in ALLOWED_PLATFORMS:
+        raise ValueError(f"'platform' invalide : '{platform}' (attendu : {sorted(ALLOWED_PLATFORMS)})")
 
     blocks = data["blocks"]
     if not isinstance(blocks, list) or not blocks:

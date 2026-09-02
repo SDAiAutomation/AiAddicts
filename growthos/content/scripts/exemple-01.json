@@ -2,6 +2,8 @@
   "title": "L'erreur n°1 en prospection",
   "niche": "coach-business",
   "account": "test-account-01",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
   "voice_id": "REMPLACER_PAR_UN_VOICE_ID_ELEVENLABS",
   "aspect_ratio": "9:16",
   "cta": "Suivez pour un conseil business chaque semaine.",

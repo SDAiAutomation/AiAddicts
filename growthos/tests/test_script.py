@@ -52,6 +52,14 @@ class TestValidateScript(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_script(data)
 
+    def test_invalid_platform_raises(self):
+        data = {**VALID, "platform": "facebook"}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_missing_platform_is_valid(self):
+        validate_script(VALID)  # platform is optional at validation time, defaulted on load
+
 
 class TestLoadScript(unittest.TestCase):
     def test_load_script_fills_defaults(self):
@@ -59,6 +67,8 @@ class TestLoadScript(unittest.TestCase):
         data = load_script(path)
         self.assertEqual(data["aspect_ratio"], "9:16")
         self.assertEqual(data["hashtags"], [])
+        self.assertEqual(data["platform"], "tiktok")
+        self.assertEqual(data["organization"], "GrowthOS Dogfooding")
 
 
 class TestSlug(unittest.TestCase):
