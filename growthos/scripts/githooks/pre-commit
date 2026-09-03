@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# GrowthOS secret guard — blocks committing a Supabase service_role key or an
+# ElevenLabs API key. Dependency-free (bash + coreutils, ships with Git for
+# Windows). Only inspects staged changes under growthos/.
+#
+# Install:  bash growthos/scripts/install-git-hooks.sh
+# Override: git commit --no-verify   (use only for a confirmed false positive)
+set -u
+
+PREFIX="growthos/"
+violations=0
+
+is_placeholder() {
+  printf '%s' "$1" | grep -qiE 'ta_cle_elevenlabs|remplacer|your[_-]|xxx+|<[a-z]|example|changeme|placeholder|^\.\.\.$'
+}
+
+jwt_is_service_role() {
+  # $1 = header.payload.signature — decode the payload, look for role=service_role
+  local payload b64 pad
+  payload=$(printf '%s' "$1" | cut -d. -f2)
+  b64=$(printf '%s' "$payload" | tr '_-' '/+')
+  pad=$(( ${#b64} % 4 ))
+  [ "$pad" -eq 2 ] && b64="${b64}=="
+  [ "$pad" -eq 3 ] && b64="${b64}="
+  printf '%s' "$b64" | base64 -d 2>/dev/null \
+    | grep -q '"role"[[:space:]]*:[[:space:]]*"service_role"'
+}
+
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+
+  case "$f" in
+    *"/.env"|"$PREFIX.env")
+      echo "  x $f — refus de committer un fichier .env"
+      violations=1
+      continue
+      ;;
+  esac
+
+  # added lines only (leading '+', minus the '+++ ' file header)
+  added=$(git diff --cached -U0 -- "$f" | sed -n 's/^+//p' | grep -v '^++ ' || true)
+  [ -n "$added" ] || continue
+
+  # 1. any JWT in the added lines whose payload decodes to a service_role token
+  while IFS= read -r tok; do
+    [ -n "$tok" ] || continue
+    if jwt_is_service_role "$tok"; then
+      echo "  x $f — cle Supabase service_role detectee (JWT role=service_role)"
+      violations=1
+    fi
+  done < <(printf '%s\n' "$added" \
+    | grep -oE 'eyJ[A-Za-z0-9_-]{6,}\.eyJ[A-Za-z0-9_-]{10,}' || true)
+
+  # 2. a populated SUPABASE_SERVICE_ROLE_KEY= / ELEVENLABS_API_KEY= assignment
+  while IFS= read -r line; do
+    key=$(printf '%s' "$line" | grep -oE 'SUPABASE_SERVICE_ROLE_KEY|ELEVENLABS_API_KEY')
+    val=$(printf '%s' "$line" | sed -E \
+      's/^[[:space:]]*(export[[:space:]]+)?(SUPABASE_SERVICE_ROLE_KEY|ELEVENLABS_API_KEY)[[:space:]]*=[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//')
+    [ -n "$val" ] || continue
+    is_placeholder "$val" && continue
+    echo "  x $f — affectation de secret renseignee ($key)"
+    violations=1
+  done < <(printf '%s\n' "$added" \
+    | grep -E '^[[:space:]]*(export[[:space:]]+)?(SUPABASE_SERVICE_ROLE_KEY|ELEVENLABS_API_KEY)[[:space:]]*=' || true)
+
+done < <(git diff --cached --name-only --diff-filter=ACM -- "$PREFIX")
+
+if [ "$violations" -ne 0 ]; then
+  echo ""
+  echo "Commit bloque par growthos/scripts/githooks/pre-commit."
+  echo "Faux positif confirme ? git commit --no-verify"
+  exit 1
+fi
+exit 0

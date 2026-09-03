@@ -60,6 +60,14 @@ class TestValidateScript(unittest.TestCase):
     def test_missing_platform_is_valid(self):
         validate_script(VALID)  # platform is optional at validation time, defaulted on load
 
+    def test_invalid_aspect_ratio_raises(self):
+        data = {**VALID, "aspect_ratio": "4:5"}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_missing_aspect_ratio_is_valid(self):
+        validate_script(VALID)  # optional at validation time, defaulted on load
+
 
 class TestLoadScript(unittest.TestCase):
     def test_load_script_fills_defaults(self):
@@ -78,6 +86,9 @@ class TestSlug(unittest.TestCase):
         self.assertNotIn("'", s)
         self.assertNotIn("°", s)
         self.assertTrue(s.startswith("test-account"))
+
+    def test_slug_falls_back_when_no_alphanumeric(self):
+        self.assertEqual(slug({"account": "!!!", "title": "??? °°°"}), "script")
 
 
 if __name__ == "__main__":

@@ -14,27 +14,50 @@ Portée volontaire de ce cycle 1 (semaines 1-2 du plan "Résultats d'abord") :
 pip install -r requirements.txt
 # ffmpeg doit être installé sur la machine (apt install ffmpeg / brew install ffmpeg)
 cp .env.example .env   # puis renseigner ELEVENLABS_API_KEY et SUPABASE_SERVICE_ROLE_KEY
+bash scripts/install-git-hooks.sh   # garde-fou anti-secret sur `git commit` (voir ci-dessous)
 ```
+
+Versions des dépendances épinglées (`==`) sur ce qui a été testé — les mettre à jour délibérément.
+
+### Garde-fou anti-secret
+
+`scripts/install-git-hooks.sh` pointe `core.hooksPath` sur `scripts/githooks/`. Le hook `pre-commit` (bash, sans dépendance) bloque tout commit touchant `growthos/` qui contient une clé Supabase `service_role` (JWT `role=service_role`), une `SUPABASE_SERVICE_ROLE_KEY` / `ELEVENLABS_API_KEY` renseignée, ou un fichier `.env`. Faux positif confirmé : `git commit --no-verify`. Désactiver : `git config --unset core.hooksPath`.
 
 ## Lancer une génération
 
 ```bash
 python main.py content/scripts/exemple-01.json
+python main.py content/scripts/exemple-01.json --voice 21m00Tcm4TlvDq8ikWAM
 ```
+
+### Choix de la voix
+
+Résolue à la génération, premier élément renseigné l'emporte :
+
+1. l'option `--voice <id>` (pratique pour tester deux voix sur le même script)
+2. le champ `voice_id` du script (optionnel)
+3. `config/voices.json`, indexé par la `niche` du script — c'est le « choix selon le topic »
+4. la clé `default` de `config/voices.json`
+
+Pas de sélecteur interactif : le pipeline reste scriptable/batchable. Renseigne au moins la clé `default` (ou une entrée par niche) dans `config/voices.json` avec un ID copié depuis ElevenLabs → My Voices. La ligne `content_items` enregistre la voix réellement utilisée.
 
 Produit, dans `output/<compte>-<titre>/` :
 
-1. `audio/` — un mp3 par bloc + la voix off complète assemblée
+1. `audio/` — un mp3 par bloc + `full.wav` (voix off complète, assemblée sans blancs entre blocs)
 2. `captions.srt` — sous-titres synchronisés sur la durée réelle de chaque bloc
 3. `final/*.mp4` — vidéo finale (fond uni + sous-titres brûlés)
 4. `publish/caption.txt` — caption + hashtags prêts à copier-coller
-5. `publish/checklist.md` — checklist avant publication manuelle
+5. `publish/checklist.md` — checklist avant publication manuelle (avec la commande `log_metrics.py` pré-remplie)
+
+Relancer sur le même script est peu coûteux : les blocs audio et la vidéo finale déjà
+présents dans `output/<slug>/` sont réutilisés. Supprime ce dossier pour forcer une
+reconstruction propre (par ex. après avoir modifié le texte du script).
 
 Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas encore, puis une ligne `content_items` (statut `video`, script complet en JSON, chemin de la vidéo). L'id du content_item s'affiche en fin de run, à réutiliser pour `log_metrics.py`.
 
 ## Écrire une nouvelle histoire
 
-Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `voice_id`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). `platform` (défaut `tiktok`) et `organization` (défaut `GrowthOS Dogfooding`) sont optionnels. Voir `exemple-01.json`.
+Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Optionnels : `platform` (défaut `tiktok`), `organization` (défaut `GrowthOS Dogfooding`), `aspect_ratio` (`9:16` / `1:1` / `16:9`, défaut `9:16`), `voice_id` (sinon résolu via `--voice` ou `config/voices.json`, cf. plus haut). Voir `exemple-01.json`.
 
 ## Suivi hebdomadaire
 

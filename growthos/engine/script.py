@@ -4,7 +4,10 @@ from pathlib import Path
 
 ALLOWED_ROLES = {"hook", "point", "cta"}
 ALLOWED_PLATFORMS = {"tiktok", "instagram", "youtube"}  # matches the accounts table's check constraint
-REQUIRED_TOP_LEVEL = ("title", "niche", "account", "voice_id", "blocks")
+ALLOWED_ASPECT_RATIOS = {"9:16", "1:1", "16:9"}  # matches engine.video.RESOLUTIONS
+# `voice_id` is resolved at generation time (--voice > script > config/voices.json),
+# see engine/voices.py — so it is not required in the script file itself.
+REQUIRED_TOP_LEVEL = ("title", "niche", "account", "blocks")
 DEFAULT_ORGANIZATION = "GrowthOS Dogfooding"
 
 
@@ -27,6 +30,12 @@ def validate_script(data: dict) -> None:
     if platform is not None and platform not in ALLOWED_PLATFORMS:
         raise ValueError(f"'platform' invalide : '{platform}' (attendu : {sorted(ALLOWED_PLATFORMS)})")
 
+    aspect_ratio = data.get("aspect_ratio")
+    if aspect_ratio is not None and aspect_ratio not in ALLOWED_ASPECT_RATIOS:
+        raise ValueError(
+            f"'aspect_ratio' invalide : '{aspect_ratio}' (attendu : {sorted(ALLOWED_ASPECT_RATIOS)})"
+        )
+
     blocks = data["blocks"]
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("'blocks' doit être une liste non vide")
@@ -48,4 +57,6 @@ def slug(data: dict) -> str:
     out = "".join(keep)
     while "--" in out:
         out = out.replace("--", "-")
-    return out.strip("-")
+    # Fallback si title + account ne contiennent aucun caractère alphanumérique :
+    # sans ça on écrirait directement dans output/ à la racine.
+    return out.strip("-") or "script"

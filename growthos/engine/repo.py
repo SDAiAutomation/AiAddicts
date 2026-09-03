@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 
 
 def get_or_create_organization(client, name: str) -> str:
+    # `organizations.name` has no unique constraint on purpose (two real tenants
+    # can share a workspace name), so this stays a select-then-insert rather than
+    # an upsert. Fine for the single-user dogfooding CLI running sequentially.
     existing = client.table("organizations").select("id").eq("name", name).limit(1).execute()
     if existing.data:
         return existing.data[0]["id"]
@@ -16,25 +19,19 @@ def get_or_create_organization(client, name: str) -> str:
     return created.data[0]["id"]
 
 
-def get_or_create_account(client, organization_id: str, platform: str, handle: str, niche: str | None) -> str:
-    existing = (
+def get_or_create_account(client, organization_id: str, platform: str, handle: str, niche: str | None = None) -> str:
+    # Idempotent on the accounts (organization_id, platform, handle) unique
+    # constraint. `niche` is only sent when set, so re-running a script that
+    # omits it never wipes an existing value.
+    payload = {"organization_id": organization_id, "platform": platform, "handle": handle}
+    if niche:
+        payload["niche"] = niche
+    row = (
         client.table("accounts")
-        .select("id")
-        .eq("organization_id", organization_id)
-        .eq("platform", platform)
-        .eq("handle", handle)
-        .limit(1)
+        .upsert(payload, on_conflict="organization_id,platform,handle")
         .execute()
     )
-    if existing.data:
-        return existing.data[0]["id"]
-    created = client.table("accounts").insert({
-        "organization_id": organization_id,
-        "platform": platform,
-        "handle": handle,
-        "niche": niche,
-    }).execute()
-    return created.data[0]["id"]
+    return row.data[0]["id"]
 
 
 def create_content_item(client, account_id: str, title: str, status: str, script: dict, video_url: str | None = None) -> str:

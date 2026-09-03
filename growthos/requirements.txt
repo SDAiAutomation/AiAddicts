@@ -1,3 +1,5 @@
-requests>=2.31
-python-dotenv>=1.0
-supabase>=2.9
+# Versions épinglées sur ce qui a été testé (voir README §Tests + smoke test vidéo).
+# Mettre à jour délibérément, pas au fil de l'eau.
+requests==2.34.2
+python-dotenv==1.2.3
+supabase==2.31.0

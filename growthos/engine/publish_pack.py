@@ -17,8 +17,8 @@ def build_caption(script: dict) -> str:
     return "\n\n".join(parts)
 
 
-def build_checklist(script: dict, video_path: str) -> str:
-    return "\n".join([
+def build_checklist(script: dict, video_path: str, content_item_id: str | None = None) -> str:
+    lines = [
         f"# Checklist de publication : {script['title']}",
         "",
         f"- [ ] Compte cible : {script['account']}",
@@ -26,11 +26,22 @@ def build_checklist(script: dict, video_path: str) -> str:
         "- [ ] Captions lisibles sans le son (relire à l'écran)",
         "- [ ] Caption et hashtags copiés depuis caption.txt",
         "- [ ] Horaire de publication choisi",
-        "- [ ] Ligne ajoutée dans metrics/suivi-hebdo.csv après publication",
-    ])
+    ]
+    if content_item_id:
+        lines.append(
+            "- [ ] Après publication : "
+            f"`python log_metrics.py {content_item_id} --mark-published --views N --leads N`"
+        )
+    else:
+        lines.append(
+            "- [ ] Après publication : logguer les métriques dans Supabase (`log_metrics.py`)"
+        )
+    return "\n".join(lines)
 
 
-def write_pack(script: dict, video_path: str, out_dir: str) -> dict:
+def write_pack(
+    script: dict, video_path: str, out_dir: str, content_item_id: str | None = None
+) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -38,6 +49,8 @@ def write_pack(script: dict, video_path: str, out_dir: str) -> dict:
     checklist_path = out_dir / "checklist.md"
 
     caption_path.write_text(build_caption(script), encoding="utf-8")
-    checklist_path.write_text(build_checklist(script, video_path), encoding="utf-8")
+    checklist_path.write_text(
+        build_checklist(script, video_path, content_item_id), encoding="utf-8"
+    )
 
     return {"caption": str(caption_path), "checklist": str(checklist_path)}

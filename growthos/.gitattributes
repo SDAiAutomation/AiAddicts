@@ -1,0 +1,4 @@
+# Hook + shell scripts must stay LF even when checked out on Windows,
+# otherwise a trailing CR breaks the shebang line.
+scripts/githooks/* text eol=lf
+scripts/*.sh       text eol=lf
