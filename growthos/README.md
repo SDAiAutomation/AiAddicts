@@ -91,6 +91,16 @@ Schéma complet posé d'avance (comptes, rôles, tokens OAuth, stratégie vivant
 
 Isolation multi-tenant : RLS activé sur toutes les tables, chaque politique passe par `organization_members` (fonctions `internal.current_user_org_ids()` / `internal.has_org_role()`, dans un schéma non exposé par l'API pour ne pas devenir un endpoint RPC public). Advisor sécurité Supabase : 0 alerte.
 
+Le pipeline écrit via `service_role` (contourne RLS) et ne crée jamais de `profiles` / `organization_members`. Le jour où une vraie auth arrive, un utilisateur connecté ne verrait rien tant qu'il n'est pas rattaché. Une fois inscrit dans Supabase Auth, le relier aux organisations existantes :
+
+```bash
+python scripts/backfill_membership.py --list                 # état actuel
+python scripts/backfill_membership.py --email moi@x.com --dry-run
+python scripts/backfill_membership.py --email moi@x.com       # crée profiles + organization_members (owner) pour les orgs orphelines
+```
+
+`content_items` / `content_performance` n'ont pas de colonne `organization_id` : leur RLS résout l'org via `account_id → accounts.organization_id`.
+
 Migrations SQL versionnées dans `supabase/migrations/` (déjà appliquées sur le projet hébergé). Pour rejouer sur un autre projet :
 
 ```bash

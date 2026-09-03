@@ -5,8 +5,10 @@ metadata:
   type: project
 ---
 
-Issues found reviewing GrowthOS on 2026-09-03. Items 1-4 + 6 were fixed the same day
-on branch `claude/project-feedback-scs61n` (not yet committed / PR'd as of writing).
+Issues found reviewing GrowthOS on 2026-09-03. Items 1-4 + 6 fixed the same day.
+Committed as `bdcdfcf` and pushed to branch **`growthos/mvp`** (renamed from
+`claude/project-feedback-scs61n`). GrowthOS lives on its own branch — no PR, not
+merged into the FI Validator's `claude/fi-validator-rag-ksdjI`.
 
 1. **[FIXED]** ffmpeg subtitles path broke on Windows — `engine/video.py` `render_final()` now runs ffmpeg with `cwd` set to the `.srt` folder and references it by bare name, plus a `_run()` helper that surfaces ffmpeg stderr and a clear "install ffmpeg" message.
 2. **[FIXED]** Stale checklist — `engine/publish_pack.build_checklist()` now emits the `log_metrics.py <id> --mark-published` command instead of referencing the removed `metrics/suivi-hebdo.csv`. `write_pack()` / `build_checklist()` take an optional `content_item_id`; `assembler.run()` reordered so the Supabase write happens before the pack.
@@ -28,5 +30,5 @@ Security review of the branch (2026-09-03, `/security-review`): **0 exploitable 
 Still open (need a product decision, not a code fix):
 - `audit.events` is a headline schema feature but **nothing ever writes to it** — every pipeline run / metric log is an unaudited service_role mutation.
 - Schema (8 migrations, ~10 tables, RLS everywhere) is far ahead of the code, which touches only 4 tables, always via service_role. `profiles`, `organization_members`, `strategies`, `insights`, `recommendations`, `credits_ledger`, `account_oauth_tokens` are unused.
-- `content_items` rows have no `organization_id` and `get_or_create_organization` creates orgs with no `organization_members` row → once auth/RLS is live, all dogfooding data is invisible and needs a backfill.
+- Auth linkage: `get_or_create_organization` creates orgs with no `organization_members` row → once auth/RLS is live a signed-in user sees nothing until linked. **Addressed:** `growthos/scripts/backfill_membership.py` (`--list` / `--email X --dry-run` / `--email X`) creates the `profiles` + `organization_members` (owner) rows for orphan orgs once the user exists in Supabase Auth. `content_items`/`content_performance` need no `organization_id` column — RLS resolves via `account_id → accounts.organization_id`.
 - Monorepo: growthos shares git history with the FI Validator RAG (repo root) and faceless-kids-stories; consider splitting it out once the loop is validated.
