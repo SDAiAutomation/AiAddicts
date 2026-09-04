@@ -59,6 +59,27 @@ Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas
 
 Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Optionnels : `platform` (défaut `tiktok`), `organization` (défaut `GrowthOS Dogfooding`), `aspect_ratio` (`9:16` / `1:1` / `16:9`, défaut `9:16`), `voice_id` (sinon résolu via `--voice` ou `config/voices.json`, cf. plus haut). Voir `exemple-01.json`.
 
+## Worker (file de génération depuis le front)
+
+`growthos-web` (repo séparé, Next.js) ne peut pas lancer ElevenLabs/ffmpeg
+depuis Vercel : quand on clique « Générer la vidéo » sur un script, le front
+se contente de passer le `content_item` en `status='queued'` (le script JSON
+est déjà dedans, construit au même schéma que `content/scripts/*.json`).
+`worker.py`, lancé à côté (poste de travail ou petit serveur avec ffmpeg),
+poll cette file, réclame un job (`status='generating'`), génère, puis remet
+`status='video'` ou `status='failed'` + `error`.
+
+```bash
+python worker.py                # boucle, poll toutes les 10s
+python worker.py --interval 5   # poll plus serré
+python worker.py --once         # traite au plus un job puis s'arrête (cron externe)
+```
+
+Réutilise le même moteur que `main.py` (`engine/assembler.run_for_content_item`) :
+mêmes réutilisations de fichiers déjà générés, même résolution de voix. Différence
+avec le CLI : le compte existe déjà (créé via le front), pas de `get_or_create`
+organisation/compte, juste une mise à jour de la ligne `content_items` existante.
+
 ## Suivi hebdomadaire
 
 Après chaque publication réelle, logger les métriques dans Supabase plutôt que dans un fichier :

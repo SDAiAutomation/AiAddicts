@@ -14,14 +14,16 @@ def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
-def run(script_path: str, output_root: str = "output", voice_override: str | None = None) -> dict:
-    data = script_module.load_script(script_path)
+def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple[str, Path]:
+    """Étapes 1-4, communes aux deux points d'entrée : script -> voix off ->
+    assemblage -> vidéo finale sous-titrée. Mute `data` (ajoute `voice_id`
+    quand une voix est résolue). Retourne (chemin vidéo finale, dossier de travail)."""
     slug = script_module.slug(data)
     work_dir = Path(output_root) / slug
     api_key = os.environ.get("ELEVENLABS_API_KEY")
 
     n_blocks = len(data["blocks"])
-    print(f"[1/6] Script chargé : {data['title']} ({n_blocks} blocs)")
+    print(f"[1/4] Script chargé : {data['title']} ({n_blocks} blocs)")
 
     final_path = work_dir / "final" / f"{slug}.mp4"
     srt_path = work_dir / "captions.srt"
@@ -30,37 +32,48 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
         # Chemin de re-run le moins cher : la vidéo finale et ses sous-titres
         # sont déjà là, on ne retouche ni ElevenLabs ni ffmpeg. Supprime
         # output/<slug>/ pour forcer une reconstruction (script modifié).
-        print("[2-4/6] Vidéo finale + sous-titres déjà présents — réutilisés")
-        final_video = str(final_path)
-    else:
-        voice_id = voices.resolve_voice(data, voice_override)
-        data["voice_id"] = voice_id  # la ligne content_items reflète la voix réellement utilisée
-        audio_paths, timed_blocks = [], []
-        for i, block in enumerate(data["blocks"], start=1):
-            audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
-            if _exists_nonempty(audio_path):
-                print(f"[2/6] Voix off {i}/{n_blocks} — fichier existant réutilisé")
-            else:
-                print(f"[2/6] Voix off {i}/{n_blocks} (voix {voice_id})…")
-                tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
-            duration = tts.get_duration_seconds(str(audio_path))
-            audio_paths.append(str(audio_path))
-            timed_blocks.append((block["text"], duration))
+        print("[2-4/4] Vidéo finale + sous-titres déjà présents — réutilisés")
+        return str(final_path), work_dir
 
-        print("[3/6] Assemblage audio + sous-titres…")
-        full_wav = work_dir / "audio" / "full.wav"
-        if _exists_nonempty(full_wav):
-            print("       piste audio complète existante réutilisée")
-            full_audio = str(full_wav)
+    voice_id = voices.resolve_voice(data, voice_override)
+    data["voice_id"] = voice_id  # la ligne content_items reflète la voix réellement utilisée
+    audio_paths, timed_blocks = [], []
+    for i, block in enumerate(data["blocks"], start=1):
+        audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
+        if _exists_nonempty(audio_path):
+            print(f"[2/4] Voix off {i}/{n_blocks} — fichier existant réutilisé")
         else:
-            full_audio = video.concat_audio(audio_paths, str(full_wav))
-        cues = captions.build_cues(timed_blocks)
-        srt_file = captions.write_srt(cues, str(srt_path))
+            print(f"[2/4] Voix off {i}/{n_blocks} (voix {voice_id})…")
+            tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
+        duration = tts.get_duration_seconds(str(audio_path))
+        audio_paths.append(str(audio_path))
+        timed_blocks.append((block["text"], duration))
 
-        print("[4/6] Rendu vidéo finale…")
-        final_video = video.render_final(
-            full_audio, srt_file, str(final_path), aspect_ratio=data["aspect_ratio"],
-        )
+    print("[3/4] Assemblage audio + sous-titres…")
+    full_wav = work_dir / "audio" / "full.wav"
+    if _exists_nonempty(full_wav):
+        print("       piste audio complète existante réutilisée")
+        full_audio = str(full_wav)
+    else:
+        full_audio = video.concat_audio(audio_paths, str(full_wav))
+    cues = captions.build_cues(timed_blocks)
+    srt_file = captions.write_srt(cues, str(srt_path))
+
+    print("[4/4] Rendu vidéo finale…")
+    final_video = video.render_final(
+        full_audio, srt_file, str(final_path), aspect_ratio=data["aspect_ratio"],
+    )
+    return final_video, work_dir
+
+
+def run(script_path: str, output_root: str = "output", voice_override: str | None = None) -> dict:
+    """Point d'entrée CLI (main.py) : script.json -> nouveau content_item.
+
+    Crée l'organisation/le compte au besoin (get_or_create) — adapté à un
+    opérateur qui lance le pipeline à la main, pas à un item déjà en base.
+    """
+    data = script_module.load_script(script_path)
+    final_video, work_dir = _generate(data, output_root, voice_override)
 
     print("[5/6] Enregistrement dans Supabase…")
     client = db.get_service_client()
@@ -86,4 +99,30 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
         f"  python log_metrics.py {content_item_id} --mark-published --views N --leads N ..."
     )
 
+    return {"video": final_video, "content_item_id": content_item_id, **pack}
+
+
+def run_for_content_item(content_item_id: str, output_root: str = "output") -> dict:
+    """Point d'entrée worker.py : génère la vidéo d'un content_item déjà en
+    base (créé par le front en status='queued', script déjà construit —
+    voir growthos-web `content/actions.ts` `buildScript()`). Le compte existe
+    déjà : pas de get_or_create, juste une mise à jour de la ligne existante.
+    """
+    client = db.get_service_client()
+    data = repo.get_script(client, content_item_id)
+    script_module.validate_script(data)
+    data.setdefault("aspect_ratio", "9:16")
+    data.setdefault("hashtags", [])
+    data.setdefault("platform", "tiktok")
+    data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
+
+    final_video, work_dir = _generate(data, output_root, voice_override=None)
+
+    repo.update_content_item(
+        client, content_item_id, status="video", script=data, video_url=final_video, error=None
+    )
+
+    pack = publish_pack.write_pack(
+        data, final_video, str(work_dir / "publish"), content_item_id
+    )
     return {"video": final_video, "content_item_id": content_item_id, **pack}

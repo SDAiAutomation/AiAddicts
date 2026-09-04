@@ -42,6 +42,58 @@ def create_content_item(client, account_id: str, title: str, status: str, script
     return created.data[0]["id"]
 
 
+def get_script(client, content_item_id: str) -> dict:
+    row = (
+        client.table("content_items").select("script").eq("id", content_item_id).single().execute()
+    )
+    script = row.data["script"]
+    if not script:
+        raise ValueError(f"content_item {content_item_id} n'a pas de script (rien à générer)")
+    return script
+
+
+def claim_queued_item(client) -> dict | None:
+    """Réclame le plus ancien content_item en file (status='queued') pour un
+    worker : le fait passer à 'generating' avec un update conditionné au
+    statut encore 'queued', pour rester correct si deux workers tournent en
+    parallèle (le second, arrivé après, ne récupère aucune ligne). Retourne
+    la ligne réclamée ({id, script}) ou None si la file est vide."""
+    queued = (
+        client.table("content_items")
+        .select("id, script")
+        .eq("status", "queued")
+        .order("created_at")
+        .limit(1)
+        .execute()
+    )
+    if not queued.data:
+        return None
+
+    item = queued.data[0]
+    claimed = (
+        client.table("content_items")
+        .update({"status": "generating"})
+        .eq("id", item["id"])
+        .eq("status", "queued")
+        .execute()
+    )
+    if not claimed.data:
+        return None  # un autre worker l'a pris entre-temps
+    return item
+
+
+def update_content_item(client, content_item_id: str, **fields) -> None:
+    client.table("content_items").update(fields).eq("id", content_item_id).execute()
+
+
+def mark_failed(client, content_item_id: str, error: str) -> None:
+    # Colonne `error` en text, pas de limite stricte côté DB, mais on borne
+    # quand même — pas la peine de stocker une trace complète en base.
+    client.table("content_items").update(
+        {"status": "failed", "error": error[:2000]}
+    ).eq("id", content_item_id).execute()
+
+
 def mark_published(client, content_item_id: str) -> None:
     client.table("content_items").update({
         "status": "published",
