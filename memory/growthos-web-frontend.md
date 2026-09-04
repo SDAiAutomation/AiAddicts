@@ -1,6 +1,6 @@
 ---
 name: growthos-web-frontend
-description: GrowthOS frontend — separate repo growthos-web, Next.js + Supabase, started 2026-09-03
+description: Faceloop (ex-GrowthOS) frontend — separate repo growthos-web, Next.js + Supabase, started 2026-09-03, deployed to Vercel 2026-09-04
 metadata:
   type: project
 ---
@@ -69,12 +69,26 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 **Stockage vidéo (Supabase Storage) : FAIT, voir [[growthos-known-issues]]** — `video_url` est maintenant une vraie URL publique. Le rendu conditionnel déjà en place dans `content/[id]/page.tsx` (lien cliquable si `video_url` commence par `http`, sinon texte brut) marche donc directement, aucun changement front nécessaire.
 
+### Déploiement Vercel + rebrand Faceloop (2026-09-04, soir)
+
+**Déployé en production** : https://growthos-web-jade.vercel.app (projet Vercel `growthos-web`, équipe `sdaiautomations-projects`, `prj_mG4NWiauIA7NhLtU3Heil0358LQm`). Trajet chaotique — à retenir pour la prochaine fois :
+- `create_git_project` (MCP Vercel) a échoué au premier essai (repo privé, app GitHub Vercel pas encore autorisée sur `growthos-web` — l'utilisateur a dû l'ajouter manuellement dans github.com/settings/installations). Après ça, le connecteur Vercel est resté **incohérent toute la session** (`list_projects`/`get_project` renvoient 404 alors que `create_git_project` dit 409 « existe déjà », `list_deployments` 403) — jamais fiable pour lire l'état, seul `curl` direct sur l'URL publique a donné des réponses fiables.
+- Cause du 500 initial : variables d'env `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` — le préfixe `NEXT_PUBLIC_` n'est pas optionnel (l'utilisateur l'a d'abord retiré en pensant qu'il gênait, "Vercel veut pas le public"). Type de variable : **Config**, jamais **Secret** (une var `NEXT_PUBLIC_*` finit de toute façon dans le bundle client, "Secret" n'a pas de sens dessus).
+- Cause du 500 persistant après correction : **build cache réutilisé** — le Middleware (Edge runtime, bundle compilé séparément) gardait l'ancienne version sans les vars même après un redeploy classique. Fix : Deployments → (...) → Redeploy → **décocher "Use existing Build Cache"**.
+- Le webhook Git auto-deploy a été instable (des push n'ont pas déclenché de build) puis s'est remis à marcher tout seul après un "Promote to Production" manuel — pas d'explication claire, à surveiller sur les prochains push.
+- **Toujours pas de domaine custom connecté** — juste l'URL Vercel par défaut.
+
+**Rebrand GrowthOS → Faceloop (`4c2ce31`)** : nom de domaine choisi par l'utilisateur = **faceloop.app** (growthos.* trop pris). Renommé partout dans le texte visible (wordmark "F", titres de pages, landing, CGU/Confidentialité, design-system.md). Volontairement **pas renommé** : repo GitHub / `package.json` / projet Vercel (`growthos-web`) — risque de re-casser la liaison Git déjà fragile ce soir. Nom de l'org Supabase de dogfooding (« GrowthOS Dogfooding ») pas touché non plus (donnée pipeline, pas une marque affichée). Vérifié en ligne après déploiement : titre, eyebrow "Faceless Content OS", wordmark F, liens CGU/Confidentialité — tous présents sur le site en prod.
+
+**Reste à faire pour le domaine** : l'utilisateur doit acheter `faceloop.app` (registrar au choix), puis l'ajouter dans Vercel → Project Settings → Domains → Add. Pas fait cette session.
+
 ### Prochaine session
-1. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, le repère de progression, le lien vidéo maintenant cliquable. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
-2. Débloquer Google OAuth (config user Google Cloud) + tester.
-3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
-4. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable — actuellement un chemin local à la machine du worker.
+1. **Connecter faceloop.app** une fois acheté (Vercel → Domains → Add), + éventuellement renommer le projet Vercel / repo GitHub à ce moment-là si l'utilisateur le souhaite (attention : ça a été très fragile ce soir, prévoir du temps).
+2. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, dark mode. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
+3. Débloquer Google OAuth (config user Google Cloud) + tester.
+4. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
 5. Boucle de recommandations IA (table `recommendations`/`insights` existe, rien ne l'alimente) — décision produit à prendre (quel modèle, quel déclencheur) avant de coder.
+6. **TikTok Content Posting API** : prérequis (CGU/Confidentialité + déploiement public) maintenant réunis. Reste : l'utilisateur crée le compte développeur TikTok + enregistre l'app, puis Claude code le flux OAuth (Login Kit) + l'appel de publication (schéma `account_oauth_tokens` déjà en place côté DB).
 
 Phase suivante : 3 = quality gate + recommandations.
 
