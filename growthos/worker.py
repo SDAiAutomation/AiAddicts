@@ -37,7 +37,7 @@ def process_one(client) -> bool:
     print(f"\n=== Génération {content_item_id} ===")
     try:
         result = assembler.run_for_content_item(content_item_id)
-        print(f"=== OK {content_item_id} : {result['video']} ===")
+        print(f"=== OK {content_item_id} : {result['video_url']} ===")
     except Exception as exc:
         print(f"=== ÉCHEC {content_item_id} : {exc} ===")
         traceback.print_exc()

@@ -53,7 +53,7 @@ Relancer sur le même script est peu coûteux : les blocs audio et la vidéo fin
 présents dans `output/<slug>/` sont réutilisés. Supprime ce dossier pour forcer une
 reconstruction propre (par ex. après avoir modifié le texte du script).
 
-Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas encore, puis une ligne `content_items` (statut `video`, script complet en JSON, chemin de la vidéo). L'id du content_item s'affiche en fin de run, à réutiliser pour `log_metrics.py`.
+Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas encore, puis une ligne `content_items` (statut `video`, script complet en JSON). La vidéo finale est aussi uploadée vers le bucket Storage public `content-videos` (`engine/storage.py`) — `video_url` devient cette URL publique plutôt qu'un chemin local (si l'upload échoue, on retombe silencieusement sur le chemin local, le run n'échoue pas pour autant). L'id du content_item s'affiche en fin de run, à réutiliser pour `log_metrics.py`.
 
 ## Écrire une nouvelle histoire
 
@@ -95,6 +95,8 @@ python log_metrics.py <content_item_id> --mark-published \
 ## Base de données (Supabase)
 
 Projet Supabase dédié, séparé de tout autre projet : **growthos**, ref `lclesqfokgetznhepgmj`, région `eu-west-1`, plan gratuit.
+
+Storage : bucket public `content-videos` (une vidéo = `<content_item_id>.mp4`, upsert à la régénération). Public en lecture (URL directe, pas de signature), écriture réservée à `service_role` — RLS par défaut = deny, aucune policy `storage.objects` à écrire puisque seul le worker (service_role) y touche.
 
 Schéma complet posé d'avance (comptes, rôles, tokens OAuth, stratégie vivante, pipeline de contenu, crédits, audit), pas seulement scripts + métriques :
 

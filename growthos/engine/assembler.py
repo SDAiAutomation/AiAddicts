@@ -8,7 +8,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import captions, db, publish_pack, repo, script as script_module, tts, video, voices
+from . import captions, db, publish_pack, repo, script as script_module, storage, tts, video, voices
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
 # en parallèle réduisent le temps total de "somme des blocs" à ~"bloc le plus
@@ -78,6 +78,21 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     return final_video, work_dir
 
 
+def _publish_video(client, content_item_id: str, local_path: str) -> str:
+    """Upload la vidéo rendue vers Supabase Storage (bucket `content-videos`,
+    public) pour que `video_url` soit une vraie URL partageable plutôt qu'un
+    chemin local à la machine du worker. En cas d'échec (bucket absent,
+    réseau…), retombe sur le chemin local plutôt que de faire échouer tout
+    le run — la vidéo existe bel et bien, juste pas partageable."""
+    try:
+        url = storage.upload_video(client, content_item_id, local_path)
+        print(f"       vidéo uploadée : {url}")
+        return url
+    except Exception as exc:
+        print(f"       upload Supabase Storage échoué ({exc}) — video_url reste le chemin local")
+        return local_path
+
+
 def run(script_path: str, output_root: str = "output", voice_override: str | None = None) -> dict:
     """Point d'entrée CLI (main.py) : script.json -> nouveau content_item.
 
@@ -96,13 +111,17 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     content_item_id = repo.create_content_item(
         client, account_id, data["title"], status="video", script=data, video_url=final_video
     )
+    video_url = _publish_video(client, content_item_id, final_video)
+    if video_url != final_video:
+        repo.update_content_item(client, content_item_id, video_url=video_url)
 
     print("[6/6] Package de publication…")
     pack = publish_pack.write_pack(
         data, final_video, str(work_dir / "publish"), content_item_id
     )
 
-    print(f"\nTerminé. Vidéo : {final_video}")
+    print(f"\nTerminé. Vidéo (fichier local) : {final_video}")
+    print(f"Vidéo (URL partagée) : {video_url}")
     print(f"Caption prête : {pack['caption']}")
     print(f"Checklist : {pack['checklist']}")
     print(f"content_item : {content_item_id}")
@@ -111,7 +130,7 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
         f"  python log_metrics.py {content_item_id} --mark-published --views N --leads N ..."
     )
 
-    return {"video": final_video, "content_item_id": content_item_id, **pack}
+    return {"video": final_video, "video_url": video_url, "content_item_id": content_item_id, **pack}
 
 
 def run_for_content_item(content_item_id: str, output_root: str = "output") -> dict:
@@ -129,12 +148,13 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
 
     final_video, work_dir = _generate(data, output_root, voice_override=None)
+    video_url = _publish_video(client, content_item_id, final_video)
 
     repo.update_content_item(
-        client, content_item_id, status="video", script=data, video_url=final_video, error=None
+        client, content_item_id, status="video", script=data, video_url=video_url, error=None
     )
 
     pack = publish_pack.write_pack(
         data, final_video, str(work_dir / "publish"), content_item_id
     )
-    return {"video": final_video, "content_item_id": content_item_id, **pack}
+    return {"video": final_video, "video_url": video_url, "content_item_id": content_item_id, **pack}
