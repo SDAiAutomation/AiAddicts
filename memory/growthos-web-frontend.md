@@ -51,14 +51,13 @@ Flux : front insère/passe un `content_item` en `status='queued'` (le script JSO
 
 Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/generate-section.tsx`) visible si `status` = `script`/`failed` (refuse si 0 bloc). Pendant `queued`/`generating` : carte d'attente qui s'auto-rafraîchit (`router.refresh()` toutes les 4s — **pas de Realtime configuré exprès**, `supabase_realtime` n'a aucune table publiée sur ce projet ; le polling suffit à l'échelle dogfooding, à reconsidérer si plusieurs utilisateurs simultanés). `video_url` affiché en lien cliquable seulement s'il commence par `http` — sinon (chemin local de la machine qui a fait tourner `worker.py`) affiché en texte : **pas de stockage/upload de la vidéo rendue**, c'est le prochain trou à combler si on veut que d'autres que l'opérateur du worker voient la vidéo.
 
-**À faire avant usage réel** : un vrai smoke test bout-en-bout (créer un compte + un script via l'UI → Générer → lancer `python worker.py --once` → vérifier le statut/la vidéo). Pas fait cette session, coûte un vrai appel ElevenLabs.
+**Smoke test bout-en-bout : FAIT et réussi (2026-09-04)**, directement en base (pas via l'UI, extension navigateur toujours indisponible) : content_item test inséré en `status='queued'` sur le compte `test-account-01` (org GrowthOS Dogfooding), `python worker.py --once` exécuté réellement (vrai appel ElevenLabs + ffmpeg). Résultat : `status='video'`, `video_url` renseigné, `error` null, `voice_id` résolu (`IHngRooVccHyPqB4uQkG` via la niche `coach-business`), fichiers produits corrects (2 mp3 + full.wav + mp4 64 Ko + caption.txt + checklist.md avec le bon `content_item_id`). Nettoyé après coup (ligne supprimée, dossier `output/test-account-01-smoke-test-worker-phase-2/` effacé — `output/` est gitignore, aucun commit à défaire). **Le chemin worker.py → assembler.run_for_content_item() → repo est donc validé de bout en bout.** Reste non testé : le déclenchement depuis l'UI elle-même (bouton « Générer »), bloqué par l'extension navigateur.
 
 ### Prochaine session
-1. **Smoke test Phase 2 réel** (worker.py + un vrai run ElevenLabs/ffmpeg) — accord explicite avant de dépenser du crédit ElevenLabs.
-2. **Tester Phase 1 + landing au navigateur** (créer compte → stratégie → script → vérifier RLS + rendu). Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
-3. Débloquer Google OAuth (config user Google Cloud) + tester.
-4. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
-5. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable.
+1. **Tester Phase 1 + landing + bouton Générer au navigateur** (créer compte → stratégie → script → cliquer Générer → suivre le statut). Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
+2. Débloquer Google OAuth (config user Google Cloud) + tester.
+3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
+4. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable — actuellement un chemin local à la machine du worker.
 
 Phase suivante : 3 = quality gate + recommandations.
 
