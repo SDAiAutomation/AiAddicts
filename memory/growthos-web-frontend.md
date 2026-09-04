@@ -53,11 +53,18 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 **Smoke test bout-en-bout : FAIT et réussi (2026-09-04)**, directement en base (pas via l'UI, extension navigateur toujours indisponible) : content_item test inséré en `status='queued'` sur le compte `test-account-01` (org GrowthOS Dogfooding), `python worker.py --once` exécuté réellement (vrai appel ElevenLabs + ffmpeg). Résultat : `status='video'`, `video_url` renseigné, `error` null, `voice_id` résolu (`IHngRooVccHyPqB4uQkG` via la niche `coach-business`), fichiers produits corrects (2 mp3 + full.wav + mp4 64 Ko + caption.txt + checklist.md avec le bon `content_item_id`). Nettoyé après coup (ligne supprimée, dossier `output/test-account-01-smoke-test-worker-phase-2/` effacé — `output/` est gitignore, aucun commit à défaire). **Le chemin worker.py → assembler.run_for_content_item() → repo est donc validé de bout en bout.** Reste non testé : le déclenchement depuis l'UI elle-même (bouton « Générer »), bloqué par l'extension navigateur.
 
+### Publication + Analytics (2026-09-04, `d948c84`) — CODÉ, pas testé navigateur
+
+Équivalent front de `log_metrics.py` : `content/actions.ts` `markPublished()` (video/quality_check → published, `published_at`=now) et `logPerformance()` (insert `content_performance`, refuse si aucune métrique renseignée). Sur `/content/[id]` : `publication-section.tsx` — carte « Marquer comme publié » puis, une fois publié, formulaire de relevé (vues/rétention/likes/commentaires/partages/abonnés/leads) + historique repliable (replié par défaut si >3 relevés).
+
+`/analytics` remplace le placeholder « Bientôt » (nav dé-badgée `soon`) : KPIs (contenus publiés, vues cumulées, rétention moyenne, engagement cumulé, leads) + table « Top performances » (dernier relevé par contenu publié, triée par vues, lien vers le détail). Recommandations IA toujours explicitement hors scope — pas de décision produit prise sur ce qui les générerait.
+
 ### Prochaine session
-1. **Tester Phase 1 + landing + bouton Générer au navigateur** (créer compte → stratégie → script → cliquer Générer → suivre le statut). Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
+1. **Tester au navigateur** : Phase 1 (CRUD), bouton Générer, marquer publié + logger des métriques, page Analytics. Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
 2. Débloquer Google OAuth (config user Google Cloud) + tester.
 3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
 4. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable — actuellement un chemin local à la machine du worker.
+5. Boucle de recommandations IA (table `recommendations`/`insights` existe, rien ne l'alimente) — décision produit à prendre (quel modèle, quel déclencheur) avant de coder.
 
 Phase suivante : 3 = quality gate + recommandations.
 
