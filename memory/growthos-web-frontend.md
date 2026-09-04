@@ -121,27 +121,28 @@ Vérifié en prod après déploiement : les 6 headers présents sur `/`, `X-Powe
 
 `/security-review` sur `AiAddicts` (branche `growthos/mvp`) ne couvre que `growthos/` (pipeline Python, repo différent de `growthos-web`) — 0 finding à confiance ≥8. Relu `growthos-web` à la main en plus (hors périmètre mécanique du skill mais dans l'esprit de la demande de l'utilisateur) : **open redirect trouvé et corrigé** — `login/actions.ts` faisait `redirect(next.startsWith("/") ? next : "/dashboard")`, or `"//evil.com"` passe ce test (URL protocol-relative → le navigateur résout vers `https://evil.com`). `lib/safe-redirect-target.ts` (nouveau, exclut aussi le préfixe `//`) appliqué aux 3 endroits qui acceptent un `next` (`login/actions.ts` — la seule vraiment exploitable ; `auth/callback` et `auth/confirm` préfixaient déjà `${origin}` donc étaient déjà sûrs, corrigés par cohérence).
 
-### Bug connexion → redirige vers localhost (2026-09-04, soir tardif — DIAGNOSTIQUÉ, pas corrigé)
+### Bug connexion → redirige vers localhost (2026-09-04 diagnostiqué → 2026-09-05 CORRIGÉ par l'utilisateur)
 
-Signalé par l'utilisateur : en essayant de se connecter / confirmer son email sur le site en prod, il est renvoyé vers `localhost`. **Ce n'est pas un bug de code** — `emailRedirectTo` est déjà construit dynamiquement depuis l'origine de la requête (`login/actions.ts`, `signup/actions.ts`), pas codé en dur. Cause réelle : config du dashboard Supabase Auth (`https://supabase.com/dashboard/project/lclesqfokgetznhepgmj/auth/url-configuration`) — **« Site URL »** est probablement encore sur `http://localhost:3210` (valeur par défaut jamais changée depuis le début du projet, avant même que Vercel existe) et/ou **« Redirect URLs »** ne contient pas `https://www.faceloop.app/**`. Supabase envoie les liens de confirmation email en résolvant contre le Site URL configuré côté dashboard, pas contre l'origine réelle de la requête qui a déclenché l'inscription — d'où le lien localhost même en prod. Pas d'outil MCP pour changer ça directement (le MCP Supabase n'expose pas la config Auth) → action manuelle utilisateur requise.
+Signalé par l'utilisateur le 2026-09-04 : en essayant de se connecter / confirmer son email sur le site en prod, il était renvoyé vers `localhost`. Pas un bug de code — `emailRedirectTo` est déjà construit dynamiquement depuis l'origine de la requête. Cause : config du dashboard Supabase Auth (Site URL / Redirect URLs encore sur localhost). **Corrigé par l'utilisateur le 2026-09-05** (Site URL + Redirect URLs mis à jour côté dashboard). Pas re-testé par Claude (extension navigateur toujours indisponible) — à confirmer par un vrai essai de connexion si un doute survient.
 
-**Correctif à faire (utilisateur, dashboard)** : sur la page ci-dessus, mettre Site URL = `https://www.faceloop.app` et ajouter `https://www.faceloop.app/**` dans Redirect URLs (garder aussi `http://localhost:3210/**` pour continuer à dev en local). Toute demande de confirmation email envoyée AVANT ce fix contient un lien localhost mort — il faudra soit renvoyer l'email de confirmation (ou se réinscrire) une fois corrigé, soit repasser temporairement « Confirm email » à OFF pour contourner le temps de tester (déjà proposé une fois, jamais activé).
+### Domaine + variables Vercel (2026-09-05)
 
-### Prochaine session — TODO propre (2026-09-04, fin de session)
+**`faceloop.app` connecté** — vérifié en direct : `https://faceloop.app/` redirige (307) vers `https://www.faceloop.app/` en HTTP 200, avec les en-têtes de sécurité (CSP/HSTS/X-Frame-Options) présents dessus → c'est bien le bon déploiement qui répond sur le domaine custom, pas un résidu de l'ancienne URL `growthos-web-jade.vercel.app`.
 
-**Priorité haute — bloque l'usage réel de l'app :**
-1. **Fixer la config Supabase Auth Site URL/Redirect URLs** (voir juste au-dessus) — sans ça, personne ne peut se connecter/s'inscrire en prod. Le plus urgent des trois points ci-dessous.
-2. **Ajouter les 3 variables d'env Stripe/service-role sur Vercel** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, type **Secret**) + redeploy **sans build cache** (piège déjà rencontré 2× ce soir). Sans ça le webhook Stripe en prod (`we_1UC4Lo2WuBCHDAgtxeyQIPhc`) ne fait rien.
-3. **Rotation de la clé Stripe live exposée par erreur dans le chat** (`sk_live_51UC2xP2Wu...`) — dashboard.stripe.com/apikeys → Roll key. Pas fait, à ne pas oublier (argent réel en jeu si quelqu'un d'autre l'a vue).
+**Variables Stripe/service-role posées sur Vercel** — vérifié indirectement : `POST /api/webhooks/stripe` sans signature valide renvoie `400` (vérification de signature qui s'exécute correctement) plutôt qu'un `500` (crash au démarrage si `STRIPE_WEBHOOK_SECRET`/`STRIPE_SECRET_KEY` manquaient). Cohérent avec des variables bien chargées. **Pas encore vérifié à 100%** : la confirmation définitive viendra du premier vrai paiement test bout-en-bout (checkout → webhook → org mise à jour en base) — à faire à l'occasion.
+
+### Prochaine session — TODO propre (mise à jour 2026-09-05)
+
+**Restant, priorité haute :**
+1. **Rotation de la clé Stripe live exposée par erreur dans le chat** (`sk_live_51UC2xP2Wu...`) — dashboard.stripe.com/apikeys → Roll key. Toujours pas faite, à ne pas oublier (argent réel en jeu si quelqu'un d'autre l'a vue).
 
 **Priorité normale :**
-4. **Connecter faceloop.app** une fois acheté (Vercel → Domains → Add), + éventuellement renommer le projet Vercel / repo GitHub à ce moment-là si l'utilisateur le souhaite (attention : ça a été très fragile ce soir, prévoir du temps).
-5. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, dark mode, **parcours Stripe complet une fois les vars posées** (carte test 4242 4242 4242 4242). Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples cette session.
-6. Débloquer Google OAuth (config user Google Cloud, `redirect_uri_mismatch` — ancien point, statut non reconfirmé) + tester.
-7. **Quota d'usage** (150 vidéos/mois Pro, 10 Starter) toujours pas fait respecter techniquement côté génération — juste affiché en façade. À implémenter avant tout lancement commercial réel.
-8. `robots.txt`/`sitemap.xml` réels (`src/app/robots.ts`/`sitemap.ts`) — le fix middleware de ce soir empêche juste qu'ils cassent une fois créés, ne les crée pas. Si le SEO devient une priorité.
-9. Boucle de recommandations IA (table `recommendations`/`insights` existe, rien ne l'alimente) — décision produit à prendre (quel modèle, quel déclencheur) avant de coder.
-10. **TikTok Content Posting API** : prérequis (CGU/Confidentialité + déploiement public) réunis. Reste : l'utilisateur crée le compte développeur TikTok + enregistre l'app, puis Claude code le flux OAuth (Login Kit) + l'appel de publication (schéma `account_oauth_tokens` déjà en place côté DB).
+2. **Test bout-en-bout réel** : inscription/connexion (vérifier que le fix Supabase Auth marche vraiment), CRUD comptes/scripts, bouton Générer, marquer publié + logger des métriques, page Analytics, dark mode, **parcours Stripe complet avec carte test 4242 4242 4242 4242** (confirme définitivement les vars d'env + le webhook). Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
+3. Débloquer Google OAuth (config user Google Cloud, `redirect_uri_mismatch` — ancien point, statut non reconfirmé) + tester.
+4. **Quota d'usage** (150 vidéos/mois Pro, 10 Starter) toujours pas fait respecter techniquement côté génération — juste affiché en façade. À implémenter avant tout lancement commercial réel.
+5. `robots.txt`/`sitemap.xml` réels (`src/app/robots.ts`/`sitemap.ts`) — le fix middleware empêche juste qu'ils cassent une fois créés, ne les crée pas. Si le SEO devient une priorité.
+6. Boucle de recommandations IA (table `recommendations`/`insights` existe, rien ne l'alimente) — décision produit à prendre (quel modèle, quel déclencheur) avant de coder.
+7. **TikTok Content Posting API** : prérequis (CGU/Confidentialité + déploiement public) réunis. Reste : l'utilisateur crée le compte développeur TikTok + enregistre l'app, puis Claude code le flux OAuth (Login Kit) + l'appel de publication (schéma `account_oauth_tokens` déjà en place côté DB).
 
 Phase suivante (pipeline) : 3 = quality gate + recommandations.
 
