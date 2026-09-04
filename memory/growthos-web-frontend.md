@@ -28,13 +28,25 @@ Stack : Next.js 16 (App Router, Turbopack), React 19, TS, Tailwind v4, `@supabas
 
 Users Supabase : `sdaiautomation@gmail.com` (owner « GrowthOS Dogfooding », uid `8b5223cb-…`, créé à la main + backfill) et `sdaiautomation+dogfood1@gmail.com` (« Test Dogfood — workspace », créé via /signup, non confirmé). Note : l'utilisateur a été **déconnecté** pendant le test OAuth — il devra se reconnecter.
 
-**Polish repéré, pas fait** : bouton « Replier » sidebar chevauché par le badge dev Next.js ; contenu dashboard un peu décalé (passer en aligné-gauche vs `max-w-5xl` centré) ; `.gitattributes` sur growthos-web pour le bruit CRLF.
+**Polish repéré, pas fait** : bouton « Replier » sidebar chevauché par le badge dev Next.js ; contenu dashboard un peu décalé (passer en aligné-gauche vs `max-w-5xl` centré). `.gitattributes` : **fait** (commit `f32b043`, `* text=auto eol=lf`).
+
+### État au 2026-09-04 (HEAD `growthos-web` = `f32b043`)
+
+**Phase 1 — CRUD comptes / stratégies / scripts : CODÉ, buildé, lint+tsc OK. Pas encore testé navigateur** (extension Claude-in-Chrome non connectée cette session). Commit `af42d02`. Livré :
+- **Primitives** : `src/lib/org.ts` (`requireOrg()` → org courante = 1re appartenance la plus ancienne + `orgName` + `role` + `userId` ; helpers `canManageAccounts` = owner/strategist, `canManageContent` = +editor, `isOwner`). `src/components/ui/form.tsx` (`Field`, `TextInput`/`TextArea`/`Select`, `SubmitButton` via `useFormStatus`, `FormError`, export `fieldClass`). `src/components/ui/badge.tsx` (`Badge` + maps `CONTENT_STATUS`/`ACCOUNT_STATUS`). `PageHeader.description` accepte un `ReactNode`.
+- **Comptes** : liste cliquable (compte contenus + badge stratégie), `/accounts/new`, `/accounts/[id]` (détail : méta + carte stratégie + contenus rattachés + zone dangereuse), `/accounts/[id]/edit`. Actions dans `accounts/actions.ts` (`createAccount`/`updateAccount`/`deleteAccount` — gérées par RLS, gating rôle en plus ; gère 23505 handle dupliqué). Suppression = bouton avec confirmation inline (pas de `window.confirm`).
+- **Stratégie** (1:1 compte) : `/accounts/[id]/strategy`, `saveStrategy` = **upsert on `account_id`**. `objectives`/`audience` stockés `{ notes: string }`, `priority_formats` = `string[]` (split virgule/newline, max 12), `maturity_score` clampé 0-100.
+- **Scripts** (`content_items`) : `/content/new` (+ `?account=<id>` pré-rempli), `/content/[id]`, `/content/[id]/edit`. Éditeur de blocs client (`blocks-editor.tsx` : rôle hook/point/cta + textarea, add/remove/monter/descendre, sérialisé en hidden `blocks_json`). `content/actions.ts` `buildScript()` construit le JSON **au schéma attendu par `engine/script.load_script`** (`title, niche, account`=handle, `organization`=nom, `platform, aspect_ratio, cta, hashtags[], blocks[]`) et le pose dans `content_items.script`. Statut = `idea` si 0 bloc sinon `script` ; `updateScript` ne rétrograde jamais un contenu déjà `video`/`quality_check`/`published`/`queued`/`generating`.
+- Command palette : + « Nouveau script » / « Nouveau compte ». Dashboard : liens « Nouveau script » → `/content/new`.
+
+Note schéma : `content_items.status` sur le projet hébergé n'accepte **toujours pas** `queued`/`generating` (check = idea/script/video/quality_check/published/failed) → migration Phase 2 encore à faire. Données hébergées au 2026-09-04 : org « GrowthOS Dogfooding » (1 compte, 1 contenu, owner `sdaiautomation@gmail.com`), org « Test Dogfood — workspace » (vide).
 
 ### Prochaine session
-1. Débloquer Google OAuth (config user) + tester.
-2. Éventuellement passer « Confirm email » OFF.
-3. **Phase 1** : CRUD comptes / stratégies / scripts (formulaires, écriture RLS rôles owner/strategist).
+1. **Tester Phase 1 au navigateur** (créer compte → stratégie → script → vérifier RLS + rendu). Nécessite login utilisateur.
+2. Débloquer Google OAuth (config user Google Cloud) + tester.
+3. Éventuellement passer « Confirm email » OFF.
+4. Polish repéré ci-dessus.
 
-Phases suivantes : 2 = file de jobs + `worker.py` + bouton Générer · 3 = quality gate + recommandations.
+Phases suivantes : 2 = migration statut `queued`/`generating` + colonnes `error`/`requested_by` + `worker.py` (dans `AiAddicts/growthos/`) + bouton Générer · 3 = quality gate + recommandations.
 
 Pipeline Python : voir [[active-project-growthos]]. Périmètre produit cible : voir [[blotato-product-reference]].
