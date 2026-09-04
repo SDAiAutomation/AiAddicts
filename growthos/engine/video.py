@@ -1,8 +1,11 @@
-"""Render the final text-card video: plain background + burned captions + voiceover.
+"""Render the final video: per-block visuals + burned captions + voiceover.
 
-MVP deliberately skips AI-generated visuals (fal.ai / Wan 2.2 etc.): a solid
-background with burned captions is enough to validate the growth loop on a
-real account at near-zero cost, per the "resultats d'abord" dogfooding plan.
+Chaque bloc a son propre clip silencieux de la durée de sa voix off — une
+photo Pexels avec un effet Ken Burns (zoom lent) si `visuals.fetch_block_images`
+en a trouvé une, sinon un fond couleur unie (comportement d'origine du MVP,
+conservé comme repli : pas de PEXELS_API_KEY -> pas de visuel -> ça marche
+quand même). Les clips sont concaténés, sous-titrés et mixés avec l'audio en
+une dernière passe.
 """
 import os
 import subprocess
@@ -15,6 +18,7 @@ RESOLUTIONS = {
 }
 
 DEFAULT_BG = "0x0F172A"  # matches the GrowthOS design system's dark surface
+DEFAULT_FPS = 25
 
 # libass substitue silencieusement une police par défaut si celle-ci est absente
 # (cas d'un serveur/CI Linux sans Arial) ; surchargeable via SUBTITLE_FONT.
@@ -57,21 +61,93 @@ def concat_audio(audio_paths: list[str], out_path: str) -> str:
     return out_path
 
 
+def _exists_nonempty(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
+def _render_block_clip(
+    image_path: str | None,
+    duration: float,
+    out_path: str,
+    resolution: str,
+    bg_color: str,
+    fps: int,
+) -> str:
+    """Un clip silencieux pour un bloc : Ken Burns sur `image_path` si fourni
+    (image plein cadre, léger zoom continu), sinon fond couleur unie."""
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    n_frames = max(1, round(duration * fps))
+
+    if image_path:
+        # Sur-cadre puis crop à la résolution cible avant le zoom : sinon le
+        # zoompan révèle les bords de l'image source dès qu'il recadre.
+        vf = (
+            f"scale={resolution}:force_original_aspect_ratio=increase,"
+            f"crop={resolution.replace('x', ':')},"
+            f"zoompan=z='min(zoom+0.0015,1.2)':d={n_frames}:s={resolution}:fps={fps},"
+            "format=yuv420p"
+        )
+        _run(
+            [
+                "ffmpeg", "-y",
+                "-loop", "1", "-i", str(Path(image_path).resolve()),
+                "-t", f"{duration:.3f}",
+                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-an",
+                str(out.resolve()),
+            ]
+        )
+    else:
+        _run(
+            [
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", f"color=c={bg_color}:s={resolution}:r={fps}",
+                "-t", f"{duration:.3f}", "-pix_fmt", "yuv420p", "-c:v", "libx264",
+                # Fond fixe, aucun mouvement réel : tuning x264 dédié.
+                "-tune", "stillimage", "-an",
+                str(out.resolve()),
+            ]
+        )
+    return out_path
+
+
 def render_final(
     audio_path: str,
     srt_path: str,
     out_path: str,
+    durations: list[float],
+    image_paths: list[str | None] | None = None,
     aspect_ratio: str = "9:16",
     bg_color: str = DEFAULT_BG,
     font: str | None = None,
+    fps: int = DEFAULT_FPS,
 ) -> str:
+    """`durations` = durée (s) de chaque bloc, dans l'ordre — sert à caler un
+    clip par bloc sur sa voix off. `image_paths` (même longueur, ou None pour
+    tout en fond uni) = image locale par bloc, ou None pour ce bloc précis
+    (repli fond uni, jamais bloquant)."""
     resolution = RESOLUTIONS.get(aspect_ratio, RESOLUTIONS["9:16"])
     font = font or os.environ.get("SUBTITLE_FONT") or DEFAULT_FONT
+    image_paths = image_paths or [None] * len(durations)
 
     srt = Path(srt_path)
     audio_abs = Path(audio_path).resolve()
     out_abs = Path(out_path).resolve()
     out_abs.parent.mkdir(parents=True, exist_ok=True)
+    clips_dir = srt.parent / "clips"
+
+    clip_names = []
+    for i, (image_path, duration) in enumerate(zip(image_paths, durations), start=1):
+        clip_path = clips_dir / f"block-{i:02d}.mp4"
+        if not _exists_nonempty(clip_path):
+            _render_block_clip(image_path, duration, str(clip_path), resolution, bg_color, fps)
+        clip_names.append(clip_path.name)
+
+    # Le demuxer concat résout les chemins de la liste relativement au
+    # dossier de la liste elle-même (vérifié) — noms de fichiers bruts, tous
+    # dans clips_dir, aucune ambiguïté.
+    list_path = clips_dir / "list.txt"
+    list_path.write_text("\n".join(f"file '{name}'" for name in clip_names), encoding="utf-8")
 
     # burn subtitles: white text, semi-bold, centered lower third
     style = (
@@ -79,23 +155,19 @@ def render_final(
         "OutlineColour=&H00000000,BorderStyle=1,Outline=2,"
         "Alignment=2,MarginV=140"
     )
-    # Reference the .srt by bare name with cwd set to its folder: the ffmpeg
-    # `subtitles` filter mis-parses Windows drive letters (C:\) and backslashes
-    # when they appear in the filename argument.
+    # Reference the .srt (et la liste concat) par chemin relatif avec cwd sur
+    # work_dir : le filtre `subtitles` d'ffmpeg mal-parse les lettres de
+    # lecteur Windows (C:\) et les antislashs dans un argument de filtre.
     subtitles_filter = f"subtitles={srt.name}:force_style='{style}'"
 
     _run(
         [
             "ffmpeg", "-y",
-            "-f", "lavfi", "-i", f"color=c={bg_color}:s={resolution}",
+            "-f", "concat", "-safe", "0", "-i", str(Path("clips") / "list.txt"),
             "-i", str(audio_abs),
             "-vf", subtitles_filter,
-            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            # Fond uni fixe : quasiment aucun mouvement à encoder, seuls les
-            # sous-titres changent d'une frame à l'autre. `stillimage` est le
-            # tuning x264 prévu pour ce cas ; `veryfast` accélère nettement
-            # l'encodage sans perte de qualité perceptible sur ce contenu.
-            "-preset", "veryfast", "-tune", "stillimage",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast",
             "-c:a", "aac", "-shortest",
             str(out_abs),
         ],

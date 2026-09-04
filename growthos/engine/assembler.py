@@ -8,7 +8,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import captions, db, publish_pack, repo, script as script_module, storage, tts, video, voices
+from . import captions, db, publish_pack, repo, script as script_module, storage, tts, video, visuals, voices
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
 # en parallèle réduisent le temps total de "somme des blocs" à ~"bloc le plus
@@ -27,9 +27,10 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     slug = script_module.slug(data)
     work_dir = Path(output_root) / slug
     api_key = os.environ.get("ELEVENLABS_API_KEY")
+    pexels_key = os.environ.get("PEXELS_API_KEY")
 
     n_blocks = len(data["blocks"])
-    print(f"[1/4] Script chargé : {data['title']} ({n_blocks} blocs)")
+    print(f"[1/5] Script chargé : {data['title']} ({n_blocks} blocs)")
 
     final_path = work_dir / "final" / f"{slug}.mp4"
     srt_path = work_dir / "captions.srt"
@@ -38,7 +39,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
         # Chemin de re-run le moins cher : la vidéo finale et ses sous-titres
         # sont déjà là, on ne retouche ni ElevenLabs ni ffmpeg. Supprime
         # output/<slug>/ pour forcer une reconstruction (script modifié).
-        print("[2-4/4] Vidéo finale + sous-titres déjà présents — réutilisés")
+        print("[2-5/5] Vidéo finale + sous-titres déjà présents — réutilisés")
         return str(final_path), work_dir
 
     voice_id = voices.resolve_voice(data, voice_override)
@@ -47,9 +48,9 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     def _synthesize_block(i: int, block: dict) -> tuple[str, float]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
         if _exists_nonempty(audio_path):
-            print(f"[2/4] Voix off {i}/{n_blocks} — fichier existant réutilisé")
+            print(f"[2/5] Voix off {i}/{n_blocks} — fichier existant réutilisé")
         else:
-            print(f"[2/4] Voix off {i}/{n_blocks} (voix {voice_id})…")
+            print(f"[2/5] Voix off {i}/{n_blocks} (voix {voice_id})…")
             tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
         return str(audio_path), tts.get_duration_seconds(str(audio_path))
 
@@ -59,9 +60,18 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
         results = list(pool.map(_synthesize_block, range(1, n_blocks + 1), data["blocks"]))
 
     audio_paths = [path for path, _duration in results]
-    timed_blocks = [(block["text"], duration) for block, (_path, duration) in zip(data["blocks"], results)]
+    durations = [duration for _path, duration in results]
+    timed_blocks = [(block["text"], duration) for block, duration in zip(data["blocks"], durations)]
 
-    print("[3/4] Assemblage audio + sous-titres…")
+    print(f"[3/5] Visuels ({'Pexels' if pexels_key else 'fond uni — pas de PEXELS_API_KEY'})…")
+    image_paths = visuals.fetch_block_images(
+        data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key
+    )
+    found = sum(1 for p in image_paths if p)
+    if pexels_key:
+        print(f"       {found}/{n_blocks} image(s) trouvée(s), le reste en fond uni")
+
+    print("[4/5] Assemblage audio + sous-titres…")
     full_wav = work_dir / "audio" / "full.wav"
     if _exists_nonempty(full_wav):
         print("       piste audio complète existante réutilisée")
@@ -71,9 +81,10 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     cues = captions.build_cues(timed_blocks)
     srt_file = captions.write_srt(cues, str(srt_path))
 
-    print("[4/4] Rendu vidéo finale…")
+    print("[5/5] Rendu vidéo finale…")
     final_video = video.render_final(
-        full_audio, srt_file, str(final_path), aspect_ratio=data["aspect_ratio"],
+        full_audio, srt_file, str(final_path), durations,
+        image_paths=image_paths, aspect_ratio=data["aspect_ratio"],
     )
     return final_video, work_dir
 
