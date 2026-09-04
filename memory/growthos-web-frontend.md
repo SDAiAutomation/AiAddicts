@@ -131,18 +131,18 @@ Signalé par l'utilisateur le 2026-09-04 : en essayant de se connecter / confirm
 
 **Variables Stripe/service-role posées sur Vercel** — vérifié indirectement : `POST /api/webhooks/stripe` sans signature valide renvoie `400` (vérification de signature qui s'exécute correctement) plutôt qu'un `500` (crash au démarrage si `STRIPE_WEBHOOK_SECRET`/`STRIPE_SECRET_KEY` manquaient). Cohérent avec des variables bien chargées. **Pas encore vérifié à 100%** : la confirmation définitive viendra du premier vrai paiement test bout-en-bout (checkout → webhook → org mise à jour en base) — à faire à l'occasion.
 
+**Clé Stripe live rotée par l'utilisateur (2026-09-05)** — la `sk_live_51UC2xP2Wu...` exposée par erreur dans le chat le 2026-09-04 a été régénérée (dashboard.stripe.com/apikeys → Roll key). L'ancienne clé est donc invalide si quelqu'un l'avait récupérée. Pas de changement pour le fonctionnement actuel de l'app : elle tourne toujours en mode test (`sk_test_...`), la clé live n'est utilisée nulle part dans le code pour l'instant — cette rotation ne sera à répercuter dans `.env.local`/Vercel qu'au moment de vraiment passer l'app en mode live (facturation réelle), pas avant.
+
 ### Prochaine session — TODO propre (mise à jour 2026-09-05)
 
-**Restant, priorité haute :**
-1. **Rotation de la clé Stripe live exposée par erreur dans le chat** (`sk_live_51UC2xP2Wu...`) — dashboard.stripe.com/apikeys → Roll key. Toujours pas faite, à ne pas oublier (argent réel en jeu si quelqu'un d'autre l'a vue).
-
-**Priorité normale :**
-2. **Test bout-en-bout réel** : inscription/connexion (vérifier que le fix Supabase Auth marche vraiment), CRUD comptes/scripts, bouton Générer, marquer publié + logger des métriques, page Analytics, dark mode, **parcours Stripe complet avec carte test 4242 4242 4242 4242** (confirme définitivement les vars d'env + le webhook). Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
-3. Débloquer Google OAuth (config user Google Cloud, `redirect_uri_mismatch` — ancien point, statut non reconfirmé) + tester.
-4. **Quota d'usage** (150 vidéos/mois Pro, 10 Starter) toujours pas fait respecter techniquement côté génération — juste affiché en façade. À implémenter avant tout lancement commercial réel.
-5. `robots.txt`/`sitemap.xml` réels (`src/app/robots.ts`/`sitemap.ts`) — le fix middleware empêche juste qu'ils cassent une fois créés, ne les crée pas. Si le SEO devient une priorité.
-6. Boucle de recommandations IA (table `recommendations`/`insights` existe, rien ne l'alimente) — décision produit à prendre (quel modèle, quel déclencheur) avant de coder.
-7. **TikTok Content Posting API** : prérequis (CGU/Confidentialité + déploiement public) réunis. Reste : l'utilisateur crée le compte développeur TikTok + enregistre l'app, puis Claude code le flux OAuth (Login Kit) + l'appel de publication (schéma `account_oauth_tokens` déjà en place côté DB).
+Plus aucun point bloquant connu. Priorité normale, dans un ordre logique :
+1. **Test bout-en-bout réel** : inscription/connexion (vérifier que le fix Supabase Auth marche vraiment), CRUD comptes/scripts, bouton Générer, marquer publié + logger des métriques, page Analytics, dark mode, **parcours Stripe complet avec carte test 4242 4242 4242 4242** (confirme définitivement les vars d'env + le webhook). Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
+2. Débloquer Google OAuth (config user Google Cloud, `redirect_uri_mismatch` — ancien point, statut non reconfirmé) + tester.
+3. **Quota d'usage** (150 vidéos/mois Pro, 10 Starter) toujours pas fait respecter techniquement côté génération — juste affiché en façade. À implémenter avant tout lancement commercial réel.
+4. `robots.txt`/`sitemap.xml` réels (`src/app/robots.ts`/`sitemap.ts`) — le fix middleware empêche juste qu'ils cassent une fois créés, ne les crée pas. Si le SEO devient une priorité.
+5. Boucle de recommandations IA (table `recommendations`/`insights` existe, rien ne l'alimente) — décision produit à prendre (quel modèle, quel déclencheur) avant de coder.
+6. **TikTok Content Posting API** : prérequis (CGU/Confidentialité + déploiement public) réunis. Reste : l'utilisateur crée le compte développeur TikTok + enregistre l'app, puis Claude code le flux OAuth (Login Kit) + l'appel de publication (schéma `account_oauth_tokens` déjà en place côté DB).
+7. **Avant tout vrai lancement commercial** : repasser en mode live (vraies clés Stripe) seulement après avoir testé un vrai parcours de paiement complet en test, et régénérer/poser la nouvelle clé live rotée dans Vercel à ce moment-là (pas avant).
 
 Phase suivante (pipeline) : 3 = quality gate + recommandations.
 
