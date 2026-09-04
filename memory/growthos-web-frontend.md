@@ -43,11 +43,23 @@ Users Supabase : `sdaiautomation@gmail.com` (owner « GrowthOS Dogfooding », ui
 
 Note schéma : `content_items.status` sur le projet hébergé n'accepte **toujours pas** `queued`/`generating` (check = idea/script/video/quality_check/published/failed) → migration Phase 2 encore à faire. Données hébergées au 2026-09-04 : org « GrowthOS Dogfooding » (1 compte, 1 contenu, owner `sdaiautomation@gmail.com`), org « Test Dogfood — workspace » (vide).
 
-### Prochaine session
-1. **Tester Phase 1 + landing au navigateur** (créer compte → stratégie → script → vérifier RLS + rendu). Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
-2. Débloquer Google OAuth (config user Google Cloud) + tester.
-3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
+### Phase 2 — file de jobs + worker.py : CODÉE le 2026-09-04, PAS TESTÉE end-to-end (pas d'appel ElevenLabs réel fait cette session)
 
-Phases suivantes : 2 = migration statut `queued`/`generating` + colonnes `error`/`requested_by` + `worker.py` (dans `AiAddicts/growthos/`) + bouton Générer · 3 = quality gate + recommandations.
+`growthos-web` (`master` = `9359b14`) + `AiAddicts` (`growthos/mvp` = `05042ed`). Migration `20260904090000_content_item_job_queue` **déjà appliquée** sur le projet hébergé (via MCP Supabase) : `content_items.status` accepte `queued`/`generating` en plus des statuts existants, + colonnes `error` (text) et `requested_by` (uuid → profiles). `database.types.ts` régénéré en conséquence.
+
+Flux : front insère/passe un `content_item` en `status='queued'` (le script JSON est déjà dedans, au schéma `engine/script.load_script`) → `worker.py` (nouveau, racine de `AiAddicts/growthos/`) poll par batch de 1 (`repo.claim_queued_item()`, update conditionné au statut `queued` pour rester correct si deux workers tournent), génère via `engine/assembler.run_for_content_item()` (nouveau — réutilise `_generate()` extrait de `run()`, mais met à jour la ligne `content_items` existante au lieu d'en créer une : pas de `get_or_create` organisation/compte), remet `status='video'` + `video_url`, ou `status='failed'` + `error` sur exception. `python worker.py [--interval N] [--once]`.
+
+Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/generate-section.tsx`) visible si `status` = `script`/`failed` (refuse si 0 bloc). Pendant `queued`/`generating` : carte d'attente qui s'auto-rafraîchit (`router.refresh()` toutes les 4s — **pas de Realtime configuré exprès**, `supabase_realtime` n'a aucune table publiée sur ce projet ; le polling suffit à l'échelle dogfooding, à reconsidérer si plusieurs utilisateurs simultanés). `video_url` affiché en lien cliquable seulement s'il commence par `http` — sinon (chemin local de la machine qui a fait tourner `worker.py`) affiché en texte : **pas de stockage/upload de la vidéo rendue**, c'est le prochain trou à combler si on veut que d'autres que l'opérateur du worker voient la vidéo.
+
+**À faire avant usage réel** : un vrai smoke test bout-en-bout (créer un compte + un script via l'UI → Générer → lancer `python worker.py --once` → vérifier le statut/la vidéo). Pas fait cette session, coûte un vrai appel ElevenLabs.
+
+### Prochaine session
+1. **Smoke test Phase 2 réel** (worker.py + un vrai run ElevenLabs/ffmpeg) — accord explicite avant de dépenser du crédit ElevenLabs.
+2. **Tester Phase 1 + landing au navigateur** (créer compte → stratégie → script → vérifier RLS + rendu). Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
+3. Débloquer Google OAuth (config user Google Cloud) + tester.
+4. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
+5. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable.
+
+Phase suivante : 3 = quality gate + recommandations.
 
 Pipeline Python : voir [[active-project-growthos]]. Périmètre produit cible : voir [[blotato-product-reference]].
