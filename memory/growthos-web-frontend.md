@@ -82,6 +82,15 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 **Reste à faire pour le domaine** : l'utilisateur doit acheter `faceloop.app` (registrar au choix), puis l'ajouter dans Vercel → Project Settings → Domains → Add. Pas fait cette session.
 
+### Landing : section Tarifs + prix réels (2026-09-04, `02b1693` → `ef3a7a2`)
+
+`pricing-section.tsx` (client component, juste après « Comment ça marche ») : 3 plans Starter/Pro/Business, toggle Mensuel/Annuel (-20%), badge « Populaire » sur Pro. Prix choisis après recherche marché réelle (pas inventés) :
+- **Starter 19€/mois (15€ annuel)** — 1 compte, 10 vidéos/mois. Aligné sur l'entrée de gamme marché (FacelessReels.com 19$, Faceless.so 24$).
+- **Pro 59€/mois (47€ annuel)** — 5 comptes, **150 vidéos/mois** (pas « illimité » — décision utilisateur, aucun concurrent réel n'utilise ce mot, tous affichent un chiffre), voix premium + clonage, analytics avancés, support prioritaire. Entre Growth (49$) et Influencer (107$) de Faceless.so.
+- **Business** : sur devis (« Nous contacter »), comptes illimités, API, onboarding dédié.
+
+Coût variable ElevenLabs mesuré/estimé : **~0,20€/vidéo** (~1200 caractères de voix off, ~0,00017€/caractère, stable entre paliers ElevenLabs $6→$990/mois). Marge visée : ~85%+ sur Starter, ~55-65% sur Pro à usage réaliste (100 vidéos/mois). **Pas encore de garde-fou côté backend** pour faire respecter le plafond de 150 vidéos/mois sur Pro — juste affiché en façade pour l'instant, à implémenter avant lancement commercial réel (limite/quota par organisation).
+
 ### Revue de sécurité (2026-09-04, `d4980a0`)
 
 `/security-review` sur `AiAddicts` (branche `growthos/mvp`) ne couvre que `growthos/` (pipeline Python, repo différent de `growthos-web`) — 0 finding à confiance ≥8. Relu `growthos-web` à la main en plus (hors périmètre mécanique du skill mais dans l'esprit de la demande de l'utilisateur) : **open redirect trouvé et corrigé** — `login/actions.ts` faisait `redirect(next.startsWith("/") ? next : "/dashboard")`, or `"//evil.com"` passe ce test (URL protocol-relative → le navigateur résout vers `https://evil.com`). `lib/safe-redirect-target.ts` (nouveau, exclut aussi le préfixe `//`) appliqué aux 3 endroits qui acceptent un `next` (`login/actions.ts` — la seule vraiment exploitable ; `auth/callback` et `auth/confirm` préfixaient déjà `${origin}` donc étaient déjà sûrs, corrigés par cohérence).
