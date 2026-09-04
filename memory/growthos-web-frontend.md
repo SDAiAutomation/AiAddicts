@@ -65,8 +65,11 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 **Fix crash runtime (2026-09-04, `f57c72a`)** : le fix précédent avait introduit `onClick={stopPropagation}` sur les `<Link>` de titre dans `accounts/page.tsx`/`content/page.tsx` — ce sont des Server Components (async, pas de `"use client"`), et Next.js 16 interdit de passer un handler d'événement à un composant depuis un Server Component (« Event handlers cannot be passed to Client Component props »). Retiré : `ClickableRow` (Client Component) gère déjà la navigation, pas besoin du stopPropagation. **Piège à retenir** : ne jamais passer de prop fonction (`onClick`, `onChange`, …) à un composant enfant depuis un fichier sans `"use client"` en tête, même si le composant cible est lui-même client — grep `onClick=\{` et vérifier le fichier appelant avant de committer si un doute.
 
+**Confirmation que le flux marche en vrai pour l'utilisateur** : en traitant la file le 2026-09-04, `worker.py --once` est tombé sur un content_item `L'erreur de prospection N°2` (`requested_by` = l'utilisateur, créé ~13:23, statut `queued`) — **il a donc réussi, seul, à créer un compte/script et cliquer Générer depuis l'UI réelle**, sans que Claude pilote le navigateur. Traité avec succès (status → `video`). Bon signal que les fix successifs (statut idea, lignes cliquables, crash RSC) ont débloqué l'usage réel.
+
 ### Prochaine session
 1. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, le repère de progression. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
+2. **Décision à prendre** : uploader les vidéos rendues vers Supabase Storage (actuellement chemin local, voir [[growthos-known-issues]]) — pas fait, en attente de l'utilisateur.
 2. Débloquer Google OAuth (config user Google Cloud) + tester.
 3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
 4. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable — actuellement un chemin local à la machine du worker.
