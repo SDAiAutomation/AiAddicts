@@ -59,8 +59,10 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 `/analytics` remplace le placeholder « Bientôt » (nav dé-badgée `soon`) : KPIs (contenus publiés, vues cumulées, rétention moyenne, engagement cumulé, leads) + table « Top performances » (dernier relevé par contenu publié, triée par vues, lien vers le détail). Recommandations IA toujours explicitement hors scope — pas de décision produit prise sur ce qui les générerait.
 
+**Fix flux illisible (2026-09-04, `16022fd`)** : signalé par l'utilisateur (« je ne vois pas les boutons ») en testant lui-même sur `localhost:3210`, sans navigateur piloté par Claude. Cause confirmée : un script créé sans blocs reste en `status='idea'`, et `generate-section.tsx` retournait `null` pour ce statut — aucune carte, aucune explication. Corrigé : carte explicite « Pas encore de script » + lien vers l'édition. Ajouté en prime `pipeline-steps.tsx` — repère de progression (Idée → Script → Vidéo générée → Publié) toujours visible en haut de `/content/[id]`, marque « en cours » / « échec » selon le statut. Utile à retenir : **l'utilisateur peut et sait tester lui-même** l'app en local pendant que l'extension navigateur reste indisponible — ne pas bloquer dessus, lui donner l'URL + le parcours suffit à faire remonter de vrais retours.
+
 ### Prochaine session
-1. **Tester au navigateur** : Phase 1 (CRUD), bouton Générer, marquer publié + logger des métriques, page Analytics. Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
+1. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), bouton Générer, marquer publié + logger des métriques, page Analytics, le nouveau repère de progression. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
 2. Débloquer Google OAuth (config user Google Cloud) + tester.
 3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
 4. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable — actuellement un chemin local à la machine du worker.
