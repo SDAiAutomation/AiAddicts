@@ -82,6 +82,10 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 **Reste à faire pour le domaine** : l'utilisateur doit acheter `faceloop.app` (registrar au choix), puis l'ajouter dans Vercel → Project Settings → Domains → Add. Pas fait cette session.
 
+### Revue de sécurité (2026-09-04, `d4980a0`)
+
+`/security-review` sur `AiAddicts` (branche `growthos/mvp`) ne couvre que `growthos/` (pipeline Python, repo différent de `growthos-web`) — 0 finding à confiance ≥8. Relu `growthos-web` à la main en plus (hors périmètre mécanique du skill mais dans l'esprit de la demande de l'utilisateur) : **open redirect trouvé et corrigé** — `login/actions.ts` faisait `redirect(next.startsWith("/") ? next : "/dashboard")`, or `"//evil.com"` passe ce test (URL protocol-relative → le navigateur résout vers `https://evil.com`). `lib/safe-redirect-target.ts` (nouveau, exclut aussi le préfixe `//`) appliqué aux 3 endroits qui acceptent un `next` (`login/actions.ts` — la seule vraiment exploitable ; `auth/callback` et `auth/confirm` préfixaient déjà `${origin}` donc étaient déjà sûrs, corrigés par cohérence).
+
 ### Prochaine session
 1. **Connecter faceloop.app** une fois acheté (Vercel → Domains → Add), + éventuellement renommer le projet Vercel / repo GitHub à ce moment-là si l'utilisateur le souhaite (attention : ça a été très fragile ce soir, prévoir du temps).
 2. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, dark mode. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
