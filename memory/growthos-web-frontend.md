@@ -107,6 +107,16 @@ Coût variable ElevenLabs mesuré/estimé : **~0,20€/vidéo** (~1200 caractèr
 2. Quota d'usage (150 vidéos/mois Pro, 10 Starter) toujours pas fait respecter côté génération — juste affiché en façade.
 3. Repasser en mode live (vraies clés) uniquement après avoir testé un vrai parcours de paiement complet (carte test 4242 4242 4242 4242) une fois déployé.
 
+### En-têtes de sécurité + middleware bloquait robots.txt/sitemap.xml (2026-09-04, `47863bf`)
+
+Audit fourni par l'utilisateur (headers manquants + middleware trop large). Vérifié le vrai bug avant de corriger : la prod redirigeait bien `/robots.txt` vers `/login` (307). Deux fichiers modifiés :
+- `next.config.ts` : CSP + X-Frame-Options/X-Content-Type-Options/Referrer-Policy/Permissions-Policy/HSTS renforcé + `poweredByHeader: false`. **CSP statique (pas de nonce)** — le nonce-based CSP officiellement recommandé par Next.js pour l'App Router force TOUTES les pages en rendu dynamique (plus de statique pour landing/login/terms/privacy), écarté délibérément pour ce coût de perf. `'unsafe-inline'` sur script-src/style-src requis par les scripts inline que l'App Router injecte lui-même (hydratation RSC) — `script-src` reste `'self'`, aucun domaine tiers chargeable. `connect-src` limité à Supabase (seul domaine appelé côté navigateur, vérifié dans le code).
+- `lib/supabase/middleware.ts` : `PUBLIC_PATHS` étendu à `/robots.txt`, `/sitemap.xml`, `/manifest.json`, `/manifest.webmanifest` — **aucun de ces fichiers n'existe encore** (pas de `src/app/robots.ts`/`sitemap.ts`, juste le blocage corrigé en prévision). `/favicon.ico` passe par un mécanisme différent (exclusion dans le `matcher` de `proxy.ts`, pas PUBLIC_PATHS) — les deux mécanismes coexistaient déjà avant, juste harmonisés/documentés.
+
+Vérifié en prod après déploiement : les 6 headers présents sur `/`, `X-Powered-By` absent, `/robots.txt` → 404 (plus 307 vers /login), `/dashboard` → toujours 307 (protection intacte), `/auth/confirm` + `/auth/callback` → toujours 307 vers /login?error (pas cassés). Build : toutes les pages statiques le restent (pas de passage forcé en dynamique).
+
+**Suite logique pas faite** : créer un vrai `robots.txt`/`sitemap.xml` (`src/app/robots.ts`/`sitemap.ts`, convention Next) — le fix de ce soir empêche juste le blocage, ne crée pas le contenu. À faire si le référencement SEO devient une priorité.
+
 ### Revue de sécurité (2026-09-04, `d4980a0`)
 
 `/security-review` sur `AiAddicts` (branche `growthos/mvp`) ne couvre que `growthos/` (pipeline Python, repo différent de `growthos-web`) — 0 finding à confiance ≥8. Relu `growthos-web` à la main en plus (hors périmètre mécanique du skill mais dans l'esprit de la demande de l'utilisateur) : **open redirect trouvé et corrigé** — `login/actions.ts` faisait `redirect(next.startsWith("/") ? next : "/dashboard")`, or `"//evil.com"` passe ce test (URL protocol-relative → le navigateur résout vers `https://evil.com`). `lib/safe-redirect-target.ts` (nouveau, exclut aussi le préfixe `//`) appliqué aux 3 endroits qui acceptent un `next` (`login/actions.ts` — la seule vraiment exploitable ; `auth/callback` et `auth/confirm` préfixaient déjà `${origin}` donc étaient déjà sûrs, corrigés par cohérence).
