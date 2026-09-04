@@ -28,9 +28,11 @@ Stack : Next.js 16 (App Router, Turbopack), React 19, TS, Tailwind v4, `@supabas
 
 Users Supabase : `sdaiautomation@gmail.com` (owner « GrowthOS Dogfooding », uid `8b5223cb-…`, créé à la main + backfill) et `sdaiautomation+dogfood1@gmail.com` (« Test Dogfood — workspace », créé via /signup, non confirmé). Note : l'utilisateur a été **déconnecté** pendant le test OAuth — il devra se reconnecter.
 
-**Polish repéré, pas fait** : bouton « Replier » sidebar chevauché par le badge dev Next.js ; contenu dashboard un peu décalé (passer en aligné-gauche vs `max-w-5xl` centré). `.gitattributes` : **fait** (commit `f32b043`, `* text=auto eol=lf`).
+**Polish** : `.gitattributes` fait (`f32b043`). Toggle sidebar + alignement contenu : **fait** (`8e3f8b4`) — bouton replier/déplier remonté dans l'en-tête de la sidebar (n'est plus chevauché par le badge dev Next.js), contenu app `max-w-5xl` sans `mx-auto` (aligné à gauche au lieu de centré).
 
-### État au 2026-09-04 (HEAD `growthos-web` = `f32b043`)
+**Landing page** : resserrée le 2026-09-04 (`3ba5b32`) — l'utilisateur trouvait qu'il y avait trop de boutons signup/login (6 pour un visiteur : header ×2, hero ×2, CTA milieu, footer ×2). Header = « Se connecter » en lien texte discret seulement ; hero = un seul CTA « Créer un compte » ; CTA de clôture gardé mais **caché si connecté** ; footer sans liens auth.
+
+### État au 2026-09-04 (HEAD `growthos-web` = `8e3f8b4`)
 
 **Phase 1 — CRUD comptes / stratégies / scripts : CODÉ, buildé, lint+tsc OK. Pas encore testé navigateur** (extension Claude-in-Chrome non connectée cette session). Commit `af42d02`. Livré :
 - **Primitives** : `src/lib/org.ts` (`requireOrg()` → org courante = 1re appartenance la plus ancienne + `orgName` + `role` + `userId` ; helpers `canManageAccounts` = owner/strategist, `canManageContent` = +editor, `isOwner`). `src/components/ui/form.tsx` (`Field`, `TextInput`/`TextArea`/`Select`, `SubmitButton` via `useFormStatus`, `FormError`, export `fieldClass`). `src/components/ui/badge.tsx` (`Badge` + maps `CONTENT_STATUS`/`ACCOUNT_STATUS`). `PageHeader.description` accepte un `ReactNode`.
@@ -42,10 +44,9 @@ Users Supabase : `sdaiautomation@gmail.com` (owner « GrowthOS Dogfooding », ui
 Note schéma : `content_items.status` sur le projet hébergé n'accepte **toujours pas** `queued`/`generating` (check = idea/script/video/quality_check/published/failed) → migration Phase 2 encore à faire. Données hébergées au 2026-09-04 : org « GrowthOS Dogfooding » (1 compte, 1 contenu, owner `sdaiautomation@gmail.com`), org « Test Dogfood — workspace » (vide).
 
 ### Prochaine session
-1. **Tester Phase 1 au navigateur** (créer compte → stratégie → script → vérifier RLS + rendu). Nécessite login utilisateur.
+1. **Tester Phase 1 + landing au navigateur** (créer compte → stratégie → script → vérifier RLS + rendu). Bloqué cette session : extension Claude-in-Chrome jamais connectée malgré install + tentatives multiples (Chrome pas redémarré / extension pas appairée au compte ?).
 2. Débloquer Google OAuth (config user Google Cloud) + tester.
-3. Éventuellement passer « Confirm email » OFF.
-4. Polish repéré ci-dessus.
+3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
 
 Phases suivantes : 2 = migration statut `queued`/`generating` + colonnes `error`/`requested_by` + `worker.py` (dans `AiAddicts/growthos/`) + bouton Générer · 3 = quality gate + recommandations.
 
