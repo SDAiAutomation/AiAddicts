@@ -91,6 +91,11 @@ def render_final(
             "-i", str(audio_abs),
             "-vf", subtitles_filter,
             "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            # Fond uni fixe : quasiment aucun mouvement à encoder, seuls les
+            # sous-titres changent d'une frame à l'autre. `stillimage` est le
+            # tuning x264 prévu pour ce cas ; `veryfast` accélère nettement
+            # l'encodage sans perte de qualité perceptible sur ce contenu.
+            "-preset", "veryfast", "-tune", "stillimage",
             "-c:a", "aac", "-shortest",
             str(out_abs),
         ],

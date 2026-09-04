@@ -5,9 +5,15 @@ video already present under output/<slug>/ are reused. Delete that folder to
 force a clean rebuild (e.g. after editing the script text).
 """
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import captions, db, publish_pack, repo, script as script_module, tts, video, voices
+
+# Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
+# en parallèle réduisent le temps total de "somme des blocs" à ~"bloc le plus
+# long", sans risquer de se faire rate-limiter par l'API.
+_MAX_TTS_WORKERS = 4
 
 
 def _exists_nonempty(path: Path) -> bool:
@@ -37,17 +43,23 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
 
     voice_id = voices.resolve_voice(data, voice_override)
     data["voice_id"] = voice_id  # la ligne content_items reflète la voix réellement utilisée
-    audio_paths, timed_blocks = [], []
-    for i, block in enumerate(data["blocks"], start=1):
+
+    def _synthesize_block(i: int, block: dict) -> tuple[str, float]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
         if _exists_nonempty(audio_path):
             print(f"[2/4] Voix off {i}/{n_blocks} — fichier existant réutilisé")
         else:
             print(f"[2/4] Voix off {i}/{n_blocks} (voix {voice_id})…")
             tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
-        duration = tts.get_duration_seconds(str(audio_path))
-        audio_paths.append(str(audio_path))
-        timed_blocks.append((block["text"], duration))
+        return str(audio_path), tts.get_duration_seconds(str(audio_path))
+
+    with ThreadPoolExecutor(max_workers=min(_MAX_TTS_WORKERS, n_blocks)) as pool:
+        # I/O réseau (requests) libère le GIL pendant l'attente : des threads
+        # suffisent, pas besoin de multiprocessing pour ce genre de parallélisme.
+        results = list(pool.map(_synthesize_block, range(1, n_blocks + 1), data["blocks"]))
+
+    audio_paths = [path for path, _duration in results]
+    timed_blocks = [(block["text"], duration) for block, (_path, duration) in zip(data["blocks"], results)]
 
     print("[3/4] Assemblage audio + sous-titres…")
     full_wav = work_dir / "audio" / "full.wav"
