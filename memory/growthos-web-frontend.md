@@ -67,9 +67,10 @@ Front : bouton « Générer la vidéo » sur `/content/[id]` (`content/[id]/gene
 
 **Confirmation que le flux marche en vrai pour l'utilisateur** : en traitant la file le 2026-09-04, `worker.py --once` est tombé sur un content_item `L'erreur de prospection N°2` (`requested_by` = l'utilisateur, créé ~13:23, statut `queued`) — **il a donc réussi, seul, à créer un compte/script et cliquer Générer depuis l'UI réelle**, sans que Claude pilote le navigateur. Traité avec succès (status → `video`). Bon signal que les fix successifs (statut idea, lignes cliquables, crash RSC) ont débloqué l'usage réel.
 
+**Stockage vidéo (Supabase Storage) : FAIT, voir [[growthos-known-issues]]** — `video_url` est maintenant une vraie URL publique. Le rendu conditionnel déjà en place dans `content/[id]/page.tsx` (lien cliquable si `video_url` commence par `http`, sinon texte brut) marche donc directement, aucun changement front nécessaire.
+
 ### Prochaine session
-1. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, le repère de progression. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
-2. **Décision à prendre** : uploader les vidéos rendues vers Supabase Storage (actuellement chemin local, voir [[growthos-known-issues]]) — pas fait, en attente de l'utilisateur.
+1. **Tester au navigateur** (Claude ou l'utilisateur) : Phase 1 (CRUD), affordance des listes, bouton Générer, marquer publié + logger des métriques, page Analytics, le repère de progression, le lien vidéo maintenant cliquable. Extension Claude-in-Chrome toujours pas connectée malgré install + tentatives multiples.
 2. Débloquer Google OAuth (config user Google Cloud) + tester.
 3. Éventuellement passer « Confirm email » OFF (setting Auth Supabase — demander avant).
 4. Stockage de la vidéo rendue (Supabase Storage ?) pour que `video_url` soit une vraie URL partageable — actuellement un chemin local à la machine du worker.
