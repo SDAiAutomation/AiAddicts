@@ -23,7 +23,9 @@ _STOPWORDS_FR = {
     "leur", "leurs", "meme", "mais", "moins", "nous", "notre", "pour",
     "quand", "quoi", "sans", "selon", "sera", "seront", "sont", "sous",
     "tous", "toute", "toutes", "tout", "tres", "un", "une", "vers", "votre",
-    "vous", "cette", "cet", "ces",
+    "vous", "cette", "cet", "ces", "voici", "voila", "ainsi", "certain",
+    "certains", "certaine", "certaines", "quelque", "quelques", "toujours",
+    "jamais", "peut", "peuvent", "doit", "doivent", "veut", "veulent",
 }
 
 _WORD_RE = re.compile(r"[a-zàâäéèêëïîôöùûüçœ]+", re.IGNORECASE)
