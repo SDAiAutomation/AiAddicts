@@ -1,0 +1,53 @@
+name: GrowthOS worker
+
+# Substitut de serveur worker permanent : GrowthOS n'a pas de VPS dédié, donc
+# on vide la file de content_items ('queued' -> vidéo générée) par courtes
+# passes planifiées, plutôt que de payer un process qui tourne en continu.
+# Chaque run traite tout ce qui est en attente pendant ~9 min (borne large
+# pour tenir sous les 10 min de timeout du job), puis s'arrête tout seul.
+#
+# Limite connue de GitHub Actions : un schedule est automatiquement désactivé
+# après 60 jours sans aucun commit sur le repo — un commit (même hors
+# growthos/) le reconduit. Repo public -> minutes Actions illimitées,
+# aucun coût lié à ce workflow.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {} # déclenchement manuel depuis l'onglet Actions, pour tester sans attendre
+
+jobs:
+  process-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: growthos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: growthos/requirements.txt
+
+      - name: Installer ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Installer les dépendances Python
+        run: pip install -r requirements.txt
+
+      - name: Vider la file d'attente (jusqu'à ~9 min, puis arrêt propre)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # `timeout` renvoie 124 en tuant le process arrivé au bout du délai —
+        # c'est la sortie normale de ce step (file vidée ou temps écoulé), pas
+        # un échec. `worker.py` sans --once boucle tout seul tant qu'il reste
+        # des jobs (poll 10s par défaut) et laisse `timeout` le couper à ~9 min.
+        run: timeout 540 python worker.py || [ $? -eq 124 ]
