@@ -12,6 +12,14 @@ name: GrowthOS worker
 # après 60 jours sans aucun commit sur le repo — un commit (même hors
 # growthos/) le reconduit. Repo public -> minutes Actions illimitées,
 # aucun coût lié à ce workflow.
+#
+# Note (2026-09-05) : le schedule n'a déclenché aucun run pendant les 2h
+# suivant la création de ce fichier, alors que la branche par défaut venait
+# d'être changée vers growthos/mvp juste avant — GitHub resynchronise son
+# planificateur sur un commit vers la branche par défaut, mais le délai de
+# reconnaissance peut dépasser 1h. Si ça se reproduit : déclencher
+# manuellement (workflow_dispatch) en attendant, pousser un commit anodin
+# ici pour forcer une resynchro.
 
 on:
   schedule:
