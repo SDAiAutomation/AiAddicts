@@ -10,6 +10,13 @@ Usage :
     python worker.py --interval 5     # poll toutes les 5s
     python worker.py --once           # traite au plus un job puis s'arrête
                                        # (pratique derrière un cron externe)
+    python worker.py --until-idle     # traite tout ce qui est en file puis
+                                       # s'arrête dès qu'elle est vide (pas de
+                                       # sleep final) — pratique pour une
+                                       # tâche planifiée à durée bornée
+                                       # (GitHub Actions...) : file vide ->
+                                       # sortie quasi immédiate au lieu
+                                       # d'attendre le timeout du job.
 """
 import argparse
 import os
@@ -67,6 +74,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--interval", type=float, default=10.0, help="secondes entre deux polls quand la file est vide (défaut 10)")
     parser.add_argument("--once", action="store_true", help="traite au plus un job puis s'arrête")
+    parser.add_argument(
+        "--until-idle", action="store_true",
+        help="traite tout ce qui est en file puis s'arrête dès qu'elle est vide, sans sleep final",
+    )
     args = parser.parse_args()
 
     client = db.get_service_client()
@@ -93,6 +104,9 @@ def main() -> None:
         if processed:
             idle_since = time.monotonic()
             last_heartbeat = idle_since
+        elif args.until_idle:
+            print("File vide — arrêt (--until-idle).")
+            return
         else:
             # File vide : rappel périodique que le worker tourne toujours et
             # attend un job, plutôt qu'un silence qu'on ne peut pas distinguer

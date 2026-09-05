@@ -3,8 +3,10 @@ name: GrowthOS worker
 # Substitut de serveur worker permanent : GrowthOS n'a pas de VPS dédié, donc
 # on vide la file de content_items ('queued' -> vidéo générée) par courtes
 # passes planifiées, plutôt que de payer un process qui tourne en continu.
-# Chaque run traite tout ce qui est en attente pendant ~9 min (borne large
-# pour tenir sous les 10 min de timeout du job), puis s'arrête tout seul.
+# `worker.py --until-idle` traite tout ce qui est en attente puis s'arrête
+# dès que la file est vide (pas d'attente inutile quand il n'y a rien à
+# faire) ; `timeout-minutes` sur le job reste le filet de sécurité si une
+# génération individuelle restait bloquée.
 #
 # Limite connue de GitHub Actions : un schedule est automatiquement désactivé
 # après 60 jours sans aucun commit sur le repo — un commit (même hors
@@ -38,7 +40,7 @@ jobs:
       - name: Installer les dépendances Python
         run: pip install -r requirements.txt
 
-      - name: Vider la file d'attente (jusqu'à ~9 min, puis arrêt propre)
+      - name: Vider la file d'attente
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -46,8 +48,4 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        # `timeout` renvoie 124 en tuant le process arrivé au bout du délai —
-        # c'est la sortie normale de ce step (file vidée ou temps écoulé), pas
-        # un échec. `worker.py` sans --once boucle tout seul tant qu'il reste
-        # des jobs (poll 10s par défaut) et laisse `timeout` le couper à ~9 min.
-        run: timeout 540 python worker.py || [ $? -eq 124 ]
+        run: python worker.py --until-idle
