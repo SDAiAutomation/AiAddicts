@@ -4,6 +4,7 @@ Re-running on the same script is cheap: any per-block audio and the final
 video already present under output/<slug>/ are reused. Delete that folder to
 force a clean rebuild (e.g. after editing the script text).
 """
+import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -66,14 +67,19 @@ def _generate(
     voice_id = voices.resolve_voice(data, voice_override)
     data["voice_id"] = voice_id  # la ligne content_items reflète la voix réellement utilisée
 
-    def _synthesize_block(i: int, block: dict) -> tuple[str, float]:
+    def _synthesize_block(i: int, block: dict) -> tuple[str, float, list[dict]]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
-        if _exists_nonempty(audio_path):
+        words_path = work_dir / "audio" / f"block-{i:02d}.words.json"
+        if _exists_nonempty(audio_path) and words_path.exists():
             print(f"[2/5] Voix off {i}/{n_blocks} — fichier existant réutilisé")
+            words = json.loads(words_path.read_text(encoding="utf-8"))
         else:
             print(f"[2/5] Voix off {i}/{n_blocks} (voix {voice_id})…")
-            tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
-        return str(audio_path), tts.get_duration_seconds(str(audio_path))
+            # Timing mot par mot (pas juste l'audio) : sert aux sous-titres
+            # animés par groupes de mots, voir captions.build_cues.
+            words = tts.synthesize_with_timestamps(block["text"], voice_id, str(audio_path), api_key)
+            words_path.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
+        return str(audio_path), tts.get_duration_seconds(str(audio_path)), words
 
     step(f"Voix off (ElevenLabs, {n_blocks} bloc(s))")
     t0 = time.monotonic()
@@ -83,9 +89,9 @@ def _generate(
         results = list(pool.map(_synthesize_block, range(1, n_blocks + 1), data["blocks"]))
     print(f"       voix off terminées en {time.monotonic() - t0:.1f}s")
 
-    audio_paths = [path for path, _duration in results]
-    durations = [duration for _path, duration in results]
-    timed_blocks = [(block["text"], duration) for block, duration in zip(data["blocks"], durations)]
+    audio_paths = [path for path, _duration, _words in results]
+    durations = [duration for _path, duration, _words in results]
+    block_words = [(words, duration) for _path, duration, words in results]
 
     total_duration = sum(durations)
     if total_duration < MIN_MONETIZABLE_DURATION_S:
@@ -117,7 +123,7 @@ def _generate(
         full_audio = str(full_wav)
     else:
         full_audio = video.concat_audio(audio_paths, str(full_wav))
-    cues = captions.build_cues(timed_blocks)
+    cues = captions.build_cues(block_words)
     srt_file = captions.write_srt(cues, str(srt_path))
 
     print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
