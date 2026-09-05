@@ -12,6 +12,8 @@ Usage :
                                        # (pratique derrière un cron externe)
 """
 import argparse
+import os
+import subprocess
 import sys
 import time
 import traceback
@@ -24,6 +26,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from engine import assembler, db, repo
+
+if sys.platform == "win32":
+    # La console Windows garde son ancien codepage (cp1252/cp850) par défaut,
+    # qui ne sait pas encoder les accents des print() -> caractères "�". On
+    # bascule la console elle-même en UTF-8 (chcp 65001) avant de reconfigurer
+    # stdout/stderr pour écrire en UTF-8 : sans les deux à la fois, l'un des
+    # deux côtés reste désaccordé et le mojibake persiste.
+    subprocess.run(["chcp", "65001"], shell=True, capture_output=True)
+
+# Sans ça, les print() peuvent rester bufferisés (redirection vers un fichier,
+# terminal non interactif) et le worker paraît figé alors qu'il avance juste
+# silencieusement en mémoire tampon.
+sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
+
+_HEARTBEAT_EVERY = 60.0  # secondes entre deux rappels "toujours en attente"
 
 
 def process_one(client) -> bool:
@@ -54,6 +72,9 @@ def main() -> None:
     client = db.get_service_client()
     print(f"Worker GrowthOS démarré (poll toutes les {args.interval}s). Ctrl+C pour arrêter.")
 
+    idle_since = time.monotonic()
+    last_heartbeat = idle_since
+
     while True:
         try:
             processed = process_one(client)
@@ -68,7 +89,18 @@ def main() -> None:
 
         if args.once:
             return
-        if not processed:
+
+        if processed:
+            idle_since = time.monotonic()
+            last_heartbeat = idle_since
+        else:
+            # File vide : rappel périodique que le worker tourne toujours et
+            # attend un job, plutôt qu'un silence qu'on ne peut pas distinguer
+            # d'un blocage.
+            now = time.monotonic()
+            if now - last_heartbeat >= _HEARTBEAT_EVERY:
+                print(f"… en attente d'un job (file vide depuis {int(now - idle_since)}s)")
+                last_heartbeat = now
             time.sleep(args.interval)
 
 

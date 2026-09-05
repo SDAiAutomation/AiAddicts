@@ -2,14 +2,23 @@
 free API) so the rendered video has real visuals instead of a flat color
 card behind the captions.
 
-Optionnel : sans PEXELS_API_KEY, `fetch_block_images()` retourne des None
-partout — `engine/video.render_final()` retombe sur le fond couleur unie
-d'origine, rien ne casse pour les configs sans clé.
+Le bloc `hook` (celui qui décide si quelqu'un reste) tente d'abord une image
+générée par IA (OpenAI `gpt-image-1-mini`, `engine/openai_images.py`) — coût
+marginal (~0,005-0,01 $/image), levier maximal. Retombe silencieusement sur
+Pexels si pas de clé OpenAI configurée ou en cas d'échec. Les autres blocs
+restent sur Pexels uniquement (gratuit).
+
+Optionnel : sans aucune clé (Pexels et/ou OpenAI), `fetch_block_images()`
+retourne des None partout — `engine/video.render_final()` retombe sur le
+fond couleur unie d'origine, rien ne casse pour les configs sans clé.
 """
 import re
+import time
 from pathlib import Path
 
 import requests
+
+from . import openai_images
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 
@@ -54,6 +63,17 @@ def _search_query(block_text: str, niche: str | None) -> str:
     return " ".join(keywords) or niche_word or "business"
 
 
+def _hook_prompt(block_text: str, niche: str | None) -> str:
+    # "Sans aucun texte" explicite : sinon le modèle a tendance à incruster la
+    # phrase du bloc comme légende dans l'image (déjà géré par les sous-titres
+    # ffmpeg — un doublon qui se chevauche, en plus de fautes de frappe vues en test).
+    niche_part = f", niche {niche.replace('-', ' ')}" if niche else ""
+    return (
+        f"Photo réaliste, style contenu réseaux sociaux, SANS AUCUN TEXTE ni mot ni "
+        f"légende dans l'image : scène illustrant « {block_text.strip()} »{niche_part}"
+    )
+
+
 def search_image_url(query: str, api_key: str, orientation: str = "portrait") -> str | None:
     """Cherche une photo Pexels pour `query`. Retourne l'URL (taille
     "large") ou None si rien trouvé / erreur réseau — ne lève jamais,
@@ -91,15 +111,22 @@ def fetch_block_images(
     échec réseau pour ce bloc précis) — jamais bloquant, chaque bloc sans
     image retombe sur le fond couleur unie côté video.py. Résultats mis en
     cache sur disque comme le reste du pipeline (relance = pas de re-fetch)."""
-    if not api_key:
-        return [None] * len(blocks)
-
     orientation = _ORIENTATION.get(aspect_ratio, "portrait")
     paths: list[str | None] = []
     for i, block in enumerate(blocks, start=1):
         image_path = Path(work_dir) / "images" / f"block-{i:02d}.jpg"
         if image_path.exists() and image_path.stat().st_size > 0:
             paths.append(str(image_path))
+            continue
+
+        if block.get("role") == "hook":
+            hook_path = _try_hook_image(block["text"], niche, aspect_ratio, str(image_path))
+            if hook_path:
+                paths.append(hook_path)
+                continue
+
+        if not api_key:
+            paths.append(None)
             continue
         query = _search_query(block["text"], niche)
         url = search_image_url(query, api_key, orientation)
@@ -112,3 +139,13 @@ def fetch_block_images(
         except requests.RequestException:
             paths.append(None)
     return paths
+
+
+def _try_hook_image(text: str, niche: str | None, aspect_ratio: str, out_path: str) -> str | None:
+    """Tente une image IA (OpenAI) pour le bloc hook. None si pas de clé
+    configurée ou échec — l'appelant retombe alors sur Pexels pour ce bloc."""
+    t0 = time.monotonic()
+    path = openai_images.generate_image(_hook_prompt(text, niche), out_path, aspect_ratio)
+    if path:
+        print(f"       hook : image IA générée ({time.monotonic() - t0:.1f}s)")
+    return path

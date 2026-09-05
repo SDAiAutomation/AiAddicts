@@ -5,6 +5,7 @@ video already present under output/<slug>/ are reused. Delete that folder to
 force a clean rebuild (e.g. after editing the script text).
 """
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -14,6 +15,10 @@ from . import captions, db, publish_pack, repo, script as script_module, storage
 # en parallèle réduisent le temps total de "somme des blocs" à ~"bloc le plus
 # long", sans risquer de se faire rate-limiter par l'API.
 _MAX_TTS_WORKERS = 4
+
+# Le programme TikTok Creator Rewards (monétisation) n'accepte que les vidéos
+# d'au moins 60s — voir https://www.tiktok.com/creators/creator-rewards-program.
+MIN_MONETIZABLE_DURATION_S = 60.0
 
 
 def _exists_nonempty(path: Path) -> bool:
@@ -54,22 +59,37 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
             tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
         return str(audio_path), tts.get_duration_seconds(str(audio_path))
 
+    t0 = time.monotonic()
     with ThreadPoolExecutor(max_workers=min(_MAX_TTS_WORKERS, n_blocks)) as pool:
         # I/O réseau (requests) libère le GIL pendant l'attente : des threads
         # suffisent, pas besoin de multiprocessing pour ce genre de parallélisme.
         results = list(pool.map(_synthesize_block, range(1, n_blocks + 1), data["blocks"]))
+    print(f"       voix off terminées en {time.monotonic() - t0:.1f}s")
 
     audio_paths = [path for path, _duration in results]
     durations = [duration for _path, duration in results]
     timed_blocks = [(block["text"], duration) for block, duration in zip(data["blocks"], durations)]
 
-    print(f"[3/5] Visuels ({'Pexels' if pexels_key else 'fond uni — pas de PEXELS_API_KEY'})…")
+    total_duration = sum(durations)
+    if total_duration < MIN_MONETIZABLE_DURATION_S:
+        print(
+            f"       ATTENTION : voix off de {total_duration:.1f}s (< {MIN_MONETIZABLE_DURATION_S:.0f}s) — "
+            "non éligible au programme TikTok Creator Rewards (monétisation), qui exige 60s minimum. "
+            "Allonge le script si la monétisation est visée."
+        )
+
+    openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
+    visuals_desc = "Pexels" if pexels_key else "fond uni — pas de PEXELS_API_KEY"
+    if openai_enabled:
+        visuals_desc += " + OpenAI sur le hook"
+    print(f"[3/5] Visuels ({visuals_desc})…")
+    t0 = time.monotonic()
     image_paths = visuals.fetch_block_images(
         data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key
     )
     found = sum(1 for p in image_paths if p)
-    if pexels_key:
-        print(f"       {found}/{n_blocks} image(s) trouvée(s), le reste en fond uni")
+    suffix = f"{found}/{n_blocks} image(s) trouvée(s), le reste en fond uni" if pexels_key else ""
+    print(f"       terminé en {time.monotonic() - t0:.1f}s" + (f" — {suffix}" if suffix else ""))
 
     print("[4/5] Assemblage audio + sous-titres…")
     full_wav = work_dir / "audio" / "full.wav"
@@ -81,11 +101,13 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     cues = captions.build_cues(timed_blocks)
     srt_file = captions.write_srt(cues, str(srt_path))
 
-    print("[5/5] Rendu vidéo finale…")
+    print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
+    t0 = time.monotonic()
     final_video = video.render_final(
         full_audio, srt_file, str(final_path), durations,
         image_paths=image_paths, aspect_ratio=data["aspect_ratio"],
     )
+    print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")
     return final_video, work_dir
 
 
@@ -150,6 +172,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     voir growthos-web `content/actions.ts` `buildScript()`). Le compte existe
     déjà : pas de get_or_create, juste une mise à jour de la ligne existante.
     """
+    t_start = time.monotonic()
     client = db.get_service_client()
     data = repo.get_script(client, content_item_id)
     script_module.validate_script(data)
@@ -159,6 +182,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
 
     final_video, work_dir = _generate(data, output_root, voice_override=None)
+    print(f"       total génération : {time.monotonic() - t_start:.1f}s")
     video_url = _publish_video(client, content_item_id, final_video)
 
     repo.update_content_item(

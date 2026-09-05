@@ -9,6 +9,7 @@ une dernière passe.
 """
 import os
 import subprocess
+import time
 from pathlib import Path
 
 RESOLUTIONS = {
@@ -136,11 +137,17 @@ def render_final(
     out_abs.parent.mkdir(parents=True, exist_ok=True)
     clips_dir = srt.parent / "clips"
 
+    n_clips = len(durations)
     clip_names = []
     for i, (image_path, duration) in enumerate(zip(image_paths, durations), start=1):
         clip_path = clips_dir / f"block-{i:02d}.mp4"
-        if not _exists_nonempty(clip_path):
+        if _exists_nonempty(clip_path):
+            print(f"       clip {i}/{n_clips} déjà rendu — réutilisé")
+        else:
+            print(f"       clip {i}/{n_clips} ({duration:.1f}s)…")
+            t0 = time.monotonic()
             _render_block_clip(image_path, duration, str(clip_path), resolution, bg_color, fps)
+            print(f"       clip {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
         clip_names.append(clip_path.name)
 
     # Le demuxer concat résout les chemins de la liste relativement au
@@ -160,6 +167,8 @@ def render_final(
     # lecteur Windows (C:\) et les antislashs dans un argument de filtre.
     subtitles_filter = f"subtitles={srt.name}:force_style='{style}'"
 
+    print(f"       assemblage final ({n_clips} clips + sous-titres)…")
+    t0 = time.monotonic()
     _run(
         [
             "ffmpeg", "-y",
@@ -173,4 +182,5 @@ def render_final(
         ],
         cwd=str(srt.parent),
     )
+    print(f"       assemblage final terminé en {time.monotonic() - t0:.1f}s")
     return out_path
