@@ -5,7 +5,14 @@ directly by the account owner, there is no signed-in Supabase Auth session
 to scope an anon/RLS client to. See engine/db.py for the anon-vs-service
 distinction.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+# Un item resté en 'generating' plus longtemps qu'un run normal (mesuré :
+# 30-90s pour un script de quelques blocs) n'a plus de worker vivant derrière
+# — kill, crash, coupure réseau. 15 min laisse une marge large (le job
+# GitHub Actions a lui-même un timeout de 12 min) avant de le remettre en
+# file, tout en le récupérant dans un délai raisonnable.
+_STALE_GENERATING_MINUTES = 15
 
 
 def get_or_create_organization(client, name: str) -> str:
@@ -52,12 +59,33 @@ def get_script(client, content_item_id: str) -> dict:
     return script
 
 
+def reclaim_stale_generating_items(client) -> int:
+    """Remet en 'queued' tout item bloqué en 'generating' depuis plus de
+    `_STALE_GENERATING_MINUTES` — un worker mort en plein travail (kill,
+    crash, coupure) laisse sinon la ligne orpheline pour toujours, puisque
+    claim_queued_item() ne regarde que 'queued'. Appelé à chaque poll, avant
+    de réclamer le prochain job. Retourne le nombre d'items récupérés."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_STALE_GENERATING_MINUTES)).isoformat()
+    reclaimed = (
+        client.table("content_items")
+        .update({"status": "queued", "generation_step": None, "updated_at": datetime.now(timezone.utc).isoformat()})
+        .eq("status", "generating")
+        .lt("updated_at", cutoff)
+        .execute()
+    )
+    return len(reclaimed.data)
+
+
 def claim_queued_item(client) -> dict | None:
     """Réclame le plus ancien content_item en file (status='queued') pour un
     worker : le fait passer à 'generating' avec un update conditionné au
     statut encore 'queued', pour rester correct si deux workers tournent en
     parallèle (le second, arrivé après, ne récupère aucune ligne). Retourne
     la ligne réclamée ({id, script}) ou None si la file est vide."""
+    reclaimed = reclaim_stale_generating_items(client)
+    if reclaimed:
+        print(f"       {reclaimed} item(s) 'generating' orphelin(s) remis en file")
+
     queued = (
         client.table("content_items")
         .select("id, script")
@@ -72,7 +100,7 @@ def claim_queued_item(client) -> dict | None:
     item = queued.data[0]
     claimed = (
         client.table("content_items")
-        .update({"status": "generating"})
+        .update({"status": "generating", "updated_at": datetime.now(timezone.utc).isoformat()})
         .eq("id", item["id"])
         .eq("status", "queued")
         .execute()
@@ -83,6 +111,7 @@ def claim_queued_item(client) -> dict | None:
 
 
 def update_content_item(client, content_item_id: str, **fields) -> None:
+    fields.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
     client.table("content_items").update(fields).eq("id", content_item_id).execute()
 
 
@@ -90,7 +119,12 @@ def mark_failed(client, content_item_id: str, error: str) -> None:
     # Colonne `error` en text, pas de limite stricte côté DB, mais on borne
     # quand même — pas la peine de stocker une trace complète en base.
     client.table("content_items").update(
-        {"status": "failed", "error": error[:2000], "generation_step": None}
+        {
+            "status": "failed",
+            "error": error[:2000],
+            "generation_step": None,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
     ).eq("id", content_item_id).execute()
 
 
