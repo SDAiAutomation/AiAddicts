@@ -8,6 +8,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Callable
 
 from . import captions, db, publish_pack, repo, script as script_module, storage, tts, video, visuals, voices
 
@@ -25,10 +26,23 @@ def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
-def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple[str, Path]:
+def _generate(
+    data: dict,
+    output_root: str,
+    voice_override: str | None,
+    on_progress: Callable[[str], None] | None = None,
+) -> tuple[str, Path]:
     """Étapes 1-4, communes aux deux points d'entrée : script -> voix off ->
     assemblage -> vidéo finale sous-titrée. Mute `data` (ajoute `voice_id`
-    quand une voix est résolue). Retourne (chemin vidéo finale, dossier de travail)."""
+    quand une voix est résolue). Retourne (chemin vidéo finale, dossier de travail).
+
+    `on_progress`, si fourni, est appelé à chaque étape majeure avec un libellé
+    court (ex: "Voix off (ElevenLabs)") — c'est ce qui alimente la colonne
+    `content_items.generation_step` affichée sur /content/[id] côté
+    growthos-web. Optionnel : le CLI (`run()`) n'a pas encore de content_item_id
+    à ce stade et passe None, sans que rien ne change pour lui."""
+    step = on_progress or (lambda _label: None)
+
     slug = script_module.slug(data)
     work_dir = Path(output_root) / slug
     api_key = os.environ.get("ELEVENLABS_API_KEY")
@@ -36,6 +50,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
 
     n_blocks = len(data["blocks"])
     print(f"[1/5] Script chargé : {data['title']} ({n_blocks} blocs)")
+    step("Chargement du script")
 
     final_path = work_dir / "final" / f"{slug}.mp4"
     srt_path = work_dir / "captions.srt"
@@ -45,6 +60,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
         # sont déjà là, on ne retouche ni ElevenLabs ni ffmpeg. Supprime
         # output/<slug>/ pour forcer une reconstruction (script modifié).
         print("[2-5/5] Vidéo finale + sous-titres déjà présents — réutilisés")
+        step("Finalisation (vidéo déjà rendue)")
         return str(final_path), work_dir
 
     voice_id = voices.resolve_voice(data, voice_override)
@@ -59,6 +75,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
             tts.synthesize(block["text"], voice_id, str(audio_path), api_key)
         return str(audio_path), tts.get_duration_seconds(str(audio_path))
 
+    step(f"Voix off (ElevenLabs, {n_blocks} bloc(s))")
     t0 = time.monotonic()
     with ThreadPoolExecutor(max_workers=min(_MAX_TTS_WORKERS, n_blocks)) as pool:
         # I/O réseau (requests) libère le GIL pendant l'attente : des threads
@@ -83,6 +100,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     if openai_enabled:
         visuals_desc += " + OpenAI sur le hook"
     print(f"[3/5] Visuels ({visuals_desc})…")
+    step(f"Visuels ({visuals_desc})")
     t0 = time.monotonic()
     image_paths = visuals.fetch_block_images(
         data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key
@@ -92,6 +110,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     print(f"       terminé en {time.monotonic() - t0:.1f}s" + (f" — {suffix}" if suffix else ""))
 
     print("[4/5] Assemblage audio + sous-titres…")
+    step("Assemblage audio + sous-titres")
     full_wav = work_dir / "audio" / "full.wav"
     if _exists_nonempty(full_wav):
         print("       piste audio complète existante réutilisée")
@@ -102,6 +121,7 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     srt_file = captions.write_srt(cues, str(srt_path))
 
     print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
+    step(f"Rendu vidéo final ({n_blocks} clip(s))")
     t0 = time.monotonic()
     final_video = video.render_final(
         full_audio, srt_file, str(final_path), durations,
@@ -111,12 +131,16 @@ def _generate(data: dict, output_root: str, voice_override: str | None) -> tuple
     return final_video, work_dir
 
 
-def _publish_video(client, content_item_id: str, local_path: str) -> str:
+def _publish_video(
+    client, content_item_id: str, local_path: str, on_progress: Callable[[str], None] | None = None
+) -> str:
     """Upload la vidéo rendue vers Supabase Storage (bucket `content-videos`,
     public) pour que `video_url` soit une vraie URL partageable plutôt qu'un
     chemin local à la machine du worker. En cas d'échec (bucket absent,
     réseau…), retombe sur le chemin local plutôt que de faire échouer tout
     le run — la vidéo existe bel et bien, juste pas partageable."""
+    if on_progress:
+        on_progress("Upload de la vidéo")
     try:
         url = storage.upload_video(client, content_item_id, local_path)
         print(f"       vidéo uploadée : {url}")
@@ -181,13 +205,29 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     data.setdefault("platform", "tiktok")
     data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
 
-    final_video, work_dir = _generate(data, output_root, voice_override=None)
+    def report_progress(step_label: str) -> None:
+        # Best-effort : un blip réseau vers Supabase ici ne doit jamais faire
+        # échouer une génération par ailleurs réussie — juste une ligne en
+        # moins dans le suivi affiché sur /content/[id].
+        try:
+            repo.update_content_item(client, content_item_id, generation_step=step_label)
+        except Exception as exc:
+            print(f"       (suivi d'avancement non mis à jour : {exc})")
+
+    final_video, work_dir = _generate(data, output_root, voice_override=None, on_progress=report_progress)
     print(f"       total génération : {time.monotonic() - t_start:.1f}s")
-    video_url = _publish_video(client, content_item_id, final_video)
+    video_url = _publish_video(client, content_item_id, final_video, on_progress=report_progress)
 
     repo.update_content_item(
-        client, content_item_id, status="video", script=data, video_url=video_url, error=None
+        client, content_item_id,
+        status="video", script=data, video_url=video_url, error=None, generation_step=None,
     )
+    try:
+        repo.charge_generation_credit(client, content_item_id)
+    except Exception as exc:
+        # Best-effort : une vidéo livrée avec succès ne doit jamais repasser
+        # en échec à cause d'un problème sur le décompte de crédits.
+        print(f"       (décompte de crédit non appliqué : {exc})")
 
     pack = publish_pack.write_pack(
         data, final_video, str(work_dir / "publish"), content_item_id

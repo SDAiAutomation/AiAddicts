@@ -90,8 +90,52 @@ def mark_failed(client, content_item_id: str, error: str) -> None:
     # Colonne `error` en text, pas de limite stricte côté DB, mais on borne
     # quand même — pas la peine de stocker une trace complète en base.
     client.table("content_items").update(
-        {"status": "failed", "error": error[:2000]}
+        {"status": "failed", "error": error[:2000], "generation_step": None}
     ).eq("id", content_item_id).execute()
+
+
+def charge_generation_credit(client, content_item_id: str) -> None:
+    """Décompte 1 crédit (= 1 vidéo, cf. page Tarifs growthos-web) sur
+    l'organisation propriétaire de ce content_item, à appeler une fois la
+    génération réussie. Business (plan sur devis) n'a pas de limite, donc
+    rien à décompter. Journalisé dans credits_ledger comme toute variation
+    de solde (le webhook Stripe y écrit aussi, pour les recharges).
+
+    Best-effort côté appelant : ne doit jamais faire échouer un run par
+    ailleurs réussi, voir le wrapping dans assembler.run_for_content_item.
+    """
+    item = (
+        client.table("content_items")
+        .select("accounts(organization_id)")
+        .eq("id", content_item_id)
+        .single()
+        .execute()
+    )
+    organization_id = item.data["accounts"]["organization_id"]
+
+    org = (
+        client.table("organizations")
+        .select("plan, credits_balance")
+        .eq("id", organization_id)
+        .single()
+        .execute()
+    ).data
+    if org["plan"] == "business":
+        return  # illimité par design, pas de décompte
+
+    new_balance = max(0, org["credits_balance"] - 1)
+    client.table("organizations").update({"credits_balance": new_balance}).eq(
+        "id", organization_id
+    ).execute()
+    client.table("credits_ledger").insert(
+        {
+            "organization_id": organization_id,
+            "delta": new_balance - org["credits_balance"],
+            "reason": "video_generated",
+            "related_content_item_id": content_item_id,
+            "balance_after": new_balance,
+        }
+    ).execute()
 
 
 def mark_published(client, content_item_id: str) -> None:
