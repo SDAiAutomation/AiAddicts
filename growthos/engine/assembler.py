@@ -102,9 +102,9 @@ def _generate(
         )
 
     openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
-    visuals_desc = "Pexels" if pexels_key else "fond uni — pas de PEXELS_API_KEY"
-    if openai_enabled:
-        visuals_desc += " + OpenAI sur le hook"
+    visuals_desc = "OpenAI (scènes groupées)" if openai_enabled else ("Pexels" if pexels_key else "fond uni — pas de clé")
+    if openai_enabled and pexels_key:
+        visuals_desc += " + Pexels en repli"
     print(f"[3/5] Visuels ({visuals_desc})…")
     step(f"Visuels ({visuals_desc})")
     t0 = time.monotonic()

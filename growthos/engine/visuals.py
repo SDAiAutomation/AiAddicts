@@ -1,12 +1,15 @@
-"""Fetch a background image per script block from Pexels (stock photos,
-free API) so the rendered video has real visuals instead of a flat color
-card behind the captions.
+"""Fetch a background image per script block — IA (OpenAI `gpt-image-1-mini`,
+style illustré cohérent) en priorité si configurée, Pexels (stock photos,
+gratuit) sinon ou en repli, pour que la vidéo ait un vrai visuel au lieu
+d'un fond couleur uni derrière les sous-titres.
 
-Le bloc `hook` (celui qui décide si quelqu'un reste) tente d'abord une image
-générée par IA (OpenAI `gpt-image-1-mini`, `engine/openai_images.py`) — coût
-marginal (~0,005-0,01 $/image), levier maximal. Retombe silencieusement sur
-Pexels si pas de clé OpenAI configurée ou en cas d'échec. Les autres blocs
-restent sur Pexels uniquement (gratuit).
+Une image IA par bloc serait inutilement cher pour une vidéo de 60-75s (une
+image tiendrait ~8-10s à l'écran, personne ne remarque un changement aussi
+fréquent) : les blocs sont regroupés par paquets de `_BLOCKS_PER_IMAGE`
+(une "scène"), chaque groupe ne coûtant qu'un seul appel OpenAI, réutilisé
+sur tous ses blocs. Pexels comble ensuite les blocs restés sans image
+(clé OpenAI absente, échec réseau/API pour ce groupe précis) — jamais
+bloquant, jamais un groupe raté n'empêche les autres d'avoir leur visuel.
 
 Optionnel : sans aucune clé (Pexels et/ou OpenAI), `fetch_block_images()`
 retourne des None partout — `engine/video.render_final()` retombe sur le
@@ -21,6 +24,10 @@ import requests
 from . import openai_images
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
+
+# ~20-25s d'écran par image générée (un bloc dure ~7-10s de voix off) : une
+# vidéo de 60-75s n'a besoin que de 2-3 visuels distincts, pas d'un par bloc.
+_BLOCKS_PER_IMAGE = 3
 
 # Extraction de mots-clés volontairement simple (pas de dépendance NLP, le
 # pipeline reste léger) : mots de 4+ lettres hors stop-words français
@@ -63,14 +70,21 @@ def _search_query(block_text: str, niche: str | None) -> str:
     return " ".join(keywords) or niche_word or "business"
 
 
-def _hook_prompt(block_text: str, niche: str | None) -> str:
-    # "Sans aucun texte" explicite : sinon le modèle a tendance à incruster la
-    # phrase du bloc comme légende dans l'image (déjà géré par les sous-titres
-    # ffmpeg — un doublon qui se chevauche, en plus de fautes de frappe vues en test).
+def _group_blocks(n_blocks: int, group_size: int) -> list[list[int]]:
+    """Indices (0-based) des blocs regroupés par paquets de `group_size` —
+    un groupe = une seule image IA générée, réutilisée sur tous ses blocs."""
+    return [list(range(i, min(i + group_size, n_blocks))) for i in range(0, n_blocks, group_size)]
+
+
+def _scene_prompt(texts: list[str], niche: str | None) -> str:
+    # "Sans aucun texte" explicite : sinon le modèle a tendance à incruster le
+    # texte comme légende dans l'image (déjà géré par les sous-titres ffmpeg —
+    # un doublon qui se chevauche, en plus de fautes de frappe vues en test).
     niche_part = f", niche {niche.replace('-', ' ')}" if niche else ""
+    combined = " ".join(t.strip() for t in texts)
     return (
         f"Photo réaliste, style contenu réseaux sociaux, SANS AUCUN TEXTE ni mot ni "
-        f"légende dans l'image : scène illustrant « {block_text.strip()} »{niche_part}"
+        f"légende dans l'image : scène illustrant « {combined} »{niche_part}"
     )
 
 
@@ -108,44 +122,61 @@ def fetch_block_images(
     api_key: str | None,
 ) -> list[str | None]:
     """Une image locale par bloc, ou None (pas de clé / pas de résultat /
-    échec réseau pour ce bloc précis) — jamais bloquant, chaque bloc sans
-    image retombe sur le fond couleur unie côté video.py. Résultats mis en
-    cache sur disque comme le reste du pipeline (relance = pas de re-fetch)."""
-    orientation = _ORIENTATION.get(aspect_ratio, "portrait")
-    paths: list[str | None] = []
-    for i, block in enumerate(blocks, start=1):
-        image_path = Path(work_dir) / "images" / f"block-{i:02d}.jpg"
-        if image_path.exists() and image_path.stat().st_size > 0:
-            paths.append(str(image_path))
+    échec réseau) — jamais bloquant, chaque bloc sans image retombe sur le
+    fond couleur unie côté video.py. Résultats mis en cache sur disque comme
+    le reste du pipeline (relance = pas de re-fetch).
+
+    IA (OpenAI, un groupe de `_BLOCKS_PER_IMAGE` blocs = une image) en
+    priorité, Pexels en repli bloc par bloc pour tout ce que l'IA n'a pas
+    couvert (pas de clé OpenAI, ou échec pour ce groupe précis)."""
+    n = len(blocks)
+    paths: list[str | None] = [None] * n
+
+    for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
+        image_path = Path(work_dir) / "images" / f"scene-{group[0] + 1:02d}.jpg"
+        if _exists_nonempty(image_path):
+            for i in group:
+                paths[i] = str(image_path)
             continue
+        texts = [blocks[i]["text"] for i in group]
+        scene_path = _try_scene_image(texts, niche, aspect_ratio, str(image_path))
+        if scene_path:
+            for i in group:
+                paths[i] = scene_path
 
-        if block.get("role") == "hook":
-            hook_path = _try_hook_image(block["text"], niche, aspect_ratio, str(image_path))
-            if hook_path:
-                paths.append(hook_path)
-                continue
+    if not api_key:
+        return paths
 
-        if not api_key:
-            paths.append(None)
+    orientation = _ORIENTATION.get(aspect_ratio, "portrait")
+    for i, block in enumerate(blocks):
+        if paths[i]:
+            continue
+        image_path = Path(work_dir) / "images" / f"block-{i + 1:02d}.jpg"
+        if _exists_nonempty(image_path):
+            paths[i] = str(image_path)
             continue
         query = _search_query(block["text"], niche)
         url = search_image_url(query, api_key, orientation)
         if not url:
-            paths.append(None)
             continue
         try:
             download_image(url, str(image_path))
-            paths.append(str(image_path))
+            paths[i] = str(image_path)
         except requests.RequestException:
-            paths.append(None)
+            pass
     return paths
 
 
-def _try_hook_image(text: str, niche: str | None, aspect_ratio: str, out_path: str) -> str | None:
-    """Tente une image IA (OpenAI) pour le bloc hook. None si pas de clé
-    configurée ou échec — l'appelant retombe alors sur Pexels pour ce bloc."""
+def _exists_nonempty(path: Path) -> bool:
+    return path.exists() and path.stat().st_size > 0
+
+
+def _try_scene_image(texts: list[str], niche: str | None, aspect_ratio: str, out_path: str) -> str | None:
+    """Tente une image IA (OpenAI) pour un groupe de blocs. None si pas de
+    clé configurée ou échec — l'appelant retombe alors sur Pexels bloc par
+    bloc pour ce groupe."""
     t0 = time.monotonic()
-    path = openai_images.generate_image(_hook_prompt(text, niche), out_path, aspect_ratio)
+    path = openai_images.generate_image(_scene_prompt(texts, niche), out_path, aspect_ratio)
     if path:
-        print(f"       hook : image IA générée ({time.monotonic() - t0:.1f}s)")
+        print(f"       scène : image IA générée ({time.monotonic() - t0:.1f}s)")
     return path
