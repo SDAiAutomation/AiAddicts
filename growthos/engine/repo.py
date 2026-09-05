@@ -128,16 +128,9 @@ def mark_failed(client, content_item_id: str, error: str) -> None:
     ).eq("id", content_item_id).execute()
 
 
-def charge_generation_credit(client, content_item_id: str) -> None:
-    """Décompte 1 crédit (= 1 vidéo, cf. page Tarifs growthos-web) sur
-    l'organisation propriétaire de ce content_item, à appeler une fois la
-    génération réussie. Business (plan sur devis) n'a pas de limite, donc
-    rien à décompter. Journalisé dans credits_ledger comme toute variation
-    de solde (le webhook Stripe y écrit aussi, pour les recharges).
-
-    Best-effort côté appelant : ne doit jamais faire échouer un run par
-    ailleurs réussi, voir le wrapping dans assembler.run_for_content_item.
-    """
+def get_organization_credits(client, content_item_id: str) -> tuple[str, int] | None:
+    """(plan, credits_balance) de l'organisation propriétaire de ce
+    content_item, ou None si l'item/compte/organisation n'existe pas."""
     item = (
         client.table("content_items")
         .select("accounts(organization_id)")
@@ -146,7 +139,6 @@ def charge_generation_credit(client, content_item_id: str) -> None:
         .execute()
     )
     organization_id = item.data["accounts"]["organization_id"]
-
     org = (
         client.table("organizations")
         .select("plan, credits_balance")
@@ -154,22 +146,39 @@ def charge_generation_credit(client, content_item_id: str) -> None:
         .single()
         .execute()
     ).data
-    if org["plan"] == "business":
-        return  # illimité par design, pas de décompte
+    return org["plan"], org["credits_balance"]
 
-    new_balance = max(0, org["credits_balance"] - 1)
-    client.table("organizations").update({"credits_balance": new_balance}).eq(
-        "id", organization_id
-    ).execute()
-    client.table("credits_ledger").insert(
-        {
-            "organization_id": organization_id,
-            "delta": new_balance - org["credits_balance"],
-            "reason": "video_generated",
-            "related_content_item_id": content_item_id,
-            "balance_after": new_balance,
-        }
-    ).execute()
+
+def has_credits(client, content_item_id: str) -> bool:
+    """True si l'organisation peut encore se permettre une génération
+    (Business = illimité). À vérifier avant de dépenser quoi que ce soit
+    (ElevenLabs/OpenAI/Pexels) — sans ça, plusieurs items mis en file avant
+    épuisement du solde se généraient tous quand même, le solde ne servant
+    qu'à décorer /settings sans jamais bloquer personne."""
+    result = get_organization_credits(client, content_item_id)
+    if not result:
+        return False
+    plan, credits_balance = result
+    return plan == "business" or credits_balance > 0
+
+
+def charge_generation_credit(client, content_item_id: str) -> None:
+    """Décompte 1 crédit (= 1 vidéo, cf. page Tarifs growthos-web) sur
+    l'organisation propriétaire de ce content_item, à appeler une fois la
+    génération réussie. Business (plan sur devis) n'a pas de limite, donc
+    rien à décompter. Journalisé dans credits_ledger comme toute variation
+    de solde (le webhook Stripe y écrit aussi, pour les recharges).
+
+    Décompte fait par une fonction Postgres (`charge_generation_credit`,
+    verrou de ligne `for update`) plutôt qu'en lecture-puis-écriture ici :
+    deux workers traitant deux items de la même organisation en parallèle
+    (ex: deux runs GitHub Actions qui se chevauchent) pouvaient sinon lire
+    le même solde de départ et perdre un décompte.
+
+    Best-effort côté appelant : ne doit jamais faire échouer un run par
+    ailleurs réussi, voir le wrapping dans assembler.run_for_content_item.
+    """
+    client.rpc("charge_generation_credit", {"p_content_item_id": content_item_id}).execute()
 
 
 def mark_published(client, content_item_id: str) -> None:

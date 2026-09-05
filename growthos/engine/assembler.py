@@ -198,6 +198,16 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     """
     t_start = time.monotonic()
     client = db.get_service_client()
+
+    # Vérifié ici, avant de dépenser un seul appel ElevenLabs/OpenAI/Pexels —
+    # queueGeneration (growthos-web) ne fait qu'un contrôle à la mise en
+    # file ; sans revérifier ici, plusieurs items mis en file avant
+    # épuisement du solde se généraient quand même tous (charge_generation_credit
+    # ne fait que clamper à 0 après coup, jamais refuser). L'exception est
+    # attrapée par worker.py comme tout autre échec, qui appelle mark_failed.
+    if not repo.has_credits(client, content_item_id):
+        raise RuntimeError("crédits épuisés pour ce mois-ci")
+
     data = repo.get_script(client, content_item_id)
     script_module.validate_script(data)
     data.setdefault("aspect_ratio", "9:16")
