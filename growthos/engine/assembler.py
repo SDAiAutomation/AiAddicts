@@ -105,11 +105,19 @@ def _generate(
     visuals_desc = "OpenAI (scènes groupées)" if openai_enabled else ("Pexels" if pexels_key else "fond uni — pas de clé")
     if openai_enabled and pexels_key:
         visuals_desc += " + Pexels en repli"
+    if openai_enabled and data.get("characters"):
+        names = ", ".join(str(c.get("name", "?")) for c in data["characters"])
+        visuals_desc += f" — fiche personnage : {names}"
     print(f"[3/5] Visuels ({visuals_desc})…")
     step(f"Visuels ({visuals_desc})")
     t0 = time.monotonic()
     image_paths = visuals.fetch_block_images(
-        data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key
+        data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
+        characters=data.get("characters"),
+        # `visual_style_prompt` = consigne de style déjà résolue (Faceloop
+        # écrit la phrase complète du pack choisi) ; `visual_style` = id court
+        # (script CLI), traduit par visuals._style_consigne.
+        visual_style=data.get("visual_style_prompt") or data.get("visual_style"),
     )
     found = sum(1 for p in image_paths if p)
     suffix = f"{found}/{n_blocks} image(s) trouvée(s), le reste en fond uni" if pexels_key else ""

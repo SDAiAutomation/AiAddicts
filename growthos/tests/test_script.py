@@ -60,6 +60,30 @@ class TestValidateScript(unittest.TestCase):
     def test_missing_platform_is_valid(self):
         validate_script(VALID)  # platform is optional at validation time, defaulted on load
 
+    def test_characters_optional(self):
+        validate_script(VALID)  # pas de 'characters' -> OK
+
+    def test_valid_characters_pass(self):
+        data = {**VALID, "characters": [
+            {"name": "Léo", "description": "un ourson brun", "negative": "jamais humain"},
+        ]}
+        validate_script(data)  # no exception
+
+    def test_character_without_name_raises(self):
+        data = {**VALID, "characters": [{"description": "un ourson brun"}]}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_character_without_description_raises(self):
+        data = {**VALID, "characters": [{"name": "Léo"}]}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_characters_not_a_list_raises(self):
+        data = {**VALID, "characters": {"name": "Léo", "description": "x"}}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
     def test_invalid_aspect_ratio_raises(self):
         data = {**VALID, "aspect_ratio": "4:5"}
         with self.assertRaises(ValueError):

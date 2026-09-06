@@ -36,6 +36,10 @@ def validate_script(data: dict) -> None:
             f"'aspect_ratio' invalide : '{aspect_ratio}' (attendu : {sorted(ALLOWED_ASPECT_RATIOS)})"
         )
 
+    characters = data.get("characters")
+    if characters is not None:
+        _validate_characters(characters)
+
     blocks = data["blocks"]
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("'blocks' doit être une liste non vide")
@@ -49,6 +53,22 @@ def validate_script(data: dict) -> None:
             raise ValueError(
                 f"blocks[{i}] : role '{role}' invalide (attendu : {sorted(ALLOWED_ROLES)})"
             )
+
+
+def _validate_characters(characters) -> None:
+    """`characters` (optionnel) : fiche personnage figée injectée dans chaque
+    prompt d'image de scène (voir engine/visuals.build_character_prefix) pour
+    que "Léo l'ourson" reste un ourson d'une scène à l'autre. Chaque entrée :
+    `name` + `description` requis, `negative` (contrainte négative) optionnel."""
+    if not isinstance(characters, list):
+        raise ValueError("'characters' doit être une liste (ou absent)")
+    for i, character in enumerate(characters):
+        if not isinstance(character, dict):
+            raise ValueError(f"characters[{i}] doit être un objet {{name, description}}")
+        if not str(character.get("name", "")).strip():
+            raise ValueError(f"characters[{i}] : 'name' manquant ou vide")
+        if not str(character.get("description", "")).strip():
+            raise ValueError(f"characters[{i}] : 'description' manquante ou vide")
 
 
 def slug(data: dict) -> str:

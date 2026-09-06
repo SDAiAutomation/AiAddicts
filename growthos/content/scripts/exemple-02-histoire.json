@@ -1,0 +1,33 @@
+{
+  "title": "Léo et les étoiles du soir",
+  "niche": "histoires-enfants",
+  "account": "test-account-01",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "visual_style": "illustration album jeunesse, couleurs douces et pastel, formes arrondies, contours doux",
+  "characters": [
+    {
+      "name": "Léo",
+      "description": "un ourson brun d'environ 6 ans, petit et rond, avec de grandes oreilles arrondies, portant une salopette bleue et un tee-shirt jaune, et tenant souvent un doudou lapin gris",
+      "negative": "jamais un enfant humain, toujours un ourson anthropomorphe couvert de fourrure"
+    },
+    {
+      "name": "Maman",
+      "description": "une grande ourse brune, douce, portant un tablier rose par-dessus un pull crème"
+    }
+  ],
+  "cta": "Abonne-toi pour une nouvelle histoire du soir chaque jour.",
+  "hashtags": ["#histoiredusoir", "#pourenfants", "#contes", "#bonnenuit"],
+  "blocks": [
+    {"role": "hook", "text": "Léo l'ourson n'arrivait pas à dormir le soir de la rentrée."},
+    {"role": "point", "text": "Il tournait dans son lit en serrant très fort son doudou lapin gris."},
+    {"role": "point", "text": "Alors il se leva sur la pointe des pieds et sortit de sa chambre."},
+    {"role": "point", "text": "Il descendit dans la cuisine et trouva sa maman en train de préparer un chocolat chaud."},
+    {"role": "point", "text": "Ensemble, ils s'installèrent près de la fenêtre pour regarder les étoiles."},
+    {"role": "point", "text": "Maman lui raconta que chaque étoile était un ami qui veillait sur lui."},
+    {"role": "point", "text": "Léo remonta dans sa chambre, le cœur léger, et se glissa sous la couette."},
+    {"role": "point", "text": "Il ferma les yeux, serra son doudou, et sentit le sommeil arriver doucement."},
+    {"role": "cta", "text": "Abonne-toi pour une nouvelle histoire du soir chaque jour."}
+  ]
+}
