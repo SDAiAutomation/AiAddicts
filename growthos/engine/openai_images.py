@@ -19,7 +19,7 @@ Deux endpoints selon le besoin :
 Réglages via l'environnement (défauts raisonnables sinon) :
   OPENAI_IMAGE_MODEL    (défaut "gpt-image-1-mini" ; "gpt-image-1" pour la
                          meilleure adhérence au prompt, ~x3-4 le coût)
-  OPENAI_IMAGE_QUALITY  ("low" | "medium" | "high" ; défaut "high")
+  OPENAI_IMAGE_QUALITY  ("low" | "medium" | "high" ; défaut "medium")
 """
 import base64
 import os
@@ -31,7 +31,10 @@ GENERATIONS_URL = "https://api.openai.com/v1/images/generations"
 EDITS_URL = "https://api.openai.com/v1/images/edits"
 
 _DEFAULT_MODEL = "gpt-image-1-mini"
-_DEFAULT_QUALITY = "high"  # fidélité maximale ; ~0,05-0,08 $/image en mini
+# "medium" par défaut : ~0,03 $/image en mini (vs ~0,06 en "high"), assez pour
+# un fond derrière des sous-titres. `OPENAI_IMAGE_QUALITY=high` pour la finesse
+# max (histoires illustrées, personnages) au prix d'une marge plus fine.
+_DEFAULT_QUALITY = "medium"
 _VALID_QUALITIES = {"low", "medium", "high", "auto"}
 
 # Tailles supportées par gpt-image-1 / -mini ; la plus proche de chaque

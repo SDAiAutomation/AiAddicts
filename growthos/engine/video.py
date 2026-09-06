@@ -72,6 +72,10 @@ _VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
 # stable au re-rendu) pour éviter l'effet "toutes les images zooment pareil".
 _KB_MOVES = ("in", "out", "right", "left", "up", "in_slow")
 
+# Vignette légère qui "respire" (angle animé) : un cadrage un peu filmique,
+# coût de compression négligeable. Appliquée aux clips image ET stock.
+_VIGNETTE = "vignette=angle='PI/4.5+0.05*sin(2*PI*t/7)':eval=frame"
+
 
 def _kenburns_filter(move: str, resolution: str, n_frames: int, fps: int) -> str:
     """Expression `zoompan` pour un mouvement Ken Burns donné. L'image est déjà
@@ -115,7 +119,7 @@ def _render_block_clip(
     if image_path and image_path.lower().endswith(_VIDEO_EXTS):
         vf = (
             f"scale={resolution}:force_original_aspect_ratio=increase,"
-            f"crop={resolution.replace('x', ':')},fps={fps},format=yuv420p"
+            f"crop={resolution.replace('x', ':')},fps={fps},{_VIGNETTE},format=yuv420p"
         )
         _run(
             [
@@ -136,7 +140,7 @@ def _render_block_clip(
             f"scale={resolution}:force_original_aspect_ratio=increase,"
             f"crop={resolution.replace('x', ':')},"
             f"{_kenburns_filter(move, resolution, n_frames, fps)},"
-            "format=yuv420p"
+            f"{_VIGNETTE},format=yuv420p"
         )
         _run(
             [
