@@ -5,6 +5,7 @@ from pathlib import Path
 ALLOWED_ROLES = {"hook", "point", "cta"}
 ALLOWED_PLATFORMS = {"tiktok", "instagram", "youtube"}  # matches the accounts table's check constraint
 ALLOWED_ASPECT_RATIOS = {"9:16", "1:1", "16:9"}  # matches engine.video.RESOLUTIONS
+ALLOWED_CAPTION_STYLES = {"bold_stroke", "sleek", "boxed", "neon", "word_pop"}  # engine.captions._CAPTION_STYLES
 # `voice_id` is resolved at generation time (--voice > script > config/voices.json),
 # see engine/voices.py — so it is not required in the script file itself.
 REQUIRED_TOP_LEVEL = ("title", "niche", "account", "blocks")
@@ -34,6 +35,12 @@ def validate_script(data: dict) -> None:
     if aspect_ratio is not None and aspect_ratio not in ALLOWED_ASPECT_RATIOS:
         raise ValueError(
             f"'aspect_ratio' invalide : '{aspect_ratio}' (attendu : {sorted(ALLOWED_ASPECT_RATIOS)})"
+        )
+
+    caption_style = data.get("caption_style")
+    if caption_style is not None and caption_style not in ALLOWED_CAPTION_STYLES:
+        raise ValueError(
+            f"'caption_style' invalide : '{caption_style}' (attendu : {sorted(ALLOWED_CAPTION_STYLES)})"
         )
 
     characters = data.get("characters")

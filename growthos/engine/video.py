@@ -156,16 +156,21 @@ def render_final(
     list_path = clips_dir / "list.txt"
     list_path.write_text("\n".join(f"file '{name}'" for name in clip_names), encoding="utf-8")
 
-    # burn subtitles: white text, semi-bold, centered lower third
-    style = (
-        f"FontName={font},FontSize=16,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00000000,BorderStyle=1,Outline=2,"
-        "Alignment=2,MarginV=140"
-    )
-    # Reference the .srt (et la liste concat) par chemin relatif avec cwd sur
-    # work_dir : le filtre `subtitles` d'ffmpeg mal-parse les lettres de
-    # lecteur Windows (C:\) et les antislashs dans un argument de filtre.
-    subtitles_filter = f"subtitles={srt.name}:force_style='{style}'"
+    # Reference the caption file (et la liste concat) par chemin relatif avec
+    # cwd sur work_dir : le filtre `subtitles` d'ffmpeg mal-parse les lettres
+    # de lecteur Windows (C:\) et les antislashs dans un argument de filtre.
+    if srt.suffix == ".ass":
+        # Le style (police, contour, boîte, surlignage) est embarqué dans le
+        # .ass — voir engine/captions.write_ass / `caption_style` du script.
+        subtitles_filter = f"subtitles={srt.name}"
+    else:
+        # Repli .srt : style unique historique.
+        style = (
+            f"FontName={font},FontSize=16,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,BorderStyle=1,Outline=2,"
+            "Alignment=2,MarginV=140"
+        )
+        subtitles_filter = f"subtitles={srt.name}:force_style='{style}'"
 
     print(f"       assemblage final ({n_clips} clips + sous-titres)…")
     t0 = time.monotonic()

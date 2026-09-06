@@ -132,13 +132,17 @@ def _generate(
     else:
         full_audio = video.concat_audio(audio_paths, str(full_wav))
     cues = captions.build_cues(block_words)
-    srt_file = captions.write_srt(cues, str(srt_path))
+    captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
+    caption_style = captions.caption_style_or_default(data.get("caption_style"))
+    resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
+    ass_file = captions.write_ass(cues, str(work_dir / "captions.ass"), caption_style, resolution)
+    print(f"       sous-titres : style « {caption_style} »")
 
     print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
     step(f"Rendu vidéo final ({n_blocks} clip(s))")
     t0 = time.monotonic()
     final_video = video.render_final(
-        full_audio, srt_file, str(final_path), durations,
+        full_audio, ass_file, str(final_path), durations,
         image_paths=image_paths, aspect_ratio=data["aspect_ratio"],
     )
     print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")

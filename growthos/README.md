@@ -68,6 +68,10 @@ Quand `OPENAI_API_KEY` est renseignée, `engine/visuals.py` génère une image I
 
 En plus, l'image de la scène 1 sert d'**ancre visuelle** : les scènes suivantes sont dérivées d'elle via `/v1/images/edits` au lieu d'être régénérées de zéro. Réglages API : `OPENAI_IMAGE_MODEL` (défaut `gpt-image-1-mini`), `OPENAI_IMAGE_QUALITY` (`low`/`medium`/`high`, défaut `high`). `input_fidelity=high` (meilleure fidélité à l'ancre) n'est activé que si `OPENAI_IMAGE_MODEL=gpt-image-1`. Voir `exemple-02-histoire.json`.
 
+### Style des sous-titres
+
+`caption_style` (optionnel, défaut `bold_stroke`) choisit le rendu des sous-titres brûlés — porté par un fichier `.ass` généré par `engine/captions.write_ass` (libass). Valeurs : `bold_stroke` (blanc gras contour épais), `sleek` (fin, discret), `boxed` (bandeau noir), `neon` (halo bleu), `word_pop` (le mot prononcé passe en jaune et grossit — utilise le timing mot-à-mot). `engine/video.py` détecte le `.ass` et laisse libass appliquer le style embarqué ; sans `.ass`, repli sur l'ancien style unique via `force_style`.
+
 ## Worker (file de génération depuis le front)
 
 `growthos-web` (repo séparé, Next.js) ne peut pas lancer ElevenLabs/ffmpeg

@@ -60,6 +60,12 @@ class TestValidateScript(unittest.TestCase):
     def test_missing_platform_is_valid(self):
         validate_script(VALID)  # platform is optional at validation time, defaulted on load
 
+    def test_caption_style_optional_and_validated(self):
+        validate_script(VALID)  # absent -> OK
+        validate_script({**VALID, "caption_style": "word_pop"})  # connu -> OK
+        with self.assertRaises(ValueError):
+            validate_script({**VALID, "caption_style": "rainbow"})
+
     def test_characters_optional(self):
         validate_script(VALID)  # pas de 'characters' -> OK
 
