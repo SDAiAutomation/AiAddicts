@@ -328,8 +328,14 @@ def fetch_block_images(
         return paths
 
     character_prefix = build_character_prefix(characters, style_consigne)
-    # Le visuel du 1er groupe sert d'ancre : les suivants en dérivent via
-    # /edits, ce qui empêche le personnage de dériver d'un bloc à l'autre.
+    # L'ancrage (1er visuel réutilisé via /edits pour dériver les suivants)
+    # n'a de sens qu'avec des personnages récurrents à garder identiques : il
+    # fige aussi la composition, donc sans `characters` on aurait 5 images
+    # quasi jumelles. Sans personnages -> chaque bloc est illustré à part
+    # (le style reste cohérent via `character_prefix` / style_consigne).
+    has_characters = bool(
+        [c for c in (characters or []) if isinstance(c, dict) and c.get("name") and c.get("description")]
+    )
     reference_path: str | None = None
 
     for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
@@ -337,7 +343,8 @@ def fetch_block_images(
         if _exists_nonempty(image_path):
             for i in group:
                 paths[i] = str(image_path)
-            reference_path = reference_path or str(image_path)
+            if has_characters:
+                reference_path = reference_path or str(image_path)
             continue
         texts = [blocks[i]["text"] for i in group]
         prompt = _scene_prompt(texts, niche, character_prefix, aspect_ratio)
@@ -345,7 +352,8 @@ def fetch_block_images(
         if scene_path:
             for i in group:
                 paths[i] = scene_path
-            reference_path = reference_path or scene_path
+            if has_characters:
+                reference_path = reference_path or scene_path
 
     if not api_key:
         return paths
