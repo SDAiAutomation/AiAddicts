@@ -1,0 +1,21 @@
+{
+  "title": "3 erreurs qui ruinent ta seance de sport",
+  "niche": "fitness",
+  "account": "test-account-01",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "visual_style": "stock_footage",
+  "caption_style": "bold_stroke",
+  "cta": "Abonne-toi pour une astuce sport chaque semaine.",
+  "hashtags": ["#fitness", "#musculation", "#sport", "#progression"],
+  "blocks": [
+    {"role": "hook", "text": "Trois erreurs sabotent ta seance de sport sans que tu le remarques."},
+    {"role": "point", "text": "Tu sautes l'echauffement. Deux minutes de mobilite evitent la blessure qui te met dix jours a l'arret."},
+    {"role": "point", "text": "Tu changes de programme toutes les semaines. Ton corps a besoin de repeter un mouvement pour progresser dessus."},
+    {"role": "point", "text": "Tu t'entraines toujours pres de l'echec. Garde deux repetitions en reserve et tu recuperes bien mieux."},
+    {"role": "point", "text": "Tu ne notes rien. Un carnet simple te montre si tu ajoutes du poids ou si tu stagnes depuis un mois."},
+    {"role": "point", "text": "Corrige une seule de ces erreurs cette semaine et regarde ta seance suivante changer."},
+    {"role": "cta", "text": "Abonne-toi pour une astuce sport chaque semaine."}
+  ]
+}

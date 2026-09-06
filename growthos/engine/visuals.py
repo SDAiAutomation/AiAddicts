@@ -256,18 +256,23 @@ def search_video_url(query: str, api_key: str, orientation: str = "portrait") ->
             timeout=20,
         )
         resp.raise_for_status()
+        best_low = None  # repli si aucun clip n'a de fichier >= 1080 de haut
         for video in resp.json().get("videos") or []:
             if not (3 <= (video.get("duration") or 0) <= 30):
                 continue
             mp4s = [f for f in (video.get("video_files") or []) if f.get("file_type") == "video/mp4" and f.get("link")]
             if not mp4s:
                 continue
-            mp4s.sort(key=lambda f: (f.get("height") or 0))
-            # la plus petite qui atteint 1080 de haut (assez pour un 1080x1920
-            # recadré), sinon la plus grande disponible.
-            pick = next((f for f in mp4s if (f.get("height") or 0) >= 1080), mp4s[-1])
-            return pick["link"]
-        return None
+            # En portrait, c'est la largeur qui limite le rendu 1080 de large :
+            # on veut un fichier >= 1080px de large. Priorité au 1er clip qui
+            # en a un (sa plus petite version >= 1080), repli sur le plus grand.
+            mp4s.sort(key=lambda f: (f.get("width") or 0))
+            hi = next((f for f in mp4s if (f.get("width") or 0) >= 1080), None)
+            if hi:
+                return hi["link"]
+            if best_low is None:
+                best_low = mp4s[-1]["link"]
+        return best_low
     except (requests.RequestException, KeyError, ValueError, IndexError):
         return None
 
