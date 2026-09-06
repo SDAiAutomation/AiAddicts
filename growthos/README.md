@@ -59,14 +59,22 @@ Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas
 
 Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Optionnels : `platform` (défaut `tiktok`), `organization` (défaut `GrowthOS Dogfooding`), `aspect_ratio` (`9:16` / `1:1` / `16:9`, défaut `9:16`), `voice_id` (sinon résolu via `--voice` ou `config/voices.json`, cf. plus haut). Voir `exemple-01.json`.
 
+### Visuels de bloc
+
+`engine/visuals.py` produit un visuel par bloc, derrière les sous-titres :
+
+- **`visual_style` = `stock_footage`** → un **clip vidéo Pexels** par bloc (gratuit, `PEXELS_API_KEY`), photo Pexels en repli. Pour les sujets concrets (sport, cuisine, voyage, actu). `engine/video.py` recadre le clip plein cadre 9:16, le boucle/coupe à la durée du bloc, sans Ken Burns.
+- **sinon** (`OPENAI_API_KEY`) → une **image IA** par bloc (`VISUALS_BLOCKS_PER_IMAGE`, défaut 1 ; mettre `3` pour regrouper et diviser le coût), Pexels photo en repli. Ken Burns (zoom lent) sur l'image.
+- **aucune clé** → fond couleur unie.
+
 ### Cohérence des personnages dans les images de scène
 
-Quand `OPENAI_API_KEY` est renseignée, `engine/visuals.py` génère une image IA par groupe de 3 blocs (une « scène »). Chaque appel est indépendant : sans description physique réinjectée, un prénom qui sonne humain (« Léo ») fait dériver un ourson vers un petit garçon d'une scène à l'autre. Deux champs de script optionnels corrigent ça :
+Chaque appel image IA est indépendant : sans description physique réinjectée, un prénom qui sonne humain (« Léo ») fait dériver un ourson vers un petit garçon d'un bloc à l'autre. Deux champs de script optionnels corrigent ça :
 
 - **`characters`** : liste de `{ "name", "description", "negative"? }`. `description` est l'apparence **fixe** (espèce, couleur, taille, vêtements, traits, style de dessin) ; `negative` la contrainte à ne jamais enfreindre. Concaténés en tête de **chaque** prompt de scène.
 - **`visual_style_prompt`** (Faceloop) ou **`visual_style`** (CLI) : la consigne de style graphique, identique sur toutes les scènes. Faceloop écrit la phrase complète du pack choisi dans `visual_style_prompt` (catalogue `growthos-web/.../content/visual-styles.ts` : `storybook`, `pixar_3d`, `anime`, `comic_book`, `gta_loading`, `cinematic_real`, `stock_footage`, `flat_color`). En CLI, `visual_style` accepte soit un de ces ids (traduit par `_VISUAL_STYLE_PROMPTS`), soit une phrase libre. `visual_style_prompt` l'emporte s'il est présent.
 
-En plus, l'image de la scène 1 sert d'**ancre visuelle** : les scènes suivantes sont dérivées d'elle via `/v1/images/edits` au lieu d'être régénérées de zéro. Réglages API : `OPENAI_IMAGE_MODEL` (défaut `gpt-image-1-mini`), `OPENAI_IMAGE_QUALITY` (`low`/`medium`/`high`, défaut `high`). `input_fidelity=high` (meilleure fidélité à l'ancre) n'est activé que si `OPENAI_IMAGE_MODEL=gpt-image-1`. Voir `exemple-02-histoire.json`.
+En plus, le visuel du 1er bloc sert d'**ancre** : les suivants sont dérivés de lui via `/v1/images/edits` au lieu d'être régénérés de zéro. Réglages API : `OPENAI_IMAGE_MODEL` (défaut `gpt-image-1-mini`), `OPENAI_IMAGE_QUALITY` (`low`/`medium`/`high`, défaut `high`). `input_fidelity=high` (meilleure fidélité à l'ancre) n'est activé que si `OPENAI_IMAGE_MODEL=gpt-image-1`. Voir `exemple-02-histoire.json`.
 
 ### Style des sous-titres
 

@@ -78,6 +78,43 @@ class TestGroupBlocks(unittest.TestCase):
     def test_groups_of_three(self):
         self.assertEqual(visuals._group_blocks(7, 3), [[0, 1, 2], [3, 4, 5], [6]])
 
+    def test_groups_of_one_is_one_per_block(self):
+        self.assertEqual(visuals._group_blocks(4, 1), [[0], [1], [2], [3]])
+
+    def test_default_blocks_per_image_is_one(self):
+        # une image par bloc par défaut (VISUALS_BLOCKS_PER_IMAGE non défini)
+        self.assertEqual(visuals._BLOCKS_PER_IMAGE, 1)
+
+
+class TestPrefersStockFootage(unittest.TestCase):
+    def test_true_for_known_ids(self):
+        self.assertTrue(visuals.prefers_stock_footage("stock_footage", ""))
+        self.assertTrue(visuals.prefers_stock_footage("stock_video", ""))
+
+    def test_true_for_phrase_mentioning_stock_footage(self):
+        self.assertTrue(visuals.prefers_stock_footage("", "clips en stock footage, lumière naturelle"))
+        self.assertTrue(visuals.prefers_stock_footage("", "vidéo de stock réaliste"))
+
+    def test_false_for_illustrated_styles(self):
+        self.assertFalse(visuals.prefers_stock_footage("storybook", "illustration album jeunesse"))
+        self.assertFalse(visuals.prefers_stock_footage("anime", ""))
+        self.assertFalse(visuals.prefers_stock_footage("", ""))
+
+    def test_false_for_plain_realistic_photo_style(self):
+        # "photographie réaliste" seul ne bascule PAS en vidéo (c'est le style
+        # par défaut du prompt IA quand il n'y a pas de fiche personnage)
+        self.assertFalse(
+            visuals.prefers_stock_footage("cinematic_real", "photo cinématique réaliste, objectif 35mm")
+        )
+
+
+class TestVideoExtDetection(unittest.TestCase):
+    def test_video_module_recognises_mp4(self):
+        from engine import video
+        self.assertTrue("captions.ass".lower().endswith(video._VIDEO_EXTS) is False)
+        self.assertTrue("block-01.mp4".lower().endswith(video._VIDEO_EXTS))
+        self.assertFalse("scene-01.jpg".lower().endswith(video._VIDEO_EXTS))
+
 
 if __name__ == "__main__":
     unittest.main()

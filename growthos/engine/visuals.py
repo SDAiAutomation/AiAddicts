@@ -1,15 +1,12 @@
-"""Fetch a background image per script block — IA (OpenAI `gpt-image-1-mini`,
-style illustré cohérent) en priorité si configurée, Pexels (stock photos,
-gratuit) sinon ou en repli, pour que la vidéo ait un vrai visuel au lieu
-d'un fond couleur uni derrière les sous-titres.
+"""Un visuel par bloc de script pour que la vidéo ait un vrai fond derrière
+les sous-titres au lieu d'une couleur unie. Deux modes selon `visual_style` :
 
-Une image IA par bloc serait inutilement cher pour une vidéo de 60-75s (une
-image tiendrait ~8-10s à l'écran, personne ne remarque un changement aussi
-fréquent) : les blocs sont regroupés par paquets de `_BLOCKS_PER_IMAGE`
-(une "scène"), chaque groupe ne coûtant qu'un seul appel OpenAI, réutilisé
-sur tous ses blocs. Pexels comble ensuite les blocs restés sans image
-(clé OpenAI absente, échec réseau/API pour ce groupe précis) — jamais
-bloquant, jamais un groupe raté n'empêche les autres d'avoir leur visuel.
+- Style « stock footage » -> un **clip vidéo Pexels** par bloc (gratuit),
+  photo Pexels en repli. Pour les sujets concrets (sport, cuisine, voyage,
+  actu) qui rendent mieux en footage réel qu'en illustration.
+- Sinon -> une **image IA** (OpenAI `gpt-image-1-mini`) par groupe de
+  `_BLOCKS_PER_IMAGE` blocs (défaut 1 = une par bloc), Pexels photo en repli
+  bloc par bloc. Jamais bloquant : un groupe raté n'empêche pas les autres.
 
 Cohérence des personnages
 -------------------------
@@ -29,6 +26,7 @@ Optionnel : sans aucune clé (Pexels et/ou OpenAI), `fetch_block_images()`
 retourne des None partout — `engine/video.render_final()` retombe sur le
 fond couleur unie d'origine, rien ne casse pour les configs sans clé.
 """
+import os
 import re
 import time
 from pathlib import Path
@@ -38,10 +36,22 @@ import requests
 from . import openai_images
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
+PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
 
-# ~20-25s d'écran par image générée (un bloc dure ~7-10s de voix off) : une
-# vidéo de 60-75s n'a besoin que de 2-3 visuels distincts, pas d'un par bloc.
-_BLOCKS_PER_IMAGE = 3
+# Un visuel IA par groupe de `_BLOCKS_PER_IMAGE` blocs. Défaut 1 = une image
+# par bloc (meilleur rythme, mais coût OpenAI ~x2-3 sur une vidéo de 6-8
+# blocs) ; `VISUALS_BLOCKS_PER_IMAGE=3` retrouve l'ancien regroupement moins
+# cher. La 1re image sert d'ancre, les suivantes en dérivent via /edits, donc
+# passer à 1 ne casse pas la cohérence des personnages.
+try:
+    _BLOCKS_PER_IMAGE = max(1, int(os.environ.get("VISUALS_BLOCKS_PER_IMAGE", "1")))
+except ValueError:
+    _BLOCKS_PER_IMAGE = 1
+
+# `visual_style` (id ou phrase) qui déclenche les vidéos de stock Pexels au
+# lieu des images IA — pour les sujets concrets (sport, cuisine, voyage,
+# actu) qui rendent mieux en footage réel qu'en illustration.
+_STOCK_FOOTAGE_IDS = {"stock_footage", "stock_video", "stock"}
 
 # `visual_style` côté script peut être un id (pack choisi dans l'UI Faceloop,
 # ou raccourci dans un script CLI) ou une phrase libre. Les ids connus sont
@@ -206,6 +216,16 @@ def _scene_prompt(
     )
 
 
+def prefers_stock_footage(visual_style_id: str, visual_style_consigne: str) -> bool:
+    """True si le style demandé veut des vidéos de stock (Pexels) plutôt que
+    des images IA."""
+    vid = (visual_style_id or "").strip().lower()
+    if vid in _STOCK_FOOTAGE_IDS:
+        return True
+    haystack = f"{vid} {(visual_style_consigne or '').lower()}"
+    return any(k in haystack for k in ("stock footage", "vidéo de stock", "footage réel", "images d'archives"))
+
+
 def search_image_url(query: str, api_key: str, orientation: str = "portrait") -> str | None:
     """Cherche une photo Pexels pour `query`. Retourne l'URL (taille
     "large") ou None si rien trouvé / erreur réseau — ne lève jamais,
@@ -224,12 +244,44 @@ def search_image_url(query: str, api_key: str, orientation: str = "portrait") ->
         return None
 
 
-def download_image(url: str, out_path: str) -> str:
-    resp = requests.get(url, timeout=30)
+def search_video_url(query: str, api_key: str, orientation: str = "portrait") -> str | None:
+    """Cherche un clip vidéo Pexels pour `query` (durée 3-30s, mp4, résolution
+    la plus proche du plein cadre vertical). Retourne l'URL du fichier .mp4 ou
+    None — ne lève jamais."""
+    try:
+        resp = requests.get(
+            PEXELS_VIDEO_SEARCH_URL,
+            headers={"Authorization": api_key},
+            params={"query": query, "per_page": 8, "orientation": orientation},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        for video in resp.json().get("videos") or []:
+            if not (3 <= (video.get("duration") or 0) <= 30):
+                continue
+            mp4s = [f for f in (video.get("video_files") or []) if f.get("file_type") == "video/mp4" and f.get("link")]
+            if not mp4s:
+                continue
+            mp4s.sort(key=lambda f: (f.get("height") or 0))
+            # la plus petite qui atteint 1080 de haut (assez pour un 1080x1920
+            # recadré), sinon la plus grande disponible.
+            pick = next((f for f in mp4s if (f.get("height") or 0) >= 1080), mp4s[-1])
+            return pick["link"]
+        return None
+    except (requests.RequestException, KeyError, ValueError, IndexError):
+        return None
+
+
+def _download(url: str, out_path: str, timeout: int = 30) -> str:
+    resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_bytes(resp.content)
     return out_path
+
+
+def download_image(url: str, out_path: str) -> str:
+    return _download(url, out_path, timeout=30)
 
 
 def fetch_block_images(
@@ -240,29 +292,43 @@ def fetch_block_images(
     api_key: str | None,
     characters: list[dict] | None = None,
     visual_style: str | None = None,
+    visual_style_prompt: str | None = None,
 ) -> list[str | None]:
-    """Une image locale par bloc, ou None (pas de clé / pas de résultat /
-    échec réseau) — jamais bloquant, chaque bloc sans image retombe sur le
-    fond couleur unie côté video.py. Résultats mis en cache sur disque comme
-    le reste du pipeline (relance = pas de re-fetch).
+    """Un visuel local par bloc (chemin `.jpg` image ou `.mp4` clip vidéo), ou
+    None (pas de clé / pas de résultat / échec réseau) — jamais bloquant, un
+    bloc sans visuel retombe sur le fond couleur unie côté video.py. Résultats
+    mis en cache sur disque (relance = pas de re-fetch).
 
-    IA (OpenAI, un groupe de `_BLOCKS_PER_IMAGE` blocs = une image) en
-    priorité, Pexels en repli bloc par bloc pour tout ce que l'IA n'a pas
-    couvert (pas de clé OpenAI, ou échec pour ce groupe précis).
+    - Style « stock footage » -> un clip vidéo Pexels par bloc (photo Pexels
+      en repli, `api_key` = clé Pexels).
+    - Sinon -> une image IA (OpenAI) par groupe de `_BLOCKS_PER_IMAGE` blocs
+      (défaut 1), Pexels photo en repli bloc par bloc.
 
-    `characters` / `visual_style` : fiche personnage figée + style graphique
-    fixe, injectés en tête de chaque prompt de scène (cohérence)."""
+    `characters` / `visual_style(_prompt)` : fiche personnage figée + style
+    graphique fixe, injectés en tête de chaque prompt d'image (cohérence)."""
     n = len(blocks)
     paths: list[str | None] = [None] * n
-    character_prefix = build_character_prefix(characters, visual_style)
+    images_dir = Path(work_dir) / "images"
+    orientation = _ORIENTATION.get(aspect_ratio, "portrait")
 
-    # L'image de la 1re scène réussie sert d'ancre pour les scènes suivantes
-    # (générées via /edits à partir d'elle) — c'est ce qui empêche le
-    # personnage de dériver d'une scène à l'autre.
+    style_id = (visual_style or "").strip()
+    style_consigne = (visual_style_prompt or "").strip() or _style_consigne(style_id)
+
+    if prefers_stock_footage(style_id, style_consigne):
+        if not api_key:
+            print("       style « stock footage » demandé mais PEXELS_API_KEY absente — fond uni")
+            return paths
+        for i, block in enumerate(blocks):
+            paths[i] = _fetch_stock_clip(block["text"], niche, orientation, images_dir, i, api_key)
+        return paths
+
+    character_prefix = build_character_prefix(characters, style_consigne)
+    # Le visuel du 1er groupe sert d'ancre : les suivants en dérivent via
+    # /edits, ce qui empêche le personnage de dériver d'un bloc à l'autre.
     reference_path: str | None = None
 
     for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
-        image_path = Path(work_dir) / "images" / f"scene-{group[0] + 1:02d}.jpg"
+        image_path = images_dir / f"scene-{group[0] + 1:02d}.jpg"
         if _exists_nonempty(image_path):
             for i in group:
                 paths[i] = str(image_path)
@@ -279,24 +345,55 @@ def fetch_block_images(
     if not api_key:
         return paths
 
-    orientation = _ORIENTATION.get(aspect_ratio, "portrait")
     for i, block in enumerate(blocks):
         if paths[i]:
             continue
-        image_path = Path(work_dir) / "images" / f"block-{i + 1:02d}.jpg"
-        if _exists_nonempty(image_path):
-            paths[i] = str(image_path)
+        photo_path = images_dir / f"block-{i + 1:02d}.jpg"
+        if _exists_nonempty(photo_path):
+            paths[i] = str(photo_path)
             continue
-        query = _search_query(block["text"], niche)
-        url = search_image_url(query, api_key, orientation)
+        url = search_image_url(_search_query(block["text"], niche), api_key, orientation)
         if not url:
             continue
         try:
-            download_image(url, str(image_path))
-            paths[i] = str(image_path)
+            download_image(url, str(photo_path))
+            paths[i] = str(photo_path)
         except requests.RequestException:
             pass
     return paths
+
+
+def _fetch_stock_clip(
+    text: str, niche: str | None, orientation: str, images_dir: Path, i: int, api_key: str
+) -> str | None:
+    """Un clip vidéo Pexels pour ce bloc, ou une photo Pexels en repli, ou
+    None. Mis en cache : `block-NN.mp4` puis `block-NN.jpg`."""
+    video_path = images_dir / f"block-{i + 1:02d}.mp4"
+    if _exists_nonempty(video_path):
+        return str(video_path)
+    photo_path = images_dir / f"block-{i + 1:02d}.jpg"
+    if _exists_nonempty(photo_path):
+        return str(photo_path)
+
+    query = _search_query(text, niche)
+    url = search_video_url(query, api_key, orientation)
+    if url:
+        try:
+            t0 = time.monotonic()
+            _download(url, str(video_path), timeout=90)
+            print(f"       bloc {i + 1} : clip vidéo Pexels ({time.monotonic() - t0:.1f}s)")
+            return str(video_path)
+        except requests.RequestException:
+            pass
+
+    url = search_image_url(query, api_key, orientation)
+    if url:
+        try:
+            download_image(url, str(photo_path))
+            return str(photo_path)
+        except requests.RequestException:
+            pass
+    return None
 
 
 def _exists_nonempty(path: Path) -> bool:

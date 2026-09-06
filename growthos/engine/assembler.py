@@ -107,10 +107,17 @@ def _generate(
         )
 
     openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
-    visuals_desc = "OpenAI (scènes groupées)" if openai_enabled else ("Pexels" if pexels_key else "fond uni — pas de clé")
-    if openai_enabled and pexels_key:
-        visuals_desc += " + Pexels en repli"
-    if openai_enabled and data.get("characters"):
+    stock_footage = visuals.prefers_stock_footage(
+        (data.get("visual_style") or ""),
+        (data.get("visual_style_prompt") or ""),
+    )
+    if stock_footage:
+        visuals_desc = "vidéos de stock Pexels par bloc" if pexels_key else "fond uni — pas de clé Pexels"
+    elif openai_enabled:
+        visuals_desc = "OpenAI, une image par bloc" + (" + Pexels en repli" if pexels_key else "")
+    else:
+        visuals_desc = "Pexels photo par bloc" if pexels_key else "fond uni — pas de clé"
+    if openai_enabled and not stock_footage and data.get("characters"):
         names = ", ".join(str(c.get("name", "?")) for c in data["characters"])
         visuals_desc += f" — fiche personnage : {names}"
     print(f"[3/5] Visuels ({visuals_desc})…")
@@ -119,10 +126,11 @@ def _generate(
     image_paths = visuals.fetch_block_images(
         data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
         characters=data.get("characters"),
-        # `visual_style_prompt` = consigne de style déjà résolue (Faceloop
-        # écrit la phrase complète du pack choisi) ; `visual_style` = id court
-        # (script CLI), traduit par visuals._style_consigne.
-        visual_style=data.get("visual_style_prompt") or data.get("visual_style"),
+        # `visual_style` = id du pack (sert la décision "stock footage vs IA") ;
+        # `visual_style_prompt` = phrase de style résolue par Faceloop pour le
+        # prompt d'image. En CLI seul `visual_style` est renseigné.
+        visual_style=data.get("visual_style"),
+        visual_style_prompt=data.get("visual_style_prompt"),
     )
     found = sum(1 for p in image_paths if p)
     suffix = f"{found}/{n_blocks} image(s) trouvée(s), le reste en fond uni" if pexels_key else ""

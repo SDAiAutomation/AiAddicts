@@ -66,6 +66,9 @@ def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
+_VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
+
+
 def _render_block_clip(
     image_path: str | None,
     duration: float,
@@ -74,13 +77,32 @@ def _render_block_clip(
     bg_color: str,
     fps: int,
 ) -> str:
-    """Un clip silencieux pour un bloc : Ken Burns sur `image_path` si fourni
-    (image plein cadre, léger zoom continu), sinon fond couleur unie."""
+    """Un clip silencieux pour un bloc :
+    - `.mp4/.mov/...` -> clip vidéo de stock, recadré plein cadre, bouclé/coupé
+      à la durée du bloc (pas de Ken Burns, il bouge déjà) ;
+    - image -> Ken Burns (plein cadre, léger zoom continu) ;
+    - None -> fond couleur unie."""
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     n_frames = max(1, round(duration * fps))
 
-    if image_path:
+    if image_path and image_path.lower().endswith(_VIDEO_EXTS):
+        vf = (
+            f"scale={resolution}:force_original_aspect_ratio=increase,"
+            f"crop={resolution.replace('x', ':')},fps={fps},format=yuv420p"
+        )
+        _run(
+            [
+                "ffmpeg", "-y",
+                # boucle le clip source s'il est plus court que le bloc ;
+                # `-t` coupe s'il est plus long. `-an` : on jette l'audio.
+                "-stream_loop", "-1", "-i", str(Path(image_path).resolve()),
+                "-t", f"{duration:.3f}",
+                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast", "-an",
+                str(out.resolve()),
+            ]
+        )
+    elif image_path:
         # Sur-cadre puis crop à la résolution cible avant le zoom : sinon le
         # zoompan révèle les bords de l'image source dès qu'il recadre.
         vf = (
