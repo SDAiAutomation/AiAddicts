@@ -99,8 +99,32 @@ class TestWriteAss(unittest.TestCase):
         self.assertIn("[V4+ Styles]", ass)
         self.assertIn("PlayResX: 1080", ass)
         self.assertIn("PlayResY: 1920", ass)
+        self.assertIn("WrapStyle: 0", ass)  # wrap intelligent, pas de rognage
         self.assertIn("Style: Default,", ass)
         self.assertIn("Dialogue: 0,0:00:00.00,", ass)
+
+    def test_short_cue_keeps_base_font_size(self):
+        # "Leo se reveille" (15 car.) <= 22 -> pas de \fs
+        ass = self._write("bold_stroke")
+        self.assertNotIn("{\\fs", ass)
+
+    def test_long_cue_gets_shrunk_font(self):
+        long_cue = [{"index": 1, "start": 0.0, "end": 1.5,
+                     "text": "anticonstitutionnellement rapidement", "words": []}]
+        path = Path(tempfile.mkdtemp()) / "c.ass"
+        ass = Path(write_ass(long_cue, str(path), "bold_stroke", "1080x1920")).read_text(encoding="utf-8")
+        dialogue = next(l for l in ass.splitlines() if l.startswith("Dialogue:"))
+        self.assertIn("{\\fs", dialogue)  # police réduite pour ce cue
+
+    def test_word_pop_long_cue_reapplies_shrunk_size_after_reset(self):
+        words = [{"text": "anticonstitutionnellement", "start": 0.0, "end": 0.5},
+                 {"text": "vraiment", "start": 0.5, "end": 0.9},
+                 {"text": "rapidement", "start": 0.9, "end": 1.4}]
+        cues = build_cues([(words, 1.6)])
+        path = Path(tempfile.mkdtemp()) / "c.ass"
+        ass = Path(write_ass(cues, str(path), "word_pop", "1080x1920")).read_text(encoding="utf-8")
+        # après le mot actif, on reset ET on ré-applique la taille réduite
+        self.assertIn("{\\r\\fs", ass)
 
     def test_boxed_uses_opaque_box_border_style(self):
         # BorderStyle=3 (18e champ du Style) = boîte opaque

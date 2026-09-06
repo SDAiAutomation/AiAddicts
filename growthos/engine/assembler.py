@@ -11,7 +11,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
-from . import captions, db, publish_pack, repo, script as script_module, storage, tts, video, visuals, voices
+from . import (
+    captions, db, publish_pack, quality, repo, script as script_module, storage, tts, video,
+    visuals, voices,
+)
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
 # en parallèle réduisent le temps total de "somme des blocs" à ~"bloc le plus
@@ -32,10 +35,12 @@ def _generate(
     output_root: str,
     voice_override: str | None,
     on_progress: Callable[[str], None] | None = None,
-) -> tuple[str, Path]:
+) -> tuple[str, Path, dict | None]:
     """Étapes 1-4, communes aux deux points d'entrée : script -> voix off ->
     assemblage -> vidéo finale sous-titrée. Mute `data` (ajoute `voice_id`
-    quand une voix est résolue). Retourne (chemin vidéo finale, dossier de travail).
+    quand une voix est résolue). Retourne (chemin vidéo finale, dossier de
+    travail, métriques de contrôle qualité — ou None si la vidéo était déjà
+    rendue, rien de neuf à juger).
 
     `on_progress`, si fourni, est appelé à chaque étape majeure avec un libellé
     court (ex: "Voix off (ElevenLabs)") — c'est ce qui alimente la colonne
@@ -62,7 +67,7 @@ def _generate(
         # output/<slug>/ pour forcer une reconstruction (script modifié).
         print("[2-5/5] Vidéo finale + sous-titres déjà présents — réutilisés")
         step("Finalisation (vidéo déjà rendue)")
-        return str(final_path), work_dir
+        return str(final_path), work_dir, None
 
     voice_id = voices.resolve_voice(data, voice_override)
     data["voice_id"] = voice_id  # la ligne content_items reflète la voix réellement utilisée
@@ -146,7 +151,15 @@ def _generate(
         image_paths=image_paths, aspect_ratio=data["aspect_ratio"],
     )
     print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")
-    return final_video, work_dir
+
+    metrics = {
+        "total_duration": total_duration,
+        "n_blocks": n_blocks,
+        "blocks_with_image": found,
+        "n_cues": len(cues),
+        "visuals_possible": bool(os.environ.get("OPENAI_API_KEY")) or bool(pexels_key),
+    }
+    return final_video, work_dir, metrics
 
 
 def _publish_video(
@@ -168,6 +181,24 @@ def _publish_video(
         return local_path
 
 
+def _quality_fields(metrics: dict | None, final_video: str) -> dict:
+    """Score la génération et renvoie les champs à écrire sur le content_item
+    ({} si `metrics` est None — re-run d'une vidéo déjà rendue). Un score sous
+    le seuil bascule le statut en 'quality_check' (coup d'œil humain)."""
+    if metrics is None:
+        return {}
+    score, flags = quality.score_generation(metrics, final_video)
+    fields: dict = {"quality_score": score, "quality_flags": flags}
+    if score < quality.PASS_THRESHOLD:
+        fields["status"] = "quality_check"
+        print(f"       contrôle qualité : {score}/100 — passé en 'quality_check' :")
+        for flag in flags:
+            print(f"         - {flag}")
+    else:
+        print(f"       contrôle qualité : {score}/100 — OK")
+    return fields
+
+
 def run(script_path: str, output_root: str = "output", voice_override: str | None = None) -> dict:
     """Point d'entrée CLI (main.py) : script.json -> nouveau content_item.
 
@@ -175,7 +206,7 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     opérateur qui lance le pipeline à la main, pas à un item déjà en base.
     """
     data = script_module.load_script(script_path)
-    final_video, work_dir = _generate(data, output_root, voice_override)
+    final_video, work_dir, metrics = _generate(data, output_root, voice_override)
 
     print("[5/6] Enregistrement dans Supabase…")
     client = db.get_service_client()
@@ -187,8 +218,11 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
         client, account_id, data["title"], status="video", script=data, video_url=final_video
     )
     video_url = _publish_video(client, content_item_id, final_video)
+    update_fields = _quality_fields(metrics, final_video)
     if video_url != final_video:
-        repo.update_content_item(client, content_item_id, video_url=video_url)
+        update_fields["video_url"] = video_url
+    if update_fields:
+        repo.update_content_item(client, content_item_id, **update_fields)
 
     print("[6/6] Package de publication…")
     pack = publish_pack.write_pack(
@@ -242,14 +276,18 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         except Exception as exc:
             print(f"       (suivi d'avancement non mis à jour : {exc})")
 
-    final_video, work_dir = _generate(data, output_root, voice_override=None, on_progress=report_progress)
+    final_video, work_dir, metrics = _generate(
+        data, output_root, voice_override=None, on_progress=report_progress
+    )
     print(f"       total génération : {time.monotonic() - t_start:.1f}s")
     video_url = _publish_video(client, content_item_id, final_video, on_progress=report_progress)
 
-    repo.update_content_item(
-        client, content_item_id,
-        status="video", script=data, video_url=video_url, error=None, generation_step=None,
-    )
+    final_fields = {
+        "status": "video", "script": data, "video_url": video_url,
+        "error": None, "generation_step": None,
+    }
+    final_fields.update(_quality_fields(metrics, final_video))  # peut forcer status='quality_check'
+    repo.update_content_item(client, content_item_id, **final_fields)
     try:
         repo.charge_generation_credit(client, content_item_id)
     except Exception as exc:

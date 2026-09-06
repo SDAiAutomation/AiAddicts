@@ -129,6 +129,21 @@ def _ass_escape(text: str) -> str:
     return text.replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", " ").strip()
 
 
+# Un cue tient normalement en une ligne de ≤3 mots. Au-delà de ce nombre de
+# caractères (mot très long, ou 3 mots longs), on réduit la police de ce cue
+# pour qu'il ne déborde pas horizontalement du cadre — libass ne coupe jamais
+# un mot, et WrapStyle 0 ne sauve que les lignes, pas les mots.
+_MAX_CUE_CHARS = 22
+_SHRINK_FACTOR = 0.78
+
+
+def _cue_font_size(text: str, base_font_size: int) -> int:
+    """Police (px) pour ce cue : `base_font_size`, réduite si le texte est long."""
+    if len(text) <= _MAX_CUE_CHARS:
+        return base_font_size
+    return max(round(base_font_size * _SHRINK_FACTOR), round(base_font_size * 0.5))
+
+
 def _ass_header(width: int, height: int, preset: dict, font: str) -> str:
     style_fields = ",".join(str(v) for v in [
         "Default", font, preset["font_size"],
@@ -142,7 +157,9 @@ def _ass_header(width: int, height: int, preset: dict, font: str) -> str:
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
         f"PlayResX: {width}\nPlayResY: {height}\n"
-        "WrapStyle: 2\nScaledBorderAndShadow: yes\n\n"
+        # WrapStyle 0 = wrapping "intelligent" (lignes ~équilibrées, centrées via
+        # Alignment=2) : un cue trop large passe sur 2 lignes au lieu d'être rogné.
+        "WrapStyle: 0\nScaledBorderAndShadow: yes\n\n"
         "[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
@@ -157,9 +174,10 @@ def _dialogue(start: float, end: float, text: str) -> str:
     return f"Dialogue: 0,{_ass_timestamp(start)},{_ass_timestamp(end)},Default,,0,0,0,,{text}"
 
 
-def _word_pop_events(cue: dict, preset: dict) -> list[str]:
+def _word_pop_events(cue: dict, preset: dict, fs_prefix: str, reset: str) -> list[str]:
     """Un Dialogue par fenêtre "mot en cours" : le texte complet du cue reste
-    affiché, seul le mot actif passe en couleur `highlight_colour` et grossit."""
+    affiché, seul le mot actif passe en couleur `highlight_colour` et grossit.
+    `fs_prefix` / `reset` portent la réduction de police éventuelle du cue."""
     words = cue["words"]
     hl = preset["highlight_colour"]
     events: list[str] = []
@@ -168,8 +186,8 @@ def _word_pop_events(cue: dict, preset: dict) -> list[str]:
         seg_end = words[i + 1]["start"] if i + 1 < len(words) else cue["end"]
         seg_start = max(seg_start, cue["start"])
         seg_end = max(seg_end, seg_start + 0.05)
-        rendered = " ".join(
-            (f"{{\\1c{hl}\\fscx118\\fscy118}}{_ass_escape(w['text'])}{{\\r}}" if j == i
+        rendered = fs_prefix + " ".join(
+            (f"{{\\1c{hl}\\fscx118\\fscy118}}{_ass_escape(w['text'])}{reset}" if j == i
              else _ass_escape(w["text"]))
             for j, w in enumerate(words)
         )
@@ -194,12 +212,19 @@ def write_ass(
     except ValueError:
         width, height = 1080, 1920
 
+    base_fs = preset["font_size"]
     events: list[str] = []
     for cue in cues:
+        text = _ass_escape(cue["text"])
+        fs = _cue_font_size(text, base_fs)
+        fs_prefix = "" if fs == base_fs else f"{{\\fs{fs}}}"
+        # `\r` seul remettrait la police pleine du style ; on ré-applique la
+        # taille réduite après un reset.
+        reset = "{\\r}" if fs == base_fs else f"{{\\r\\fs{fs}}}"
         if preset.get("word_highlight") and cue.get("words"):
-            events.extend(_word_pop_events(cue, preset))
+            events.extend(_word_pop_events(cue, preset, fs_prefix, reset))
         else:
-            events.append(_dialogue(cue["start"], cue["end"], _ass_escape(cue["text"])))
+            events.append(_dialogue(cue["start"], cue["end"], fs_prefix + text))
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(

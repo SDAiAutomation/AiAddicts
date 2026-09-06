@@ -72,6 +72,12 @@ En plus, l'image de la scène 1 sert d'**ancre visuelle** : les scènes suivante
 
 `caption_style` (optionnel, défaut `bold_stroke`) choisit le rendu des sous-titres brûlés — porté par un fichier `.ass` généré par `engine/captions.write_ass` (libass). Valeurs : `bold_stroke` (blanc gras contour épais), `sleek` (fin, discret), `boxed` (bandeau noir), `neon` (halo bleu), `word_pop` (le mot prononcé passe en jaune et grossit — utilise le timing mot-à-mot). `engine/video.py` détecte le `.ass` et laisse libass appliquer le style embarqué ; sans `.ass`, repli sur l'ancien style unique via `force_style`.
 
+Un cue trop large (mot très long, ou 3 mots longs) passe sur 2 lignes centrées (`WrapStyle: 0`) et voit sa police réduite au-delà de ~22 caractères — pas de texte rogné aux bords du cadre.
+
+### Contrôle qualité automatique
+
+À la fin de la génération, `engine/quality.score_generation` note la vidéo sur 100 à partir de signaux objectifs : voix off ≥ 60s, toutes les scènes ont un visuel, densité de sous-titres plausible, fichier final non vide. Score ≥ 70 → statut `video` (publication en un clic). Score < 70 → statut `quality_check` + `content_items.quality_flags` (liste des motifs), affichés sur `/content/[id]` côté growthos-web : l'opérateur regarde, puis publie quand même ou régénère.
+
 ## Worker (file de génération depuis le front)
 
 `growthos-web` (repo séparé, Next.js) ne peut pas lancer ElevenLabs/ffmpeg
