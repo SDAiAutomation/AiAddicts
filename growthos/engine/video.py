@@ -68,6 +68,31 @@ def _exists_nonempty(path: Path) -> bool:
 
 _VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
 
+# Ken Burns : un mouvement différent par bloc (choisi par l'index du bloc,
+# stable au re-rendu) pour éviter l'effet "toutes les images zooment pareil".
+_KB_MOVES = ("in", "out", "right", "left", "up", "in_slow")
+
+
+def _kenburns_filter(move: str, resolution: str, n_frames: int, fps: int) -> str:
+    """Expression `zoompan` pour un mouvement Ken Burns donné. L'image est déjà
+    scalée+croppée à `resolution` en amont, donc iw/ih = W/H cible."""
+    cx = "iw/2-(iw/zoom/2)"
+    cy = "ih/2-(ih/zoom/2)"
+    n = max(n_frames, 1)
+    if move == "out":
+        z, x, y = f"if(eq(on,0),1.28,max(1.28-0.0016*on,1.03))", cx, cy
+    elif move == "right":
+        z, x, y = "1.14", f"(iw-iw/zoom)*on/{n}", cy
+    elif move == "left":
+        z, x, y = "1.14", f"(iw-iw/zoom)*(1-on/{n})", cy
+    elif move == "up":
+        z, x, y = "1.14", cx, f"(ih-ih/zoom)*(1-on/{n})"
+    elif move == "in_slow":
+        z, x, y = "min(1.0+0.0009*on,1.15)", cx, cy
+    else:  # "in"
+        z, x, y = "min(1.0+0.0016*on,1.28)", cx, cy
+    return f"zoompan=z='{z}':x='{x}':y='{y}':d={n_frames}:s={resolution}:fps={fps}"
+
 
 def _render_block_clip(
     image_path: str | None,
@@ -76,11 +101,12 @@ def _render_block_clip(
     resolution: str,
     bg_color: str,
     fps: int,
+    block_index: int = 1,
 ) -> str:
     """Un clip silencieux pour un bloc :
     - `.mp4/.mov/...` -> clip vidéo de stock, recadré plein cadre, bouclé/coupé
       à la durée du bloc (pas de Ken Burns, il bouge déjà) ;
-    - image -> Ken Burns (plein cadre, léger zoom continu) ;
+    - image -> Ken Burns (mouvement variable selon `block_index`) ;
     - None -> fond couleur unie."""
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -105,10 +131,11 @@ def _render_block_clip(
     elif image_path:
         # Sur-cadre puis crop à la résolution cible avant le zoom : sinon le
         # zoompan révèle les bords de l'image source dès qu'il recadre.
+        move = _KB_MOVES[(block_index - 1) % len(_KB_MOVES)]
         vf = (
             f"scale={resolution}:force_original_aspect_ratio=increase,"
             f"crop={resolution.replace('x', ':')},"
-            f"zoompan=z='min(zoom+0.0015,1.2)':d={n_frames}:s={resolution}:fps={fps},"
+            f"{_kenburns_filter(move, resolution, n_frames, fps)},"
             "format=yuv420p"
         )
         _run(
@@ -116,7 +143,7 @@ def _render_block_clip(
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", str(Path(image_path).resolve()),
                 "-t", f"{duration:.3f}",
-                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-an",
+                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast", "-an",
                 str(out.resolve()),
             ]
         )
@@ -168,7 +195,7 @@ def render_final(
         else:
             print(f"       clip {i}/{n_clips} ({duration:.1f}s)…")
             t0 = time.monotonic()
-            _render_block_clip(image_path, duration, str(clip_path), resolution, bg_color, fps)
+            _render_block_clip(image_path, duration, str(clip_path), resolution, bg_color, fps, block_index=i)
             print(f"       clip {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
         clip_names.append(clip_path.name)
 

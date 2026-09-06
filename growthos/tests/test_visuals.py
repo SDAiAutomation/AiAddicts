@@ -116,5 +116,23 @@ class TestVideoExtDetection(unittest.TestCase):
         self.assertFalse("scene-01.jpg".lower().endswith(video._VIDEO_EXTS))
 
 
+class TestKenBurnsMoves(unittest.TestCase):
+    def test_move_cycles_by_block_index(self):
+        from engine import video
+        moves = [video._KB_MOVES[(i - 1) % len(video._KB_MOVES)] for i in range(1, 9)]
+        self.assertEqual(moves[0], "in")
+        self.assertEqual(moves[1], "out")
+        self.assertEqual(moves[6], "in")  # boucle après 6
+
+    def test_filter_string_per_move(self):
+        from engine import video
+        for move in video._KB_MOVES:
+            vf = video._kenburns_filter(move, "1080x1920", 100, 25)
+            self.assertIn("zoompan=", vf)
+            self.assertIn("s=1080x1920", vf)
+        self.assertIn("(iw-iw/zoom)*on/100", video._kenburns_filter("right", "1080x1920", 100, 25))
+        self.assertIn("1.28-0.0016*on", video._kenburns_filter("out", "1080x1920", 100, 25))
+
+
 if __name__ == "__main__":
     unittest.main()
