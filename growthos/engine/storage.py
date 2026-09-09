@@ -17,7 +17,18 @@ def upload_video(client, content_item_id: str, local_path: str) -> str:
     écrase la version précédente au même chemin). Retourne l'URL publique.
     Lève une exception si l'upload échoue — à l'appelant de décider s'il
     retombe sur le chemin local plutôt que de faire échouer tout le run."""
-    storage_path = f"{content_item_id}.mp4"
+    return _upload(client, f"{content_item_id}.mp4", local_path)
+
+
+def upload_original(client, content_item_id: str, local_path: str) -> str:
+    """Archive la version non rognée sous `<content_item_id>.original.mp4`, au
+    premier rognage — `upload_video` écrase ensuite `<id>.mp4` par la version
+    coupée, celle-ci reste la source intacte pour « rétablir la version
+    complète » ou re-rogner plus large. Retourne son URL publique."""
+    return _upload(client, f"{content_item_id}.original.mp4", local_path)
+
+
+def _upload(client, storage_path: str, local_path: str) -> str:
     client.storage.from_(BUCKET).upload(
         storage_path,
         str(Path(local_path).resolve()),

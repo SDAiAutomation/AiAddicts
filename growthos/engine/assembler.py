@@ -293,6 +293,10 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     final_fields = {
         "status": "video", "script": data, "video_url": video_url,
         "error": None, "generation_step": None,
+        # Une régénération complète produit une nouvelle vidéo d'origine : tout
+        # rognage précédent (et son archive <id>.original.mp4) est caduc.
+        "trim_start": 0, "trim_end": None, "trim_status": None,
+        "original_video_url": None,
     }
     final_fields.update(_quality_fields(metrics, final_video))  # peut forcer status='quality_check'
     repo.update_content_item(client, content_item_id, **final_fields)

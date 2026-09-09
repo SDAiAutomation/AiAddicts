@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from engine import assembler, db, repo
+from engine import assembler, db, repo, trim
 
 if sys.platform == "win32":
     # La console Windows garde son ancien codepage (cp1252/cp850) par défaut,
@@ -51,9 +51,34 @@ sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
 _HEARTBEAT_EVERY = 60.0  # secondes entre deux rappels "toujours en attente"
 
 
+def process_trim(client) -> bool:
+    """Réclame et traite un job de rognage (trim_status='pending'). Retourne
+    True si un job a été traité, False si la file de rognage était vide.
+    Prioritaire sur la génération : c'est plus court et l'utilisateur attend
+    devant sa vidéo déjà générée."""
+    item = repo.claim_trim_job(client)
+    if not item:
+        return False
+
+    content_item_id = item["id"]
+    print(f"\n=== Rognage {content_item_id} ===")
+    try:
+        fields = trim.apply_trim(client, item)
+        repo.finish_trim(client, content_item_id, fields)
+        print(f"=== OK rognage {content_item_id} : {fields['video_url']} ===")
+    except Exception as exc:
+        print(f"=== ÉCHEC rognage {content_item_id} : {exc} ===")
+        traceback.print_exc()
+        repo.fail_trim(client, content_item_id, str(exc))
+    return True
+
+
 def process_one(client) -> bool:
     """Réclame et traite un job de la file. Retourne True si un job a été
     traité (avec succès ou en échec), False si la file était vide."""
+    if process_trim(client):
+        return True
+
     item = repo.claim_queued_item(client)
     if not item:
         return False

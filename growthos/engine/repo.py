@@ -110,6 +110,71 @@ def claim_queued_item(client) -> dict | None:
     return item
 
 
+# --- File des jobs de rognage (trim_status), voir engine/trim.py -----------
+# Orthogonale à `status` : la vidéo reste 'video'/'quality_check'/'published'
+# pendant qu'un rognage tourne. Même logique de reclaim d'orphelin qu'au-dessus.
+
+
+def reclaim_stale_trim_jobs(client) -> int:
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_STALE_GENERATING_MINUTES)).isoformat()
+    reclaimed = (
+        client.table("content_items")
+        .update({"trim_status": "pending", "updated_at": datetime.now(timezone.utc).isoformat()})
+        .eq("trim_status", "processing")
+        .lt("updated_at", cutoff)
+        .execute()
+    )
+    return len(reclaimed.data)
+
+
+def claim_trim_job(client) -> dict | None:
+    """Réclame le plus ancien job de rognage en attente (trim_status='pending')
+    en le passant à 'processing', update conditionné au statut encore 'pending'
+    pour rester correct avec deux workers en parallèle. Retourne la ligne
+    ({id, video_url, original_video_url, trim_start, trim_end}) ou None."""
+    reclaimed = reclaim_stale_trim_jobs(client)
+    if reclaimed:
+        print(f"       {reclaimed} job(s) de rognage orphelin(s) remis en file")
+
+    pending = (
+        client.table("content_items")
+        .select("id, video_url, original_video_url, trim_start, trim_end")
+        .eq("trim_status", "pending")
+        .order("updated_at")
+        .limit(1)
+        .execute()
+    )
+    if not pending.data:
+        return None
+
+    item = pending.data[0]
+    claimed = (
+        client.table("content_items")
+        .update({"trim_status": "processing", "updated_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", item["id"])
+        .eq("trim_status", "pending")
+        .execute()
+    )
+    if not claimed.data:
+        return None  # un autre worker l'a pris entre-temps
+    return item
+
+
+def finish_trim(client, content_item_id: str, fields: dict) -> None:
+    """`fields` = retour de trim.apply_trim (video_url, original_video_url,
+    trim_start, trim_end). Sort le job de la file (trim_status/trim_error à
+    NULL)."""
+    update_content_item(
+        client, content_item_id, trim_status=None, trim_error=None, **fields
+    )
+
+
+def fail_trim(client, content_item_id: str, error: str) -> None:
+    update_content_item(
+        client, content_item_id, trim_status=None, trim_error=error[:2000]
+    )
+
+
 def update_content_item(client, content_item_id: str, **fields) -> None:
     fields.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
     client.table("content_items").update(fields).eq("id", content_item_id).execute()
