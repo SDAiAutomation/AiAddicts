@@ -16,10 +16,13 @@ PASS_THRESHOLD = 70
 MIN_DURATION_S = 60.0  # aligné sur engine.assembler.MIN_MONETIZABLE_DURATION_S
 _MIN_FINAL_BYTES = 200_000  # une vidéo verticale de 60s+ pèse toujours bien plus
 
-# Fenêtre plausible de cadence des sous-titres (cues/seconde). ~3 mots/cue et
-# ~150 mots/min de voix off -> ~0,8 cue/s en régime normal ; on tolère large.
+# Fenêtre plausible de cadence des sous-titres (cues/seconde). 3 mots/cue
+# (engine.captions._WORDS_PER_CUE) et une voix off synthétique mesurée à
+# ~200-210 mots/min -> ~1,15 cue/s en régime normal, ~1,3 sur un passage
+# rapide. Le plafond attrape un timing vraiment cassé (mots collés), pas un
+# débit soutenu normal.
 _MIN_CUE_DENSITY = 0.15
-_MAX_CUE_DENSITY = 1.2
+_MAX_CUE_DENSITY = 1.6
 
 
 def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:

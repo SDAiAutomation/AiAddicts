@@ -53,6 +53,23 @@ class TestScoreGeneration(unittest.TestCase):
         self.assertEqual(score, 90)  # -10
         self.assertTrue(any("Densité de sous-titres" in f for f in flags))
 
+    def test_sustained_tts_pace_not_penalised(self):
+        # voix off synthétique à ~205 mots/min, 3 mots/cue -> ~1,14 cue/s :
+        # débit normal de la vraie voix, ne doit PAS déclencher le flag.
+        score, flags = quality.score_generation(
+            {**NOMINAL, "total_duration": 70.0, "n_cues": 80}, _big_file()
+        )
+        self.assertEqual(score, 100)
+        self.assertEqual(flags, [])
+
+    def test_caption_density_too_high_penalised(self):
+        # 130 cues sur 70s -> 1,86 cue/s : timing cassé (mots collés)
+        score, flags = quality.score_generation(
+            {**NOMINAL, "total_duration": 70.0, "n_cues": 130}, _big_file()
+        )
+        self.assertEqual(score, 90)  # -10
+        self.assertTrue(any("Densité de sous-titres" in f for f in flags))
+
     def test_tiny_final_file_penalised(self):
         tiny = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
         tiny.write(b"0" * 100)
