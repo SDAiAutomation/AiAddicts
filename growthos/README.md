@@ -57,7 +57,7 @@ Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas
 
 ## Écrire une nouvelle histoire
 
-Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Optionnels : `platform` (défaut `tiktok`), `organization` (défaut `GrowthOS Dogfooding`), `aspect_ratio` (`9:16` / `1:1` / `16:9`, défaut `9:16`), `voice_id` (sinon résolu via `--voice` ou `config/voices.json`, cf. plus haut). Voir `exemple-01.json`.
+Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Optionnels : `platform` (défaut `tiktok`), `organization` (défaut `GrowthOS Dogfooding`), `aspect_ratio` (`9:16` / `1:1` / `16:9`, défaut `9:16`), `language` (`fr` / `en` / `es` / `de` / `it` / `pt`, défaut `fr` — informatif, la voix ElevenLabs `eleven_multilingual_v2` détecte la langue depuis le texte, pas de `language_code` à passer), `voice_id` (sinon résolu via `--voice` ou `config/voices.json`, cf. plus haut). Voir `exemple-01.json`.
 
 ### Visuels de bloc
 

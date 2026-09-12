@@ -98,6 +98,12 @@ class TestValidateScript(unittest.TestCase):
     def test_missing_aspect_ratio_is_valid(self):
         validate_script(VALID)  # optional at validation time, defaulted on load
 
+    def test_language_optional_and_validated(self):
+        validate_script(VALID)  # absent -> OK
+        validate_script({**VALID, "language": "en"})  # connu -> OK
+        with self.assertRaises(ValueError):
+            validate_script({**VALID, "language": "klingon"})
+
 
 class TestLoadScript(unittest.TestCase):
     def test_load_script_fills_defaults(self):
@@ -107,6 +113,7 @@ class TestLoadScript(unittest.TestCase):
         self.assertEqual(data["hashtags"], [])
         self.assertEqual(data["platform"], "tiktok")
         self.assertEqual(data["organization"], "GrowthOS Dogfooding")
+        self.assertEqual(data["language"], "fr")
 
 
 class TestSlug(unittest.TestCase):
