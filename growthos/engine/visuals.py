@@ -29,11 +29,18 @@ fond couleur unie d'origine, rien ne casse pour les configs sans clé.
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
 
 from . import openai_images
+
+# Les appels OpenAI /images sont indépendants par scène (I/O réseau) une fois
+# l'ancre (scène 1, cohérence des personnages) résolue : quelques-uns en
+# parallèle réduisent le temps total de "somme des scènes" à ~"scène la plus
+# longue" — même logique que _MAX_TTS_WORKERS dans engine/assembler.py.
+_MAX_IMAGE_WORKERS = 4
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
@@ -338,6 +345,10 @@ def fetch_block_images(
     )
     reference_path: str | None = None
 
+    # 1re passe (rapide, pas de réseau) : sert le cache disque et repère ce
+    # qui reste vraiment à générer. Fixe aussi `reference_path` si la scène 1
+    # est déjà rendue d'un run précédent.
+    pending: list[tuple[list[int], Path, str]] = []
     for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
         image_path = images_dir / f"scene-{group[0] + 1:02d}.jpg"
         if _exists_nonempty(image_path):
@@ -347,13 +358,30 @@ def fetch_block_images(
                 reference_path = reference_path or str(image_path)
             continue
         texts = [blocks[i]["text"] for i in group]
-        prompt = _scene_prompt(texts, niche, character_prefix, aspect_ratio)
-        scene_path = _try_scene_image(prompt, aspect_ratio, str(image_path), reference_path)
+        pending.append((group, image_path, _scene_prompt(texts, niche, character_prefix, aspect_ratio)))
+
+    # Avec personnages et sans ancre encore résolue : la scène 1 doit partir
+    # seule (les suivantes en dérivent via /edits) avant de paralléliser le
+    # reste. Sans personnages, reference_path reste None et rien n'attend
+    # rien : tout peut partir en parallèle direct.
+    if pending and has_characters and reference_path is None:
+        group, image_path, prompt = pending.pop(0)
+        scene_path = _try_scene_image(prompt, aspect_ratio, str(image_path), None)
         if scene_path:
             for i in group:
                 paths[i] = scene_path
-            if has_characters:
-                reference_path = reference_path or scene_path
+            reference_path = scene_path
+
+    if pending:
+        def _generate(item: tuple[list[int], Path, str]) -> tuple[list[int], str | None]:
+            group, image_path, prompt = item
+            return group, _try_scene_image(prompt, aspect_ratio, str(image_path), reference_path)
+
+        with ThreadPoolExecutor(max_workers=min(_MAX_IMAGE_WORKERS, len(pending))) as pool:
+            for group, scene_path in pool.map(_generate, pending):
+                if scene_path:
+                    for i in group:
+                        paths[i] = scene_path
 
     if not api_key:
         return paths
