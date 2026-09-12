@@ -10,6 +10,7 @@ une dernière passe.
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 RESOLUTIONS = {
@@ -17,6 +18,13 @@ RESOLUTIONS = {
     "1:1": "1080x1080",
     "16:9": "1920x1080",
 }
+
+# Chaque clip par bloc est un rendu ffmpeg indépendant (CPU-bound, mais
+# subprocess.run libère le GIL pendant que ffmpeg tourne) : plusieurs en
+# parallèle raccourcissent le "somme des clips" à ~"clip le plus long",
+# plafonné aux cœurs dispo pour ne pas suroccuper la machine (même logique
+# que _MAX_TTS_WORKERS / _MAX_IMAGE_WORKERS, adaptée au CPU plutôt qu'au réseau).
+_MAX_CLIP_WORKERS = max(1, min(4, os.cpu_count() or 4))
 
 DEFAULT_BG = "0x0F172A"  # matches the GrowthOS design system's dark surface
 DEFAULT_FPS = 25
@@ -216,16 +224,25 @@ def render_final(
 
     n_clips = len(durations)
     clip_names = []
+    pending: list[tuple[int, str | None, float, Path]] = []
     for i, (image_path, duration) in enumerate(zip(image_paths, durations), start=1):
         clip_path = clips_dir / f"block-{i:02d}.mp4"
+        clip_names.append(clip_path.name)
         if _exists_nonempty(clip_path):
             print(f"       clip {i}/{n_clips} déjà rendu — réutilisé")
         else:
+            pending.append((i, image_path, duration, clip_path))
+
+    if pending:
+        def _render(item: tuple[int, str | None, float, Path]) -> None:
+            i, image_path, duration, clip_path = item
             print(f"       clip {i}/{n_clips} ({duration:.1f}s)…")
             t0 = time.monotonic()
             _render_block_clip(image_path, duration, str(clip_path), resolution, bg_color, fps, block_index=i)
             print(f"       clip {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
-        clip_names.append(clip_path.name)
+
+        with ThreadPoolExecutor(max_workers=min(_MAX_CLIP_WORKERS, len(pending))) as pool:
+            list(pool.map(_render, pending))
 
     # Le demuxer concat résout les chemins de la liste relativement au
     # dossier de la liste elle-même (vérifié) — noms de fichiers bruts, tous
