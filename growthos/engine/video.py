@@ -76,6 +76,25 @@ _KB_MOVES = ("in", "out", "right", "left", "up", "in_slow")
 # coût de compression négligeable. Appliquée aux clips image ET stock.
 _VIGNETTE = "vignette=angle='PI/4.5+0.05*sin(2*PI*t/7)':eval=frame"
 
+# CRF x264 (défaut ffmpeg 23) : 19 est nettement plus net à l'œil sans faire
+# exploser la taille de fichier, à "veryfast" constant (on ne touche pas au
+# preset, ça grossirait trop le temps de rendu). Appliqué à tous les encodages
+# libx264 du pipeline (clips par bloc + assemblage final).
+_CRF = "19"
+
+# Ken Burns : zoompan lit une image déjà à la résolution de sortie (ex.
+# 1080x1920) et zoome dedans -> la zone zoomée est ré-agrandie depuis moins de
+# pixels que la sortie, ce qui pixellise visiblement en fin de zoom. On
+# sur-échantillonne la source AVANT zoompan (elle rescale ensuite vers
+# `resolution` via son propre `s=`) : plus de pixels à interpoler pendant le
+# zoom, mouvement plus net. Coût : rendu plus long (plus de pixels à traiter).
+_KENBURNS_SUPERSAMPLE = 2
+
+
+def _scaled_resolution(resolution: str, factor: int) -> str:
+    w, h = resolution.split("x")
+    return f"{int(w) * factor}x{int(h) * factor}"
+
 
 def _kenburns_filter(move: str, resolution: str, n_frames: int, fps: int) -> str:
     """Expression `zoompan` pour un mouvement Ken Burns donné. L'image est déjà
@@ -118,7 +137,7 @@ def _render_block_clip(
 
     if image_path and image_path.lower().endswith(_VIDEO_EXTS):
         vf = (
-            f"scale={resolution}:force_original_aspect_ratio=increase,"
+            f"scale={resolution}:force_original_aspect_ratio=increase:flags=lanczos,"
             f"crop={resolution.replace('x', ':')},fps={fps},{_VIGNETTE},format=yuv420p"
         )
         _run(
@@ -128,17 +147,20 @@ def _render_block_clip(
                 # `-t` coupe s'il est plus long. `-an` : on jette l'audio.
                 "-stream_loop", "-1", "-i", str(Path(image_path).resolve()),
                 "-t", f"{duration:.3f}",
-                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast", "-an",
+                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast",
+                "-crf", _CRF, "-an",
                 str(out.resolve()),
             ]
         )
     elif image_path:
-        # Sur-cadre puis crop à la résolution cible avant le zoom : sinon le
-        # zoompan révèle les bords de l'image source dès qu'il recadre.
+        # Sur-cadre (sur-échantillonné, voir _KENBURNS_SUPERSAMPLE) puis crop
+        # avant le zoom : sinon le zoompan révèle les bords de l'image source
+        # dès qu'il recadre.
         move = _KB_MOVES[(block_index - 1) % len(_KB_MOVES)]
+        super_res = _scaled_resolution(resolution, _KENBURNS_SUPERSAMPLE)
         vf = (
-            f"scale={resolution}:force_original_aspect_ratio=increase,"
-            f"crop={resolution.replace('x', ':')},"
+            f"scale={super_res}:force_original_aspect_ratio=increase:flags=lanczos,"
+            f"crop={super_res.replace('x', ':')},"
             f"{_kenburns_filter(move, resolution, n_frames, fps)},"
             f"{_VIGNETTE},format=yuv420p"
         )
@@ -147,7 +169,8 @@ def _render_block_clip(
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", str(Path(image_path).resolve()),
                 "-t", f"{duration:.3f}",
-                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast", "-an",
+                "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast",
+                "-crf", _CRF, "-an",
                 str(out.resolve()),
             ]
         )
@@ -157,6 +180,7 @@ def _render_block_clip(
                 "ffmpeg", "-y",
                 "-f", "lavfi", "-i", f"color=c={bg_color}:s={resolution}:r={fps}",
                 "-t", f"{duration:.3f}", "-pix_fmt", "yuv420p", "-c:v", "libx264",
+                "-crf", _CRF,
                 # Fond fixe, aucun mouvement réel : tuning x264 dédié.
                 "-tune", "stillimage", "-an",
                 str(out.resolve()),
@@ -234,8 +258,8 @@ def render_final(
             "-i", str(audio_abs),
             "-vf", subtitles_filter,
             "-map", "0:v", "-map", "1:a",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast",
-            "-c:a", "aac", "-shortest",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", _CRF,
+            "-c:a", "aac", "-b:a", "192k", "-shortest",
             str(out_abs),
         ],
         cwd=str(srt.parent),

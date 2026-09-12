@@ -17,7 +17,7 @@ from pathlib import Path
 import requests
 
 from . import storage
-from .video import _run  # même remontée d'erreur ffmpeg lisible
+from .video import _CRF, _run  # même remontée d'erreur ffmpeg lisible
 
 # Clip minimal : en dessous, `trim_end - trim_start` ne fait plus une vidéo.
 _MIN_CLIP_S = 0.5
@@ -36,8 +36,8 @@ def build_trim_args(src: str, out: str, start: float, end: float | None) -> list
     if end is not None:
         args += ["-t", f"{max(_MIN_CLIP_S, end - start):.3f}"]
     args += [
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast",
-        "-c:a", "aac", "-movflags", "+faststart",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", _CRF,
+        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
         out,
     ]
     return args
