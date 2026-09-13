@@ -21,9 +21,11 @@ class TestBuildCharacterPrefix(unittest.TestCase):
             }],
             None,
         )
+        self.assertIn("Si Léo apparaît dans cette scène", prefix)
         self.assertIn("Léo est un ourson brun, petit, avec un pull rouge.", prefix)
-        self.assertIn("Ne jamais le représenter autrement", prefix)
+        self.assertIn("Ne jamais représenter Léo autrement", prefix)
         self.assertIn("ourson anthropomorphe", prefix)
+        self.assertIn("Si aucun de ces personnages n'apparaît dans cette scène", prefix)
 
     def test_incomplete_entries_are_skipped(self):
         prefix = visuals.build_character_prefix(
@@ -62,7 +64,7 @@ class TestScenePrompt(unittest.TestCase):
             prefix,
             "9:16",
         )
-        self.assertTrue(prompt.startswith("Léo est un ourson brun."))
+        self.assertTrue(prompt.startswith("Si Léo apparaît dans cette scène"))
         self.assertIn("SANS AUCUN TEXTE", prompt)
         self.assertIn("format 9:16", prompt)
         self.assertLess(prompt.index("Léo est un ourson brun."), prompt.index("Scène :"))

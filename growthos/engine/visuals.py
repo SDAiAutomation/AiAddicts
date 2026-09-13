@@ -8,6 +8,18 @@ les sous-titres au lieu d'une couleur unie. Deux modes selon `visual_style` :
   `_BLOCKS_PER_IMAGE` blocs (défaut 1 = une par bloc), Pexels photo en repli
   bloc par bloc. Jamais bloquant : un groupe raté n'empêche pas les autres.
 
+Texte vs visuel
+---------------
+`block["text"]` est la voix off (ce qu'on ENTEND). `block["visual"]`, généré
+par le web en même temps que le texte (voir ai-actions.ts, buildBasePrompt),
+est ce qu'on VOIT à l'écran pour ce plan précis — un cadrage/objet/action
+concret, jamais une paraphrase du texte. `_block_visual_text()` utilise
+`visual` s'il existe, sinon replie sur `text` (anciens scripts, bloc édité à
+la main). Sans ce champ distinct, l'image n'a que la voix off à illustrer et
+retombe systématiquement sur "portrait du personnage qui parle" — le prompt
+web impose explicitement une règle anti-statique (personnage de face sur
+~30% des blocs max, le reste en gros plans d'objet/POV/plans larges).
+
 Cohérence des personnages
 -------------------------
 Chaque scène est une génération texte indépendante (`/v1/images/generations`) :
@@ -16,9 +28,13 @@ pousse le modèle vers un humain par défaut, même si la première image montra
 un ourson.
 
 Garde-fou : la *fiche personnage* du script (`script["characters"]`,
-description physique fixe + contrainte négative) et le *style graphique* fixe
-(`script["visual_style"]`) sont concaténés EN TÊTE de CHAQUE prompt de scène,
-avant l'action — voir `build_character_prefix` / `_scene_prompt`.
+description physique fixe + contrainte négative — jamais de pose/posture, ça
+casserait justement la variété de plans ci-dessus) et le *style graphique*
+fixe (`script["visual_style"]`) sont concaténés EN TÊTE de CHAQUE prompt de
+scène — voir `build_character_prefix` / `_scene_prompt`. La description de
+chaque personnage est explicitement CONDITIONNELLE ("si {name} apparaît dans
+cette scène...") pour ne pas pousser le modèle à l'insérer sur les plans
+d'objet/POV/décor où il n'a rien à faire.
 
 Testé et écarté : dériver les scènes 2+ de l'image de la scène 1 via
 `/v1/images/edits` (au lieu de régénérer chaque scène par texte) garde certes
@@ -171,15 +187,32 @@ def _style_consigne(visual_style: str | None) -> str:
     return key
 
 
+def _block_visual_text(block: dict) -> str:
+    """Ce qu'on VOIT à l'écran pour ce bloc — cadrage/objet/action, généré par
+    le web en même temps que le texte (voir ai-actions.ts, buildBasePrompt) —
+    si présent. Sinon replie sur le texte de la voix off (anciens scripts sans
+    "visual", ou bloc ajouté/édité à la main sans le renseigner)."""
+    visual = str(block.get("visual") or "").strip()
+    return visual or block["text"]
+
+
 def build_character_prefix(characters: list[dict] | None, visual_style: str | None) -> str:
     """Bloc de texte figé, identique pour toutes les scènes d'une vidéo :
-    description physique complète de chaque personnage + contrainte négative
-    + style graphique. Concaténé en tête de chaque prompt de scène.
+    description physique de chaque personnage (CONDITIONNELLE : seulement
+    s'il apparaît dans la scène) + contrainte négative + style graphique.
+    Concaténé en tête de chaque prompt de scène.
+
+    La condition est volontaire : beaucoup de scènes sont des gros plans
+    d'objet, des POV ou des plans larges de décor sans aucun personnage
+    (voir _scene_prompt / le "visual" du bloc) — une description non
+    conditionnelle pousserait le modèle à insérer le personnage même sur ces
+    plans-là.
 
     `characters` : liste de dicts `{name, description, negative?}` venant de
     `script["characters"]`. Entrées incomplètes ignorées. Retourne '' si
     rien d'exploitable (le prompt retombe alors sur son style générique)."""
     lines: list[str] = []
+    has_any = False
     for character in characters or []:
         if not isinstance(character, dict):
             continue
@@ -187,11 +220,19 @@ def build_character_prefix(characters: list[dict] | None, visual_style: str | No
         description = str(character.get("description", "")).strip()
         if not name or not description:
             continue
-        sentence = f"{name} est {description}."
+        has_any = True
+        sentence = f"Si {name} apparaît dans cette scène, son apparence est TOUJOURS la même : {name} est {description}."
         negative = str(character.get("negative", "")).strip()
         if negative:
-            sentence += f" Ne jamais le représenter autrement : {negative}."
+            sentence += f" Ne jamais représenter {name} autrement : {negative}."
         lines.append(sentence)
+
+    if has_any:
+        lines.append(
+            "Si aucun de ces personnages n'apparaît dans cette scène précise (plan sur un "
+            "objet, un décor, un point de vue subjectif...), ignore ces descriptions et "
+            "n'inclus personne : illustre uniquement ce que la scène décrit."
+        )
 
     style = _style_consigne(visual_style)
     if style:
@@ -346,7 +387,7 @@ def fetch_block_images(
             print("       style « stock footage » demandé mais PEXELS_API_KEY absente — fond uni")
             return paths
         for i, block in enumerate(blocks):
-            paths[i] = _fetch_stock_clip(block["text"], niche, orientation, images_dir, i, api_key)
+            paths[i] = _fetch_stock_clip(_block_visual_text(block), niche, orientation, images_dir, i, api_key)
         return paths
 
     character_prefix = build_character_prefix(characters, style_consigne)
@@ -360,7 +401,7 @@ def fetch_block_images(
             for i in group:
                 paths[i] = str(image_path)
             continue
-        texts = [blocks[i]["text"] for i in group]
+        texts = [_block_visual_text(blocks[i]) for i in group]
         pending.append((group, image_path, _scene_prompt(texts, niche, character_prefix, aspect_ratio)))
 
     # Chaque scène est générée indépendamment, texte seul (`/v1/images/generations`),
@@ -394,7 +435,7 @@ def fetch_block_images(
         if _exists_nonempty(photo_path):
             paths[i] = str(photo_path)
             continue
-        url = search_image_url(_search_query(block["text"], niche), api_key, orientation)
+        url = search_image_url(_search_query(_block_visual_text(block), niche), api_key, orientation)
         if not url:
             continue
         try:
