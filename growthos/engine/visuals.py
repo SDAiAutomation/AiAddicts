@@ -10,17 +10,23 @@ les sous-titres au lieu d'une couleur unie. Deux modes selon `visual_style` :
 
 Cohérence des personnages
 -------------------------
-Chaque appel image est indépendant : le modèle n'a aucune mémoire d'une
-scène à l'autre. Un prénom seul ("Léo") pousse le modèle vers un humain par
-défaut, même si la première image montrait un ourson. Deux garde-fous :
+Chaque scène est une génération texte indépendante (`/v1/images/generations`) :
+le modèle n'a aucune mémoire d'une scène à l'autre. Un prénom seul ("Léo")
+pousse le modèle vers un humain par défaut, même si la première image montrait
+un ourson.
 
-1. La *fiche personnage* du script (`script["characters"]`, description
-   physique fixe + contrainte négative) et le *style graphique* fixe
-   (`script["visual_style"]`) sont concaténés EN TÊTE de CHAQUE prompt de
-   scène, avant l'action — voir `build_character_prefix` / `_scene_prompt`.
-2. L'image de la première scène sert d'*ancre visuelle* : les scènes
-   suivantes sont générées via `/v1/images/edits` à partir d'elle
-   (`reference_image_path`), pas régénérées de zéro.
+Garde-fou : la *fiche personnage* du script (`script["characters"]`,
+description physique fixe + contrainte négative) et le *style graphique* fixe
+(`script["visual_style"]`) sont concaténés EN TÊTE de CHAQUE prompt de scène,
+avant l'action — voir `build_character_prefix` / `_scene_prompt`.
+
+Testé et écarté : dériver les scènes 2+ de l'image de la scène 1 via
+`/v1/images/edits` (au lieu de régénérer chaque scène par texte) garde certes
+le personnage, mais l'endpoint reproduit alors quasiment la même pose et le
+même cadrage d'une scène à l'autre — il privilégie très fortement la fidélité
+à l'image reçue sur la nouveauté demandée par le prompt. Chaque scène doit
+illustrer SA propre action ; la cohérence du personnage repose donc uniquement
+sur `character_prefix` (texte), pas sur un enchaînement d'images.
 
 Optionnel : sans aucune clé (Pexels et/ou OpenAI), `fetch_block_images()`
 retourne des None partout — `engine/video.render_final()` retombe sur le
@@ -209,7 +215,16 @@ def _scene_prompt(
     prefix = character_prefix.strip()
 
     if prefix:
-        header = prefix + "\n"
+        # Chaque scène est une génération texte indépendante (voir
+        # fetch_block_images) : la pose/le décor/l'action suivent donc déjà
+        # naturellement le texte de CETTE scène. On le rappelle explicitement
+        # pour éviter que le modèle ne retombe sur une pose de portrait
+        # générique par défaut malgré la description figée du personnage.
+        header = (
+            prefix + "\n"
+            "Illustre la posture, l'angle de caméra, le décor et l'action précis de la scène "
+            "décrite plus bas — pas un simple portrait générique du personnage.\n"
+        )
     else:
         # Pas de fiche personnage : on garde l'ancien comportement générique.
         header = "Photo réaliste, style contenu réseaux sociaux. "
@@ -335,47 +350,33 @@ def fetch_block_images(
         return paths
 
     character_prefix = build_character_prefix(characters, style_consigne)
-    # L'ancrage (1er visuel réutilisé via /edits pour dériver les suivants)
-    # n'a de sens qu'avec des personnages récurrents à garder identiques : il
-    # fige aussi la composition, donc sans `characters` on aurait 5 images
-    # quasi jumelles. Sans personnages -> chaque bloc est illustré à part
-    # (le style reste cohérent via `character_prefix` / style_consigne).
-    has_characters = bool(
-        [c for c in (characters or []) if isinstance(c, dict) and c.get("name") and c.get("description")]
-    )
-    reference_path: str | None = None
 
     # 1re passe (rapide, pas de réseau) : sert le cache disque et repère ce
-    # qui reste vraiment à générer. Fixe aussi `reference_path` si la scène 1
-    # est déjà rendue d'un run précédent.
+    # qui reste vraiment à générer.
     pending: list[tuple[list[int], Path, str]] = []
     for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
         image_path = images_dir / f"scene-{group[0] + 1:02d}.jpg"
         if _exists_nonempty(image_path):
             for i in group:
                 paths[i] = str(image_path)
-            if has_characters:
-                reference_path = reference_path or str(image_path)
             continue
         texts = [blocks[i]["text"] for i in group]
         pending.append((group, image_path, _scene_prompt(texts, niche, character_prefix, aspect_ratio)))
 
-    # Avec personnages et sans ancre encore résolue : la scène 1 doit partir
-    # seule (les suivantes en dérivent via /edits) avant de paralléliser le
-    # reste. Sans personnages, reference_path reste None et rien n'attend
-    # rien : tout peut partir en parallèle direct.
-    if pending and has_characters and reference_path is None:
-        group, image_path, prompt = pending.pop(0)
-        scene_path = _try_scene_image(prompt, aspect_ratio, str(image_path), None)
-        if scene_path:
-            for i in group:
-                paths[i] = scene_path
-            reference_path = scene_path
-
+    # Chaque scène est générée indépendamment, texte seul (`/v1/images/generations`),
+    # jamais dérivée d'une image de référence via `/edits`. Testé en situation
+    # réelle : `/edits` garde certes le personnage, mais reproduit quasiment
+    # la même pose et le même cadrage d'une scène à l'autre — l'endpoint
+    # privilégie très fortement la fidélité à l'image reçue sur la nouveauté
+    # demandée par le texte, quelle que soit l'instruction du prompt. La
+    # cohérence du personnage repose donc uniquement sur `character_prefix`
+    # (même description textuelle injectée dans chaque prompt) : moins strict
+    # au pixel près, mais chaque scène illustre vraiment SA scène, et tout
+    # part en parallèle (plus rapide qu'attendre la scène 1 en premier).
     if pending:
         def _generate(item: tuple[list[int], Path, str]) -> tuple[list[int], str | None]:
             group, image_path, prompt = item
-            return group, _try_scene_image(prompt, aspect_ratio, str(image_path), reference_path)
+            return group, _try_scene_image(prompt, aspect_ratio, str(image_path), None)
 
         with ThreadPoolExecutor(max_workers=min(_MAX_IMAGE_WORKERS, len(pending))) as pool:
             for group, scene_path in pool.map(_generate, pending):
