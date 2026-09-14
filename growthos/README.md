@@ -67,14 +67,31 @@ Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `ac
 - **sinon** (`OPENAI_API_KEY`) → une **image IA** par bloc (`VISUALS_BLOCKS_PER_IMAGE`, défaut 1 ; mettre `3` pour regrouper et diviser le coût), Pexels photo en repli. Ken Burns (zoom lent) sur l'image.
 - **aucune clé** → fond couleur unie.
 
-### Cohérence des personnages dans les images de scène
+### Pipeline d'images de scène
 
-Chaque appel image IA est indépendant : sans description physique réinjectée, un prénom qui sonne humain (« Léo ») fait dériver un ourson vers un petit garçon d'un bloc à l'autre. Deux champs de script optionnels corrigent ça :
+`engine/visuals.fetch_block_images` orchestre, pour chaque scène (groupe de blocs) :
 
-- **`characters`** : liste de `{ "name", "description", "negative"? }`. `description` est l'apparence **fixe** (espèce, couleur, taille, vêtements, traits, style de dessin) ; `negative` la contrainte à ne jamais enfreindre. Concaténés en tête de **chaque** prompt de scène.
-- **`visual_style_prompt`** (Faceloop) ou **`visual_style`** (CLI) : la consigne de style graphique, identique sur toutes les scènes. Faceloop écrit la phrase complète du pack choisi dans `visual_style_prompt` (catalogue `growthos-web/.../content/visual-styles.ts` : `storybook`, `pixar_3d`, `anime`, `comic_book`, `gta_loading`, `cinematic_real`, `stock_footage`, `flat_color`). En CLI, `visual_style` accepte soit un de ces ids (traduit par `_VISUAL_STYLE_PROMPTS`), soit une phrase libre. `visual_style_prompt` l'emporte s'il est présent.
+```
+image_style_bible      -> identité visuelle du script (1x, réutilisée sur toutes les scènes)
+image_character_bible  -> fiche personnage conditionnelle (1x, réutilisée sur toutes les scènes)
+image_prompt_builder   -> assemble le prompt final d'UNE scène
+image_model_router     -> modèle/qualité selon l'usage (preview/final/edit)
+openai_images          -> appel API OpenAI (retry/backoff, generate/edit)
+image_quality_control  -> QC vision OPT-IN (IMAGE_QC_ENABLED) + boucle edit ciblé/régénération
+```
 
-En plus, le visuel du 1er bloc sert d'**ancre** : les suivants sont dérivés de lui via `/v1/images/edits` au lieu d'être régénérés de zéro. Réglages API : `OPENAI_IMAGE_MODEL` (défaut `gpt-image-1-mini`), `OPENAI_IMAGE_QUALITY` (`low`/`medium`/`high`, **défaut `medium`** ≈ 0,03 $/image ; `high` ≈ 0,06 $, à réserver aux histoires illustrées / personnages). `input_fidelity=high` (meilleure fidélité à l'ancre) n'est activé que si `OPENAI_IMAGE_MODEL=gpt-image-1`. Voir `exemple-02-histoire.json`.
+**Cohérence des personnages** : chaque appel image IA est une génération texte indépendante — sans description physique réinjectée, un prénom qui sonne humain (« Léo ») fait dériver un ourson vers un petit garçon d'un bloc à l'autre. Deux champs de script optionnels corrigent ça, concaténés en tête de **chaque** prompt de scène :
+
+- **`characters`** : liste de `{ "name", "description", "negative"? }`. `description` est l'apparence **fixe** (espèce, couleur, taille, vêtements, traits, style de dessin) ; `negative` la contrainte à ne jamais enfreindre.
+- **`visual_style_prompt`** (Faceloop) ou **`visual_style`** (CLI) : la consigne de style graphique, identique sur toutes les scènes. Faceloop écrit la phrase complète du pack choisi dans `visual_style_prompt` (catalogue `growthos-web/.../content/visual-styles.ts` : `storybook`, `pixar_3d`, `anime`, `comic_book`, `gta_loading`, `cinematic_real`, `stock_footage`, `flat_color`). En CLI, `visual_style` accepte soit un de ces ids (traduit par `image_style_bible._VISUAL_STYLE_PROMPTS`), soit une phrase libre. `visual_style_prompt` l'emporte s'il est présent. La Style Bible ajoute en plus une avoid-list (logo/filigrane/anatomie distordue/etc.) et des règles de composition portrait, appliquées à tous les styles.
+
+**Testé et écarté** : dériver le visuel d'une scène de celui de la scène précédente via `/v1/images/edits` (ancrage) garde le personnage mais fige la pose et le cadrage d'une scène à l'autre — chaque scène est donc générée indépendamment, texte seul, en parallèle. `/v1/images/edits` reste utilisé, mais uniquement pour la correction **ciblée** d'une image déjà générée (`openai_images.edit_image`, "corrige la main, garde tout le reste").
+
+**Modèle/qualité** (`engine/image_model_router.py`) : `OPENAI_IMAGE_MODEL` (défaut `gpt-image-1-mini`) / `OPENAI_IMAGE_QUALITY` (`low`/`medium`/`high`, défaut `medium` ≈ 0,03 $/image ; `high` ≈ 0,06 $) restent les réglages de repli du mode **"final"** (seul utilisé aujourd'hui par le pipeline). `IMAGE_MODEL_PREMIUM`/`IMAGE_FINAL_QUALITY`, `IMAGE_MODEL_FAST`/`IMAGE_PREVIEW_QUALITY` (mode "preview", pas encore branché par défaut) et `IMAGE_MODEL_EDIT`/`IMAGE_EDIT_QUALITY` (mode "edit") permettent de différencier — voir `.env.example`. `input_fidelity=high` n'est activé que sur `gpt-image-1` (pas sur `-mini`).
+
+**Contrôle qualité vision** (`engine/image_quality_control.py`, `IMAGE_QC_ENABLED=false` par défaut — capacité opt-in, coût/latence supplémentaires) : score 0-100 par image (adhérence au prompt, cohérence personnage, anatomie, composition...), décision `APPROVE`/`EDIT`/`REGENERATE` selon `IMAGE_QC_THRESHOLD_APPROVE`/`IMAGE_QC_THRESHOLD_EDIT`. Boucle plafonnée à `MAX_IMAGE_ATTEMPTS` (défaut 3) ; au-delà, l'image est gardée avec un flag `manualReview` (fait basculer le content_item en `quality_check`, jamais d'échec silencieux). Nécessite `IMAGE_QC_MODEL` (pas de défaut codé en dur — vérifier le modèle vision disponible sur le compte OpenAI utilisé avant d'activer). Rapport agrégé (coût estimé, versions, détail par scène) écrit dans `content_items.image_generation_report`.
+
+Voir `exemple-02-histoire.json`.
 
 ### Style des sous-titres
 
@@ -170,7 +187,7 @@ Deux clés dans `.env` :
 python -m unittest discover -s tests
 ```
 
-Aucun appel réseau ni ffmpeg dans les tests (logique pure : validation de script, timestamps SRT, config Supabase). `engine/repo.py` (accès DB) n'est pas testé unitairement pour la même raison que `tts.py`/`video.py` : il ne fait rien d'autre que des appels réseau.
+Aucun appel réseau ni ffmpeg dans les tests (logique pure : validation de script, timestamps SRT, config Supabase, Style/Character Bible, prompt builder, routage modèle, parsing/scoring du contrôle qualité image). `engine/repo.py` (accès DB) n'est pas testé unitairement pour la même raison que `tts.py`/`video.py`/`openai_images.py` : il ne fait rien d'autre que des appels réseau.
 
 ## Prochaines étapes
 

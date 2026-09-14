@@ -4,9 +4,17 @@ les sous-titres au lieu d'une couleur unie. Deux modes selon `visual_style` :
 - Style « stock footage » -> un **clip vidéo Pexels** par bloc (gratuit),
   photo Pexels en repli. Pour les sujets concrets (sport, cuisine, voyage,
   actu) qui rendent mieux en footage réel qu'en illustration.
-- Sinon -> une **image IA** (OpenAI `gpt-image-1-mini`) par groupe de
-  `_BLOCKS_PER_IMAGE` blocs (défaut 1 = une par bloc), Pexels photo en repli
-  bloc par bloc. Jamais bloquant : un groupe raté n'empêche pas les autres.
+- Sinon -> une **image IA** par groupe de `_BLOCKS_PER_IMAGE` blocs (défaut 1
+  = une par bloc), Pexels photo en repli bloc par bloc. Jamais bloquant : un
+  groupe raté n'empêche pas les autres.
+
+Pipeline image (voir les modules dédiés pour le détail) :
+  `image_style_bible`      -> identité visuelle du script (1x, réutilisée partout)
+  `image_character_bible`  -> fiche personnage conditionnelle (1x, réutilisée partout)
+  `image_prompt_builder`   -> assemble le prompt final d'UNE scène
+  `image_model_router`     -> modèle/qualité selon l'usage (preview/final/edit)
+  `openai_images`          -> appel API (retry/backoff, generate/edit)
+  `image_quality_control`  -> QC vision OPT-IN + boucle edit/régénération
 
 Texte vs visuel
 ---------------
@@ -27,14 +35,13 @@ le modèle n'a aucune mémoire d'une scène à l'autre. Un prénom seul ("Léo")
 pousse le modèle vers un humain par défaut, même si la première image montrait
 un ourson.
 
-Garde-fou : la *fiche personnage* du script (`script["characters"]`,
-description physique fixe + contrainte négative — jamais de pose/posture, ça
-casserait justement la variété de plans ci-dessus) et le *style graphique*
-fixe (`script["visual_style"]`) sont concaténés EN TÊTE de CHAQUE prompt de
-scène — voir `build_character_prefix` / `_scene_prompt`. La description de
-chaque personnage est explicitement CONDITIONNELLE ("si {name} apparaît dans
-cette scène...") pour ne pas pousser le modèle à l'insérer sur les plans
-d'objet/POV/décor où il n'a rien à faire.
+Garde-fou : la fiche personnage (`image_character_bible.build_character_prefix`)
+et la Style Bible (`image_style_bible.resolve_style_bible`) sont résolues UNE
+FOIS par script, puis concaténées en tête de CHAQUE prompt de scène — voir
+`image_prompt_builder.build_scene_prompt`. La description de chaque
+personnage est explicitement CONDITIONNELLE ("si {name} apparaît dans cette
+scène...") pour ne pas pousser le modèle à l'insérer sur les plans d'objet/
+POV/décor où il n'a rien à faire.
 
 Testé et écarté : dériver les scènes 2+ de l'image de la scène 1 via
 `/v1/images/edits` (au lieu de régénérer chaque scène par texte) garde certes
@@ -42,7 +49,9 @@ le personnage, mais l'endpoint reproduit alors quasiment la même pose et le
 même cadrage d'une scène à l'autre — il privilégie très fortement la fidélité
 à l'image reçue sur la nouveauté demandée par le prompt. Chaque scène doit
 illustrer SA propre action ; la cohérence du personnage repose donc uniquement
-sur `character_prefix` (texte), pas sur un enchaînement d'images.
+sur le character_prefix (texte), pas sur un enchaînement d'images. `/edits`
+reste utilisé, mais uniquement pour la correction CIBLÉE d'une image déjà
+générée (voir `image_quality_control` + `openai_images.edit_image`).
 
 Optionnel : sans aucune clé (Pexels et/ou OpenAI), `fetch_block_images()`
 retourne des None partout — `engine/video.render_final()` retombe sur le
@@ -56,11 +65,10 @@ from pathlib import Path
 
 import requests
 
-from . import openai_images
+from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, openai_images
 
-# Les appels OpenAI /images sont indépendants par scène (I/O réseau) une fois
-# l'ancre (scène 1, cohérence des personnages) résolue : quelques-uns en
-# parallèle réduisent le temps total de "somme des scènes" à ~"scène la plus
+# Les appels OpenAI /images sont indépendants par scène (I/O réseau) : quelques-uns
+# en parallèle réduisent le temps total de "somme des scènes" à ~"scène la plus
 # longue" — même logique que _MAX_TTS_WORKERS dans engine/assembler.py.
 _MAX_IMAGE_WORKERS = 4
 
@@ -70,8 +78,7 @@ PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
 # Un visuel IA par groupe de `_BLOCKS_PER_IMAGE` blocs. Défaut 1 = une image
 # par bloc (meilleur rythme, mais coût OpenAI ~x2-3 sur une vidéo de 6-8
 # blocs) ; `VISUALS_BLOCKS_PER_IMAGE=3` retrouve l'ancien regroupement moins
-# cher. La 1re image sert d'ancre, les suivantes en dérivent via /edits, donc
-# passer à 1 ne casse pas la cohérence des personnages.
+# cher.
 try:
     _BLOCKS_PER_IMAGE = max(1, int(os.environ.get("VISUALS_BLOCKS_PER_IMAGE", "1")))
 except ValueError:
@@ -81,47 +88,6 @@ except ValueError:
 # lieu des images IA — pour les sujets concrets (sport, cuisine, voyage,
 # actu) qui rendent mieux en footage réel qu'en illustration.
 _STOCK_FOOTAGE_IDS = {"stock_footage", "stock_video", "stock"}
-
-# `visual_style` côté script peut être un id (pack choisi dans l'UI Faceloop,
-# ou raccourci dans un script CLI) ou une phrase libre. Les ids connus sont
-# traduits en consigne de style ; toute autre valeur non vide est utilisée
-# telle quelle. Doit rester aligné avec VISUAL_STYLES de growthos-web
-# (content-config.tsx) — Faceloop écrit de toute façon la phrase résolue dans
-# `visual_style_prompt`, ceci n'est que le repli / le chemin CLI.
-_VISUAL_STYLE_PROMPTS = {
-    "flat_color": "",  # "fond uni + texte" : pas de visuel IA, géré par video.py
-    "stock_footage": "photographie réaliste style contenu réseaux sociaux, lumière naturelle",
-    "minimal_slides": "illustration minimaliste, aplats de couleur, formes géométriques simples",
-    "pixar_3d": (
-        "rendu 3D façon film d'animation Pixar, personnages expressifs aux formes "
-        "arrondies, éclairage doux, textures léchées, couleurs chaudes"
-    ),
-    "anime": (
-        "style anime japonais, cel-shading, traits nets, grands yeux expressifs, "
-        "arrière-plans peints, couleurs saturées"
-    ),
-    "comic_book": (
-        "style bande dessinée, encrage noir marqué, aplats de couleur, trames, "
-        "ombres franches"
-    ),
-    "storybook": (
-        "illustration album jeunesse, aquarelle et crayon, couleurs douces et pastel, "
-        "formes arrondies, contours doux"
-    ),
-    "gta_loading": (
-        "illustration façon écran de chargement de jeu vidéo type GTA, semi-réaliste "
-        "stylisé, contours nets, ombrage cell, ambiance cinématique contrastée"
-    ),
-    "cinematic_real": (
-        "photo cinématique réaliste, objectif 35mm, faible profondeur de champ, "
-        "étalonnage type film, lumière naturelle"
-    ),
-    # rétro-compat : ancien id
-    "anime_3d": (
-        "rendu 3D façon film d'animation, couleurs vives, personnages aux formes "
-        "arrondies, rendu doux et léché"
-    ),
-}
 
 # Extraction de mots-clés volontairement simple (pas de dépendance NLP, le
 # pipeline reste léger) : mots de 4+ lettres hors stop-words français
@@ -141,12 +107,6 @@ _STOPWORDS_FR = {
 _WORD_RE = re.compile(r"[a-zàâäéèêëïîôöùûüçœ]+", re.IGNORECASE)
 
 _ORIENTATION = {"16:9": "landscape", "1:1": "square"}
-
-_RATIO_PHRASE = {
-    "9:16": "cadrage vertical plein cadre (format 9:16, TikTok/Reels/Shorts)",
-    "1:1": "cadrage carré plein cadre (format 1:1)",
-    "16:9": "cadrage horizontal plein cadre (format 16:9)",
-}
 
 
 def _keywords(text: str, max_words: int = 3) -> list[str]:
@@ -176,17 +136,6 @@ def _group_blocks(n_blocks: int, group_size: int) -> list[list[int]]:
     return [list(range(i, min(i + group_size, n_blocks))) for i in range(0, n_blocks, group_size)]
 
 
-def _style_consigne(visual_style: str | None) -> str:
-    """Traduit `script["visual_style"]` en consigne de style pour le prompt.
-    Id connu -> phrase dédiée ; phrase libre -> telle quelle ; vide -> ''."""
-    if not visual_style:
-        return ""
-    key = visual_style.strip()
-    if key in _VISUAL_STYLE_PROMPTS:
-        return _VISUAL_STYLE_PROMPTS[key]
-    return key
-
-
 def _block_visual_text(block: dict) -> str:
     """Ce qu'on VOIT à l'écran pour ce bloc — cadrage/objet/action, généré par
     le web en même temps que le texte (voir ai-actions.ts, buildBasePrompt) —
@@ -194,89 +143,6 @@ def _block_visual_text(block: dict) -> str:
     "visual", ou bloc ajouté/édité à la main sans le renseigner)."""
     visual = str(block.get("visual") or "").strip()
     return visual or block["text"]
-
-
-def build_character_prefix(characters: list[dict] | None, visual_style: str | None) -> str:
-    """Bloc de texte figé, identique pour toutes les scènes d'une vidéo :
-    description physique de chaque personnage (CONDITIONNELLE : seulement
-    s'il apparaît dans la scène) + contrainte négative + style graphique.
-    Concaténé en tête de chaque prompt de scène.
-
-    La condition est volontaire : beaucoup de scènes sont des gros plans
-    d'objet, des POV ou des plans larges de décor sans aucun personnage
-    (voir _scene_prompt / le "visual" du bloc) — une description non
-    conditionnelle pousserait le modèle à insérer le personnage même sur ces
-    plans-là.
-
-    `characters` : liste de dicts `{name, description, negative?}` venant de
-    `script["characters"]`. Entrées incomplètes ignorées. Retourne '' si
-    rien d'exploitable (le prompt retombe alors sur son style générique)."""
-    lines: list[str] = []
-    has_any = False
-    for character in characters or []:
-        if not isinstance(character, dict):
-            continue
-        name = str(character.get("name", "")).strip()
-        description = str(character.get("description", "")).strip()
-        if not name or not description:
-            continue
-        has_any = True
-        sentence = f"Si {name} apparaît dans cette scène, son apparence est TOUJOURS la même : {name} est {description}."
-        negative = str(character.get("negative", "")).strip()
-        if negative:
-            sentence += f" Ne jamais représenter {name} autrement : {negative}."
-        lines.append(sentence)
-
-    if has_any:
-        lines.append(
-            "Si aucun de ces personnages n'apparaît dans cette scène précise (plan sur un "
-            "objet, un décor, un point de vue subjectif...), ignore ces descriptions et "
-            "n'inclus personne : illustre uniquement ce que la scène décrit."
-        )
-
-    style = _style_consigne(visual_style)
-    if style:
-        lines.append(f"Style graphique identique pour toute la vidéo : {style}.")
-
-    return " ".join(lines)
-
-
-def _scene_prompt(
-    texts: list[str],
-    niche: str | None,
-    character_prefix: str = "",
-    aspect_ratio: str = "9:16",
-) -> str:
-    # "Sans aucun texte" explicite : sinon le modèle a tendance à incruster le
-    # texte comme légende dans l'image (déjà géré par les sous-titres ffmpeg —
-    # un doublon qui se chevauche, en plus de fautes de frappe vues en test).
-    niche_part = f" Contexte : niche {niche.replace('-', ' ')}." if niche else ""
-    combined = " ".join(t.strip() for t in texts)
-    ratio_part = _RATIO_PHRASE.get(aspect_ratio, _RATIO_PHRASE["9:16"])
-    prefix = character_prefix.strip()
-
-    if prefix:
-        # Chaque scène est une génération texte indépendante (voir
-        # fetch_block_images) : la pose/le décor/l'action suivent donc déjà
-        # naturellement le texte de CETTE scène. On le rappelle explicitement
-        # pour éviter que le modèle ne retombe sur une pose de portrait
-        # générique par défaut malgré la description figée du personnage.
-        header = (
-            prefix + "\n"
-            "Illustre la posture, l'angle de caméra, le décor et l'action précis de la scène "
-            "décrite plus bas — pas un simple portrait générique du personnage.\n"
-        )
-    else:
-        # Pas de fiche personnage : on garde l'ancien comportement générique.
-        header = "Photo réaliste, style contenu réseaux sociaux. "
-
-    return (
-        f"{header}"
-        f"{ratio_part}. "
-        f"SANS AUCUN TEXTE, mot, chiffre, légende, sous-titre, logo ni filigrane dans l'image."
-        f"{niche_part}\n"
-        f"Scène : {combined}"
-    )
 
 
 def prefers_stock_footage(visual_style_id: str, visual_style_consigne: str) -> bool:
@@ -361,7 +227,7 @@ def fetch_block_images(
     characters: list[dict] | None = None,
     visual_style: str | None = None,
     visual_style_prompt: str | None = None,
-) -> list[str | None]:
+) -> tuple[list[str | None], list[dict]]:
     """Un visuel local par bloc (chemin `.jpg` image ou `.mp4` clip vidéo), ou
     None (pas de clé / pas de résultat / échec réseau) — jamais bloquant, un
     bloc sans visuel retombe sur le fond couleur unie côté video.py. Résultats
@@ -369,28 +235,36 @@ def fetch_block_images(
 
     - Style « stock footage » -> un clip vidéo Pexels par bloc (photo Pexels
       en repli, `api_key` = clé Pexels).
-    - Sinon -> une image IA (OpenAI) par groupe de `_BLOCKS_PER_IMAGE` blocs
-      (défaut 1), Pexels photo en repli bloc par bloc.
+    - Sinon -> une image IA par groupe de `_BLOCKS_PER_IMAGE` blocs (défaut
+      1), Pexels photo en repli bloc par bloc. Passe par
+      `image_quality_control` si `IMAGE_QC_ENABLED` (sinon comportement
+      identique à avant : une génération, jamais de QC/boucle).
 
     `characters` / `visual_style(_prompt)` : fiche personnage figée + style
-    graphique fixe, injectés en tête de chaque prompt d'image (cohérence)."""
+    graphique fixe, injectés en tête de chaque prompt d'image (cohérence).
+
+    Retourne `(image_paths, scene_reports)` — `scene_reports` : une entrée
+    par scène RÉELLEMENT (re)générée cette fois (pas les scènes servies par
+    le cache disque), voir `_generate_scene_with_qc`. Consommé par
+    `assembler.py` pour construire `image_generation_report`."""
     n = len(blocks)
     paths: list[str | None] = [None] * n
     images_dir = Path(work_dir) / "images"
     orientation = _ORIENTATION.get(aspect_ratio, "portrait")
 
-    style_id = (visual_style or "").strip()
-    style_consigne = (visual_style_prompt or "").strip() or _style_consigne(style_id)
+    style_bible = image_style_bible.resolve_style_bible(visual_style, visual_style_prompt)
+    style_id = style_bible["visual_style_id"]
+    style_consigne = style_bible["consigne"]
 
     if prefers_stock_footage(style_id, style_consigne):
         if not api_key:
             print("       style « stock footage » demandé mais PEXELS_API_KEY absente — fond uni")
-            return paths
+            return paths, []
         for i, block in enumerate(blocks):
             paths[i] = _fetch_stock_clip(_block_visual_text(block), niche, orientation, images_dir, i, api_key)
-        return paths
+        return paths, []
 
-    character_prefix = build_character_prefix(characters, style_consigne)
+    character_prefix = image_character_bible.build_character_prefix(characters, style_consigne)
 
     # 1re passe (rapide, pas de réseau) : sert le cache disque et repère ce
     # qui reste vraiment à générer.
@@ -402,31 +276,25 @@ def fetch_block_images(
                 paths[i] = str(image_path)
             continue
         texts = [_block_visual_text(blocks[i]) for i in group]
-        pending.append((group, image_path, _scene_prompt(texts, niche, character_prefix, aspect_ratio)))
+        prompt = image_prompt_builder.build_scene_prompt(texts, niche, character_prefix, aspect_ratio, style_bible)
+        pending.append((group, image_path, prompt))
 
-    # Chaque scène est générée indépendamment, texte seul (`/v1/images/generations`),
-    # jamais dérivée d'une image de référence via `/edits`. Testé en situation
-    # réelle : `/edits` garde certes le personnage, mais reproduit quasiment
-    # la même pose et le même cadrage d'une scène à l'autre — l'endpoint
-    # privilégie très fortement la fidélité à l'image reçue sur la nouveauté
-    # demandée par le texte, quelle que soit l'instruction du prompt. La
-    # cohérence du personnage repose donc uniquement sur `character_prefix`
-    # (même description textuelle injectée dans chaque prompt) : moins strict
-    # au pixel près, mais chaque scène illustre vraiment SA scène, et tout
-    # part en parallèle (plus rapide qu'attendre la scène 1 en premier).
+    scene_reports: list[dict] = []
     if pending:
-        def _generate(item: tuple[list[int], Path, str]) -> tuple[list[int], str | None]:
+        def _generate(item: tuple[list[int], Path, str]) -> tuple[list[int], str | None, dict]:
             group, image_path, prompt = item
-            return group, _try_scene_image(prompt, aspect_ratio, str(image_path), None)
+            path, report = _generate_scene_with_qc(prompt, aspect_ratio, str(image_path), character_prefix)
+            return group, path, report
 
         with ThreadPoolExecutor(max_workers=min(_MAX_IMAGE_WORKERS, len(pending))) as pool:
-            for group, scene_path in pool.map(_generate, pending):
+            for group, scene_path, report in pool.map(_generate, pending):
                 if scene_path:
                     for i in group:
                         paths[i] = scene_path
+                scene_reports.append(report)
 
     if not api_key:
-        return paths
+        return paths, scene_reports
 
     for i, block in enumerate(blocks):
         if paths[i]:
@@ -443,7 +311,7 @@ def fetch_block_images(
             paths[i] = str(photo_path)
         except requests.RequestException:
             pass
-    return paths
+    return paths, scene_reports
 
 
 def _fetch_stock_clip(
@@ -483,19 +351,82 @@ def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
-def _try_scene_image(
+def _generate_scene_with_qc(
     prompt: str,
     aspect_ratio: str,
     out_path: str,
-    reference_image_path: str | None = None,
-) -> str | None:
-    """Tente une image IA (OpenAI) pour un groupe de blocs. None si pas de
-    clé configurée ou échec — l'appelant retombe alors sur Pexels bloc par
-    bloc pour ce groupe. Avec `reference_image_path`, l'image est dérivée de
-    l'ancre visuelle (scène 1) plutôt que régénérée de zéro."""
+    character_prefix: str,
+) -> tuple[str | None, dict]:
+    """Génère une scène en mode "final", puis — si `IMAGE_QC_ENABLED` —
+    applique la boucle QC vision -> edit ciblé / régénération, plafonnée à
+    `image_quality_control.max_attempts()`. QC désactivée (par défaut) :
+    comportement strictement identique à l'ancien `_try_scene_image` (une
+    génération, pas de QC).
+
+    Retourne `(chemin_ou_None, rapport)` — `rapport` alimente
+    `image_generation_report` côté `assembler.py`, y compris quand la
+    génération échoue (coût 0, `qualityScore` None)."""
+    selection = image_model_router.select_model("final")
     t0 = time.monotonic()
-    path = openai_images.generate_image(prompt, out_path, aspect_ratio, reference_image_path)
-    if path:
-        kind = "dérivée de la scène 1" if reference_image_path else "générée"
-        print(f"       scène : image IA {kind} ({time.monotonic() - t0:.1f}s)")
-    return path
+    path = openai_images.generate_image(prompt, out_path, aspect_ratio, None, selection.model, selection.quality)
+    report = {
+        "model": selection.model,
+        "quality": selection.quality,
+        "purpose": "final",
+        "attempts": 1,
+        "estimatedCost": image_model_router.estimate_cost(selection.model, selection.quality) if path else 0.0,
+        "qualityScore": None,
+        "approved": None,
+        "manualReview": False,
+    }
+    if not path:
+        print(f"       scène : image IA échouée ({time.monotonic() - t0:.1f}s)")
+        return None, report
+    print(f"       scène : image IA générée ({time.monotonic() - t0:.1f}s)")
+
+    if not image_quality_control.qc_enabled():
+        return path, report
+
+    attempts = 1
+    max_attempts = image_quality_control.max_attempts()
+    qc = image_quality_control.evaluate_image(path, prompt, character_prefix)
+    if qc is None:
+        return path, report  # QC indisponible (modèle non configuré, échec réseau...)
+
+    report["qualityScore"] = qc.overall_score
+    report["approved"] = qc.approved
+
+    while not qc.approved and attempts < max_attempts:
+        attempts += 1
+        report["attempts"] = attempts
+        if qc.recommended_action == "EDIT" and qc.edit_instructions:
+            edit_selection = image_model_router.select_model("edit")
+            fixed = openai_images.edit_image(
+                " ".join(qc.edit_instructions), path, out_path, edit_selection.model, edit_selection.quality, aspect_ratio
+            )
+            report["estimatedCost"] += (
+                image_model_router.estimate_cost(edit_selection.model, edit_selection.quality) if fixed else 0.0
+            )
+        else:
+            regen_selection = image_model_router.select_model("final")
+            fixed = openai_images.generate_image(
+                prompt, out_path, aspect_ratio, None, regen_selection.model, regen_selection.quality
+            )
+            report["estimatedCost"] += (
+                image_model_router.estimate_cost(regen_selection.model, regen_selection.quality) if fixed else 0.0
+            )
+
+        if not fixed:
+            break  # échec de la correction -> on garde la dernière image valable
+        path = fixed
+        qc = image_quality_control.evaluate_image(path, prompt, character_prefix)
+        if qc is None:
+            break
+        report["qualityScore"] = qc.overall_score
+        report["approved"] = qc.approved
+
+    if not report["approved"]:
+        report["manualReview"] = True
+        print(f"       scène : QC {report['qualityScore']}/100 après {attempts} tentative(s) — revue manuelle")
+
+    return path, report

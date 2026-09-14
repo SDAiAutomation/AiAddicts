@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Callable
 
 from . import (
-    captions, db, publish_pack, quality, repo, script as script_module, storage, tts, video,
-    visuals, voices,
+    captions, db, image_style_bible, publish_pack, quality, repo, script as script_module, storage,
+    tts, video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -123,7 +123,7 @@ def _generate(
     print(f"[3/5] Visuels ({visuals_desc})…")
     step(f"Visuels ({visuals_desc})")
     t0 = time.monotonic()
-    image_paths = visuals.fetch_block_images(
+    image_paths, image_reports = visuals.fetch_block_images(
         data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
         characters=data.get("characters"),
         # `visual_style` = id du pack (sert la décision "stock footage vs IA") ;
@@ -166,6 +166,7 @@ def _generate(
         "blocks_with_image": found,
         "n_cues": len(cues),
         "visuals_possible": bool(os.environ.get("OPENAI_API_KEY")) or bool(pexels_key),
+        "image_reports": image_reports,
     }
     return final_video, work_dir, metrics
 
@@ -207,6 +208,43 @@ def _quality_fields(metrics: dict | None, final_video: str) -> dict:
     return fields
 
 
+def _image_generation_report(metrics: dict | None) -> dict | None:
+    """Rapport agrégé (coût estimé, versions, détail par scène) à partir des
+    rapports individuels produits par `visuals.fetch_block_images` — `None`
+    si `metrics` est None (re-run, rien de neuf) ou si aucune scène n'a été
+    (re)générée cette fois (tout venait du cache disque, ou style « stock
+    footage »/pas de clé OpenAI). Consommé par `run()`/`run_for_content_item`
+    pour alimenter `content_items.image_generation_report`."""
+    if not metrics:
+        return None
+    reports = metrics.get("image_reports") or []
+    if not reports:
+        return None
+    manual_review = [r for r in reports if r.get("manualReview")]
+    return {
+        "promptVersion": image_style_bible.IMAGE_PROMPT_VERSION,
+        "styleBibleVersion": image_style_bible.STYLE_BIBLE_VERSION,
+        "totalEstimatedCost": round(sum(r.get("estimatedCost") or 0 for r in reports), 4),
+        "scenesGenerated": len(reports),
+        "scenesNeedingManualReview": len(manual_review),
+        "scenes": reports,
+    }
+
+
+def _apply_image_report(fields: dict, metrics: dict | None) -> None:
+    """Mute `fields` (dict de colonnes à écrire sur le content_item) en place :
+    ajoute `image_generation_report` si des scènes ont été (re)générées, et
+    bascule le statut en `quality_check` si une scène nécessite une revue
+    manuelle — réutilise le même mécanisme que `_quality_fields` (coup d'œil
+    humain avant publication), sans jamais rétrograder un statut déjà pire."""
+    report = _image_generation_report(metrics)
+    if not report:
+        return
+    fields["image_generation_report"] = report
+    if report["scenesNeedingManualReview"] and fields.get("status", "video") == "video":
+        fields["status"] = "quality_check"
+
+
 def run(script_path: str, output_root: str = "output", voice_override: str | None = None) -> dict:
     """Point d'entrée CLI (main.py) : script.json -> nouveau content_item.
 
@@ -227,6 +265,7 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     )
     video_url = _publish_video(client, content_item_id, final_video)
     update_fields = _quality_fields(metrics, final_video)
+    _apply_image_report(update_fields, metrics)
     if video_url != final_video:
         update_fields["video_url"] = video_url
     if update_fields:
@@ -299,6 +338,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         "original_video_url": None,
     }
     final_fields.update(_quality_fields(metrics, final_video))  # peut forcer status='quality_check'
+    _apply_image_report(final_fields, metrics)
     repo.update_content_item(client, content_item_id, **final_fields)
     try:
         repo.charge_generation_credit(client, content_item_id)
