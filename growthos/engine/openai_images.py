@@ -1,4 +1,4 @@
-"""Image IA (OpenAI, `gpt-image-1-mini` par défaut) pour les visuels de scène,
+"""Image IA (OpenAI, `gpt-image-2.5-flare` par défaut) pour les visuels de scène,
 voir `visuals.py` pour l'orchestration (regroupement par scène, repli Pexels)
 et `image_model_router.py` pour le choix du modèle/qualité par usage.
 
@@ -20,7 +20,7 @@ Deux endpoints selon le besoin :
   ("corrige la main, garde tout le reste"), le vrai bon usage de cet endpoint.
 
 Réglages via l'environnement (défauts raisonnables sinon) :
-  OPENAI_IMAGE_MODEL    (défaut "gpt-image-1-mini" ; repli legacy utilisé par
+  OPENAI_IMAGE_MODEL    (défaut "gpt-image-2.5-flare" ; repli utilisé par
                          `image_model_router.select_model("final")` si
                          IMAGE_MODEL_PREMIUM n'est pas renseigné)
   OPENAI_IMAGE_QUALITY  ("low" | "medium" | "high" ; défaut "medium")
@@ -40,7 +40,7 @@ import requests
 GENERATIONS_URL = "https://api.openai.com/v1/images/generations"
 EDITS_URL = "https://api.openai.com/v1/images/edits"
 
-_DEFAULT_MODEL = "gpt-image-1-mini"
+_DEFAULT_MODEL = "gpt-image-2.5-flare"
 _DEFAULT_QUALITY = "medium"
 _VALID_QUALITIES = {"low", "medium", "high", "auto"}
 
@@ -176,9 +176,8 @@ def generate_image(
                 "n": "1",
                 "output_format": "jpeg",
             }
-            # `input_fidelity=high` garde fidèlement les traits de l'image de
-            # référence (personnage, palette) — mais n'existe que sur le
-            # modèle complet, pas sur -mini (400 sinon).
+            # Compatibilité gpt-image-1. GPT Image 2.5 traite déjà les entrées
+            # avec une haute fidélité et n'accepte pas ce paramètre.
             if resolved_model == "gpt-image-1":
                 data["input_fidelity"] = "high"
             with open(reference_image_path, "rb") as fh:  # type: ignore[arg-type]
@@ -223,7 +222,7 @@ def edit_image(
     if not api_key or not Path(image_path).exists():
         return None
 
-    resolved_model = model or "gpt-image-1"
+    resolved_model = model or "gpt-image-2.5-flare"
     resolved_quality = quality if quality in _VALID_QUALITIES else "high"
     size = _SIZE_BY_RATIO.get(aspect_ratio, "1024x1536")
     headers = {"Authorization": f"Bearer {api_key}"}

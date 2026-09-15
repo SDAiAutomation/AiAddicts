@@ -29,7 +29,7 @@ class TestSelectModel(unittest.TestCase):
         # Aucune nouvelle variable renseignée : "final" doit retomber sur
         # exactement le comportement actuel (aucun changement de coût par défaut).
         selection = image_model_router.select_model("final")
-        self.assertEqual(selection.model, "gpt-image-1-mini")
+        self.assertEqual(selection.model, "gpt-image-2.5-flare")
         self.assertEqual(selection.quality, "medium")
 
     def test_final_respects_legacy_env_vars_when_set(self):
@@ -49,12 +49,12 @@ class TestSelectModel(unittest.TestCase):
 
     def test_preview_defaults(self):
         selection = image_model_router.select_model("preview")
-        self.assertEqual(selection.model, "gpt-image-1-mini")
+        self.assertEqual(selection.model, "gpt-image-2.5-flare")
         self.assertEqual(selection.quality, "low")
 
-    def test_edit_defaults_to_gpt_image_1_high(self):
+    def test_edit_defaults_to_gpt_image_2_5_flare_high(self):
         selection = image_model_router.select_model("edit")
-        self.assertEqual(selection.model, "gpt-image-1")
+        self.assertEqual(selection.model, "gpt-image-2.5-flare")
         self.assertEqual(selection.quality, "high")
 
     def test_unknown_purpose_raises(self):

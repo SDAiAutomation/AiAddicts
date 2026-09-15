@@ -150,7 +150,10 @@ def _generate(
         full_audio = str(full_wav)
     else:
         full_audio = video.concat_audio(audio_paths, str(full_wav))
-    cues = captions.build_cues(block_words)
+    cues = captions.build_cues(
+        block_words,
+        block_roles=[str(block.get("role") or "") for block in data["blocks"]],
+    )
     captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])

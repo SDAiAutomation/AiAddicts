@@ -2,18 +2,14 @@
 estimation de coût. Voir `engine/openai_images.py` pour l'appel API réel et
 `engine/visuals.py` pour l'orchestration qui appelle `select_model`.
 
-Défauts pensés pour NE RIEN changer au comportement/coût actuel : une
-installation qui ne renseigne aucune des nouvelles variables ci-dessous garde
-exactement le même modèle/qualité qu'avant (celles de `OPENAI_IMAGE_MODEL`/
-`OPENAI_IMAGE_QUALITY`) pour le mode "final", qui est le seul utilisé
-aujourd'hui par `visuals.fetch_block_images`. "preview" et "edit" sont de
-nouvelles capacités, sans impact sur l'existant tant que rien ne les appelle
-en dehors du nouveau flux d'edit ciblé (voir `image_quality_control.py`).
+Le mode final utilise `OPENAI_IMAGE_MODEL`/`OPENAI_IMAGE_QUALITY` lorsqu'ils
+sont renseignés et GPT Image 2.5 Flare en qualité medium sinon. Les variables
+par usage permettent de surcharger preview/final/edit séparément.
 """
 import os
 from dataclasses import dataclass
 
-_DEFAULT_MODEL = "gpt-image-1-mini"
+_DEFAULT_MODEL = "gpt-image-2.5-flare"
 _DEFAULT_QUALITY = "medium"
 _VALID_QUALITIES = {"low", "medium", "high", "auto"}
 _VALID_PURPOSES = {"preview", "final", "edit"}
@@ -56,11 +52,10 @@ def select_model(purpose: str) -> ModelSelection:
         model = _env_model("IMAGE_MODEL_FAST", _legacy_model())
         quality = _env_quality("IMAGE_PREVIEW_QUALITY", "low")
     elif purpose == "edit":
-        # gpt-image-1 = seul modèle supportant input_fidelity=high (déjà le
-        # cas dans openai_images.py pour l'ancrage historique) — la fidélité
-        # à l'image de départ est justement ce qu'on veut pour une correction
-        # ciblée, contrairement à la génération "final" par scène.
-        model = _env_model("IMAGE_MODEL_EDIT", "gpt-image-1")
+        # GPT Image 2.5 conserve déjà une haute fidélité des images d'entrée ;
+        # openai_images n'envoie l'ancien paramètre input_fidelity que si une
+        # configuration force explicitement gpt-image-1.
+        model = _env_model("IMAGE_MODEL_EDIT", "gpt-image-2.5-flare")
         quality = _env_quality("IMAGE_EDIT_QUALITY", "high")
     else:  # "final"
         model = _env_model("IMAGE_MODEL_PREMIUM", _legacy_model())
@@ -69,11 +64,11 @@ def select_model(purpose: str) -> ModelSelection:
     return ModelSelection(model=model, quality=quality, purpose=purpose)
 
 
-# $/image, approximatif — mêmes chiffres que documentés historiquement dans
-# openai_images.py (mesurés en usage réel : mini/medium ≈ 0,03 $, mini/high ≈
-# 0,06 $) ; gpt-image-1 extrapolé (~x3-4 le coût de -mini, même doc). Sert
-# uniquement au reporting (`image_generation_report`), jamais à une décision
-# bloquante.
+# $/image, approximatif — chiffres des anciens modèles seulement. GPT Image
+# 2.5 est facturé en tokens et reste à 0 ici plutôt que d'afficher un faux
+# montant fixe. Sert uniquement au reporting, jamais à une décision bloquante.
+# Les chiffres historiques ci-dessous ne servent qu'aux configurations qui
+# conservent explicitement un ancien modèle.
 _COST_TABLE = {
     ("gpt-image-1-mini", "low"): 0.015,
     ("gpt-image-1-mini", "medium"): 0.03,

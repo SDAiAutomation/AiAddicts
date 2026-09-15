@@ -61,6 +61,15 @@ class TestBuildCues(unittest.TestCase):
         self.assertEqual(cues[1]["text"], "mot3 mot4 mot5")
         self.assertEqual(cues[2]["text"], "mot6")
 
+    def test_hook_uses_two_words_and_carries_role(self):
+        words = [
+            {"text": f"mot{i}", "start": i * 0.2, "end": i * 0.2 + 0.15}
+            for i in range(5)
+        ]
+        cues = build_cues([(words, 1.2)], block_roles=["hook"])
+        self.assertEqual([cue["text"] for cue in cues], ["mot0 mot1", "mot2 mot3", "mot4"])
+        self.assertTrue(all(cue["role"] == "hook" for cue in cues))
+
     def test_cue_end_never_exceeds_block_duration(self):
         words = [{"text": "fin", "start": 1.8, "end": 1.95}]
         cues = build_cues([(words, 2.0)], gap=0.15)

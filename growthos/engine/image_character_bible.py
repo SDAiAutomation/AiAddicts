@@ -49,6 +49,10 @@ def build_character_prefix(characters: list[dict] | None, visual_style: str | No
         negative = str(character.get("negative", "")).strip()
         if negative:
             sentence += f" Ne jamais représenter {name} autrement : {negative}."
+        sentence += (
+            f" Verrouille l'identité de {name} : mêmes traits du visage, silhouette, "
+            "âge apparent, coiffure, tenue signature et palette dans chaque plan."
+        )
         lines.append(sentence)
 
     if has_any:

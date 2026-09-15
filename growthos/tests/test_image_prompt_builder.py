@@ -18,20 +18,18 @@ class TestBuildScenePrompt(unittest.TestCase):
             prefix,
             "9:16",
         )
-        self.assertTrue(prompt.startswith("Si Léo apparaît dans cette scène"))
+        self.assertTrue(prompt.startswith("BRIEF VISUEL"))
         self.assertIn("SANS AUCUN TEXTE", prompt)
         self.assertIn("format 9:16", prompt)
-        self.assertLess(prompt.index("Léo est un ourson brun."), prompt.index("Scène :"))
-        self.assertIn("Scène : Léo se réveille dans sa chambre. Il descend", prompt)
+        self.assertLess(prompt.index("Léo est un ourson brun."), prompt.index("MOMENT NARRATIF"))
+        self.assertIn("MOMENT NARRATIF : Léo se réveille dans sa chambre. Il descend", prompt)
 
     def test_falls_back_to_generic_style_without_prefix(self):
         prompt = image_prompt_builder.build_scene_prompt(["Une réunion d'équipe."], "coach-business", "", "9:16")
         self.assertIn("Photo réaliste", prompt)
         self.assertIn("SANS AUCUN TEXTE", prompt)
 
-    def test_identical_to_legacy_prompt_without_style_bible(self):
-        # Sans style_bible (défaut None), le prompt doit rester strictement
-        # identique à l'ancien engine.visuals._scene_prompt — rétro-compat.
+    def test_without_style_bible_uses_clean_generic_brief(self):
         prompt = image_prompt_builder.build_scene_prompt(["Une scène."], None, "", "9:16")
         self.assertNotIn("logo, filigrane", prompt)
         self.assertNotIn("zone centrale sûre", prompt)

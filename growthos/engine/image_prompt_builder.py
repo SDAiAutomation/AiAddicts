@@ -3,9 +3,8 @@
 et le texte de la scène elle-même. Déterministe et pur — aucun appel réseau,
 directement testable.
 
-Déplacé depuis `engine/visuals.py` (`_scene_prompt`) : le comportement par
-défaut (sans `style_bible`) est identique à l'ancien, voir
-`tests/test_image_prompt_builder.py`.
+Le brief est structuré en identité, moment, action, style, cadrage et
+contraintes pour améliorer l'adhérence du modèle et stabiliser chaque scène.
 """
 
 _RATIO_PHRASE = {
@@ -26,25 +25,13 @@ def build_scene_prompt(
     cette scène. `character_prefix` : sortie de
     `image_character_bible.build_character_prefix`. `style_bible` : sortie de
     `image_style_bible.resolve_style_bible`, optionnelle — sans elle, le
-    prompt est identique à l'ancien `visuals._scene_prompt` (rétro-compat)."""
+    prompt conserve un style réaliste générique."""
     niche_part = f" Contexte : niche {niche.replace('-', ' ')}." if niche else ""
     combined = " ".join(t.strip() for t in texts)
     ratio_part = _RATIO_PHRASE.get(aspect_ratio, _RATIO_PHRASE["9:16"])
     prefix = character_prefix.strip()
 
-    if prefix:
-        # Chaque scène est une génération texte indépendante : la pose/le
-        # décor/l'action suivent donc déjà naturellement le texte de CETTE
-        # scène. On le rappelle explicitement pour éviter que le modèle ne
-        # retombe sur une pose de portrait générique malgré la description
-        # figée du personnage.
-        header = (
-            prefix + "\n"
-            "Illustre la posture, l'angle de caméra, le décor et l'action précis de la scène "
-            "décrite plus bas — pas un simple portrait générique du personnage.\n"
-        )
-    else:
-        header = "Photo réaliste, style contenu réseaux sociaux. "
+    identity = prefix or "Aucun personnage récurrent défini."
 
     composition = ""
     avoid_part = ""
@@ -56,11 +43,20 @@ def build_scene_prompt(
         if avoid:
             avoid_part = " " + ", ".join(str(a) for a in avoid) + "."
 
+    style = str(
+        (style_bible or {}).get("consigne")
+        or "Photo réaliste, style contenu réseaux sociaux."
+    ).strip()
     return (
-        f"{header}"
-        f"{ratio_part}.{composition} "
-        f"SANS AUCUN TEXTE, mot, chiffre, légende, sous-titre, logo ni filigrane dans l'image."
-        f"{avoid_part}"
-        f"{niche_part}\n"
-        f"Scène : {combined}"
+        "BRIEF VISUEL — respecte chaque section.\n"
+        f"IDENTITÉ ET CONTINUITÉ : {identity}\n"
+        f"MOMENT NARRATIF : {combined}{niche_part}\n"
+        "ACTION : montre exactement ce moment avec une pose, une expression et une interaction "
+        "spécifiques ; évite le portrait générique face caméra.\n"
+        f"STYLE VERROUILLÉ : {style}\n"
+        f"CADRAGE : {ratio_part}.{composition}\n"
+        "LISIBILITÉ MOBILE : contraste net, hiérarchie visuelle simple, point focal évident dès "
+        "la première seconde.\n"
+        "CONTRAINTES : SANS AUCUN TEXTE, mot, chiffre, légende, sous-titre, logo ni filigrane "
+        f"dans l'image.{avoid_part}"
     )

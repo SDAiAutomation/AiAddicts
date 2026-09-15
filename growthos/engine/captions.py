@@ -71,7 +71,11 @@ def format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 
 
-def build_cues(block_words: list[tuple[list[dict], float]], gap: float = 0.15) -> list[dict]:
+def build_cues(
+    block_words: list[tuple[list[dict], float]],
+    gap: float = 0.15,
+    block_roles: list[str] | None = None,
+) -> list[dict]:
     """`block_words` : une entrée par bloc, dans l'ordre de lecture —
     (mots du bloc [{"text","start","end"} relatifs au bloc], durée réelle
     du bloc en secondes, mesurée par ffprobe). La durée réelle (pas juste
@@ -79,7 +83,8 @@ def build_cues(block_words: list[tuple[list[dict], float]], gap: float = 0.15) -
     calé sur l'audio concaténé (video.concat_audio ne met aucun blanc entre
     blocs — un décalage ici dériverait de bloc en bloc).
 
-    Regroupe les mots de chaque bloc par paquets de `_WORDS_PER_CUE`.
+    Regroupe les mots par paquets de `_WORDS_PER_CUE`, ou deux mots pour les
+    blocs `hook` afin d'accélérer le rythme visuel des premières secondes.
 
     Construit d'abord les bornes brutes de chaque groupe, puis leur applique
     la marge `gap` en une deuxième passe, bornée par le début du groupe
@@ -88,9 +93,11 @@ def build_cues(block_words: list[tuple[list[dict], float]], gap: float = 0.15) -
     produisant des cues qui se chevauchent dans le SRT."""
     raw: list[list] = []  # [start, end, text, words], sans la marge
     cursor = 0.0
-    for words, block_duration in block_words:
-        for start in range(0, len(words), _WORDS_PER_CUE):
-            chunk = words[start:start + _WORDS_PER_CUE]
+    for block_index, (words, block_duration) in enumerate(block_words):
+        role = block_roles[block_index] if block_roles and block_index < len(block_roles) else ""
+        words_per_cue = 2 if role == "hook" else _WORDS_PER_CUE
+        for start in range(0, len(words), words_per_cue):
+            chunk = words[start:start + words_per_cue]
             text = " ".join(w["text"] for w in chunk)
             # Mots avec timing absolu (décalé du curseur bloc) — sert au
             # surlignage mot par mot des styles type "word_pop".
@@ -98,17 +105,17 @@ def build_cues(block_words: list[tuple[list[dict], float]], gap: float = 0.15) -
                 {"text": w["text"], "start": cursor + w["start"], "end": cursor + w["end"]}
                 for w in chunk
             ]
-            raw.append([cursor + chunk[0]["start"], cursor + chunk[-1]["end"], text, abs_words])
+            raw.append([cursor + chunk[0]["start"], cursor + chunk[-1]["end"], text, abs_words, role])
         cursor += block_duration
     total_duration = cursor
 
     cues = []
-    for i, (start, end, text, abs_words) in enumerate(raw):
+    for i, (start, end, text, abs_words, role) in enumerate(raw):
         next_start = raw[i + 1][0] if i + 1 < len(raw) else total_duration
         cue_end = min(end + gap, next_start)
         cues.append({
             "index": i + 1, "start": start, "end": max(cue_end, start + 0.1),
-            "text": text, "words": abs_words,
+            "text": text, "words": abs_words, "role": role,
         })
     return cues
 
@@ -217,7 +224,10 @@ def write_ass(
     for cue in cues:
         text = _ass_escape(cue["text"])
         fs = _cue_font_size(text, base_fs)
-        fs_prefix = "" if fs == base_fs else f"{{\\fs{fs}}}"
+        role_prefix = "{\\fad(45,70)}"
+        if cue.get("role") == "hook":
+            role_prefix = "{\\fad(35,60)\\fscx110\\fscy110\\1c&H0000D7FF&}"
+        fs_prefix = role_prefix + ("" if fs == base_fs else f"{{\\fs{fs}}}")
         # `\r` seul remettrait la police pleine du style ; on ré-applique la
         # taille réduite après un reset.
         reset = "{\\r}" if fs == base_fs else f"{{\\r\\fs{fs}}}"
