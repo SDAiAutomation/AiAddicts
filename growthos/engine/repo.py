@@ -258,3 +258,43 @@ def log_performance(client, content_item_id: str, **metrics) -> str:
     payload = {"content_item_id": content_item_id, **{k: v for k, v in metrics.items() if v is not None}}
     created = client.table("content_performance").insert(payload).execute()
     return created.data[0]["id"]
+
+
+def get_content_account_id(client, content_item_id: str) -> str:
+    row = client.table("content_items").select("account_id").eq("id", content_item_id).single().execute()
+    return row.data["account_id"]
+
+
+def get_account_performance(client, account_id: str) -> list[dict]:
+    """Snapshots de performance avec le script nécessaire à l'apprentissage."""
+    result = (
+        client.table("content_performance")
+        .select(
+            "content_item_id,captured_at,views,watch_time_pct,likes,comments,shares,"
+            "followers_delta,leads,content_items!inner(account_id,title,script)"
+        )
+        .eq("content_items.account_id", account_id)
+        .execute()
+    )
+    return result.data or []
+
+
+def replace_account_insights(client, account_id: str, insights: list[dict]) -> None:
+    """Reconstruit atomiquement la mémoire dérivée côté Postgres."""
+    client.rpc(
+        "replace_account_insights",
+        {"p_account_id": account_id, "p_insights": insights},
+    ).execute()
+
+
+def save_pending_recommendation(client, account_id: str, recommendation: dict) -> None:
+    """Met à jour la recommandation en attente au lieu d'en créer une à chaque snapshot."""
+    existing = (
+        client.table("recommendations").select("id").eq("account_id", account_id)
+        .eq("status", "pending").order("generated_at", desc=True).limit(1).execute()
+    )
+    payload = {**recommendation, "generated_at": datetime.now(timezone.utc).isoformat()}
+    if existing.data:
+        client.table("recommendations").update(payload).eq("id", existing.data[0]["id"]).execute()
+    else:
+        client.table("recommendations").insert({"account_id": account_id, **payload}).execute()

@@ -151,6 +151,14 @@ python log_metrics.py <content_item_id> --mark-published \
 
 `--mark-published` (seulement au premier log après la publication réelle) passe le `content_item` en statut `published`. Chaque appel ajoute une ligne dans `content_performance`, liée au `content_item`. Pas de dashboard à ce stade, c'est la V0 volontairement plate. Le Dashboard produit (§4.1 du design system) viendra une fois la boucle validée.
 
+Après chaque snapshot, `engine/learning.py` reconstruit la mémoire du compte à
+partir de la mesure la plus récente de chaque vidéo. Il calcule un score
+pondérant rétention, engagement, partages, abonnés et leads, puis agrège les
+mécaniques de hook, sujets et formats dans `insights`. La recommandation
+`pending` du compte est mise à jour dans `recommendations` avec un niveau de
+confiance lié au nombre de vidéos observées. Les performances brutes restent la
+source de vérité si cette actualisation dérivée échoue.
+
 ## Base de données (Supabase)
 
 Projet Supabase dédié, séparé de tout autre projet : **growthos**, ref `lclesqfokgetznhepgmj`, région `eu-west-1`, plan gratuit.

@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from engine import db, repo
+from engine import db, learning, repo
 
 
 def main():
@@ -50,6 +50,24 @@ def main():
         followers_delta=args.followers_delta, leads=args.leads,
     )
     print(f"Métriques enregistrées : {performance_id}")
+
+    try:
+        account_id = repo.get_content_account_id(client, args.content_item_id)
+        rows = repo.get_account_performance(client, account_id)
+        insights = learning.build_insights(rows)
+        repo.replace_account_insights(client, account_id, insights)
+        recommendation = learning.build_recommendation(insights)
+        if recommendation:
+            repo.save_pending_recommendation(client, account_id, recommendation)
+            print(
+                f"Mémoire du compte actualisée : {len(insights)} insight(s), "
+                f"recommandation {recommendation['confidence']}."
+            )
+    except Exception as exc:
+        # Le snapshot brut est déjà enregistré et reste la source de vérité.
+        # Une panne de la vue dérivée ne doit pas faire croire que les
+        # métriques ont été perdues.
+        print(f"Mémoire du compte non actualisée : {exc}")
 
 
 if __name__ == "__main__":
