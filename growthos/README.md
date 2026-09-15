@@ -124,6 +124,11 @@ mêmes réutilisations de fichiers déjà générés, même résolution de voix.
 avec le CLI : le compte existe déjà (créé via le front), pas de `get_or_create`
 organisation/compte, juste une mise à jour de la ligne `content_items` existante.
 
+Avant tout appel payant, le worker réserve atomiquement un crédit via Postgres.
+La réservation est idempotente lors d'une reprise après crash et remboursée si la
+génération échoue ; deux workers concurrents ne peuvent donc pas consommer le
+dernier crédit de la même organisation en parallèle.
+
 ## Suivi hebdomadaire
 
 Après chaque publication réelle, logger les métriques dans Supabase plutôt que dans un fichier :

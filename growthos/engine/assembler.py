@@ -298,21 +298,18 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     t_start = time.monotonic()
     client = db.get_service_client()
 
-    # Vérifié ici, avant de dépenser un seul appel ElevenLabs/OpenAI/Pexels —
-    # queueGeneration (growthos-web) ne fait qu'un contrôle à la mise en
-    # file ; sans revérifier ici, plusieurs items mis en file avant
-    # épuisement du solde se généraient quand même tous (charge_generation_credit
-    # ne fait que clamper à 0 après coup, jamais refuser). L'exception est
-    # attrapée par worker.py comme tout autre échec, qui appelle mark_failed.
-    if not repo.has_credits(client, content_item_id):
-        raise RuntimeError("crédits épuisés pour ce mois-ci")
-
     data = repo.get_script(client, content_item_id)
     script_module.validate_script(data)
     data.setdefault("aspect_ratio", "9:16")
     data.setdefault("hashtags", [])
     data.setdefault("platform", "tiktok")
     data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
+
+    # Réservation atomique après validation, mais avant le premier appel
+    # payant. Une simple lecture laisserait deux workers consommer le dernier
+    # crédit en même temps.
+    if not repo.reserve_generation_credit(client, content_item_id):
+        raise RuntimeError("crédits épuisés pour ce mois-ci")
 
     def report_progress(step_label: str) -> None:
         # Best-effort : un blip réseau vers Supabase ici ne doit jamais faire
@@ -323,9 +320,18 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         except Exception as exc:
             print(f"       (suivi d'avancement non mis à jour : {exc})")
 
-    final_video, work_dir, metrics = _generate(
-        data, output_root, voice_override=None, on_progress=report_progress
-    )
+    try:
+        final_video, work_dir, metrics = _generate(
+            data, output_root, voice_override=None, on_progress=report_progress
+        )
+    except Exception:
+        try:
+            repo.refund_generation_credit(client, content_item_id)
+        except Exception as refund_exc:
+            # La réservation reste traçable et idempotente : une reprise ne
+            # débitera pas une seconde fois le même item.
+            print(f"       (remboursement du crédit non appliqué : {refund_exc})")
+        raise
     print(f"       total génération : {time.monotonic() - t_start:.1f}s")
     video_url = _publish_video(client, content_item_id, final_video, on_progress=report_progress)
 
@@ -340,13 +346,6 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     final_fields.update(_quality_fields(metrics, final_video))  # peut forcer status='quality_check'
     _apply_image_report(final_fields, metrics)
     repo.update_content_item(client, content_item_id, **final_fields)
-    try:
-        repo.charge_generation_credit(client, content_item_id)
-    except Exception as exc:
-        # Best-effort : une vidéo livrée avec succès ne doit jamais repasser
-        # en échec à cause d'un problème sur le décompte de crédits.
-        print(f"       (décompte de crédit non appliqué : {exc})")
-
     pack = publish_pack.write_pack(
         data, final_video, str(work_dir / "publish"), content_item_id
     )

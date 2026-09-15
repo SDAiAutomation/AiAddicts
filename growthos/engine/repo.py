@@ -227,23 +227,24 @@ def has_credits(client, content_item_id: str) -> bool:
     return plan == "business" or credits_balance > 0
 
 
-def charge_generation_credit(client, content_item_id: str) -> None:
-    """Décompte 1 crédit (= 1 vidéo, cf. page Tarifs growthos-web) sur
-    l'organisation propriétaire de ce content_item, à appeler une fois la
-    génération réussie. Business (plan sur devis) n'a pas de limite, donc
-    rien à décompter. Journalisé dans credits_ledger comme toute variation
-    de solde (le webhook Stripe y écrit aussi, pour les recharges).
+def reserve_generation_credit(client, content_item_id: str) -> bool:
+    """Réserve atomiquement un crédit avant les appels payants.
 
-    Décompte fait par une fonction Postgres (`charge_generation_credit`,
-    verrou de ligne `for update`) plutôt qu'en lecture-puis-écriture ici :
-    deux workers traitant deux items de la même organisation en parallèle
-    (ex: deux runs GitHub Actions qui se chevauchent) pouvaient sinon lire
-    le même solde de départ et perdre un décompte.
-
-    Best-effort côté appelant : ne doit jamais faire échouer un run par
-    ailleurs réussi, voir le wrapping dans assembler.run_for_content_item.
+    La RPC est idempotente pour un même content_item : une reprise après
+    crash retrouve sa réservation au lieu de débiter une seconde fois.
     """
-    client.rpc("charge_generation_credit", {"p_content_item_id": content_item_id}).execute()
+    result = client.rpc(
+        "reserve_generation_credit", {"p_content_item_id": content_item_id}
+    ).execute()
+    return result.data is True
+
+
+def refund_generation_credit(client, content_item_id: str) -> bool:
+    """Rembourse une réservation active après un échec, une seule fois."""
+    result = client.rpc(
+        "refund_generation_credit", {"p_content_item_id": content_item_id}
+    ).execute()
+    return result.data is True
 
 
 def mark_published(client, content_item_id: str) -> None:
