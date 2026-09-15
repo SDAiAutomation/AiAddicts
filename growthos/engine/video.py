@@ -28,6 +28,7 @@ _MAX_CLIP_WORKERS = max(1, min(4, os.cpu_count() or 4))
 
 DEFAULT_BG = "0x0F172A"  # matches the GrowthOS design system's dark surface
 DEFAULT_FPS = 25
+MAX_SHOT_DURATION_S = 3.0
 
 # libass substitue silencieusement une police par défaut si celle-ci est absente
 # (cas d'un serveur/CI Linux sans Arial) ; surchargeable via SUBTITLE_FONT.
@@ -133,6 +134,7 @@ def _render_block_clip(
     bg_color: str,
     fps: int,
     block_index: int = 1,
+    source_offset: float = 0.0,
 ) -> str:
     """Un clip silencieux pour un bloc :
     - `.mp4/.mov/...` -> clip vidéo de stock, recadré plein cadre, bouclé/coupé
@@ -154,6 +156,7 @@ def _render_block_clip(
                 # boucle le clip source s'il est plus court que le bloc ;
                 # `-t` coupe s'il est plus long. `-an` : on jette l'audio.
                 "-stream_loop", "-1", "-i", str(Path(image_path).resolve()),
+                "-ss", f"{source_offset:.3f}",
                 "-t", f"{duration:.3f}",
                 "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", _CRF, "-an",
@@ -197,6 +200,32 @@ def _render_block_clip(
     return out_path
 
 
+def plan_shots(
+    durations: list[float],
+    image_paths: list[str | None] | None = None,
+    max_duration: float = MAX_SHOT_DURATION_S,
+) -> list[tuple[int, str | None, float, float]]:
+    """Découpe chaque bloc en plans courts sans changer sa durée totale.
+
+    Retourne `(index du bloc, visuel, durée, offset dans le bloc)` par plan.
+    """
+    if max_duration <= 0:
+        raise ValueError("max_duration doit être strictement positif")
+    visuals = list(image_paths or [])
+    visuals.extend([None] * (len(durations) - len(visuals)))
+    shots: list[tuple[int, str | None, float, float]] = []
+    for block_index, duration in enumerate(durations, start=1):
+        visual = visuals[block_index - 1]
+        remaining = max(float(duration), 0.0)
+        offset = 0.0
+        while remaining > 1e-6:
+            shot_duration = min(max_duration, remaining)
+            shots.append((block_index, visual, shot_duration, offset))
+            offset += shot_duration
+            remaining -= shot_duration
+    return shots
+
+
 def render_final(
     audio_path: str,
     srt_path: str,
@@ -222,24 +251,28 @@ def render_final(
     out_abs.parent.mkdir(parents=True, exist_ok=True)
     clips_dir = srt.parent / "clips"
 
-    n_clips = len(durations)
+    shots = plan_shots(durations, image_paths)
+    n_clips = len(shots)
     clip_names = []
-    pending: list[tuple[int, str | None, float, Path]] = []
-    for i, (image_path, duration) in enumerate(zip(image_paths, durations), start=1):
-        clip_path = clips_dir / f"block-{i:02d}.mp4"
+    pending: list[tuple[int, int, str | None, float, float, Path]] = []
+    for i, (block_index, image_path, duration, source_offset) in enumerate(shots, start=1):
+        clip_path = clips_dir / f"shot-{i:03d}.mp4"
         clip_names.append(clip_path.name)
         if _exists_nonempty(clip_path):
-            print(f"       clip {i}/{n_clips} déjà rendu — réutilisé")
+            print(f"       plan {i}/{n_clips} déjà rendu — réutilisé")
         else:
-            pending.append((i, image_path, duration, clip_path))
+            pending.append((i, block_index, image_path, duration, source_offset, clip_path))
 
     if pending:
-        def _render(item: tuple[int, str | None, float, Path]) -> None:
-            i, image_path, duration, clip_path = item
-            print(f"       clip {i}/{n_clips} ({duration:.1f}s)…")
+        def _render(item: tuple[int, int, str | None, float, float, Path]) -> None:
+            i, block_index, image_path, duration, source_offset, clip_path = item
+            print(f"       plan {i}/{n_clips} — bloc {block_index} ({duration:.1f}s)…")
             t0 = time.monotonic()
-            _render_block_clip(image_path, duration, str(clip_path), resolution, bg_color, fps, block_index=i)
-            print(f"       clip {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
+            _render_block_clip(
+                image_path, duration, str(clip_path), resolution, bg_color, fps,
+                block_index=i, source_offset=source_offset,
+            )
+            print(f"       plan {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
 
         with ThreadPoolExecutor(max_workers=min(_MAX_CLIP_WORKERS, len(pending))) as pool:
             list(pool.map(_render, pending))

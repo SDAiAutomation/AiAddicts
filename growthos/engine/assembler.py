@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Callable
 
 from . import (
-    captions, db, image_style_bible, publish_pack, quality, repo, script as script_module, storage,
-    tts, video, visuals, voices,
+    captions, db, editorial_quality, generation_cache, image_style_bible,
+    publish_pack, quality, repo, script as script_module, storage, tts, video,
+    visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -50,13 +51,21 @@ def _generate(
     step = on_progress or (lambda _label: None)
 
     slug = script_module.slug(data)
-    work_dir = Path(output_root) / slug
+    voice_id = voices.resolve_voice(data, voice_override)
+    data["voice_id"] = voice_id
+    cache_key = generation_cache.fingerprint(data, voice_id)
+    work_dir = Path(output_root) / f"{slug}-{cache_key}"
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     pexels_key = os.environ.get("PEXELS_API_KEY")
 
     n_blocks = len(data["blocks"])
     print(f"[1/5] Script chargé : {data['title']} ({n_blocks} blocs)")
     step("Chargement du script")
+    editorial_report = editorial_quality.analyze_script(data)
+    if editorial_report["issues"]:
+        print(f"       qualité éditoriale : {editorial_report['score']}/100")
+        for issue in editorial_report["issues"]:
+            print(f"         - {issue}")
 
     final_path = work_dir / "final" / f"{slug}.mp4"
     srt_path = work_dir / "captions.srt"
@@ -68,9 +77,6 @@ def _generate(
         print("[2-5/5] Vidéo finale + sous-titres déjà présents — réutilisés")
         step("Finalisation (vidéo déjà rendue)")
         return str(final_path), work_dir, None
-
-    voice_id = voices.resolve_voice(data, voice_override)
-    data["voice_id"] = voice_id  # la ligne content_items reflète la voix réellement utilisée
 
     def _synthesize_block(i: int, block: dict) -> tuple[str, float, list[dict]]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
@@ -99,7 +105,7 @@ def _generate(
     block_words = [(words, duration) for _path, duration, words in results]
 
     total_duration = sum(durations)
-    if total_duration < MIN_MONETIZABLE_DURATION_S:
+    if data.get("content_goal") == "monetization" and total_duration < MIN_MONETIZABLE_DURATION_S:
         print(
             f"       ATTENTION : voix off de {total_duration:.1f}s (< {MIN_MONETIZABLE_DURATION_S:.0f}s) — "
             "non éligible au programme TikTok Creator Rewards (monétisation), qui exige 60s minimum. "
@@ -160,13 +166,23 @@ def _generate(
     )
     print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")
 
+    shots = video.plan_shots(durations, image_paths)
+    hook_duration = next(
+        (durations[i] for i, block in enumerate(data["blocks"]) if block.get("role") == "hook"),
+        None,
+    )
     metrics = {
         "total_duration": total_duration,
+        "content_goal": data.get("content_goal", "reach"),
         "n_blocks": n_blocks,
+        "n_shots": len(shots),
+        "max_shot_duration": max((shot[2] for shot in shots), default=0.0),
+        "hook_duration": hook_duration,
         "blocks_with_image": found,
         "n_cues": len(cues),
         "visuals_possible": bool(os.environ.get("OPENAI_API_KEY")) or bool(pexels_key),
         "image_reports": image_reports,
+        "editorial": editorial_report,
     }
     return final_video, work_dir, metrics
 
@@ -304,6 +320,8 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     data.setdefault("hashtags", [])
     data.setdefault("platform", "tiktok")
     data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
+    data.setdefault("language", "fr")
+    data.setdefault("content_goal", "reach")
 
     # Réservation atomique après validation, mais avant le premier appel
     # payant. Une simple lecture laisserait deux workers consommer le dernier

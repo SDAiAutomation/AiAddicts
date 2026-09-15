@@ -67,5 +67,21 @@ class TestKenBurnsMoves(unittest.TestCase):
         self.assertIn("1.28-0.0016*on", video._kenburns_filter("out", "1080x1920", 100, 25))
 
 
+class TestShotPlanning(unittest.TestCase):
+    def test_long_blocks_are_split_into_three_second_shots(self):
+        from engine import video
+        shots = video.plan_shots([7.5], ["scene.jpg"])
+        self.assertEqual([s[2] for s in shots], [3.0, 3.0, 1.5])
+        self.assertEqual([s[3] for s in shots], [0.0, 3.0, 6.0])
+        self.assertAlmostEqual(sum(s[2] for s in shots), 7.5)
+
+    def test_shots_keep_their_source_block(self):
+        from engine import video
+        shots = video.plan_shots([2.0, 4.0], ["a.jpg", "b.mp4"])
+        self.assertEqual([(s[0], s[1]) for s in shots], [
+            (1, "a.jpg"), (2, "b.mp4"), (2, "b.mp4")
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()

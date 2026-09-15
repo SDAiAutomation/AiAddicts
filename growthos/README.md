@@ -59,6 +59,16 @@ Et dans Supabase : l'organisation et le compte sont créés s'ils n'existent pas
 
 Un script est un fichier JSON dans `content/scripts/` avec `title`, `niche`, `account`, `hashtags`, et une liste `blocks` (`role`: `hook` / `point` / `cta`, `text`: le texte narré). Optionnels : `platform` (défaut `tiktok`), `organization` (défaut `GrowthOS Dogfooding`), `aspect_ratio` (`9:16` / `1:1` / `16:9`, défaut `9:16`), `language` (`fr` / `en` / `es` / `de` / `it` / `pt`, défaut `fr` — informatif, la voix ElevenLabs `eleven_multilingual_v2` détecte la langue depuis le texte, pas de `language_code` à passer), `voice_id` (sinon résolu via `--voice` ou `config/voices.json`, cf. plus haut). Voir `exemple-01.json`.
 
+`content_goal` choisit le critère de durée : `reach` (défaut, vidéo resserrée
+pour la portée) ou `monetization` (au moins 60 secondes pour l'éligibilité
+TikTok). Le rendu découpe automatiquement les blocs narratifs en plans de
+3 secondes maximum pour maintenir le rythme visuel.
+
+Le cache est versionné par une empreinte du script, de la voix, des réglages
+et du code de génération. Modifier l'un de ces éléments crée un nouveau
+dossier `output/<slug>-<empreinte>/` et empêche la réutilisation d'une ancienne
+vidéo portant le même titre.
+
 ### Visuels de bloc
 
 `engine/visuals.py` produit un visuel par bloc, derrière les sous-titres :

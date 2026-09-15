@@ -104,6 +104,12 @@ class TestValidateScript(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_script({**VALID, "language": "klingon"})
 
+    def test_content_goal_optional_and_validated(self):
+        validate_script({**VALID, "content_goal": "reach"})
+        validate_script({**VALID, "content_goal": "monetization"})
+        with self.assertRaises(ValueError):
+            validate_script({**VALID, "content_goal": "viral"})
+
 
 class TestLoadScript(unittest.TestCase):
     def test_load_script_fills_defaults(self):
@@ -114,6 +120,7 @@ class TestLoadScript(unittest.TestCase):
         self.assertEqual(data["platform"], "tiktok")
         self.assertEqual(data["organization"], "GrowthOS Dogfooding")
         self.assertEqual(data["language"], "fr")
+        self.assertEqual(data["content_goal"], "reach")
 
 
 class TestSlug(unittest.TestCase):

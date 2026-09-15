@@ -10,6 +10,7 @@ ALLOWED_CAPTION_STYLES = {"bold_stroke", "sleek", "boxed", "neon", "word_pop"}  
 # Informatif seulement : eleven_multilingual_v2 (engine/tts.py) détecte la langue
 # du texte lui-même, `language_code` n'est pas supporté par ce modèle côté API.
 ALLOWED_LANGUAGES = {"fr", "en", "es", "de", "it", "pt"}
+ALLOWED_CONTENT_GOALS = {"reach", "monetization"}
 # `voice_id` is resolved at generation time (--voice > script > config/voices.json),
 # see engine/voices.py — so it is not required in the script file itself.
 REQUIRED_TOP_LEVEL = ("title", "niche", "account", "blocks")
@@ -24,6 +25,7 @@ def load_script(path: str) -> dict:
     data.setdefault("platform", "tiktok")
     data.setdefault("organization", DEFAULT_ORGANIZATION)
     data.setdefault("language", "fr")
+    data.setdefault("content_goal", "reach")
     return data
 
 
@@ -51,6 +53,12 @@ def validate_script(data: dict) -> None:
     language = data.get("language")
     if language is not None and language not in ALLOWED_LANGUAGES:
         raise ValueError(f"'language' invalide : '{language}' (attendu : {sorted(ALLOWED_LANGUAGES)})")
+
+    content_goal = data.get("content_goal")
+    if content_goal is not None and content_goal not in ALLOWED_CONTENT_GOALS:
+        raise ValueError(
+            f"'content_goal' invalide : '{content_goal}' (attendu : {sorted(ALLOWED_CONTENT_GOALS)})"
+        )
 
     characters = data.get("characters")
     if characters is not None:
