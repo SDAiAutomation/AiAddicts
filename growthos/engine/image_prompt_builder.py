@@ -37,7 +37,7 @@ def build_scene_prompt(
     avoid_part = ""
     if style_bible:
         rules = str(style_bible.get("composition_rules") or "").strip()
-        if rules:
+        if rules and aspect_ratio == "9:16":
             composition = f" {rules}"
         avoid = style_bible.get("avoid") or []
         if avoid:
@@ -51,8 +51,10 @@ def build_scene_prompt(
         "BRIEF VISUEL — respecte chaque section.\n"
         f"IDENTITÉ ET CONTINUITÉ : {identity}\n"
         f"MOMENT NARRATIF : {combined}{niche_part}\n"
-        "ACTION : montre exactement ce moment avec une pose, une expression et une interaction "
-        "spécifiques ; évite le portrait générique face caméra.\n"
+        "ACTION : montre exactement le sujet, l'objet et le geste décrits dans le moment narratif. "
+        "Pour un plan d'objet, de décor ou en point de vue subjectif, n'ajoute ni visage ni personnage. "
+        "Si une personne est explicitement présente, montre sa pose et son interaction précises ; "
+        "évite le portrait générique face caméra.\n"
         f"STYLE VERROUILLÉ : {style}\n"
         f"CADRAGE : {ratio_part}.{composition}\n"
         "LISIBILITÉ MOBILE : contraste net, hiérarchie visuelle simple, point focal évident dès "

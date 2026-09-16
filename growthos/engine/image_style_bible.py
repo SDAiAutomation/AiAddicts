@@ -14,7 +14,7 @@ une avoid-list + des règles de composition portrait, appliquées à TOUS les
 styles (pas seulement au style réaliste) — voir `resolve_style_bible`.
 """
 
-IMAGE_PROMPT_VERSION = "3.0.0"
+IMAGE_PROMPT_VERSION = "3.1.0"
 STYLE_BIBLE_VERSION = "1.1.0"
 
 _VISUAL_STYLE_PROMPTS = {

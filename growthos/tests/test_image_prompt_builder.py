@@ -43,6 +43,22 @@ class TestBuildScenePrompt(unittest.TestCase):
         self.assertIn("logo, filigrane", prompt)
         self.assertIn("SANS AUCUN TEXTE", prompt)  # toujours présent, pas remplacé
 
+    def test_object_scene_does_not_request_a_human_pose(self):
+        prompt = image_prompt_builder.build_scene_prompt(
+            ["Gros plan sur une clé rouillée posée sur une table."], None,
+            "", "9:16", image_style_bible.resolve_style_bible("cinematic_real")
+        )
+        self.assertIn("n'ajoute ni visage ni personnage", prompt)
+        self.assertNotIn("avec une pose, une expression", prompt)
+
+    def test_horizontal_scene_does_not_receive_vertical_composition_rules(self):
+        prompt = image_prompt_builder.build_scene_prompt(
+            ["Plan large d'une rue."], None, "", "16:9",
+            image_style_bible.resolve_style_bible("cinematic_real")
+        )
+        self.assertIn("format 16:9", prompt)
+        self.assertNotIn("Cadrage vertical", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
