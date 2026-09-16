@@ -149,3 +149,11 @@ Phase suivante (pipeline) : 3 = quality gate + recommandations.
 **État des repos au 2026-09-04 fin de soirée** : les deux repos (`growthos-web` sur `master`, `AiAddicts` sur `growthos/mvp`) sont **propres et entièrement poussés** — rien en attente de commit ni de push.
 
 Pipeline Python : voir [[active-project-growthos]]. Périmètre produit cible : voir [[blotato-product-reference]].
+
+### Séries et textes du site (2026-09-16)
+
+L'utilisateur a signalé que « Les incidents mystérieux » restait toujours « en retard » avec zéro épisode. Le workflow GitHub était configuré toutes les 10 minutes, mais ses passages observés étaient espacés de plusieurs heures. Son `curl ... || true` masquait aussi les échecs HTTP. Un appel manuel authentifié au cron a généré l'épisode attendu : `episode_count=1`, prochain créneau le 2026-09-17 à 09h00 Europe/Brussels.
+
+Correctif publié : `growthos-web` `master` commit `b8c19d5` et `AiAddicts` `growthos/mvp` commit `a0c77a7`. `src/lib/series-runner.ts` partage la génération entre `/api/cron/series` et les actions utilisateur. Le bouton « Générer maintenant » et l'option du premier épisode lancent directement le script puis demandent le passage du worker GitHub si `GITHUB_WORKFLOW_DISPATCH_TOKEN` est configuré. La réservation atomique `claim_series_run` évite les doublons. Le workflow GitHub utilise des minutes décalées et échoue visiblement en cas d'erreur HTTP ou d'échec d'une série, tout en exécutant le worker ensuite. `vercel.json` ajoute un cron de rattrapage quotidien à 08h05 UTC. Sur Vercel Hobby, le cron quotidien peut être exécuté jusqu'à 59 minutes plus tard; GitHub ne garantit pas non plus la ponctualité des workflows planifiés. Ne pas promettre une génération automatique à la minute exacte sans un ordonnanceur plus fiable.
+
+L'interface n'affiche plus « GrowthOS Dogfooding » dans la barre latérale et les réglages; le nom reste en base pour les relations et scripts. Les tirets longs de ponctuation ont été retirés des textes visibles. Validation : 15 tests, TypeScript, ESLint et build de production réussis; le site public a été vérifié sur la nouvelle version après le push. Les deux branches distantes étaient à jour et les arbres de travail propres lors de cette vérification.
