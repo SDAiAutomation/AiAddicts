@@ -54,9 +54,15 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
         run: |
           test -n "$CRON_SECRET" && test -n "$SITE_URL"
-          curl --fail-with-body --show-error --silent \
+          SITE_URL="${SITE_URL%/}"
+          if [ "$SITE_URL" = "https://faceloop.app" ]; then SITE_URL="https://www.faceloop.app"; fi
+          http_code=$(curl --fail-with-body --show-error --silent --output series-result.json --write-out '%{http_code}' \
             -X POST "$SITE_URL/api/cron/series" \
-            -H "Authorization: Bearer $CRON_SECRET" > series-result.json
+            -H "Authorization: Bearer $CRON_SECRET")
+          if [ "$http_code" != "200" ]; then
+            echo "Series cron returned HTTP $http_code; expected 200 (check SITE_URL redirects)." >&2
+            exit 1
+          fi
           python - <<'PY'
           import json
 
