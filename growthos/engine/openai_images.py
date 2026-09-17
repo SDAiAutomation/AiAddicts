@@ -25,13 +25,16 @@ Réglages via l'environnement (défauts raisonnables sinon) :
                          IMAGE_MODEL_PREMIUM n'est pas renseigné)
   OPENAI_IMAGE_QUALITY  ("low" | "medium" | "high" ; défaut "medium")
 
-Retry : 3 tentatives, backoff exponentiel (2s, 4s) sur erreur réseau/429/5xx —
-même pattern que `engine/tts.py`. Un 4xx autre (ex. rejet content-policy,
+Retry : 3 tentatives, appels espacés de 13s pour respecter 5 images/minute,
+avec délai fournisseur sur 429 et backoff exponentiel sur réseau/5xx.
+Un 4xx autre (ex. rejet content-policy,
 taille invalide) n'est PAS retenté : aucune chance qu'une nouvelle tentative
 change le résultat, on classe l'erreur et on abandonne tout de suite.
 """
 import base64
 import os
+import re
+import threading
 import time
 from pathlib import Path
 
@@ -52,6 +55,9 @@ _SIZE_BY_RATIO = {"9:16": "1024x1536", "16:9": "1536x1024", "1:1": "1024x1024"}
 
 _MAX_ATTEMPTS = 3
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_MIN_REQUEST_INTERVAL = 13.0  # 5 images/minute, avec une petite marge
+_request_lock = threading.Lock()
+_next_request_at = 0.0
 
 _EDIT_PRESERVE_INSTRUCTION = (
     "Preserve everything that is already correct. Only modify the requested "
@@ -99,12 +105,41 @@ def _classify_error(exc: Exception | None, status_code: int | None, body: str = 
     return "unknown"
 
 
+def _wait_for_image_slot() -> None:
+    """Espace les appels /images de tous les threads du worker."""
+    global _next_request_at
+    with _request_lock:
+        now = time.monotonic()
+        delay = max(0.0, _next_request_at - now)
+        if delay:
+            time.sleep(delay)
+        _next_request_at = time.monotonic() + _MIN_REQUEST_INTERVAL
+
+
+def _rate_limit_delay(resp) -> float:
+    """Respecte Retry-After, ou le délai annoncé dans le corps de l'erreur."""
+    header = resp.headers.get("Retry-After", "")
+    try:
+        return min(120.0, max(0.0, float(header)))
+    except ValueError:
+        pass
+    match = re.search(r"try again in\s+([\d.]+)\s*s", resp.text, re.IGNORECASE)
+    return min(120.0, float(match.group(1))) if match else 20.0
+
+
+def _defer_image_requests(delay: float) -> None:
+    global _next_request_at
+    with _request_lock:
+        _next_request_at = max(_next_request_at, time.monotonic() + delay)
+
+
 def _post_with_retry(url: str, headers: dict, timeout: int, *, json_body=None, data=None, files=None):
-    """POST avec retry/backoff (2s, 4s) sur réseau/429/5xx ; échec immédiat
+    """POST avec cadence globale, délai fournisseur sur 429, backoff sur réseau/5xx ; échec immédiat
     sur 4xx autre. Lève `GenerationError` — toujours attrapée par l'appelant."""
     last_kind = "unknown"
     last_detail = "raison inconnue"
     for attempt in range(1, _MAX_ATTEMPTS + 1):
+        _wait_for_image_slot()
         try:
             resp = requests.post(url, headers=headers, json=json_body, data=data, files=files, timeout=timeout)
         except requests.RequestException as exc:
@@ -118,8 +153,10 @@ def _post_with_retry(url: str, headers: dict, timeout: int, *, json_body=None, d
             if resp.status_code not in _RETRYABLE_STATUS:
                 raise GenerationError(kind, f"HTTP {resp.status_code} : {body}")
             last_kind, last_detail = kind, f"HTTP {resp.status_code} : {body}"
+            if resp.status_code == 429:
+                _defer_image_requests(_rate_limit_delay(resp))
 
-        if attempt < _MAX_ATTEMPTS:
+        if attempt < _MAX_ATTEMPTS and last_kind != "rate_limit":
             time.sleep(2 ** attempt)
 
     raise GenerationError(last_kind, f"échec après {_MAX_ATTEMPTS} tentatives — {last_detail}")

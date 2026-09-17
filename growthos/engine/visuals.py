@@ -294,7 +294,7 @@ def fetch_block_images(
                 scene_reports.append(report)
 
     if not api_key:
-        return paths, scene_reports
+        return _fill_missing_visuals(paths), scene_reports
 
     for i, block in enumerate(blocks):
         if paths[i]:
@@ -311,7 +311,20 @@ def fetch_block_images(
             paths[i] = str(photo_path)
         except requests.RequestException:
             pass
-    return paths, scene_reports
+    return _fill_missing_visuals(paths), scene_reports
+
+
+def _fill_missing_visuals(paths: list[str | None]) -> list[str | None]:
+    """Réutilise le plan disponible le plus proche si tous les fournisseurs ont échoué."""
+    available = [i for i, path in enumerate(paths) if path]
+    if not available:
+        return paths
+    for i, path in enumerate(paths):
+        if path is None:
+            nearest = min(available, key=lambda candidate: (abs(candidate - i), candidate > i))
+            paths[i] = paths[nearest]
+            print(f"       bloc {i + 1} : réutilisation du visuel du bloc {nearest + 1}")
+    return paths
 
 
 def _fetch_stock_clip(

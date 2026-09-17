@@ -7,6 +7,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from engine import visuals
 
 
+class TestMissingVisualFallback(unittest.TestCase):
+    def test_reuses_nearest_successful_scene(self):
+        self.assertEqual(
+            visuals._fill_missing_visuals([None, "scene-2.jpg", None, None, "scene-5.jpg"]),
+            ["scene-2.jpg", "scene-2.jpg", "scene-2.jpg", "scene-5.jpg", "scene-5.jpg"],
+        )
+
+    def test_keeps_empty_video_empty(self):
+        self.assertEqual(visuals._fill_missing_visuals([None, None]), [None, None])
+
+
 class TestGroupBlocks(unittest.TestCase):
     def test_groups_of_three(self):
         self.assertEqual(visuals._group_blocks(7, 3), [[0, 1, 2], [3, 4, 5], [6]])
