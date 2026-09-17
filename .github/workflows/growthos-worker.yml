@@ -86,3 +86,35 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python worker.py --until-idle
+
+  publish-queue:
+    needs: process-queue
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publier les vidéos terminées sur YouTube
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          test -n "$CRON_SECRET" && test -n "$SITE_URL"
+          SITE_URL="${SITE_URL%/}"
+          if [ "$SITE_URL" = "https://faceloop.app" ]; then SITE_URL="https://www.faceloop.app"; fi
+          for attempt in 1 2 3; do
+            curl --fail-with-body --show-error --silent \
+              --output publication-result.json \
+              -X POST "$SITE_URL/api/cron/auto-publish" \
+              -H "Authorization: Bearer $CRON_SECRET"
+            python - <<'PY'
+          import json
+          with open("publication-result.json", encoding="utf-8") as result_file:
+              result = json.load(result_file)
+          print(result)
+          if result.get("processed") and not result.get("success"):
+              print("YouTube publication failed; check the content page.")
+          PY
+            if python -c 'import json; print(json.load(open("publication-result.json", encoding="utf-8")).get("processed", False))' | grep -qx False; then
+              break
+            fi
+          done
