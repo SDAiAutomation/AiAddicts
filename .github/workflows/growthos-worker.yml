@@ -68,7 +68,7 @@ jobs:
 
           with open("series-result.json", encoding="utf-8") as result_file:
               result = json.load(result_file)
-          failures = [row for row in result.get("results", []) if row.get("status") not in ("ok", "déjà réclamé par un autre passage")]
+          failures = [row for row in result.get("results", []) if row.get("status") not in ("ok", "retry_scheduled", "déjà réclamé par un autre passage")]
           print(f"Series checked: {result.get('checked', 0)}, failed: {len(failures)}")
           for row in failures:
               print(f"{row.get('seriesId')}: {row.get('status')}")
