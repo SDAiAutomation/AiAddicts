@@ -16,7 +16,7 @@ from pathlib import Path
 
 import requests
 
-from . import storage
+from . import poster, storage
 from .video import _CRF, _run  # même remontée d'erreur ffmpeg lisible
 
 # Clip minimal : en dessous, `trim_end - trim_start` ne fait plus une vidéo.
@@ -61,12 +61,25 @@ def _download(url: str, dest: Path) -> None:
                     fh.write(chunk)
 
 
+def _poster_fields(client, content_item_id: str, video_path: Path) -> dict:
+    """Le premier frame change avec le rognage : on régénère la miniature.
+    Facultatif — un échec laisse l'ancien poster en place plutôt que de faire
+    échouer un rognage par ailleurs réussi."""
+    try:
+        poster_path = poster.extract_poster(str(video_path), str(video_path.parent / "poster.jpg"))
+        return {"poster_url": storage.upload_poster(client, content_item_id, poster_path)}
+    except Exception as exc:
+        print(f"       poster non régénéré ({exc})")
+        return {}
+
+
 def apply_trim(client, item: dict, output_root: str = "output") -> dict:
     """`item` = ligne réclamée par repo.claim_trim_job :
     {id, video_url, original_video_url, trim_start, trim_end}.
 
     Retourne les champs à réécrire sur le content_item :
-    {video_url, original_video_url, trim_start, trim_end}.
+    {video_url, original_video_url, trim_start, trim_end} (+ poster_url si la
+    miniature a pu être régénérée).
     """
     content_item_id = item["id"]
     start = float(item.get("trim_start") or 0.0)
@@ -89,6 +102,7 @@ def apply_trim(client, item: dict, output_root: str = "output") -> dict:
             "original_video_url": None,
             "trim_start": 0,
             "trim_end": None,
+            **_poster_fields(client, content_item_id, src),
         }
 
     original_url = item.get("original_video_url")
@@ -105,4 +119,5 @@ def apply_trim(client, item: dict, output_root: str = "output") -> dict:
         "original_video_url": original_url,
         "trim_start": start,
         "trim_end": end,
+        **_poster_fields(client, content_item_id, out),
     }

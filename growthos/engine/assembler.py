@@ -13,8 +13,8 @@ from typing import Callable
 
 from . import (
     captions, db, editorial_quality, generation_cache, image_style_bible,
-    publish_pack, quality, repo, script as script_module, storage, tts, video,
-    visuals, voices,
+    poster, publish_pack, quality, repo, script as script_module, storage, tts,
+    video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -216,6 +216,18 @@ def _publish_video(
         return local_path
 
 
+def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Path) -> str | None:
+    """Miniature JPEG de la vidéo, pour les listes (voir engine/poster.py).
+    Facultatif : tout échec retourne None et la vidéo reste publiable — jamais
+    d'exception vers l'appelant."""
+    try:
+        poster_path = poster.extract_poster(final_video, str(work_dir / "poster.jpg"))
+        return storage.upload_poster(client, content_item_id, poster_path)
+    except Exception as exc:
+        print(f"       poster non généré ({exc}) — la liste affichera une icône")
+        return None
+
+
 def _quality_fields(metrics: dict | None, final_video: str) -> dict:
     """Score la génération et renvoie les champs à écrire sur le content_item
     ({} si `metrics` est None — re-run d'une vidéo déjà rendue). Un score sous
@@ -352,6 +364,9 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     )
     video_url = _publish_video(client, content_item_id, final_video)
     update_fields = _quality_fields(metrics, final_video)
+    poster_url = _publish_poster(client, content_item_id, final_video, work_dir)
+    if poster_url:
+        update_fields["poster_url"] = poster_url
     _apply_image_report(update_fields, metrics)
     _apply_cost_report(update_fields, metrics)
     if video_url != final_video:
@@ -434,6 +449,9 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         "original_video_url": None,
     }
     final_fields.update(_quality_fields(metrics, final_video))  # peut forcer status='quality_check'
+    poster_url = _publish_poster(client, content_item_id, final_video, work_dir)
+    if poster_url:
+        final_fields["poster_url"] = poster_url
     _apply_image_report(final_fields, metrics)
     _apply_cost_report(final_fields, metrics)
     repo.update_content_item(client, content_item_id, **final_fields)

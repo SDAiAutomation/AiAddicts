@@ -310,6 +310,9 @@ def render_final(
             "-map", "0:v", "-map", "1:a",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", _CRF,
             "-c:a", "aac", "-b:a", "192k", "-shortest",
+            # Index de lecture (moov) en tête de fichier : le navigateur peut
+            # lire/afficher sans télécharger la fin du MP4 d'abord.
+            "-movflags", "+faststart",
             str(out_abs),
         ],
         cwd=str(srt.parent),
