@@ -135,5 +135,23 @@ class TestSlug(unittest.TestCase):
         self.assertEqual(slug({"account": "!!!", "title": "??? °°°"}), "script")
 
 
+class TestScriptCostCaps(unittest.TestCase):
+    def _script(self, n_blocks, text="Une phrase courte."):
+        data = dict(VALID)
+        data["blocks"] = [{"role": "point", "text": text} for _ in range(n_blocks)]
+        return data
+
+    def test_realistic_script_passes(self):
+        validate_script(self._script(14, "x" * 110))  # ~1540 caractères, comme les vidéos réelles
+
+    def test_too_many_blocks_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "trop long"):
+            validate_script(self._script(21))
+
+    def test_too_many_characters_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "caractères"):
+            validate_script(self._script(10, "x" * 400))  # 4000 caractères
+
+
 if __name__ == "__main__":
     unittest.main()

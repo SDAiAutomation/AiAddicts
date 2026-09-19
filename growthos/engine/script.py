@@ -1,5 +1,6 @@
 """Load and validate a GrowthOS content script (script.json)."""
 import json
+import os
 from pathlib import Path
 
 ALLOWED_ROLES = {"hook", "point", "cta"}
@@ -15,6 +16,22 @@ ALLOWED_CONTENT_GOALS = {"reach", "monetization"}
 # see engine/voices.py — so it is not required in the script file itself.
 REQUIRED_TOP_LEVEL = ("title", "niche", "account", "blocks")
 DEFAULT_ORGANIZATION = "GrowthOS Dogfooding"
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.environ.get(name, "").strip() or default))
+    except ValueError:
+        return default
+
+
+# Plafonds de coût : une image OpenAI par bloc et la voix facturée au caractère,
+# donc la taille du script BORNE le coût d'une vidéo. Le prompt vise 8-14 blocs
+# et ~1500 caractères (max observé : 16 blocs, 1572 caractères) ; un script
+# édité à la main ou dérivé pourrait sinon en demander 10x plus. Vérifié avant
+# toute réservation de crédit et tout appel payant. Surchargeable par env.
+MAX_BLOCKS = _env_int("MAX_SCRIPT_BLOCKS", 20)
+MAX_SCRIPT_CHARS = _env_int("MAX_SCRIPT_CHARS", 3000)
 
 
 def load_script(path: str) -> dict:
@@ -67,6 +84,17 @@ def validate_script(data: dict) -> None:
     blocks = data["blocks"]
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("'blocks' doit être une liste non vide")
+    if len(blocks) > MAX_BLOCKS:
+        raise ValueError(
+            f"script trop long : {len(blocks)} blocs (maximum {MAX_BLOCKS}) — "
+            "raccourcis le script pour garder une vidéo dans le budget de génération"
+        )
+    total_chars = sum(len(str(b.get("text", "")).strip()) for b in blocks if isinstance(b, dict))
+    if total_chars > MAX_SCRIPT_CHARS:
+        raise ValueError(
+            f"script trop long : {total_chars} caractères (maximum {MAX_SCRIPT_CHARS}) — "
+            "raccourcis le texte pour garder une vidéo dans le budget de génération"
+        )
 
     for i, block in enumerate(blocks):
         text = block.get("text", "").strip()

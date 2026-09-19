@@ -279,6 +279,16 @@ def _voice_rate_per_1k_chars() -> float | None:
         return None
 
 
+def _cost_alert_limit() -> float | None:
+    """Seuil ($) au-delà duquel une génération est signalée `overBudget`.
+    Pas de défaut : à fixer d'après le coût moyen mesuré (ex. 1,5x la moyenne)."""
+    raw = os.environ.get("GENERATION_COST_ALERT_USD", "").strip()
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        return None
+
+
 def _generation_cost_report(metrics: dict | None) -> dict | None:
     """Coût variable d'UNE génération (images OpenAI + voix ElevenLabs), en $.
     `None` si `metrics` est None (re-run d'une vidéo déjà rendue : rien de neuf
@@ -310,12 +320,16 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
     if chars and rate is None:
         missing.append("voice")
 
+    total = round(image_cost + voice_cost, 4)
+    limit = _cost_alert_limit()
     return {
         "currency": "USD",
         "images": {"count": len(reports), "cost": image_cost, "tokens": image_tokens},
         "voice": {"characters": chars, "cost": voice_cost},
-        "totalEstimatedCost": round(image_cost + voice_cost, 4),
+        "totalEstimatedCost": total,
         "missingRates": missing,
+        # Vrai si cette vidéo a coûté plus que le seuil d'alerte (GENERATION_COST_ALERT_USD).
+        "overBudget": bool(limit and total > limit),
     }
 
 
@@ -327,6 +341,8 @@ def _apply_cost_report(fields: dict, metrics: dict | None) -> None:
     line = f"       coût estimé : {report['totalEstimatedCost']:.3f} $ (images {report['images']['cost']:.3f} + voix {report['voice']['cost']:.3f})"
     if report["missingRates"]:
         line += f" — tarifs manquants : {', '.join(report['missingRates'])}"
+    if report["overBudget"]:
+        line += f" — ALERTE : au-dessus du seuil de {_cost_alert_limit():.2f} $"
     print(line)
 
 

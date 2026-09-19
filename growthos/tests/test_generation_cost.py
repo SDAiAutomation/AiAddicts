@@ -49,5 +49,19 @@ class TestGenerationCostReport(unittest.TestCase):
         self.assertNotIn("voice", report["missingRates"])
 
 
+    def test_over_budget_flag_follows_threshold(self):
+        env = {"ELEVENLABS_USD_PER_1K_CHARS": "0.2", "GENERATION_COST_ALERT_USD": "0.30"}
+        with patch.dict(os.environ, env):
+            self.assertTrue(assembler._generation_cost_report(_metrics())["overBudget"])  # 0,36 > 0,30
+        env["GENERATION_COST_ALERT_USD"] = "1.00"
+        with patch.dict(os.environ, env):
+            self.assertFalse(assembler._generation_cost_report(_metrics())["overBudget"])
+
+    def test_no_threshold_never_flags(self):
+        with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}):
+            os.environ.pop("GENERATION_COST_ALERT_USD", None)
+            self.assertFalse(assembler._generation_cost_report(_metrics())["overBudget"])
+
+
 if __name__ == "__main__":
     unittest.main()
