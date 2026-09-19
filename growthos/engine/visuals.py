@@ -364,6 +364,16 @@ def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
+def _merge_usage(total: dict | None, usage: dict | None) -> dict | None:
+    """Somme les tokens de plusieurs appels image d'une même scène (génération
+    + éventuelles corrections QC). None tant qu'aucun usage n'a été renvoyé."""
+    if not usage:
+        return total
+    if not total:
+        return dict(usage)
+    return {key: total.get(key, 0) + usage.get(key, 0) for key in ("input_text", "input_image", "output")}
+
+
 def _generate_scene_with_qc(
     prompt: str,
     aspect_ratio: str,
@@ -382,12 +392,14 @@ def _generate_scene_with_qc(
     selection = image_model_router.select_model("final")
     t0 = time.monotonic()
     path = openai_images.generate_image(prompt, out_path, aspect_ratio, None, selection.model, selection.quality)
+    usage = openai_images.pop_last_usage() if path else None
     report = {
         "model": selection.model,
         "quality": selection.quality,
         "purpose": "final",
         "attempts": 1,
-        "estimatedCost": image_model_router.estimate_cost(selection.model, selection.quality) if path else 0.0,
+        "estimatedCost": image_model_router.estimate_cost(selection.model, selection.quality, usage) if path else 0.0,
+        "usage": _merge_usage(None, usage),
         "qualityScore": None,
         "approved": None,
         "manualReview": False,
@@ -417,16 +429,20 @@ def _generate_scene_with_qc(
             fixed = openai_images.edit_image(
                 " ".join(qc.edit_instructions), path, out_path, edit_selection.model, edit_selection.quality, aspect_ratio
             )
+            usage = openai_images.pop_last_usage() if fixed else None
+            report["usage"] = _merge_usage(report["usage"], usage)
             report["estimatedCost"] += (
-                image_model_router.estimate_cost(edit_selection.model, edit_selection.quality) if fixed else 0.0
+                image_model_router.estimate_cost(edit_selection.model, edit_selection.quality, usage) if fixed else 0.0
             )
         else:
             regen_selection = image_model_router.select_model("final")
             fixed = openai_images.generate_image(
                 prompt, out_path, aspect_ratio, None, regen_selection.model, regen_selection.quality
             )
+            usage = openai_images.pop_last_usage() if fixed else None
+            report["usage"] = _merge_usage(report["usage"], usage)
             report["estimatedCost"] += (
-                image_model_router.estimate_cost(regen_selection.model, regen_selection.quality) if fixed else 0.0
+                image_model_router.estimate_cost(regen_selection.model, regen_selection.quality, usage) if fixed else 0.0
             )
 
         if not fixed:

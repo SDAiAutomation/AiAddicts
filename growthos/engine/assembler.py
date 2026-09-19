@@ -78,6 +78,11 @@ def _generate(
         step("Finalisation (vidéo déjà rendue)")
         return str(final_path), work_dir, None
 
+    # Caractères réellement facturés par ElevenLabs cette fois (les blocs dont
+    # l'audio est réutilisé depuis le disque ne coûtent rien). `list.append`
+    # est atomique : sûr depuis les threads du pool.
+    synthesized_chars: list[int] = []
+
     def _synthesize_block(i: int, block: dict) -> tuple[str, float, list[dict]]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
         words_path = work_dir / "audio" / f"block-{i:02d}.words.json"
@@ -89,6 +94,7 @@ def _generate(
             # Timing mot par mot (pas juste l'audio) : sert aux sous-titres
             # animés par groupes de mots, voir captions.build_cues.
             words = tts.synthesize_with_timestamps(block["text"], voice_id, str(audio_path), api_key)
+            synthesized_chars.append(len(block["text"]))
             words_path.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
         return str(audio_path), tts.get_duration_seconds(str(audio_path)), words
 
@@ -185,6 +191,7 @@ def _generate(
         "n_cues": len(cues),
         "visuals_possible": bool(os.environ.get("OPENAI_API_KEY")) or bool(pexels_key),
         "image_reports": image_reports,
+        "voice_characters": sum(synthesized_chars),
         "editorial": editorial_report,
     }
     return final_video, work_dir, metrics
@@ -250,6 +257,67 @@ def _image_generation_report(metrics: dict | None) -> dict | None:
     }
 
 
+def _voice_rate_per_1k_chars() -> float | None:
+    """Tarif ElevenLabs effectif ($ / 1000 caractères), propre à ton forfait
+    (ex. Creator ~0,22) — pas de défaut codé en dur, il change avec le plan."""
+    raw = os.environ.get("ELEVENLABS_USD_PER_1K_CHARS", "").strip()
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        return None
+
+
+def _generation_cost_report(metrics: dict | None) -> dict | None:
+    """Coût variable d'UNE génération (images OpenAI + voix ElevenLabs), en $.
+    `None` si `metrics` est None (re-run d'une vidéo déjà rendue : rien de neuf
+    facturé). Les parts dont le tarif n'est pas configuré valent 0 et sont
+    signalées dans `missingRates` plutôt que devinées — les volumes bruts
+    (tokens, caractères) sont toujours enregistrés pour recalculer après coup.
+    Hors périmètre : script LLM, contrôle qualité vision, Stripe, stockage."""
+    if not metrics:
+        return None
+    reports = metrics.get("image_reports") or []
+    image_cost = round(sum(r.get("estimatedCost") or 0 for r in reports), 4)
+    image_tokens = {"input_text": 0, "input_image": 0, "output": 0}
+    priced_images = 0
+    for r in reports:
+        usage = r.get("usage")
+        if usage:
+            for key in image_tokens:
+                image_tokens[key] += usage.get(key, 0)
+        if (r.get("estimatedCost") or 0) > 0:
+            priced_images += 1
+
+    chars = int(metrics.get("voice_characters") or 0)
+    rate = _voice_rate_per_1k_chars()
+    voice_cost = round(chars / 1000 * rate, 4) if rate is not None else 0.0
+
+    missing: list[str] = []
+    if reports and priced_images < len(reports):
+        missing.append("images")
+    if chars and rate is None:
+        missing.append("voice")
+
+    return {
+        "currency": "USD",
+        "images": {"count": len(reports), "cost": image_cost, "tokens": image_tokens},
+        "voice": {"characters": chars, "cost": voice_cost},
+        "totalEstimatedCost": round(image_cost + voice_cost, 4),
+        "missingRates": missing,
+    }
+
+
+def _apply_cost_report(fields: dict, metrics: dict | None) -> None:
+    report = _generation_cost_report(metrics)
+    if not report:
+        return
+    fields["generation_cost_report"] = report
+    line = f"       coût estimé : {report['totalEstimatedCost']:.3f} $ (images {report['images']['cost']:.3f} + voix {report['voice']['cost']:.3f})"
+    if report["missingRates"]:
+        line += f" — tarifs manquants : {', '.join(report['missingRates'])}"
+    print(line)
+
+
 def _apply_image_report(fields: dict, metrics: dict | None) -> None:
     """Mute `fields` (dict de colonnes à écrire sur le content_item) en place :
     ajoute `image_generation_report` si des scènes ont été (re)générées, et
@@ -285,6 +353,7 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     video_url = _publish_video(client, content_item_id, final_video)
     update_fields = _quality_fields(metrics, final_video)
     _apply_image_report(update_fields, metrics)
+    _apply_cost_report(update_fields, metrics)
     if video_url != final_video:
         update_fields["video_url"] = video_url
     if update_fields:
@@ -366,6 +435,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     }
     final_fields.update(_quality_fields(metrics, final_video))  # peut forcer status='quality_check'
     _apply_image_report(final_fields, metrics)
+    _apply_cost_report(final_fields, metrics)
     repo.update_content_item(client, content_item_id, **final_fields)
     pack = publish_pack.write_pack(
         data, final_video, str(work_dir / "publish"), content_item_id

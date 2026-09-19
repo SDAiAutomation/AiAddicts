@@ -79,7 +79,43 @@ _COST_TABLE = {
 }
 
 
-def estimate_cost(model: str, quality: str) -> float:
-    """Coût estimé en $ pour une image, ou 0.0 si modèle/qualité inconnus du
-    tableau (ex. modèle futur pas encore documenté ici) — jamais bloquant."""
+def _price_per_million(name: str) -> float | None:
+    raw = os.environ.get(name, "").strip()
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        return None
+
+
+def cost_from_usage(usage: dict | None) -> float | None:
+    """Coût en $ à partir des tokens réellement facturés par l'API. Les tarifs
+    ($ par million de tokens) viennent de l'environnement — volontairement
+    pas codés en dur, ils changent et diffèrent selon le modèle :
+      IMAGE_PRICE_TEXT_IN_PER_M, IMAGE_PRICE_IMAGE_IN_PER_M, IMAGE_PRICE_IMAGE_OUT_PER_M
+    None si l'usage ou le tarif de sortie manque (on retombe alors sur le
+    tableau). Un tarif d'entrée absent compte pour 0 : la sortie image
+    domine le coût."""
+    if not usage:
+        return None
+    out_price = _price_per_million("IMAGE_PRICE_IMAGE_OUT_PER_M")
+    if out_price is None:
+        return None
+    text_in = _price_per_million("IMAGE_PRICE_TEXT_IN_PER_M") or 0.0
+    image_in = _price_per_million("IMAGE_PRICE_IMAGE_IN_PER_M") or 0.0
+    return (
+        usage.get("input_text", 0) * text_in
+        + usage.get("input_image", 0) * image_in
+        + usage.get("output", 0) * out_price
+    ) / 1_000_000
+
+
+def estimate_cost(model: str, quality: str, usage: dict | None = None) -> float:
+    """Coût estimé en $ pour une image. Préfère le calcul sur les tokens
+    réels (`usage` + tarifs d'environnement) ; sinon le tableau historique ;
+    0.0 si modèle/qualité inconnus (ex. modèle facturé au token sans tarifs
+    configurés) — jamais bloquant. Les tokens restent dans le rapport, le
+    coût peut donc être recalculé après coup."""
+    from_usage = cost_from_usage(usage)
+    if from_usage is not None:
+        return from_usage
     return _COST_TABLE.get((model, quality), 0.0)

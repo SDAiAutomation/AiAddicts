@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -68,6 +69,20 @@ class TestEstimateCost(unittest.TestCase):
 
     def test_unknown_combo_returns_zero(self):
         self.assertEqual(image_model_router.estimate_cost("modele-inconnu", "medium"), 0.0)
+
+    def test_usage_with_configured_rates_is_priced(self):
+        usage = {"input_text": 1_000, "input_image": 0, "output": 6_000}
+        env = {"IMAGE_PRICE_IMAGE_OUT_PER_M": "40", "IMAGE_PRICE_TEXT_IN_PER_M": "5"}
+        with patch.dict(os.environ, env, clear=False):
+            cost = image_model_router.estimate_cost("gpt-image-2.5-flare", "medium", usage)
+        self.assertAlmostEqual(cost, (6_000 * 40 + 1_000 * 5) / 1_000_000)
+
+    def test_usage_without_rates_falls_back_to_table(self):
+        usage = {"input_text": 1_000, "input_image": 0, "output": 6_000}
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("IMAGE_PRICE_IMAGE_OUT_PER_M", None)
+            self.assertEqual(image_model_router.estimate_cost("gpt-image-2.5-flare", "medium", usage), 0.0)
+            self.assertGreater(image_model_router.estimate_cost("gpt-image-1", "high", usage), 0)
 
 
 if __name__ == "__main__":

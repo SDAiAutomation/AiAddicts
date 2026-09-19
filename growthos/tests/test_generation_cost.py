@@ -1,0 +1,53 @@
+import os
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from engine import assembler
+
+
+def _metrics(**overrides):
+    metrics = {
+        "voice_characters": 1200,
+        "image_reports": [
+            {"estimatedCost": 0.05, "usage": {"input_text": 100, "input_image": 0, "output": 1000}},
+            {"estimatedCost": 0.07, "usage": {"input_text": 120, "input_image": 0, "output": 1500}},
+        ],
+    }
+    metrics.update(overrides)
+    return metrics
+
+
+class TestGenerationCostReport(unittest.TestCase):
+    def test_none_when_nothing_new_was_generated(self):
+        self.assertIsNone(assembler._generation_cost_report(None))
+
+    def test_totals_images_and_voice(self):
+        with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}):
+            report = assembler._generation_cost_report(_metrics())
+        self.assertAlmostEqual(report["images"]["cost"], 0.12)
+        self.assertEqual(report["images"]["tokens"], {"input_text": 220, "input_image": 0, "output": 2500})
+        self.assertAlmostEqual(report["voice"]["cost"], 0.24)
+        self.assertAlmostEqual(report["totalEstimatedCost"], 0.36)
+        self.assertEqual(report["missingRates"], [])
+
+    def test_missing_rates_are_flagged_not_guessed(self):
+        metrics = _metrics(image_reports=[{"estimatedCost": 0.0, "usage": {"input_text": 1, "input_image": 0, "output": 9}}])
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ELEVENLABS_USD_PER_1K_CHARS", None)
+            report = assembler._generation_cost_report(metrics)
+        self.assertEqual(report["totalEstimatedCost"], 0.0)
+        self.assertEqual(sorted(report["missingRates"]), ["images", "voice"])
+        self.assertEqual(report["voice"]["characters"], 1200)
+
+    def test_reused_audio_costs_nothing(self):
+        report = assembler._generation_cost_report(_metrics(voice_characters=0))
+        self.assertEqual(report["voice"], {"characters": 0, "cost": 0.0})
+        self.assertNotIn("voice", report["missingRates"])
+
+
+if __name__ == "__main__":
+    unittest.main()

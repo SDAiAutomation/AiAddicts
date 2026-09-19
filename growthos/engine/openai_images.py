@@ -162,8 +162,40 @@ def _post_with_retry(url: str, headers: dict, timeout: int, *, json_body=None, d
     raise GenerationError(last_kind, f"échec après {_MAX_ATTEMPTS} tentatives — {last_detail}")
 
 
+_usage_local = threading.local()
+
+
+def _extract_usage(body: dict) -> dict | None:
+    """Tokens facturés, tels que renvoyés par l'API (`usage`), normalisés en
+    {"input_text", "input_image", "output"}. None si absent (ancien modèle,
+    réponse inattendue) — le suivi de coût est best-effort."""
+    usage = body.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    details = usage.get("input_tokens_details") or {}
+    input_total = int(usage.get("input_tokens") or 0)
+    input_image = int(details.get("image_tokens") or 0)
+    input_text = int(details.get("text_tokens") or max(0, input_total - input_image))
+    return {
+        "input_text": input_text,
+        "input_image": input_image,
+        "output": int(usage.get("output_tokens") or 0),
+    }
+
+
+def pop_last_usage() -> dict | None:
+    """Usage (tokens) du dernier appel image RÉUSSI de CE thread, puis l'oublie.
+    Thread-local : `visuals.py` génère plusieurs scènes en parallèle, un état
+    module partagé mélangerait leurs consommations."""
+    usage = getattr(_usage_local, "usage", None)
+    _usage_local.usage = None
+    return usage
+
+
 def _decode_and_write(resp, out_path: str) -> str:
-    b64 = resp.json()["data"][0]["b64_json"]
+    body = resp.json()
+    _usage_local.usage = _extract_usage(body)
+    b64 = body["data"][0]["b64_json"]
     image_bytes = base64.b64decode(b64)
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_bytes(image_bytes)
