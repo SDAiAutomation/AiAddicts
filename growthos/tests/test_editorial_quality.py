@@ -31,5 +31,31 @@ class TestEditorialQuality(unittest.TestCase):
         self.assertTrue(any("CTA trop long" in issue for issue in report["issues"]))
 
 
+    def test_wide_establishing_shot_hook_is_flagged(self):
+        script = {"blocks": [
+            {"role": "hook", "text": "3 erreurs qui détruisent ta rétention sans prévenir",
+             "visual": "Plan large, rue principale au crépuscule, passants flous."},
+        ]}
+        report = editorial_quality.analyze_script(script)
+        self.assertTrue(any("plan large" in issue for issue in report["issues"]))
+
+    def test_close_up_hook_is_not_flagged(self):
+        script = {"blocks": [
+            {"role": "hook", "text": "3 erreurs qui détruisent ta rétention sans prévenir",
+             "visual": "Gros plan sur deux yeux immenses reflétant la lumière d'un escalier."},
+        ]}
+        report = editorial_quality.analyze_script(script)
+        self.assertFalse(any("plan large" in issue for issue in report["issues"]))
+
+    def test_overlong_title_is_flagged(self):
+        script = {"title": "Il a refusé d'aider ce vieil homme… 10 minutes plus tard, il l'a regretté", "blocks": [
+            {"role": "hook", "text": "3 erreurs qui détruisent ta rétention sans prévenir"},
+        ]}
+        report = editorial_quality.analyze_script(script)
+        self.assertTrue(any("Titre de" in issue for issue in report["issues"]))
+        script["title"] = "La boîte métallique de Bengaluru"
+        self.assertFalse(any("Titre de" in issue for issue in editorial_quality.analyze_script(script)["issues"]))
+
+
 if __name__ == "__main__":
     unittest.main()

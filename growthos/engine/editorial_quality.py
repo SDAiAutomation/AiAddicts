@@ -11,6 +11,9 @@ _CURIOSITY_MARKERS = (
     "sauf", "mais", "pourtant", "évite", "arrête", "contraire",
 )
 _WORD_RE = re.compile(r"\b[\wÀ-ÿ'’-]+\b", re.UNICODE)
+# Les "visual" sont toujours en français (consigne au générateur d'images).
+_WIDE_SHOT_PREFIXES = ("plan large", "plan d'ensemble", "vue d'ensemble", "vue large", "panoramique")
+_MAX_TITLE_CHARS = 60  # le prompt demande 50 ; marge avant de pénaliser
 
 
 def _words(text: str) -> list[str]:
@@ -50,6 +53,19 @@ def analyze_script(script: dict) -> dict:
         if not (has_number or has_curiosity or "?" in hook):
             score -= 10
             issues.append("Hook sans élément concret, question ou contraste identifiable.")
+
+    hook_block = next((b for b in blocks if b.get("role") == "hook"), None)
+    hook_visual = str((hook_block or {}).get("visual") or "").strip().lower()
+    if hook_visual.startswith(_WIDE_SHOT_PREFIXES):
+        # Le titre promet un élément précis ; ouvrir sur un plan de situation
+        # (rue, décor) fait décrocher avant que la promesse n'apparaisse.
+        score -= 10
+        issues.append("Hook filmé en plan large : ouvrir sur un gros plan de l'élément promis par le titre.")
+
+    title = str(script.get("title") or "").strip()
+    if len(title) > _MAX_TITLE_CHARS:
+        score -= 5
+        issues.append(f"Titre de {len(title)} caractères (cible : {_MAX_TITLE_CHARS} maximum, lisible en entier sur mobile).")
 
     if len(cta_words) > 12:
         score -= 15
