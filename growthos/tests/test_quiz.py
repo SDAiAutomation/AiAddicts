@@ -50,10 +50,10 @@ class TestQuiz(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "index"):
             validate_quiz(quiz)
 
-    def test_rejects_more_than_five_questions(self):
+    def test_rejects_more_than_seven_questions(self):
         item = {"question": "Question ?", "choices": ["A", "B"], "correct_choice": 0}
-        with self.assertRaisesRegex(ValueError, "entre 1 et 5"):
-            validate_quiz({"questions": [dict(item) for _ in range(6)]})
+        with self.assertRaisesRegex(ValueError, "entre 1 et 7"):
+            validate_quiz({"questions": [dict(item) for _ in range(8)]})
 
 
 if __name__ == "__main__":
