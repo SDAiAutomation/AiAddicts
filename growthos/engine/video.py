@@ -85,6 +85,42 @@ def pad_audio(audio_path: str, extra_seconds: float, out_path: str) -> str:
     return out_path
 
 
+_QUIZ_BEEP_FREQUENCIES = {
+    "studio": 880, "arcade": 1040, "education": 740, "sport": 920,
+    "pop": 980, "minimal": 660, "photo": 880, "logo": 820,
+}
+
+
+def add_countdown_sfx(
+    audio_path: str,
+    narration_seconds: float,
+    countdown_seconds: int,
+    out_path: str,
+    mode: str = "automatic",
+    theme: str = "studio",
+) -> str:
+    """Pad a narration block and mix one short beep at each countdown tick."""
+    if countdown_seconds <= 0 or mode == "off":
+        return pad_audio(audio_path, countdown_seconds, out_path)
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    frequency = _QUIZ_BEEP_FREQUENCIES.get(theme, 880)
+    volume = 0.08 if mode == "subtle" else 0.16
+    inputs = ["-i", str(Path(audio_path).resolve())]
+    filters = [f"[0:a]apad=pad_dur={countdown_seconds:.3f}[base]"]
+    labels = ["[base]"]
+    for index in range(countdown_seconds):
+        tick_frequency = frequency + (180 if index == countdown_seconds - 1 else 0)
+        inputs += ["-f", "lavfi", "-i", f"sine=frequency={tick_frequency}:duration=0.10"]
+        delay_ms = round((narration_seconds + index) * 1000)
+        label = f"b{index}"
+        filters.append(f"[{index + 1}:a]volume={volume},adelay={delay_ms}|{delay_ms}[{label}]")
+        labels.append(f"[{label}]")
+    filters.append("".join(labels) + f"amix=inputs={len(labels)}:duration=longest:normalize=0[out]")
+    _run(["ffmpeg", "-y", *inputs, "-filter_complex", ";".join(filters), "-map", "[out]", "-c:a", "libmp3lame", "-q:a", "2", str(out.resolve())])
+    return out_path
+
+
 def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 

@@ -31,6 +31,7 @@ class TestQuiz(unittest.TestCase):
         self.assertEqual(compiled["blocks"][2]["quiz_correct_choice"], 1)
         self.assertEqual(compiled["blocks"][1]["quiz_question_total"], 1)
         self.assertEqual(compiled["quiz"]["recipe"], "quick")
+        self.assertEqual(compiled["blocks"][1]["quiz_sound_effects"], "automatic")
         self.assertTrue(compiled["blocks"][2]["reuse_visual_from_previous"])
         validate_script(compiled)
 
