@@ -151,7 +151,20 @@ def _cue_font_size(text: str, base_font_size: int) -> int:
     return max(round(base_font_size * _SHRINK_FACTOR), round(base_font_size * 0.5))
 
 
-def _ass_header(width: int, height: int, preset: dict, font: str) -> str:
+_QUIZ_THEME_COLOURS = {
+    "studio": ("&H00FFFFFF", "&HC0000000", "&H000F9B50", "&H00D7FF"),
+    "arcade": ("&H0000FFFF", "&HC0301020", "&H0000FF66", "&H00FF00FF"),
+    "education": ("&H00FFFFFF", "&HC03D2B1F", "&H0050C878", "&H0052A8FF"),
+    "sport": ("&H00FFFFFF", "&HC0181818", "&H0000CC66", "&H0000A5FF"),
+    "pop": ("&H00FFFFFF", "&HC06A214E", "&H004DDBFF", "&H00FF66CC"),
+    "minimal": ("&H00202020", "&H00FFFFFF", "&H0060A060", "&H00808080"),
+    "photo": ("&H00FFFFFF", "&HC0000000", "&H000F9B50", "&H00D7FF"),
+    "logo": ("&H00181818", "&H00FFFFFF", "&H0060A060", "&H00D7FF"),
+}
+
+
+def _ass_header(width: int, height: int, preset: dict, font: str, quiz_theme: str = "studio") -> str:
+    quiz_text, quiz_back, quiz_correct, quiz_accent = _QUIZ_THEME_COLOURS.get(quiz_theme, _QUIZ_THEME_COLOURS["studio"])
     style_fields = ",".join(str(v) for v in [
         "Default", font, preset["font_size"],
         preset["primary"], preset["primary"], preset["outline"], preset["back"],
@@ -172,10 +185,10 @@ def _ass_header(width: int, height: int, preset: dict, font: str) -> str:
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         f"Style: {style_fields}\n"
-        f"Style: QuizQuestion,{font},64,&H00FFFFFF,&H00FFFFFF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,3,24,0,8,80,80,150,1\n"
-        f"Style: QuizChoice,{font},58,&H00FFFFFF,&H00FFFFFF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,3,20,0,5,100,100,0,1\n"
-        f"Style: QuizCorrect,{font},64,&H00FFFFFF,&H00FFFFFF,&H000F9B50,&H000F9B50,-1,0,0,0,100,100,0,0,3,24,0,5,100,100,0,1\n"
-        f"Style: QuizTimer,{font},180,&H0000D7FF,&H0000D7FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,0,0,0,1\n\n"
+        f"Style: QuizQuestion,{font},64,{quiz_text},{quiz_text},&H00000000,{quiz_back},-1,0,0,0,100,100,0,0,3,24,0,8,80,80,150,1\n"
+        f"Style: QuizChoice,{font},58,{quiz_text},{quiz_text},&H00000000,{quiz_back},-1,0,0,0,100,100,0,0,3,20,0,5,100,100,0,1\n"
+        f"Style: QuizCorrect,{font},64,{quiz_text},{quiz_text},{quiz_correct},{quiz_correct},-1,0,0,0,100,100,0,0,3,24,0,5,100,100,0,1\n"
+        f"Style: QuizTimer,{font},180,{quiz_accent},{quiz_accent},&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,0,0,0,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
@@ -286,7 +299,7 @@ def write_ass(
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(
-        _ass_header(width, height, preset, font) + "\n".join(events) + "\n",
+        _ass_header(width, height, preset, font, next((str(b.get("quiz_theme")) for b in (blocks or []) if b.get("quiz_theme")), "studio")) + "\n".join(events) + "\n",
         encoding="utf-8",
     )
     return out_path

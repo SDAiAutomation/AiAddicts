@@ -22,6 +22,7 @@ QUIZ_RECIPES = {
     "impossible": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "hard"},
 }
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
+QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
 
 
 # Phrases fixes lues par la voix off, par langue du script (défaut : français).
@@ -54,6 +55,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("kind", recipe["kind"])
     result.setdefault("difficulty", recipe["difficulty"])
     result.setdefault("countdown_seconds", recipe["countdown_seconds"])
+    result.setdefault("theme", "studio")
     for question in result.get("questions") or []:
         if isinstance(question, dict):
             question.setdefault("countdown_seconds", result["countdown_seconds"])
@@ -67,6 +69,8 @@ def validate_quiz(quiz: object) -> None:
         raise ValueError(f"'quiz.kind' invalide (attendu : {sorted(QUIZ_KINDS)})")
     if quiz.get("difficulty") not in DIFFICULTIES:
         raise ValueError(f"'quiz.difficulty' invalide (attendu : {sorted(DIFFICULTIES)})")
+    if quiz.get("theme") not in QUIZ_THEMES:
+        raise ValueError(f"'quiz.theme' invalide (attendu : {sorted(QUIZ_THEMES)})")
     questions = quiz.get("questions")
     if not isinstance(questions, list) or not (MIN_QUESTIONS <= len(questions) <= MAX_QUESTIONS):
         raise ValueError(f"'quiz.questions' doit contenir entre {MIN_QUESTIONS} et {MAX_QUESTIONS} questions")
@@ -128,6 +132,7 @@ def compile_quiz(script: dict) -> dict:
             "quiz_question_number": number,
             "quiz_question_total": len(quiz["questions"]),
             "quiz_kind": quiz["kind"],
+            "quiz_theme": quiz["theme"],
             "quiz_question": str(item["question"]).strip(),
             "quiz_choices": choices,
             "quiz_correct_choice": item["correct_choice"],
@@ -146,6 +151,7 @@ def compile_quiz(script: dict) -> dict:
             "quiz_question_number": number,
             "quiz_question_total": len(quiz["questions"]),
             "quiz_kind": quiz["kind"],
+            "quiz_theme": quiz["theme"],
             "quiz_question": str(item["question"]).strip(),
             "quiz_choices": choices,
             "quiz_correct_choice": item["correct_choice"],
