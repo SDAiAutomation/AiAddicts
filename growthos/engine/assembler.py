@@ -96,7 +96,14 @@ def _generate(
             words = tts.synthesize_with_timestamps(block["text"], voice_id, str(audio_path), api_key)
             synthesized_chars.append(len(block["text"]))
             words_path.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
-        return str(audio_path), tts.get_duration_seconds(str(audio_path)), words
+        rendered_audio = str(audio_path)
+        hold_after = float(block.get("hold_after_seconds") or 0)
+        if hold_after > 0:
+            padded_path = work_dir / "audio" / f"block-{i:02d}-padded.mp3"
+            if not _exists_nonempty(padded_path):
+                video.pad_audio(str(audio_path), hold_after, str(padded_path))
+            rendered_audio = str(padded_path)
+        return rendered_audio, tts.get_duration_seconds(rendered_audio), words
 
     step(f"Voix off (ElevenLabs, {n_blocks} bloc(s))")
     t0 = time.monotonic()
@@ -163,7 +170,10 @@ def _generate(
     captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
-    ass_file = captions.write_ass(cues, str(work_dir / "captions.ass"), caption_style, resolution)
+    ass_file = captions.write_ass(
+        cues, str(work_dir / "captions.ass"), caption_style, resolution,
+        blocks=data["blocks"], block_durations=durations,
+    )
     print(f"       sous-titres : style « {caption_style} »")
 
     print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
@@ -192,6 +202,7 @@ def _generate(
         "visuals_possible": bool(os.environ.get("OPENAI_API_KEY")) or bool(pexels_key),
         "image_reports": image_reports,
         "voice_characters": sum(synthesized_chars),
+        "script_usage": data.get("script_usage"),
         "editorial": editorial_report,
     }
     return final_video, work_dir, metrics
@@ -279,6 +290,18 @@ def _voice_rate_per_1k_chars() -> float | None:
         return None
 
 
+def _script_rates() -> tuple[float, float] | None:
+    """Tarifs du modèle de script ($ / million de tokens, entrée puis sortie),
+    propres à OPENAI_SCRIPT_MODEL — pas de défaut codé en dur."""
+    try:
+        return (
+            float(os.environ["SCRIPT_PRICE_IN_PER_M"]),
+            float(os.environ["SCRIPT_PRICE_OUT_PER_M"]),
+        )
+    except (KeyError, ValueError):
+        return None
+
+
 def _cost_alert_limit() -> float | None:
     """Seuil ($) au-delà duquel une génération est signalée `overBudget`.
     Pas de défaut : à fixer d'après le coût moyen mesuré (ex. 1,5x la moyenne)."""
@@ -295,7 +318,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
     facturé). Les parts dont le tarif n'est pas configuré valent 0 et sont
     signalées dans `missingRates` plutôt que devinées — les volumes bruts
     (tokens, caractères) sont toujours enregistrés pour recalculer après coup.
-    Hors périmètre : script LLM, contrôle qualité vision, Stripe, stockage."""
+    Le script LLM est compté quand `script.script_usage` est présent (scripts générés par l'IA du front). Hors périmètre : contrôle qualité vision, extraction des personnages, Stripe, stockage."""
     if not metrics:
         return None
     reports = metrics.get("image_reports") or []
@@ -314,18 +337,32 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
     rate = _voice_rate_per_1k_chars()
     voice_cost = round(chars / 1000 * rate, 4) if rate is not None else 0.0
 
+    script_usage = metrics.get("script_usage")
+    script = None
+    script_cost = 0.0
+    if isinstance(script_usage, dict):
+        tokens_in = int(script_usage.get("input") or 0)
+        tokens_out = int(script_usage.get("output") or 0)
+        rates = _script_rates()
+        if rates:
+            script_cost = round((tokens_in * rates[0] + tokens_out * rates[1]) / 1_000_000, 4)
+        script = {"model": script_usage.get("model"), "tokens": {"input": tokens_in, "output": tokens_out}, "cost": script_cost}
+
     missing: list[str] = []
+    if script and not _script_rates():
+        missing.append("script")
     if reports and priced_images < len(reports):
         missing.append("images")
     if chars and rate is None:
         missing.append("voice")
 
-    total = round(image_cost + voice_cost, 4)
+    total = round(image_cost + voice_cost + script_cost, 4)
     limit = _cost_alert_limit()
     return {
         "currency": "USD",
         "images": {"count": len(reports), "cost": image_cost, "tokens": image_tokens},
         "voice": {"characters": chars, "cost": voice_cost},
+        **({"script": script} if script else {}),
         "totalEstimatedCost": total,
         "missingRates": missing,
         # Vrai si cette vidéo a coûté plus que le seuil d'alerte (GENERATION_COST_ALERT_USD).
@@ -338,7 +375,10 @@ def _apply_cost_report(fields: dict, metrics: dict | None) -> None:
     if not report:
         return
     fields["generation_cost_report"] = report
-    line = f"       coût estimé : {report['totalEstimatedCost']:.3f} $ (images {report['images']['cost']:.3f} + voix {report['voice']['cost']:.3f})"
+    line = f"       coût estimé : {report['totalEstimatedCost']:.3f} $ (images {report['images']['cost']:.3f} + voix {report['voice']['cost']:.3f}"
+    if report.get("script"):
+        line += f" + script {report['script']['cost']:.3f}"
+    line += ")"
     if report["missingRates"]:
         line += f" — tarifs manquants : {', '.join(report['missingRates'])}"
     if report["overBudget"]:
@@ -417,7 +457,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     t_start = time.monotonic()
     client = db.get_service_client()
 
-    data = repo.get_script(client, content_item_id)
+    data = script_module.normalize_script(repo.get_script(client, content_item_id))
     script_module.validate_script(data)
     data.setdefault("aspect_ratio", "9:16")
     data.setdefault("hashtags", [])

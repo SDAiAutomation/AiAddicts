@@ -71,6 +71,20 @@ def concat_audio(audio_paths: list[str], out_path: str) -> str:
     return out_path
 
 
+def pad_audio(audio_path: str, extra_seconds: float, out_path: str) -> str:
+    """Ajoute un silence à la fin d'un bloc, notamment pour le compte à rebours."""
+    if extra_seconds <= 0:
+        return audio_path
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _run([
+        "ffmpeg", "-y", "-i", str(Path(audio_path).resolve()),
+        "-af", f"apad=pad_dur={extra_seconds:.3f}", "-c:a", "libmp3lame", "-q:a", "2",
+        str(out.resolve()),
+    ])
+    return out_path
+
+
 def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 

@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 
+from . import quiz
+
 ALLOWED_ROLES = {"hook", "point", "cta"}
 ALLOWED_PLATFORMS = {"tiktok", "instagram", "youtube"}  # matches the accounts table's check constraint
 ALLOWED_ASPECT_RATIOS = {"9:16", "1:1", "16:9"}  # matches engine.video.RESOLUTIONS
@@ -14,7 +16,7 @@ ALLOWED_LANGUAGES = {"fr", "en", "es", "de", "it", "pt"}
 ALLOWED_CONTENT_GOALS = {"reach", "monetization"}
 # `voice_id` is resolved at generation time (--voice > script > config/voices.json),
 # see engine/voices.py — so it is not required in the script file itself.
-REQUIRED_TOP_LEVEL = ("title", "niche", "account", "blocks")
+REQUIRED_TOP_LEVEL = ("title", "niche", "account")
 DEFAULT_ORGANIZATION = "GrowthOS Dogfooding"
 
 
@@ -36,6 +38,7 @@ MAX_SCRIPT_CHARS = _env_int("MAX_SCRIPT_CHARS", 3000)
 
 def load_script(path: str) -> dict:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
+    data = normalize_script(data)
     validate_script(data)
     data.setdefault("aspect_ratio", "9:16")
     data.setdefault("hashtags", [])
@@ -44,6 +47,11 @@ def load_script(path: str) -> dict:
     data.setdefault("language", "fr")
     data.setdefault("content_goal", "reach")
     return data
+
+
+def normalize_script(data: dict) -> dict:
+    """Compile les formats spécialisés vers le contrat de blocs historique."""
+    return quiz.compile_quiz(data)
 
 
 def validate_script(data: dict) -> None:
@@ -81,7 +89,15 @@ def validate_script(data: dict) -> None:
     if characters is not None:
         _validate_characters(characters)
 
-    blocks = data["blocks"]
+    content_format = data.get("content_format", "standard")
+    if content_format not in {"standard", quiz.QUIZ_FORMAT}:
+        raise ValueError("'content_format' invalide (attendu : 'standard' ou 'quiz')")
+    if content_format == quiz.QUIZ_FORMAT:
+        quiz.validate_quiz(data.get("quiz"))
+
+    blocks = data.get("blocks")
+    if content_format == quiz.QUIZ_FORMAT and not blocks:
+        blocks = quiz.compile_quiz(data)["blocks"]
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("'blocks' doit être une liste non vide")
     if len(blocks) > MAX_BLOCKS:

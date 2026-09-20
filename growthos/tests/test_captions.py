@@ -161,6 +161,25 @@ class TestWriteAss(unittest.TestCase):
         ass = Path(write_ass(cues, str(path), "sleek", "1080x1920")).read_text(encoding="utf-8")
         self.assertIn("un (evil) tag", ass)
 
+    def test_quiz_cards_and_countdown_are_written(self):
+        cues = []
+        blocks = [{
+            "role": "point", "text": "Question", "quiz_phase": "question",
+            "quiz_question": "La capitale de la France ?",
+            "quiz_choices": ["Paris", "Lyon", "Nice"],
+            "quiz_correct_choice": 0, "hold_after_seconds": 3,
+        }]
+        path = Path(tempfile.mkdtemp()) / "quiz.ass"
+        ass = Path(write_ass(
+            cues, str(path), "bold_stroke", "1080x1920",
+            blocks=blocks, block_durations=[8.0],
+        )).read_text(encoding="utf-8")
+        self.assertIn("Style: QuizQuestion", ass)
+        self.assertIn("La capitale de la France ?", ass)
+        self.assertIn("A. Paris", ass)
+        self.assertIn(",0:00:05.00,", ass)
+        self.assertIn(",QuizTimer,", ass)
+
 
 if __name__ == "__main__":
     unittest.main()

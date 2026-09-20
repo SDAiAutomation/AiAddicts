@@ -261,7 +261,10 @@ def fetch_block_images(
             print("       style « stock footage » demandé mais PEXELS_API_KEY absente — fond uni")
             return paths, []
         for i, block in enumerate(blocks):
-            paths[i] = _fetch_stock_clip(_block_visual_text(block), niche, orientation, images_dir, i, api_key)
+            if i > 0 and block.get("reuse_visual_from_previous"):
+                paths[i] = paths[i - 1]
+            else:
+                paths[i] = _fetch_stock_clip(_block_visual_text(block), niche, orientation, images_dir, i, api_key)
         return paths, []
 
     character_prefix = image_character_bible.build_character_prefix(characters, style_consigne)
@@ -270,6 +273,8 @@ def fetch_block_images(
     # qui reste vraiment à générer.
     pending: list[tuple[list[int], Path, str]] = []
     for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
+        if len(group) == 1 and group[0] > 0 and blocks[group[0]].get("reuse_visual_from_previous"):
+            continue
         image_path = images_dir / f"scene-{group[0] + 1:02d}.jpg"
         if _exists_nonempty(image_path):
             for i in group:
@@ -292,6 +297,10 @@ def fetch_block_images(
                     for i in group:
                         paths[i] = scene_path
                 scene_reports.append(report)
+
+    for i, block in enumerate(blocks):
+        if i > 0 and block.get("reuse_visual_from_previous"):
+            paths[i] = paths[i - 1]
 
     if not api_key:
         return _fill_missing_visuals(paths), scene_reports

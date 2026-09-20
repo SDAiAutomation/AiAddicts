@@ -1,0 +1,42 @@
+{
+  "title": "Quiz express sur l'espace",
+  "niche": "culture-generale",
+  "account": "test-account-01",
+  "platform": "tiktok",
+  "aspect_ratio": "9:16",
+  "content_format": "quiz",
+  "caption_style": "word_pop",
+  "cta": "Écris ton score en commentaire et abonne-toi pour le prochain quiz.",
+  "hashtags": ["#quiz", "#culturegenerale", "#espace"],
+  "quiz": {
+    "topic": "l'espace",
+    "intro": "Trois questions sur l'espace. Arriveras-tu à faire un sans-faute ?",
+    "outro": "Alors, quel est ton score sur trois ?",
+    "questions": [
+      {
+        "question": "Quelle planète est la plus proche du Soleil ?",
+        "choices": ["Vénus", "Mercure", "Mars"],
+        "correct_choice": 1,
+        "explanation": "Mercure est la première planète du système solaire.",
+        "countdown_seconds": 3,
+        "visual": "Vue spectaculaire du système solaire avec Mercure près du Soleil"
+      },
+      {
+        "question": "Comment s'appelle notre galaxie ?",
+        "choices": ["Andromède", "La Voie lactée", "Sombrero"],
+        "correct_choice": 1,
+        "explanation": "Le système solaire se trouve dans la Voie lactée.",
+        "countdown_seconds": 3,
+        "visual": "Vue panoramique colorée de la Voie lactée dans l'espace"
+      },
+      {
+        "question": "Quelle planète possède les anneaux les plus visibles ?",
+        "choices": ["Jupiter", "Neptune", "Saturne"],
+        "correct_choice": 2,
+        "explanation": "Les anneaux de Saturne sont constitués de glace et de roche.",
+        "countdown_seconds": 3,
+        "visual": "Saturne et ses anneaux détaillés sur un fond étoilé"
+      }
+    ]
+  }
+}

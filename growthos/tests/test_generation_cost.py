@@ -22,6 +22,20 @@ def _metrics(**overrides):
 
 
 class TestGenerationCostReport(unittest.TestCase):
+    def test_adds_script_cost_when_usage_and_rates_present(self):
+        env = {"ELEVENLABS_USD_PER_1K_CHARS": "0.2", "SCRIPT_PRICE_IN_PER_M": "0.25", "SCRIPT_PRICE_OUT_PER_M": "2"}
+        usage = {"model": "gpt-5-mini", "input": 4000, "output": 3000}
+        with patch.dict(os.environ, env):
+            report = assembler._generation_cost_report(_metrics(script_usage=usage))
+        self.assertAlmostEqual(report["script"]["cost"], 0.007)
+        self.assertAlmostEqual(report["totalEstimatedCost"], 0.367)
+        self.assertEqual(report["missingRates"], [])
+
+    def test_script_rate_missing_is_flagged(self):
+        with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}, clear=True):
+            report = assembler._generation_cost_report(_metrics(script_usage={"model": "m", "input": 10, "output": 10}))
+        self.assertIn("script", report["missingRates"])
+
     def test_none_when_nothing_new_was_generated(self):
         self.assertIsNone(assembler._generation_cost_report(None))
 

@@ -171,14 +171,53 @@ def _ass_header(width: int, height: int, preset: dict, font: str) -> str:
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        f"Style: {style_fields}\n\n"
+        f"Style: {style_fields}\n"
+        f"Style: QuizQuestion,{font},64,&H00FFFFFF,&H00FFFFFF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,3,24,0,8,80,80,150,1\n"
+        f"Style: QuizChoice,{font},58,&H00FFFFFF,&H00FFFFFF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,3,20,0,5,100,100,0,1\n"
+        f"Style: QuizCorrect,{font},64,&H00FFFFFF,&H00FFFFFF,&H000F9B50,&H000F9B50,-1,0,0,0,100,100,0,0,3,24,0,5,100,100,0,1\n"
+        f"Style: QuizTimer,{font},180,&H0000D7FF,&H0000D7FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,0,0,0,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
 
 
-def _dialogue(start: float, end: float, text: str) -> str:
-    return f"Dialogue: 0,{_ass_timestamp(start)},{_ass_timestamp(end)},Default,,0,0,0,,{text}"
+def _dialogue(start: float, end: float, text: str, style: str = "Default", layer: int = 0) -> str:
+    return f"Dialogue: {layer},{_ass_timestamp(start)},{_ass_timestamp(end)},{style},,0,0,0,,{text}"
+
+
+def _quiz_events(blocks: list[dict], durations: list[float], width: int, height: int) -> list[str]:
+    """Cartes quiz calées sur les blocs compilés, avec timer pendant le silence final."""
+    events: list[str] = []
+    cursor = 0.0
+    letters = "ABCD"
+    for block, duration in zip(blocks, durations):
+        start, end = cursor, cursor + max(float(duration), 0.0)
+        phase = block.get("quiz_phase")
+        if phase in {"question", "reveal"}:
+            question = _ass_escape(str(block.get("quiz_question") or ""))
+            choices = [str(choice) for choice in block.get("quiz_choices") or []]
+            events.append(_dialogue(start, end, f"{{\\fad(100,100)}}{question}", "QuizQuestion", 0))
+            rendered_choices = "\\N\\N".join(
+                f"{letters[i]}. {_ass_escape(choice)}" for i, choice in enumerate(choices)
+            )
+            choice_y = round(height * 0.50)
+            if phase == "reveal":
+                correct = int(block.get("quiz_correct_choice") or 0)
+                answer = f"✓ {letters[correct]}. {_ass_escape(choices[correct])}"
+                events.append(_dialogue(start, end, f"{{\\pos({width // 2},{choice_y})\\fad(80,120)}}{answer}", "QuizCorrect", 1))
+            else:
+                events.append(_dialogue(start, end, f"{{\\pos({width // 2},{choice_y})\\fad(80,120)}}{rendered_choices}", "QuizChoice", 1))
+                countdown = int(block.get("hold_after_seconds") or 0)
+                timer_start = max(start, end - countdown)
+                timer_y = round(height * 0.78)
+                for remaining in range(countdown, 0, -1):
+                    seg_start = timer_start + (countdown - remaining)
+                    seg_end = min(seg_start + 1, end)
+                    if seg_start < seg_end:
+                        timer = f"{{\\pos({width // 2},{timer_y})\\fad(80,80)}}{remaining}"
+                        events.append(_dialogue(seg_start, seg_end, timer, "QuizTimer", 1))
+        cursor = end
+    return events
 
 
 def _word_pop_events(cue: dict, preset: dict, fs_prefix: str, reset: str) -> list[str]:
@@ -208,6 +247,8 @@ def write_ass(
     style: str = DEFAULT_CAPTION_STYLE,
     resolution: str = "1080x1920",
     font: str | None = None,
+    blocks: list[dict] | None = None,
+    block_durations: list[float] | None = None,
 ) -> str:
     """Écrit un fichier `.ass` complet (style + événements) pour `style`. À
     passer tel quel au filtre `subtitles` d'ffmpeg (libass lit le style
@@ -235,6 +276,9 @@ def write_ass(
             events.extend(_word_pop_events(cue, preset, fs_prefix, reset))
         else:
             events.append(_dialogue(cue["start"], cue["end"], fs_prefix + text))
+
+    if blocks and block_durations:
+        events = _quiz_events(blocks, block_durations, width, height) + events
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(

@@ -103,6 +103,37 @@ image_quality_control  -> QC vision OPT-IN (IMAGE_QC_ENABLED) + boucle edit cibl
 
 Voir `exemple-02-histoire.json`.
 
+### Format quiz vidéo
+
+Un script peut utiliser `"content_format": "quiz"` avec un objet `quiz` à la
+place des `blocks`. Le moteur compile automatiquement chaque question en deux
+scènes : question avec choix et compte à rebours, puis révélation avec une
+courte explication. Le rendu reste un MP4 destiné à TikTok, Reels ou Shorts ;
+les réponses ne sont pas cliquables.
+
+```json
+{
+  "title": "Quiz express sur l'espace",
+  "niche": "culture-generale",
+  "account": "test-account-01",
+  "content_format": "quiz",
+  "quiz": {
+    "topic": "l'espace",
+    "questions": [{
+      "question": "Quelle planète est la plus proche du Soleil ?",
+      "choices": ["Vénus", "Mercure", "Mars"],
+      "correct_choice": 1,
+      "explanation": "Mercure est la première planète du système solaire.",
+      "countdown_seconds": 3
+    }]
+  }
+}
+```
+
+Contraintes MVP : 1 à 5 questions, 2 à 4 choix distincts, index de réponse
+correcte en base zéro, compte à rebours de 1 à 10 secondes. Voir
+`content/scripts/exemple-quiz.json` pour un exemple complet.
+
 ### Style des sous-titres
 
 `caption_style` (optionnel, défaut `bold_stroke`) choisit le rendu des sous-titres brûlés — porté par un fichier `.ass` généré par `engine/captions.write_ass` (libass). Valeurs : `bold_stroke` (blanc gras contour épais), `sleek` (fin, discret), `boxed` (bandeau noir), `neon` (halo bleu), `word_pop` (le mot prononcé passe en jaune et grossit — utilise le timing mot-à-mot). `engine/video.py` détecte le `.ass` et laisse libass appliquer le style embarqué ; sans `.ass`, repli sur l'ancien style unique via `force_style`.

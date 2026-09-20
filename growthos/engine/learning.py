@@ -49,7 +49,8 @@ def _features(row: dict) -> list[tuple[str, str]]:
         features.append(("hook", hook_pattern(hook)))
     if topic:
         features.append(("topic", topic[:180]))
-    features.append(("format", f"{visual_style} · {caption_style} · {content_goal}"[:180]))
+    content_format = str(script.get("content_format") or "standard").strip()
+    features.append(("format", f"{content_format} · {visual_style} · {caption_style} · {content_goal}"[:180]))
     return features
 
 
