@@ -182,6 +182,42 @@ class TestWriteAss(unittest.TestCase):
         self.assertIn(",0:00:05.00,", ass)
         self.assertIn(",QuizTimer,", ass)
 
+    def test_narration_captions_stay_inside_the_platform_safe_zone(self):
+        # Zone sûre TikTok/Reels/Shorts : le bord bas du texte doit tomber sous 72 % de la hauteur.
+        from engine.captions import _CAPTION_STYLES
+        for name, preset in _CAPTION_STYLES.items():
+            self.assertGreaterEqual(preset["margin_v"], 1920 * 0.28 - 5, name)
+
+    def test_question_narration_is_hidden_but_reveal_keeps_its_captions(self):
+        blocks = [
+            {"role": "point", "text": "Q", "quiz_phase": "question", "quiz_question": "Q ?",
+             "quiz_choices": ["A", "B"], "quiz_correct_choice": 0, "hold_after_seconds": 2},
+            {"role": "point", "text": "R", "quiz_phase": "reveal", "quiz_question": "Q ?",
+             "quiz_choices": ["A", "B"], "quiz_correct_choice": 0},
+        ]
+        cues = [
+            {"index": 1, "start": 0.5, "end": 1.5, "text": "QUESTION TEXT", "words": [], "role": "point"},
+            {"index": 2, "start": 6.5, "end": 7.5, "text": "THE ANSWER", "words": [], "role": "point"},
+        ]
+        path = Path(tempfile.mkdtemp()) / "quiz.ass"
+        ass = Path(write_ass(cues, str(path), "bold_stroke", "1080x1920", blocks=blocks, block_durations=[5.0, 5.0])).read_text(encoding="utf-8")
+        self.assertNotIn("QUESTION TEXT", ass)
+        self.assertIn("THE ANSWER", ass)
+
+    def test_every_quiz_theme_has_readable_text_on_its_card(self):
+        from engine.captions import _QUIZ_THEME_COLOURS
+
+        def luminance(hex_rgb):
+            h = hex_rgb.lstrip("#")
+            r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+            lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+            return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+        for theme, (card, text, _correct, timer) in _QUIZ_THEME_COLOURS.items():
+            for label, foreground in (("text", text), ("timer/label", timer)):
+                hi, lo = sorted((luminance(card), luminance(foreground)), reverse=True)
+                self.assertGreaterEqual((hi + 0.05) / (lo + 0.05), 3.0, f"{theme} {label}")
+
 
 if __name__ == "__main__":
     unittest.main()
