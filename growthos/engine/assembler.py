@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import (
     captions, db, editorial_quality, generation_cache, image_style_bible,
-    poster, publish_pack, quality, repo, script as script_module, storage, tts,
+    poster, publish_pack, quality, quiz_cover, repo, script as script_module, storage, tts,
     video, visuals, voices,
 )
 
@@ -170,16 +170,36 @@ def _generate(
         full_audio = str(full_wav)
     else:
         full_audio = video.concat_audio(audio_paths, str(full_wav))
+
+    render_blocks = data["blocks"]
+    render_durations = durations
+    render_image_paths = image_paths
+    cover = (data.get("quiz") or {}).get("cover") or {}
+    if data.get("content_format") == "quiz" and cover.get("enabled"):
+        cover_duration = float(cover.get("duration_seconds") or 0.8)
+        covered_wav = work_dir / "audio" / "full-with-cover.wav"
+        if not _exists_nonempty(covered_wav):
+            video.prepend_silence(full_audio, cover_duration, str(covered_wav))
+        full_audio = str(covered_wav)
+        cover_block = {
+            "role": "hook", "text": "", "quiz_phase": "cover",
+            "quiz_theme": (data.get("quiz") or {}).get("theme", "studio"),
+            "quiz_cover_title": cover.get("title"), "quiz_cover_brand": cover.get("brand", "BrainLoop"),
+        }
+        render_blocks = [cover_block, *data["blocks"]]
+        render_durations = [cover_duration, *durations]
+        render_image_paths = [quiz_cover.generate_cover(data, work_dir), *image_paths]
+    cue_words = ([([], render_durations[0])] + block_words) if render_blocks is not data["blocks"] else block_words
     cues = captions.build_cues(
-        block_words,
-        block_roles=[str(block.get("role") or "") for block in data["blocks"]],
+        cue_words,
+        block_roles=[str(block.get("role") or "") for block in render_blocks],
     )
     captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
     ass_file = captions.write_ass(
         cues, str(work_dir / "captions.ass"), caption_style, resolution,
-        blocks=data["blocks"], block_durations=durations,
+        blocks=render_blocks, block_durations=render_durations,
     )
     print(f"       sous-titres : style « {caption_style} »")
 
@@ -187,8 +207,8 @@ def _generate(
     step(f"Rendu vidéo final ({n_blocks} clip(s))")
     t0 = time.monotonic()
     final_video = video.render_final(
-        full_audio, ass_file, str(final_path), durations,
-        image_paths=image_paths, aspect_ratio=data["aspect_ratio"],
+        full_audio, ass_file, str(final_path), render_durations,
+        image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
     )
     print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")
 

@@ -58,6 +58,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("countdown_seconds", recipe["countdown_seconds"])
     result.setdefault("theme", "studio")
     result.setdefault("sound_effects", "automatic")
+    result.setdefault("cover", {"enabled": False})
     for question in result.get("questions") or []:
         if isinstance(question, dict):
             question.setdefault("countdown_seconds", result["countdown_seconds"])
@@ -75,6 +76,16 @@ def validate_quiz(quiz: object) -> None:
         raise ValueError(f"'quiz.theme' invalide (attendu : {sorted(QUIZ_THEMES)})")
     if quiz.get("sound_effects") not in SOUND_EFFECT_MODES:
         raise ValueError(f"'quiz.sound_effects' invalide (attendu : {sorted(SOUND_EFFECT_MODES)})")
+    cover = quiz.get("cover")
+    if not isinstance(cover, dict) or not isinstance(cover.get("enabled"), bool):
+        raise ValueError("'quiz.cover.enabled' doit être un booléen")
+    if cover.get("enabled"):
+        title = str(cover.get("title") or "").strip()
+        duration = cover.get("duration_seconds", 0.8)
+        if not title or len(title) > 48:
+            raise ValueError("'quiz.cover.title' doit contenir entre 1 et 48 caractères")
+        if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not (0.5 <= duration <= 1.0):
+            raise ValueError("'quiz.cover.duration_seconds' doit être compris entre 0.5 et 1.0")
     questions = quiz.get("questions")
     if not isinstance(questions, list) or not (MIN_QUESTIONS <= len(questions) <= MAX_QUESTIONS):
         raise ValueError(f"'quiz.questions' doit contenir entre {MIN_QUESTIONS} et {MAX_QUESTIONS} questions")

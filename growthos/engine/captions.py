@@ -216,6 +216,8 @@ def _ass_header(width: int, height: int, preset: dict, font: str, quiz_theme: st
         f"Style: QuizChoice,{font},58,{quiz_text},{quiz_text},{quiz_card},{quiz_card},-1,0,0,0,100,100,0,0,3,20,0,5,100,100,0,1\n"
         f"Style: QuizCorrect,{font},64,&H00FFFFFF,&H00FFFFFF,{quiz_correct},{quiz_correct},-1,0,0,0,100,100,0,0,3,24,0,5,100,100,0,1\n"
         f"Style: QuizTimer,{font},180,{quiz_accent},{quiz_accent},&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,0,0,0,1\n\n"
+        f"Style: QuizCoverTitle,{font},128,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,3,28,0,5,90,90,0,1\n"
+        f"Style: QuizCoverBrand,{font},40,{quiz_accent},{quiz_accent},&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,3,0,8,80,80,100,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
@@ -233,6 +235,13 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
     for block, duration in zip(blocks, durations):
         start, end = cursor, cursor + max(float(duration), 0.0)
         phase = block.get("quiz_phase")
+        if phase == "cover":
+            title = _ass_escape(str(block.get("quiz_cover_title") or "QUIZ"))
+            brand = _ass_escape(str(block.get("quiz_cover_brand") or "BrainLoop"))
+            events.append(_dialogue(start, end, f"{{\\pos({width // 2},{round(height * 0.38)})\\fad(80,100)}}{title}", "QuizCoverTitle", 2))
+            events.append(_dialogue(start, end, f"{{\\fad(80,100)}}{brand}", "QuizCoverBrand", 2))
+            cursor = end
+            continue
         if phase in {"question", "reveal"}:
             question = _ass_escape(str(block.get("quiz_question") or ""))
             number = int(block.get("quiz_question_number") or 0)

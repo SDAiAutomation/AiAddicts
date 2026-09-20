@@ -71,6 +71,18 @@ def concat_audio(audio_paths: list[str], out_path: str) -> str:
     return out_path
 
 
+def prepend_silence(audio_path: str, seconds: float, out_path: str) -> str:
+    """Prefix an audio track with exact silence, used by the quiz cover scene."""
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _run([
+        "ffmpeg", "-y", "-f", "lavfi", "-t", f"{seconds:.3f}",
+        "-i", "anullsrc=r=44100:cl=stereo", "-i", str(Path(audio_path).resolve()),
+        "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1[out]", "-map", "[out]", str(out.resolve()),
+    ])
+    return out_path
+
+
 def pad_audio(audio_path: str, extra_seconds: float, out_path: str) -> str:
     """Ajoute un silence à la fin d'un bloc, notamment pour le compte à rebours."""
     if extra_seconds <= 0:
