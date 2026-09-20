@@ -32,6 +32,14 @@ class TestQuiz(unittest.TestCase):
         self.assertTrue(compiled["blocks"][2]["reuse_visual_from_previous"])
         validate_script(compiled)
 
+    def test_narration_follows_script_language(self):
+        english = {**QUIZ_SCRIPT, "language": "en"}
+        blocks = compile_quiz(english)["blocks"]
+        self.assertTrue(blocks[1]["text"].startswith("Question 1."))
+        self.assertTrue(blocks[2]["text"].startswith("The correct answer was B, Mercure."))
+        self.assertEqual(blocks[3]["text"], "How many did you get right?")
+        self.assertTrue(compile_quiz(QUIZ_SCRIPT)["blocks"][2]["text"].startswith("La bonne réponse était B"))
+
     def test_compile_does_not_mutate_source(self):
         compile_quiz(QUIZ_SCRIPT)
         self.assertNotIn("blocks", QUIZ_SCRIPT)

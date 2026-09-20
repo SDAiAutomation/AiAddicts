@@ -12,6 +12,19 @@ DEFAULT_COUNTDOWN_SECONDS = 5
 MAX_COUNTDOWN_SECONDS = 10
 
 
+# Phrases fixes lues par la voix off, par langue du script (défaut : français).
+# {topic} = sujet du quiz ; {n} = numéro de question ; {letter}, {answer} = bonne réponse.
+_PHRASES = {
+    "fr": {"intro": "Teste tes connaissances sur {topic}.", "question": "Question {n}.", "answer": "La bonne réponse était {letter}, {answer}.", "outro": "Combien de bonnes réponses as-tu trouvées ?"},
+    "en": {"intro": "Test your knowledge about {topic}.", "question": "Question {n}.", "answer": "The correct answer was {letter}, {answer}.", "outro": "How many did you get right?"},
+    "es": {"intro": "Pon a prueba tus conocimientos sobre {topic}.", "question": "Pregunta {n}.", "answer": "La respuesta correcta era {letter}, {answer}.", "outro": "¿Cuántas has acertado?"},
+    "de": {"intro": "Teste dein Wissen über {topic}.", "question": "Frage {n}.", "answer": "Die richtige Antwort war {letter}, {answer}.", "outro": "Wie viele hast du richtig?"},
+    "it": {"intro": "Metti alla prova le tue conoscenze su {topic}.", "question": "Domanda {n}.", "answer": "La risposta corretta era {letter}, {answer}.", "outro": "Quante ne hai indovinate?"},
+    "pt": {"intro": "Teste os teus conhecimentos sobre {topic}.", "question": "Pergunta {n}.", "answer": "A resposta certa era {letter}, {answer}.", "outro": "Quantas acertaste?"},
+}
+_TOPIC_FALLBACK = {"fr": "ce sujet", "en": "this topic", "es": "este tema", "de": "dieses Thema", "it": "questo argomento", "pt": "este tema"}
+
+
 def is_quiz(script: dict) -> bool:
     return script.get("content_format") == QUIZ_FORMAT
 
@@ -56,7 +69,10 @@ def compile_quiz(script: dict) -> dict:
     result = deepcopy(script)
     quiz = result["quiz"]
     blocks: list[dict] = []
-    hook = str(quiz.get("intro") or f"Teste tes connaissances sur {quiz.get('topic') or result.get('niche') or 'ce sujet'}.").strip()
+    lang = result.get("language") if result.get("language") in _PHRASES else "fr"
+    phrases = _PHRASES[lang]
+    topic = quiz.get("topic") or result.get("niche") or _TOPIC_FALLBACK[lang]
+    hook = str(quiz.get("intro") or phrases["intro"].format(topic=topic)).strip()
     blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro"})
 
     letters = "ABCD"
@@ -65,7 +81,7 @@ def compile_quiz(script: dict) -> dict:
         spoken_choices = ". ".join(f"{letters[i]}, {choice}" for i, choice in enumerate(choices))
         blocks.append({
             "role": "point",
-            "text": f"Question {number}. {str(item['question']).strip()} {spoken_choices}.",
+            "text": f"{phrases['question'].format(n=number)} {str(item['question']).strip()} {spoken_choices}.",
             "visual": str(item.get("visual") or item["question"]).strip(),
             "quiz_phase": "question",
             "quiz_question_number": number,
@@ -76,7 +92,7 @@ def compile_quiz(script: dict) -> dict:
         })
         answer = choices[item["correct_choice"]]
         explanation = str(item.get("explanation") or "").strip()
-        text = f"La bonne réponse était {letters[item['correct_choice']]}, {answer}."
+        text = phrases["answer"].format(letter=letters[item["correct_choice"]], answer=answer)
         if explanation:
             text += f" {explanation}"
         blocks.append({
@@ -91,7 +107,7 @@ def compile_quiz(script: dict) -> dict:
             "reuse_visual_from_previous": True,
         })
 
-    cta = str(quiz.get("outro") or result.get("cta") or "Combien de bonnes réponses as-tu trouvées ?").strip()
+    cta = str(quiz.get("outro") or result.get("cta") or phrases["outro"]).strip()
     blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro"})
     result["blocks"] = blocks
     return result
