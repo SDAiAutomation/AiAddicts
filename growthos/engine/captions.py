@@ -195,6 +195,10 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
         phase = block.get("quiz_phase")
         if phase in {"question", "reveal"}:
             question = _ass_escape(str(block.get("quiz_question") or ""))
+            number = int(block.get("quiz_question_number") or 0)
+            total = int(block.get("quiz_question_total") or 0)
+            if number and total:
+                question = f"{{\\fs34\\c&H00D7FF&}}QUESTION {number}/{total}{{\\rQuizQuestion}}\\N{question}"
             choices = [str(choice) for choice in block.get("quiz_choices") or []]
             events.append(_dialogue(start, end, f"{{\\fad(100,100)}}{question}", "QuizQuestion", 0))
             rendered_choices = "\\N\\N".join(

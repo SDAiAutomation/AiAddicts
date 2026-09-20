@@ -166,6 +166,7 @@ class TestWriteAss(unittest.TestCase):
         blocks = [{
             "role": "point", "text": "Question", "quiz_phase": "question",
             "quiz_question": "La capitale de la France ?",
+            "quiz_question_number": 2, "quiz_question_total": 5,
             "quiz_choices": ["Paris", "Lyon", "Nice"],
             "quiz_correct_choice": 0, "hold_after_seconds": 3,
         }]
@@ -176,6 +177,7 @@ class TestWriteAss(unittest.TestCase):
         )).read_text(encoding="utf-8")
         self.assertIn("Style: QuizQuestion", ass)
         self.assertIn("La capitale de la France ?", ass)
+        self.assertIn("QUESTION 2/5", ass)
         self.assertIn("A. Paris", ass)
         self.assertIn(",0:00:05.00,", ass)
         self.assertIn(",QuizTimer,", ass)

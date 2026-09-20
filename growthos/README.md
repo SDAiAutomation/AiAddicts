@@ -105,6 +105,12 @@ Voir `exemple-02-histoire.json`.
 
 ### Format quiz vidéo
 
+Le parcours produit peut proposer cinq recettes stables : `quick`,
+`true_false`, `riddle`, `logo` et `impossible`. Une recette fournit le type, la
+difficulté et le compte à rebours par défaut ; chaque question peut encore
+surcharger sa durée. Les types visuels `logo` et `image` exigent un champ
+`visual`. Le rendu affiche aussi la progression (`QUESTION 2/5`).
+
 Un script peut utiliser `"content_format": "quiz"` avec un objet `quiz` à la
 place des `blocks`. Le moteur compile automatiquement chaque question en deux
 scènes : question avec choix et compte à rebours, puis révélation avec une

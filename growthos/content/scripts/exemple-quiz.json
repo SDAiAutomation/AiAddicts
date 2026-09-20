@@ -10,6 +10,10 @@
   "hashtags": ["#quiz", "#culturegenerale", "#espace"],
   "quiz": {
     "topic": "l'espace",
+    "recipe": "quick",
+    "kind": "multiple_choice",
+    "difficulty": "medium",
+    "countdown_seconds": 5,
     "intro": "Trois questions sur l'espace. Arriveras-tu à faire un sans-faute ?",
     "outro": "Alors, quel est ton score sur trois ?",
     "questions": [

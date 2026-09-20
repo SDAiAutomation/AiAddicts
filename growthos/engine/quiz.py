@@ -4,12 +4,24 @@ from copy import deepcopy
 
 
 QUIZ_FORMAT = "quiz"
+QUIZ_KINDS = {"multiple_choice", "true_false", "riddle", "logo", "image"}
 MIN_QUESTIONS = 1
 MAX_QUESTIONS = 7
 MIN_CHOICES = 2
 MAX_CHOICES = 4
 DEFAULT_COUNTDOWN_SECONDS = 5
 MAX_COUNTDOWN_SECONDS = 10
+
+# Product recipes are deliberately part of the engine contract. The web app can
+# expose five simple cards while the renderer still receives explicit settings.
+QUIZ_RECIPES = {
+    "quick": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "medium"},
+    "true_false": {"kind": "true_false", "question_count": 7, "countdown_seconds": 3, "difficulty": "medium"},
+    "riddle": {"kind": "riddle", "question_count": 3, "countdown_seconds": 8, "difficulty": "medium"},
+    "logo": {"kind": "logo", "question_count": 5, "countdown_seconds": 5, "difficulty": "medium"},
+    "impossible": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "hard"},
+}
+DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
 
 
 # Phrases fixes lues par la voix off, par langue du script (défaut : français).
@@ -29,9 +41,32 @@ def is_quiz(script: dict) -> bool:
     return script.get("content_format") == QUIZ_FORMAT
 
 
-def validate_quiz(quiz: object) -> None:
+def normalize_quiz(quiz: object) -> dict:
+    """Expand a product recipe into the explicit, stable renderer contract."""
     if not isinstance(quiz, dict):
         raise ValueError("'quiz' doit être un objet")
+    result = deepcopy(quiz)
+    recipe_id = result.get("recipe", "quick")
+    if recipe_id not in QUIZ_RECIPES:
+        raise ValueError(f"'quiz.recipe' invalide (attendu : {sorted(QUIZ_RECIPES)})")
+    recipe = QUIZ_RECIPES[recipe_id]
+    result.setdefault("recipe", recipe_id)
+    result.setdefault("kind", recipe["kind"])
+    result.setdefault("difficulty", recipe["difficulty"])
+    result.setdefault("countdown_seconds", recipe["countdown_seconds"])
+    for question in result.get("questions") or []:
+        if isinstance(question, dict):
+            question.setdefault("countdown_seconds", result["countdown_seconds"])
+    return result
+
+
+def validate_quiz(quiz: object) -> None:
+    quiz = normalize_quiz(quiz)
+    kind = quiz.get("kind")
+    if kind not in QUIZ_KINDS:
+        raise ValueError(f"'quiz.kind' invalide (attendu : {sorted(QUIZ_KINDS)})")
+    if quiz.get("difficulty") not in DIFFICULTIES:
+        raise ValueError(f"'quiz.difficulty' invalide (attendu : {sorted(DIFFICULTIES)})")
     questions = quiz.get("questions")
     if not isinstance(questions, list) or not (MIN_QUESTIONS <= len(questions) <= MAX_QUESTIONS):
         raise ValueError(f"'quiz.questions' doit contenir entre {MIN_QUESTIONS} et {MAX_QUESTIONS} questions")
@@ -50,6 +85,10 @@ def validate_quiz(quiz: object) -> None:
             raise ValueError(f"{prefix}.choices ne peut pas contenir de réponse vide")
         if len({choice.casefold() for choice in cleaned}) != len(cleaned):
             raise ValueError(f"{prefix}.choices doit contenir des réponses distinctes")
+        if kind == "true_false" and len(choices) != 2:
+            raise ValueError(f"{prefix}.choices doit contenir exactement 2 réponses pour un vrai/faux")
+        if kind in {"logo", "image"} and not str(question.get("visual") or "").strip():
+            raise ValueError(f"{prefix}.visual est requis pour un quiz visuel")
         correct = question.get("correct_choice")
         if isinstance(correct, bool) or not isinstance(correct, int) or not (0 <= correct < len(choices)):
             raise ValueError(f"{prefix}.correct_choice doit être l'index d'une réponse existante")
@@ -62,11 +101,13 @@ def compile_quiz(script: dict) -> dict:
     """Retourne une copie avec des blocs narrables enrichis de métadonnées quiz."""
     if not is_quiz(script):
         return script
-    validate_quiz(script.get("quiz"))
+    normalized_quiz = normalize_quiz(script.get("quiz"))
+    validate_quiz(normalized_quiz)
     if script.get("blocks"):
         return script
 
     result = deepcopy(script)
+    result["quiz"] = normalized_quiz
     quiz = result["quiz"]
     blocks: list[dict] = []
     lang = result.get("language") if result.get("language") in _PHRASES else "fr"
@@ -85,6 +126,8 @@ def compile_quiz(script: dict) -> dict:
             "visual": str(item.get("visual") or item["question"]).strip(),
             "quiz_phase": "question",
             "quiz_question_number": number,
+            "quiz_question_total": len(quiz["questions"]),
+            "quiz_kind": quiz["kind"],
             "quiz_question": str(item["question"]).strip(),
             "quiz_choices": choices,
             "quiz_correct_choice": item["correct_choice"],
@@ -101,6 +144,8 @@ def compile_quiz(script: dict) -> dict:
             "visual": str(item.get("visual") or item["question"]).strip(),
             "quiz_phase": "reveal",
             "quiz_question_number": number,
+            "quiz_question_total": len(quiz["questions"]),
+            "quiz_kind": quiz["kind"],
             "quiz_question": str(item["question"]).strip(),
             "quiz_choices": choices,
             "quiz_correct_choice": item["correct_choice"],

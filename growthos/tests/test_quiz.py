@@ -1,6 +1,6 @@
 import unittest
 
-from engine.quiz import compile_quiz, validate_quiz
+from engine.quiz import compile_quiz, normalize_quiz, validate_quiz
 from engine.script import validate_script
 
 
@@ -29,6 +29,8 @@ class TestQuiz(unittest.TestCase):
         self.assertEqual([b["quiz_phase"] for b in compiled["blocks"]], ["intro", "question", "reveal", "outro"])
         self.assertEqual(compiled["blocks"][1]["hold_after_seconds"], 3)
         self.assertEqual(compiled["blocks"][2]["quiz_correct_choice"], 1)
+        self.assertEqual(compiled["blocks"][1]["quiz_question_total"], 1)
+        self.assertEqual(compiled["quiz"]["recipe"], "quick")
         self.assertTrue(compiled["blocks"][2]["reuse_visual_from_previous"])
         validate_script(compiled)
 
@@ -62,6 +64,30 @@ class TestQuiz(unittest.TestCase):
         item = {"question": "Question ?", "choices": ["A", "B"], "correct_choice": 0}
         with self.assertRaisesRegex(ValueError, "entre 1 et 7"):
             validate_quiz({"questions": [dict(item) for _ in range(8)]})
+
+    def test_recipe_expands_defaults_without_mutating_input(self):
+        source = {"recipe": "riddle", "questions": [{
+            "question": "Je monte sans bouger. Qui suis-je ?",
+            "choices": ["Un escalier", "Un nuage"], "correct_choice": 0,
+        }]}
+        normalized = normalize_quiz(source)
+        self.assertEqual(normalized["kind"], "riddle")
+        self.assertEqual(normalized["difficulty"], "medium")
+        self.assertEqual(normalized["questions"][0]["countdown_seconds"], 8)
+        self.assertNotIn("kind", source)
+
+    def test_true_false_requires_two_choices(self):
+        with self.assertRaisesRegex(ValueError, "exactement 2"):
+            validate_quiz({"recipe": "true_false", "questions": [{
+                "question": "La Terre est ronde ?", "choices": ["Vrai", "Faux", "Parfois"],
+                "correct_choice": 0,
+            }]})
+
+    def test_visual_quiz_requires_visual(self):
+        with self.assertRaisesRegex(ValueError, "visual est requis"):
+            validate_quiz({"recipe": "logo", "questions": [{
+                "question": "Quelle marque ?", "choices": ["A", "B"], "correct_choice": 0,
+            }]})
 
 
 if __name__ == "__main__":
