@@ -30,9 +30,10 @@ DEFAULT_CAPTION_STYLE = "bold_stroke"
 _CAPTION_STYLES: dict[str, dict] = {
     # Gros blanc gras, contour noir épais — le défaut, lisible sur tout fond.
     "bold_stroke": {
-        "font_size": 108, "primary": "&H00FFFFFF", "outline": "&H00000000",
+        "font_size": 90, "primary": "&H00FFFFFF", "outline": "&H00000000",
         "back": "&H00000000", "bold": -1, "border_style": 1, "outline_w": 7,
         "shadow": 0, "spacing": 0, "margin_v": 540,
+        "single_word": True,
     },
     # Plus fin, plus petit, interligne aéré, ombre douce — sobre.
     "sleek": {
@@ -330,6 +331,9 @@ def write_ass(
     passer tel quel au filtre `subtitles` d'ffmpeg (libass lit le style
     embarqué, pas besoin de `force_style`)."""
     preset = _CAPTION_STYLES.get(style, _CAPTION_STYLES[DEFAULT_CAPTION_STYLE])
+    # Quiz cards occupy the centre: retain their existing narration layout.
+    if preset.get("single_word") and any(b.get("quiz_phase") for b in (blocks or [])):
+        preset = {**preset, "single_word": False, "font_size": 108}
     font = font or os.environ.get("SUBTITLE_FONT") or "Arial"
     try:
         width, height = (int(x) for x in resolution.lower().split("x"))
@@ -341,6 +345,24 @@ def write_ass(
     if blocks and block_durations:
         cues = _without_question_cues(cues, blocks, block_durations)
     for cue in cues:
+        if preset.get("single_word"):
+            words = cue.get("words") or [{"text": cue["text"], "start": cue["start"], "end": cue["end"]}]
+            for index, word in enumerate(words):
+                text = _ass_escape(word["text"].upper())
+                if not text:
+                    continue
+                start = max(cue["start"], word["start"])
+                next_start = words[index + 1]["start"] if index + 1 < len(words) else cue["end"]
+                end = min(cue["end"], next_start, word["end"] + 0.08)
+                if end <= start:
+                    continue
+                # Scale against both axes, including square and landscape outputs.
+                size = max(1, round(base_fs * min(width / 1080, height / 1920)))
+                size = min(size, max(1, round(width * 0.8 / (max(len(text), 1) * 0.75))))
+                outline = max(1, round(5 * size / 90))
+                tags = f"{{\\an5\\pos({width // 2},{height // 2})\\fs{size}\\bord{outline}\\b1\\1c&HFFFFFF&}}"
+                events.append(_dialogue(start, end, tags + text))
+            continue
         text = _ass_escape(cue["text"])
         fs = _cue_font_size(text, base_fs)
         role_prefix = "{\\fad(45,70)}"

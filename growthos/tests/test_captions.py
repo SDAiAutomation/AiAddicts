@@ -114,7 +114,7 @@ class TestWriteAss(unittest.TestCase):
 
     def test_short_cue_keeps_base_font_size(self):
         # "Leo se reveille" (15 car.) <= 22 -> pas de \fs
-        ass = self._write("bold_stroke")
+        ass = self._write("sleek")
         self.assertNotIn("{\\fs", ass)
 
     def test_long_cue_gets_shrunk_font(self):
@@ -123,7 +123,29 @@ class TestWriteAss(unittest.TestCase):
         path = Path(tempfile.mkdtemp()) / "c.ass"
         ass = Path(write_ass(long_cue, str(path), "bold_stroke", "1080x1920")).read_text(encoding="utf-8")
         dialogue = next(l for l in ass.splitlines() if l.startswith("Dialogue:"))
-        self.assertIn("{\\fs", dialogue)  # police réduite pour ce cue
+        self.assertIn("\\fs", dialogue)  # police réduite pour ce cue
+
+    def test_bold_stroke_shows_only_the_spoken_word_in_white_at_center(self):
+        ass = self._write("bold_stroke")
+        lines = [line for line in ass.splitlines() if line.startswith("Dialogue:")]
+        self.assertEqual(len(lines), 3)
+        for line, word in zip(lines, ["LEO", "SE", "REVEILLE"]):
+            self.assertTrue(line.endswith("}" + word))
+            self.assertIn(r"\an5\pos(540,960)", line)
+            self.assertIn(r"\1c&HFFFFFF&", line)
+        self.assertIn("0:00:00.30,0:00:00.50", lines[1])
+
+    def test_centered_words_do_not_bridge_long_silences_or_turn_hooks_yellow(self):
+        words = [{"text": "écoute", "start": 0, "end": 0.2},
+                 {"text": "bien", "start": 1, "end": 1.3}]
+        cues = build_cues([(words, 2)], block_roles=["hook"])
+        with tempfile.TemporaryDirectory() as folder:
+            ass = Path(write_ass(cues, str(Path(folder) / "c.ass"), resolution="720x1280")).read_text(encoding="utf-8")
+        lines = [line for line in ass.splitlines() if line.startswith("Dialogue:")]
+        self.assertIn("0:00:00.00,0:00:00.28", lines[0])
+        self.assertIn(r"\pos(360,640)\fs60", lines[0])
+        self.assertTrue(lines[0].endswith("ÉCOUTE"))
+        self.assertNotIn("D7FF", "\n".join(lines))
 
     def test_word_pop_long_cue_reapplies_shrunk_size_after_reset(self):
         words = [{"text": "anticonstitutionnellement", "start": 0.0, "end": 0.5},
