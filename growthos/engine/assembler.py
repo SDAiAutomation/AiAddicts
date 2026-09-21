@@ -235,6 +235,39 @@ def _generate(
     return final_video, work_dir, metrics
 
 
+# Limite par fichier de Supabase Storage (50 Mo par défaut, indépendante de la
+# limite du bucket) : au-delà l'upload échoue avec "exceeds the maximum allowed
+# size". Les vidéos longues (quiz ~125 s) à CRF 19 la dépassent.
+_UPLOAD_LIMIT_BYTES = 45 * 1024 * 1024
+
+
+def _shrink_to_upload_limit(local_path: str) -> None:
+    """Ré-encode en place à un débit calculé pour tenir sous la limite d'upload."""
+    import subprocess
+
+    path = Path(local_path)
+    if not path.exists() or path.stat().st_size <= _UPLOAD_LIMIT_BYTES:
+        return
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=nw=1:nk=1", str(path)],
+        capture_output=True, text=True,
+    )
+    duration = float(probe.stdout.strip())
+    audio_bps = 128_000
+    video_bps = int((_UPLOAD_LIMIT_BYTES * 8 * 0.95) / duration) - audio_bps
+    print(f"       fichier {path.stat().st_size / 1048576:.0f} Mo > limite, ré-encodage à {video_bps // 1000} kbit/s")
+    tmp = path.with_suffix(".small.mp4")
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(path), "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-preset", "veryfast", "-b:v", str(video_bps), "-maxrate", str(int(video_bps * 1.3)),
+         "-bufsize", str(video_bps * 2), "-c:a", "aac", "-b:a", "128k",
+         "-movflags", "+faststart", str(tmp)],
+        check=True, capture_output=True,
+    )
+    tmp.replace(path)
+
+
 def _publish_video(
     client, content_item_id: str, local_path: str, on_progress: Callable[[str], None] | None = None,
     require_remote: bool = False,
@@ -250,6 +283,7 @@ def _publish_video(
       mieux vaut un statut `failed` explicite qu'un aperçu introuvable."""
     if on_progress:
         on_progress("Upload de la vidéo")
+    _shrink_to_upload_limit(local_path)
     last_exc: Exception | None = None
     for attempt in range(1, 4):
         try:
