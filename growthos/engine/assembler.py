@@ -236,22 +236,35 @@ def _generate(
 
 
 def _publish_video(
-    client, content_item_id: str, local_path: str, on_progress: Callable[[str], None] | None = None
+    client, content_item_id: str, local_path: str, on_progress: Callable[[str], None] | None = None,
+    require_remote: bool = False,
 ) -> str:
     """Upload la vidéo rendue vers Supabase Storage (bucket `content-videos`,
     public) pour que `video_url` soit une vraie URL partageable plutôt qu'un
-    chemin local à la machine du worker. En cas d'échec (bucket absent,
-    réseau…), retombe sur le chemin local plutôt que de faire échouer tout
-    le run — la vidéo existe bel et bien, juste pas partageable."""
+    chemin local à la machine du worker. 3 tentatives (un blip réseau ou un
+    timeout sur un gros fichier est le cas courant). Ensuite :
+    - `require_remote=False` (CLI locale) : retombe sur le chemin local, la
+      vidéo existe bel et bien sur cette machine ;
+    - `require_remote=True` (worker) : lève. Le fichier vit sur un runner
+      éphémère, un chemin local n'y serait plus jamais lisible par personne —
+      mieux vaut un statut `failed` explicite qu'un aperçu introuvable."""
     if on_progress:
         on_progress("Upload de la vidéo")
-    try:
-        url = storage.upload_video(client, content_item_id, local_path)
-        print(f"       vidéo uploadée : {url}")
-        return url
-    except Exception as exc:
-        print(f"       upload Supabase Storage échoué ({exc}) — video_url reste le chemin local")
-        return local_path
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            url = storage.upload_video(client, content_item_id, local_path)
+            print(f"       vidéo uploadée : {url}")
+            return url
+        except Exception as exc:
+            last_exc = exc
+            print(f"       upload Supabase Storage échoué, tentative {attempt}/3 ({exc})")
+            if attempt < 3:
+                time.sleep(3 * attempt)
+    if require_remote:
+        raise RuntimeError(f"upload de la vidéo échoué après 3 tentatives : {last_exc}") from last_exc
+    print("       video_url reste le chemin local")
+    return local_path
 
 
 def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Path) -> str | None:
@@ -521,7 +534,16 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
             print(f"       (remboursement du crédit non appliqué : {refund_exc})")
         raise
     print(f"       total génération : {time.monotonic() - t_start:.1f}s")
-    video_url = _publish_video(client, content_item_id, final_video, on_progress=report_progress)
+    try:
+        video_url = _publish_video(
+            client, content_item_id, final_video, on_progress=report_progress, require_remote=True
+        )
+    except Exception:
+        try:
+            repo.refund_generation_credit(client, content_item_id)
+        except Exception as refund_exc:
+            print(f"       (remboursement du crédit non appliqué : {refund_exc})")
+        raise
 
     final_fields = {
         "status": "video", "script": data, "video_url": video_url,
