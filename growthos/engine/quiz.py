@@ -29,12 +29,12 @@ SOUND_EFFECT_MODES = {"automatic", "subtle", "off"}
 # Phrases fixes lues par la voix off, par langue du script (défaut : français).
 # {topic} = sujet du quiz ; {n} = numéro de question ; {letter}, {answer} = bonne réponse.
 _PHRASES = {
-    "fr": {"intro": "Teste tes connaissances sur {topic}.", "question": "Question {n}.", "answer": "La bonne réponse était {letter}, {answer}.", "outro": "Combien de bonnes réponses as-tu trouvées ?"},
-    "en": {"intro": "Test your knowledge about {topic}.", "question": "Question {n}.", "answer": "The correct answer was {letter}, {answer}.", "outro": "How many did you get right?"},
-    "es": {"intro": "Pon a prueba tus conocimientos sobre {topic}.", "question": "Pregunta {n}.", "answer": "La respuesta correcta era {letter}, {answer}.", "outro": "¿Cuántas has acertado?"},
-    "de": {"intro": "Teste dein Wissen über {topic}.", "question": "Frage {n}.", "answer": "Die richtige Antwort war {letter}, {answer}.", "outro": "Wie viele hast du richtig?"},
-    "it": {"intro": "Metti alla prova le tue conoscenze su {topic}.", "question": "Domanda {n}.", "answer": "La risposta corretta era {letter}, {answer}.", "outro": "Quante ne hai indovinate?"},
-    "pt": {"intro": "Teste os teus conhecimentos sobre {topic}.", "question": "Pergunta {n}.", "answer": "A resposta certa era {letter}, {answer}.", "outro": "Quantas acertaste?"},
+    "fr": {"last": "Dernière question, la plus difficile.", "intro": "Teste tes connaissances sur {topic}.", "question": "Question {n}.", "answer": "La bonne réponse était {letter}, {answer}.", "outro": "Combien de bonnes réponses as-tu trouvées ?"},
+    "en": {"last": "Last question, the hardest one.", "intro": "Test your knowledge about {topic}.", "question": "Question {n}.", "answer": "The correct answer was {letter}, {answer}.", "outro": "How many did you get right?"},
+    "es": {"last": "Última pregunta, la más difícil.", "intro": "Pon a prueba tus conocimientos sobre {topic}.", "question": "Pregunta {n}.", "answer": "La respuesta correcta era {letter}, {answer}.", "outro": "¿Cuántas has acertado?"},
+    "de": {"last": "Letzte Frage, die schwerste.", "intro": "Teste dein Wissen über {topic}.", "question": "Frage {n}.", "answer": "Die richtige Antwort war {letter}, {answer}.", "outro": "Wie viele hast du richtig?"},
+    "it": {"last": "Ultima domanda, la più difficile.", "intro": "Metti alla prova le tue conoscenze su {topic}.", "question": "Domanda {n}.", "answer": "La risposta corretta era {letter}, {answer}.", "outro": "Quante ne hai indovinate?"},
+    "pt": {"last": "Última pergunta, a mais difícil.", "intro": "Teste os teus conhecimentos sobre {topic}.", "question": "Pergunta {n}.", "answer": "A resposta certa era {letter}, {answer}.", "outro": "Quantas acertaste?"},
 }
 _TOPIC_FALLBACK = {"fr": "ce sujet", "en": "this topic", "es": "este tema", "de": "dieses Thema", "it": "questo argomento", "pt": "este tema"}
 
@@ -116,6 +116,14 @@ def validate_quiz(quiz: object) -> None:
             raise ValueError(f"{prefix}.countdown_seconds doit être compris entre 1 et {MAX_COUNTDOWN_SECONDS}")
 
 
+def _question_lead(phrases: dict, number: int, total: int) -> str:
+    """Relance de rétention : la dernière question est annoncée comme la plus
+    difficile (enjeu avant la fin), les autres gardent « Question n »."""
+    if total >= 3 and number == total:
+        return phrases["last"]
+    return phrases["question"].format(n=number)
+
+
 def compile_quiz(script: dict) -> dict:
     """Retourne une copie avec des blocs narrables enrichis de métadonnées quiz."""
     if not is_quiz(script):
@@ -141,7 +149,7 @@ def compile_quiz(script: dict) -> dict:
         spoken_choices = ". ".join(f"{letters[i]}, {choice}" for i, choice in enumerate(choices))
         blocks.append({
             "role": "point",
-            "text": f"{phrases['question'].format(n=number)} {str(item['question']).strip()} {spoken_choices}.",
+            "text": f"{_question_lead(phrases, number, len(quiz['questions']))} {str(item['question']).strip()} {spoken_choices}.",
             "visual": str(item.get("visual") or item["question"]).strip(),
             "quiz_phase": "question",
             "quiz_question_number": number,

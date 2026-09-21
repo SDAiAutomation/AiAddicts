@@ -43,6 +43,14 @@ class TestQuiz(unittest.TestCase):
         self.assertEqual(blocks[3]["text"], "How many did you get right?")
         self.assertTrue(compile_quiz(QUIZ_SCRIPT)["blocks"][2]["text"].startswith("La bonne réponse était B"))
 
+    def test_last_question_is_announced_as_hardest(self):
+        question = QUIZ_SCRIPT["quiz"]["questions"][0]
+        script = {**QUIZ_SCRIPT, "language": "en", "quiz": {**QUIZ_SCRIPT["quiz"], "questions": [question] * 3}}
+        questions = [b for b in compile_quiz(script)["blocks"] if b["quiz_phase"] == "question"]
+        self.assertTrue(questions[0]["text"].startswith("Question 1."))
+        self.assertTrue(questions[1]["text"].startswith("Question 2."))
+        self.assertTrue(questions[2]["text"].startswith("Last question, the hardest one."))
+
     def test_compile_does_not_mutate_source(self):
         compile_quiz(QUIZ_SCRIPT)
         self.assertNotIn("blocks", QUIZ_SCRIPT)
