@@ -1,5 +1,9 @@
 # GrowthOS — positionnement produit
 
+La [doctrine Faceloop](PRODUCT_DOCTRINE.md) fixe désormais les priorités produit.
+Ce document décrit la boucle d'apprentissage existante ; les prochaines capacités
+ci-dessous restent un backlog, subordonné au P0 narration, originalité et cohérence visuelle.
+
 ## USP à préserver
 
 **GrowthOS transforme les performances de chaque compte en meilleures vidéos,
@@ -17,8 +21,8 @@ conversions au fil des publications.
 | BigMotion | Production complète, séries et planning | Les séries récurrentes pilotent le pipeline script, voix, visuels, montage et publication |
 | FacelessReels | Formats simples, personnalisation et cadence | Des recettes de formats réutilisables sont comparées par leurs résultats réels |
 
-La génération en volume reste un moyen d'obtenir des observations. Elle ne
-constitue pas la proposition de valeur principale.
+Les publications fournissent des observations pour apprendre. Leur volume ne
+doit jamais être augmenté au détriment de la qualité ou de l'originalité.
 
 ## Boucle produit
 

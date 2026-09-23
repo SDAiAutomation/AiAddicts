@@ -1,5 +1,9 @@
 # GrowthOS — MVP dogfooding
 
+Doctrine produit Faceloop : [PRODUCT_DOCTRINE.md](PRODUCT_DOCTRINE.md).
+Instructions communes à Codex et Claude : [AGENTS.md](AGENTS.md).
+La doctrine décrit la cible et ses priorités ; ce README documente le moteur existant.
+
 Cycle minimal : `script.json` → voix off → vidéo texte-carte sous-titrée → package prêt à publier manuellement.
 
 Portée volontaire de ce cycle 1 (semaines 1-2 du plan "Résultats d'abord") :
