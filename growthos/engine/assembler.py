@@ -283,6 +283,7 @@ def _publish_video(
       mieux vaut un statut `failed` explicite qu'un aperçu introuvable."""
     if on_progress:
         on_progress("Upload de la vidéo")
+    local_path = _resolve_rendered_video_path(local_path)
     _shrink_to_upload_limit(local_path)
     last_exc: Exception | None = None
     for attempt in range(1, 4):
@@ -299,6 +300,40 @@ def _publish_video(
         raise RuntimeError(f"upload de la vidéo échoué après 3 tentatives : {last_exc}") from last_exc
     print("       video_url reste le chemin local")
     return local_path
+
+
+def _resolve_rendered_video_path(local_path: str) -> str:
+    """Return a stable absolute path for the rendered file.
+
+    A queued job can be resumed from a different working directory or after a
+    cache directory has been recreated. In that case the stored relative path
+    may be stale even though the rendered filename is still present under the
+    worker's output root. Restrict the fallback search to the local ``output``
+    directory and require a non-empty regular file; never guess outside the
+    worker workspace.
+    """
+    candidate = Path(local_path).expanduser().resolve()
+    if candidate.is_file() and candidate.stat().st_size > 0:
+        return str(candidate)
+
+    output_root = candidate
+    for parent in candidate.parents:
+        if parent.name == "output":
+            output_root = parent
+            break
+    else:
+        return str(candidate)
+
+    matches = [
+        path for path in output_root.glob(f"*/final/{candidate.name}")
+        if path.is_file() and path.stat().st_size > 0
+    ]
+    if len(matches) == 1:
+        print(f"       chemin vidéo restauré depuis le cache : {matches[0]}")
+        return str(matches[0].resolve())
+    if not matches:
+        raise FileNotFoundError(f"vidéo finale introuvable : {candidate}")
+    raise FileNotFoundError(f"plusieurs vidéos finales correspondent à {candidate.name}")
 
 
 def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Path) -> str | None:

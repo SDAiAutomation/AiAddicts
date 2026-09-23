@@ -135,6 +135,11 @@ class TestSlug(unittest.TestCase):
         self.assertEqual(slug({"account": "!!!", "title": "??? °°°"}), "script")
 
 
+    def test_slug_is_bounded_for_render_paths(self):
+        value = slug({"account": "account", "title": "a" * 200})
+        self.assertLessEqual(len(value), 80)
+
+
 class TestScriptCostCaps(unittest.TestCase):
     def _script(self, n_blocks, text="Une phrase courte."):
         data = dict(VALID)

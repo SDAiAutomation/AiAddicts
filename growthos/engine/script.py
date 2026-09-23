@@ -147,4 +147,7 @@ def slug(data: dict) -> str:
         out = out.replace("--", "-")
     # Fallback si title + account ne contiennent aucun caractère alphanumérique :
     # sans ça on écrirait directement dans output/ à la racine.
-    return out.strip("-") or "script"
+    # The assembler appends a cache key, so the readable slug can be bounded
+    # without losing uniqueness. This keeps generated paths usable on Windows.
+    bounded = out.strip("-")[:80].rstrip("-")
+    return bounded or "script"
