@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from engine import assembler, db, repo, trim
+from engine import assembler, autoedit, autoedit_repo, autoedit_run, db, repo, trim
 
 if sys.platform == "win32":
     # La console Windows garde son ancien codepage (cp1252/cp850) par défaut,
@@ -73,6 +73,24 @@ def process_trim(client) -> bool:
     return True
 
 
+def process_autoedit(client) -> bool:
+    """Réclame et traite un job AutoEdit (expérimental, AUTOEDIT_ENABLED=true).
+    Retourne True si un job a été traité, False si la file était vide ou la
+    capacité désactivée. Priorité la plus basse : Generate passe d'abord."""
+    if not autoedit.autoedit_enabled():
+        return False
+    analyzer = autoedit.get_analyzer()  # avant le claim : une config invalide ne doit pas bloquer un job
+    job = autoedit_repo.claim_job(client)
+    if not job:
+        return False
+
+    print(f"
+=== AutoEdit {job['id']} (analyseur {analyzer.name}) ===")
+    status = autoedit_run.process_job(client, job, analyzer)
+    print(f"=== AutoEdit {job['id']} -> {status} ===")
+    return True
+
+
 def process_one(client) -> bool:
     """Réclame et traite un job de la file. Retourne True si un job a été
     traité (avec succès ou en échec), False si la file était vide."""
@@ -81,7 +99,7 @@ def process_one(client) -> bool:
 
     item = repo.claim_queued_item(client)
     if not item:
-        return False
+        return process_autoedit(client)
 
     content_item_id = item["id"]
     print(f"\n=== Génération {content_item_id} ===")
@@ -106,6 +124,9 @@ def main() -> None:
     args = parser.parse_args()
 
     client = db.get_service_client()
+    if autoedit.autoedit_enabled():
+        autoedit.get_analyzer()  # échoue dès le démarrage si AUTOEDIT_ANALYZER est inconnu
+        print("AutoEdit activé (expérimental).")
     print(f"Worker GrowthOS démarré (poll toutes les {args.interval}s). Ctrl+C pour arrêter.")
 
     idle_since = time.monotonic()
