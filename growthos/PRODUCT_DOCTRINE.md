@@ -2,7 +2,7 @@
 
 ## Mission et critère de décision
 
-**The AI Content Engine for faceless creators.**
+**The AI Content Engine for creators.** Faceless creation remains the first focus, but the platform will eventually support both generated stories and creator-owned footage.
 
 Promesse : **Idea → Story → Video → Publish → Learn → Next Idea**.
 Le passage visé est de « titre → génération » à « objectif créateur → boucle de contenu ». GrowthOS est le nom technique du moteur existant ; cette doctrine ne demande pas de renommer ses modules.
@@ -10,6 +10,20 @@ Le passage visé est de « titre → génération » à « objectif créateur �
 Chaque décision doit améliorer au moins une dimension : qualité, originalité, rétention, simplicité, vitesse, fiabilité ou économie unitaire. La qualité prime sur le volume. Le succès est une vidéo qui mérite d'être regardée et publiée, puis un apprentissage utile pour la suivante.
 
 Les prescriptions ci-dessous décrivent la cible. Elles ne prouvent pas que les capacités sont implémentées.
+
+## Deux moteurs complémentaires
+
+### Faceloop Generate
+
+`Idée → script → voix → images/vidéos → Short`
+
+C'est le moteur actuellement construit. Il produit une histoire originale à partir d'une intention créative et applique les contrôles P0 de narration, originalité et cohérence visuelle.
+
+### Faceloop AutoEdit
+
+`Rushes utilisateur → compréhension IA → meilleurs moments → plan de montage → Short`
+
+AutoEdit est un second moteur produit, pas une option ajoutée au générateur. Il transforme des vidéos apportées par l'utilisateur ou sous licence en contenus courts. Le même socle doit pouvoir servir au sport, gaming, podcasts, vlogs, fitness, interviews, éducation et automobile. Chaque catégorie devient un profil d'analyse et de règles de montage, plutôt qu'un éditeur séparé.
 
 ## P0 — qualité avant extension
 
@@ -71,11 +85,25 @@ Parcours : génération → revue → programmation → publication. Préparer t
 
 Évaluer les besoins de déclaration IA par plateforme et type de contenu ; conserver la décision et son motif, avec revue si incertain. Les recommandations de prochaine vidéo doivent être fondées sur les mesures disponibles. La roadmap n'autorise pas à publier sans instruction utilisateur.
 
+## AutoEdit — architecture cible et ordre de livraison
+
+Le modèle IA comprend et annote les rushes ; il ne monte pas directement la vidéo. Le pipeline cible est :
+
+`upload → proxy/compression → détection de scènes et pics audio → extraction de frames → vision → événements → highlight scoring → Edit Decision List → moteur déterministe → musique/beat-sync → captions/overlays → auto-reframe 9:16 → export`
+
+L'analyse coûteuse est exécutée une seule fois et les événements détectés sont conservés. Plusieurs montages (Hype, Best Skills, Goals & Assists, Player Highlight, Cinematic Recap) peuvent ensuite être planifiés à partir du même index.
+
+L'`Edit Decision List` (EDL) est le contrat entre IA et rendu. Il contient au minimum la source, les timecodes de début et de fin, la vitesse, le type d'événement, la cible de recadrage, les effets et la confiance. Il doit être validé avant exécution, versionné, rejouable et testable sans appel IA. FFmpeg applique l'EDL ; le modèle reste un réalisateur qui propose des décisions.
+
+Le MVP AutoEdit accepte des clips courts et commence par Sports. L'expérience demande uniquement le focus (meilleurs moments, buts, skills, joueur ou célébrations), le style (Hype, Cinematic, Clean, Emotional) et la durée (15, 30 ou 60 secondes). Le mode `Player Focus` suit un joueur identifié, par exemple `#17`, et peut produire plusieurs durées depuis la même analyse.
+
+L'ordre est strict : terminer et solidifier Generate ; sortir AutoEdit MVP avec clips courts ; tester Sports auprès de vrais utilisateurs ; généraliser ensuite aux autres catégories. Ne pas maintenir deux pipelines incomplets en parallèle.
+
 ## P3 — expansion
 
-Sports Auto Edit : médias apportés par l'utilisateur ou sous licence, détection de scènes/actions, sélection de moments, rythme musical, recadrage, ralentis, sous-titres et export. Puis analytics TikTok/Reels, équipes, API et usages agences.
+Après validation du MVP, AutoEdit s'étend aux profils Gaming, Podcast, Vlog, Fitness, Interview, Education et Auto. Sports AutoEdit couvre les médias apportés par l'utilisateur ou sous licence, la détection de scènes/actions, la sélection de moments, le focus joueur, le rythme musical, le recadrage, les ralentis, les sous-titres et l'export. Puis viennent analytics TikTok/Reels, équipes, API et usages agences.
 
-Ne pas mener simultanément sports, avatars, long format, podcasts, éditeur d'images, marketplace et application mobile. La priorité reste de rendre les Shorts assez bons pour être regardés jusqu'au bout.
+Ne pas mener simultanément toutes les catégories AutoEdit, avatars, long format, éditeur d'images, marketplace et application mobile. La priorité reste de rendre Generate puis le premier AutoEdit assez bons pour être regardés jusqu'au bout.
 
 ## Expérience utilisateur
 
