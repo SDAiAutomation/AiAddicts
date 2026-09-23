@@ -352,5 +352,14 @@ class TestRepo(unittest.TestCase):
         client.rpc.assert_called_with("refund_autoedit_credit", {"p_job_id": JOB_ID})
 
 
+class TestWorkerWiring(unittest.TestCase):
+    def test_worker_module_compiles(self):
+        # Une erreur de syntaxe dans worker.py casse TOUTE la génération, pas
+        # seulement AutoEdit : les autres tests n'importent jamais worker.py.
+        import py_compile
+
+        py_compile.compile(str(Path(__file__).parent.parent / "worker.py"), doraise=True)
+
+
 if __name__ == "__main__":
     unittest.main()

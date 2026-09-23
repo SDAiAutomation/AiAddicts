@@ -84,8 +84,7 @@ def process_autoedit(client) -> bool:
     if not job:
         return False
 
-    print(f"
-=== AutoEdit {job['id']} (analyseur {analyzer.name}) ===")
+    print(f"\n=== AutoEdit {job['id']} (analyseur {analyzer.name}) ===")
     status = autoedit_run.process_job(client, job, analyzer)
     print(f"=== AutoEdit {job['id']} -> {status} ===")
     return True
