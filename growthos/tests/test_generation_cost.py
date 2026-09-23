@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from engine import assembler
+from engine import assembler, originality
 
 
 def _metrics(**overrides):
@@ -75,6 +75,45 @@ class TestGenerationCostReport(unittest.TestCase):
         with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}):
             os.environ.pop("GENERATION_COST_ALERT_USD", None)
             self.assertFalse(assembler._generation_cost_report(_metrics())["overBudget"])
+
+    def test_adds_originality_cost_when_usage_and_rates_present(self):
+        env = {
+            "ELEVENLABS_USD_PER_1K_CHARS": "0.2",
+            "ORIGINALITY_PRICE_IN_PER_M": "0.5",
+            "ORIGINALITY_PRICE_OUT_PER_M": "1.5",
+        }
+        result = originality.OriginalityResult(
+            too_similar=False, overall_similarity=20, compared_count=5, history_available=True,
+            model="gpt-5-mini", usage={"input": 8000, "output": 1000},
+        )
+        with patch.dict(os.environ, env):
+            report = assembler._generation_cost_report(_metrics(originality=result))
+        self.assertAlmostEqual(report["originality"]["cost"], 0.0055)
+        self.assertEqual(report["originality"]["model"], "gpt-5-mini")
+        self.assertEqual(report["missingRates"], [])
+
+    def test_originality_rate_missing_is_flagged(self):
+        result = originality.OriginalityResult(
+            too_similar=False, overall_similarity=20, compared_count=5, history_available=True,
+            model="gpt-5-mini", usage={"input": 100, "output": 100},
+        )
+        with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}, clear=True):
+            report = assembler._generation_cost_report(_metrics(originality=result))
+        self.assertIn("originality", report["missingRates"])
+
+    def test_originality_absent_from_report_when_no_usage(self):
+        result = originality.OriginalityResult(
+            too_similar=False, overall_similarity=0, compared_count=0, history_available=False,
+        )
+        with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}):
+            report = assembler._generation_cost_report(_metrics(originality=result))
+        self.assertNotIn("originality", report)
+        self.assertNotIn("originality", report["missingRates"])
+
+    def test_originality_none_does_not_affect_report(self):
+        with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.2"}):
+            report = assembler._generation_cost_report(_metrics(originality=None))
+        self.assertNotIn("originality", report)
 
 
 if __name__ == "__main__":

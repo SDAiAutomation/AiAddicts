@@ -13,8 +13,8 @@ from typing import Callable
 
 from . import (
     captions, db, editorial_quality, generation_cache, image_style_bible,
-    poster, publish_pack, quality, quiz_cover, repo, script as script_module, storage, tts,
-    video, visuals, voices,
+    originality, poster, publish_pack, quality, quiz_cover, repo, script as script_module,
+    storage, tts, video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -313,16 +313,64 @@ def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Pa
         return None
 
 
+def _apply_originality_check(
+    data: dict, metrics: dict | None, client, account_id: str | None,
+    exclude_content_item_id: str | None = None,
+) -> None:
+    """Mute `metrics` en place : ajoute `metrics["originality"]` si la
+    capacité est active (`ORIGINALITY_CHECK_ENABLED`) et qu'un compte est
+    connu — sinon ne fait rien, pas même une requête Supabase (même
+    philosophie opt-in que le QC image). `metrics` peut être `None` (re-run
+    d'une vidéo déjà rendue, rien de neuf à juger) : dans ce cas on ne fait
+    rien non plus, comme le reste des contrôles qualité."""
+    if metrics is None or not account_id or not originality.originality_enabled():
+        return
+    history = repo.get_recent_scripts(client, account_id, exclude_content_item_id=exclude_content_item_id)
+    metrics["originality"] = originality.check_originality(data, history)
+
+
+def _originality_report_dict(result: "originality.OriginalityResult") -> dict:
+    return {
+        "model": result.model,
+        "comparedCount": result.compared_count,
+        "historyAvailable": result.history_available,
+        "tooSimilar": result.too_similar,
+        "overallSimilarity": result.overall_similarity,
+        "dimensions": result.dimensions,
+        "matchedVideoIds": result.matched_video_ids,
+        "suggestion": result.suggestion,
+    }
+
+
 def _quality_fields(metrics: dict | None, final_video: str) -> dict:
     """Score la génération et renvoie les champs à écrire sur le content_item
     ({} si `metrics` est None — re-run d'une vidéo déjà rendue). Un score sous
-    le seuil bascule le statut en 'quality_check' (coup d'œil humain)."""
+    le seuil, ou une ressemblance forte avec l'historique du compte
+    (`metrics["originality"]`, voir `_apply_originality_check`), bascule le
+    statut en 'quality_check' (coup d'œil humain)."""
     if metrics is None:
         return {}
     score, flags = quality.score_generation(metrics, final_video)
     fields: dict = {"quality_score": score, "quality_flags": flags}
     if score < quality.PASS_THRESHOLD:
         fields["status"] = "quality_check"
+
+    originality_result = metrics.get("originality")
+    if originality_result is not None:
+        fields["originality_report"] = _originality_report_dict(originality_result)
+        if not originality_result.history_available:
+            flags.append(
+                "Historique insuffisant pour vérifier l'originalité (compte trop récent)."
+            )
+        elif originality_result.too_similar:
+            flags.append(
+                f"Ressemblance forte avec {len(originality_result.matched_video_ids)} vidéo(s) "
+                f"précédente(s) (score diagnostique {originality_result.overall_similarity}/100, "
+                f"comparé à {originality_result.compared_count} vidéo(s))."
+            )
+            fields["status"] = "quality_check"
+
+    if fields.get("status") == "quality_check":
         print(f"       contrôle qualité : {score}/100 — passé en 'quality_check' :")
         for flag in flags:
             print(f"         - {flag}")
@@ -376,6 +424,19 @@ def _script_rates() -> tuple[float, float] | None:
         return None
 
 
+def _originality_rates() -> tuple[float, float] | None:
+    """Tarifs du modèle de diagnostic d'originalité ($ / million de tokens,
+    entrée puis sortie), propres à ORIGINALITY_MODEL — pas de défaut codé en
+    dur (même motif que `_script_rates`)."""
+    try:
+        return (
+            float(os.environ["ORIGINALITY_PRICE_IN_PER_M"]),
+            float(os.environ["ORIGINALITY_PRICE_OUT_PER_M"]),
+        )
+    except (KeyError, ValueError):
+        return None
+
+
 def _cost_alert_limit() -> float | None:
     """Seuil ($) au-delà duquel une génération est signalée `overBudget`.
     Pas de défaut : à fixer d'après le coût moyen mesuré (ex. 1,5x la moyenne)."""
@@ -422,6 +483,21 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
             script_cost = round((tokens_in * rates[0] + tokens_out * rates[1]) / 1_000_000, 4)
         script = {"model": script_usage.get("model"), "tokens": {"input": tokens_in, "output": tokens_out}, "cost": script_cost}
 
+    originality_result = metrics.get("originality")
+    originality_block = None
+    originality_cost = 0.0
+    if originality_result is not None and originality_result.usage:
+        tokens_in = int(originality_result.usage.get("input") or 0)
+        tokens_out = int(originality_result.usage.get("output") or 0)
+        rates = _originality_rates()
+        if rates:
+            originality_cost = round((tokens_in * rates[0] + tokens_out * rates[1]) / 1_000_000, 4)
+        originality_block = {
+            "model": originality_result.model,
+            "tokens": {"input": tokens_in, "output": tokens_out},
+            "cost": originality_cost,
+        }
+
     missing: list[str] = []
     if script and not _script_rates():
         missing.append("script")
@@ -429,14 +505,17 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
         missing.append("images")
     if chars and rate is None:
         missing.append("voice")
+    if originality_block and not _originality_rates():
+        missing.append("originality")
 
-    total = round(image_cost + voice_cost + script_cost, 4)
+    total = round(image_cost + voice_cost + script_cost + originality_cost, 4)
     limit = _cost_alert_limit()
     return {
         "currency": "USD",
         "images": {"count": len(reports), "cost": image_cost, "tokens": image_tokens},
         "voice": {"characters": chars, "cost": voice_cost},
         **({"script": script} if script else {}),
+        **({"originality": originality_block} if originality_block else {}),
         "totalEstimatedCost": total,
         "missingRates": missing,
         # Vrai si cette vidéo a coûté plus que le seuil d'alerte (GENERATION_COST_ALERT_USD).
@@ -452,6 +531,8 @@ def _apply_cost_report(fields: dict, metrics: dict | None) -> None:
     line = f"       coût estimé : {report['totalEstimatedCost']:.3f} $ (images {report['images']['cost']:.3f} + voix {report['voice']['cost']:.3f}"
     if report.get("script"):
         line += f" + script {report['script']['cost']:.3f}"
+    if report.get("originality"):
+        line += f" + originalité {report['originality']['cost']:.3f}"
     line += ")"
     if report["missingRates"]:
         line += f" — tarifs manquants : {', '.join(report['missingRates'])}"
@@ -489,6 +570,7 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     account_id = repo.get_or_create_account(
         client, organization_id, data["platform"], data["account"], data.get("niche")
     )
+    _apply_originality_check(data, metrics, client, account_id)
     content_item_id = repo.create_content_item(
         client, account_id, data["title"], status="video", script=data, video_url=final_video
     )
@@ -568,6 +650,10 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
             print(f"       (remboursement du crédit non appliqué : {refund_exc})")
         raise
     print(f"       total génération : {time.monotonic() - t_start:.1f}s")
+    if metrics is not None and originality.originality_enabled():
+        report_progress("Vérification d'originalité")
+        account_id = repo.get_content_account_id(client, content_item_id)
+        _apply_originality_check(data, metrics, client, account_id, exclude_content_item_id=content_item_id)
     try:
         video_url = _publish_video(
             client, content_item_id, final_video, on_progress=report_progress, require_remote=True

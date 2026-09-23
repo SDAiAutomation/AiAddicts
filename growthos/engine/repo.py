@@ -265,6 +265,26 @@ def get_content_account_id(client, content_item_id: str) -> str:
     return row.data["account_id"]
 
 
+def get_recent_scripts(client, account_id: str, exclude_content_item_id: str | None = None, limit: int = 20) -> list[dict]:
+    """Scripts des dernières vidéos du compte (plus récentes en premier), pour
+    le diagnostic d'originalité (`engine/originality.py`). Isolation stricte
+    par `account_id` : le client service-role contourne RLS, donc c'est cette
+    fonction qui doit filtrer. `exclude_content_item_id` retire l'item en
+    cours (régénération d'un item déjà en base) pour ne jamais se comparer à
+    soi-même."""
+    query = (
+        client.table("content_items")
+        .select("id,created_at,script")
+        .eq("account_id", account_id)
+        .not_.is_("script", "null")
+        .order("created_at", desc=True)
+        .limit(limit + (1 if exclude_content_item_id else 0))
+    )
+    rows = query.execute().data or []
+    rows = [r for r in rows if r["id"] != exclude_content_item_id]
+    return rows[:limit]
+
+
 def get_account_performance(client, account_id: str) -> list[dict]:
     """Snapshots de performance avec le script nécessaire à l'apprentissage."""
     result = (
