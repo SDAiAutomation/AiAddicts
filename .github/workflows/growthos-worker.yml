@@ -93,6 +93,12 @@ jobs:
           ELEVENLABS_USD_PER_1K_CHARS: "0.18"
           SCRIPT_PRICE_IN_PER_M: "0.25"
           SCRIPT_PRICE_OUT_PER_M: "2"
+          # Diagnostic d'originalité (engine/originality.py) : bloque (revue)
+          # à partir de 90, simple avertissement à partir de 70.
+          ORIGINALITY_CHECK_ENABLED: "true"
+          ORIGINALITY_MODEL: "gpt-5-mini"
+          ORIGINALITY_PRICE_IN_PER_M: "0.25"
+          ORIGINALITY_PRICE_OUT_PER_M: "2"
         run: python worker.py --until-idle
 
   publish-queue:

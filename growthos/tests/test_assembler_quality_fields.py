@@ -51,6 +51,17 @@ class TestQualityFields(unittest.TestCase):
         self.assertNotIn("status", fields)
         self.assertEqual(fields["originality_report"]["tooSimilar"], False)
 
+    def test_warn_adds_flag_without_forcing_quality_check(self):
+        result = originality.OriginalityResult(
+            too_similar=False, warn=True, overall_similarity=80, compared_count=12, history_available=True,
+            matched_video_ids=["abc"],
+        )
+        fields = assembler._quality_fields({**NOMINAL, "originality": result}, _big_file())
+        self.assertNotIn("status", fields)
+        self.assertTrue(any("ressemblance notable" in f.lower() for f in fields["quality_flags"]))
+        self.assertFalse(any("ressemblance forte" in f.lower() for f in fields["quality_flags"]))
+        self.assertEqual(fields["originality_report"]["warn"], True)
+
     def test_history_unavailable_adds_distinct_flag_without_forcing_status(self):
         result = originality.OriginalityResult(
             too_similar=False, overall_similarity=0, compared_count=0, history_available=False,

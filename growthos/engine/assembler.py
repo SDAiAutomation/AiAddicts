@@ -370,6 +370,7 @@ def _originality_report_dict(result: "originality.OriginalityResult") -> dict:
         "comparedCount": result.compared_count,
         "historyAvailable": result.history_available,
         "tooSimilar": result.too_similar,
+        "warn": result.warn,
         "overallSimilarity": result.overall_similarity,
         "dimensions": result.dimensions,
         "matchedVideoIds": result.matched_video_ids,
@@ -404,6 +405,12 @@ def _quality_fields(metrics: dict | None, final_video: str) -> dict:
                 f"comparé à {originality_result.compared_count} vidéo(s))."
             )
             fields["status"] = "quality_check"
+        elif originality_result.warn:
+            flags.append(
+                f"Ressemblance notable avec {len(originality_result.matched_video_ids)} vidéo(s) "
+                f"précédente(s) (score diagnostique {originality_result.overall_similarity}/100) "
+                "— avertissement, publication non bloquée."
+            )
 
     if fields.get("status") == "quality_check":
         print(f"       contrôle qualité : {score}/100 — passé en 'quality_check' :")

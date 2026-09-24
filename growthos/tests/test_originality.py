@@ -10,7 +10,8 @@ from engine import originality
 
 _ORIGINALITY_ENV_VARS = (
     "ORIGINALITY_CHECK_ENABLED", "ORIGINALITY_MODEL", "ORIGINALITY_HISTORY_LIMIT",
-    "ORIGINALITY_THRESHOLD_FLAG", "OPENAI_API_KEY",
+    "ORIGINALITY_THRESHOLD_FLAG", "ORIGINALITY_THRESHOLD_BLOCK", "ORIGINALITY_THRESHOLD_WARN",
+    "OPENAI_API_KEY",
 )
 
 
@@ -51,10 +52,57 @@ class TestParseOriginalityResponse(_EnvTestCase):
         result = originality.parse_originality_response(_valid_payload(overall=90), compared_count=5, history_available=True)
         self.assertTrue(result.too_similar)
 
-    def test_threshold_is_configurable(self):
+    def test_legacy_flag_threshold_still_sets_block_level(self):
         os.environ["ORIGINALITY_THRESHOLD_FLAG"] = "30"
         result = originality.parse_originality_response(_valid_payload(overall=35), compared_count=5, history_available=True)
         self.assertTrue(result.too_similar)
+
+    def test_organic_series_range_warns_without_blocking(self):
+        # 62-85 = ressemblance mesurée entre vidéos normales d'une même série.
+        for score in (70, 85, 89):
+            result = originality.parse_originality_response(_valid_payload(overall=score), compared_count=5, history_available=True)
+            self.assertFalse(result.too_similar, score)
+            self.assertTrue(result.warn, score)
+
+    def test_below_warn_threshold_is_neither(self):
+        result = originality.parse_originality_response(_valid_payload(overall=69), compared_count=5, history_available=True)
+        self.assertFalse(result.too_similar)
+        self.assertFalse(result.warn)
+
+    def test_block_level_also_warns(self):
+        result = originality.parse_originality_response(_valid_payload(overall=100), compared_count=5, history_available=True)
+        self.assertTrue(result.too_similar)
+        self.assertTrue(result.warn)
+
+    def test_new_block_threshold_wins_over_legacy_name(self):
+        os.environ["ORIGINALITY_THRESHOLD_FLAG"] = "30"
+        os.environ["ORIGINALITY_THRESHOLD_BLOCK"] = "95"
+        result = originality.parse_originality_response(_valid_payload(overall=90), compared_count=5, history_available=True)
+        self.assertFalse(result.too_similar)
+
+    def test_warn_threshold_never_exceeds_block(self):
+        os.environ["ORIGINALITY_THRESHOLD_BLOCK"] = "60"
+        os.environ["ORIGINALITY_THRESHOLD_WARN"] = "80"
+        self.assertEqual(originality.thresholds(), (60, 60))
+
+    def test_visual_dimension_dropped_when_no_visuals_to_compare(self):
+        payload = {
+            "dimensions": [
+                {"name": "composition visuelle", "similarity": 100, "matchedVideoIds": ["a"]},
+                {"name": "concept", "similarity": 50, "matchedVideoIds": ["b"]},
+            ],
+        }
+        result = originality.parse_originality_response(
+            payload, compared_count=2, history_available=True, visuals_available=False,
+        )
+        self.assertEqual([d["name"] for d in result.dimensions], ["concept"])
+        self.assertEqual(result.overall_similarity, 50)
+        self.assertEqual(result.matched_video_ids, ["b"])
+
+    def test_visual_dimension_kept_when_visuals_exist(self):
+        payload = {"dimensions": [{"name": "composition visuelle", "similarity": 80, "matchedVideoIds": []}]}
+        result = originality.parse_originality_response(payload, compared_count=2, history_available=True)
+        self.assertEqual(len(result.dimensions), 1)
 
     def test_missing_overall_similarity_falls_back_to_max_dimension(self):
         payload = _valid_payload()
