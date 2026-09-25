@@ -19,8 +19,15 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SITE_URL: ${{ secrets.SITE_URL }}
         run: |
-          curl --fail-with-body --show-error --silent \
-            --output metrics-result.json \
+          test -n "$CRON_SECRET" && test -n "$SITE_URL"
+          SITE_URL="${SITE_URL%/}"
+          # L'apex redirige vers www et la redirection perd le POST.
+          if [ "$SITE_URL" = "https://faceloop.app" ]; then SITE_URL="https://www.faceloop.app"; fi
+          http_code=$(curl --show-error --silent --output metrics-result.json --write-out '%{http_code}' \
             -X POST "$SITE_URL/api/cron/youtube-metrics" \
-            -H "Authorization: Bearer $CRON_SECRET"
-          cat metrics-result.json
+            -H "Authorization: Bearer $CRON_SECRET")
+          cat metrics-result.json; echo
+          if [ "$http_code" != "200" ]; then
+            echo "Metrics cron returned HTTP $http_code; expected 200." >&2
+            exit 1
+          fi
