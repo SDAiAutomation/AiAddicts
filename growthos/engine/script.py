@@ -14,6 +14,8 @@ ALLOWED_CAPTION_STYLES = {"bold_stroke", "sleek", "boxed", "neon", "word_pop"}  
 # du texte lui-même, `language_code` n'est pas supporté par ce modèle côté API.
 ALLOWED_LANGUAGES = {"fr", "en", "es", "de", "it", "pt"}
 ALLOWED_CONTENT_GOALS = {"reach", "monetization"}
+ALLOWED_SOURCE_TYPES = {"idea", "pasted_text"}
+ALLOWED_TRANSFORMATION_MODES = {"preserve", "adapt", "inspire"}
 # `voice_id` is resolved at generation time (--voice > script > config/voices.json),
 # see engine/voices.py — so it is not required in the script file itself.
 REQUIRED_TOP_LEVEL = ("title", "niche", "account")
@@ -34,6 +36,7 @@ def _env_int(name: str, default: int) -> int:
 # toute réservation de crédit et tout appel payant. Surchargeable par env.
 MAX_BLOCKS = _env_int("MAX_SCRIPT_BLOCKS", 20)
 MAX_SCRIPT_CHARS = _env_int("MAX_SCRIPT_CHARS", 3000)
+MAX_SOURCE_TEXT_CHARS = _env_int("MAX_SOURCE_TEXT_CHARS", 12000)
 
 
 def load_script(path: str) -> dict:
@@ -46,6 +49,7 @@ def load_script(path: str) -> dict:
     data.setdefault("organization", DEFAULT_ORGANIZATION)
     data.setdefault("language", "fr")
     data.setdefault("content_goal", "reach")
+    data.setdefault("source_type", "idea")
     return data
 
 
@@ -83,6 +87,32 @@ def validate_script(data: dict) -> None:
     if content_goal is not None and content_goal not in ALLOWED_CONTENT_GOALS:
         raise ValueError(
             f"'content_goal' invalide : '{content_goal}' (attendu : {sorted(ALLOWED_CONTENT_GOALS)})"
+        )
+
+    source_type = data.get("source_type", "idea")
+    if source_type not in ALLOWED_SOURCE_TYPES:
+        raise ValueError(
+            f"'source_type' invalide : '{source_type}' (attendu : {sorted(ALLOWED_SOURCE_TYPES)})"
+        )
+    source_text = data.get("source_text")
+    transformation_mode = data.get("transformation_mode")
+    if source_type == "pasted_text":
+        if not isinstance(source_text, str) or not source_text.strip():
+            raise ValueError("'source_text' est requis pour un texte importé")
+        if len(source_text) > MAX_SOURCE_TEXT_CHARS:
+            raise ValueError(
+                f"texte source trop long : {len(source_text)} caractères "
+                f"(maximum {MAX_SOURCE_TEXT_CHARS})"
+            )
+        if transformation_mode not in ALLOWED_TRANSFORMATION_MODES:
+            raise ValueError(
+                "'transformation_mode' invalide pour un texte importé "
+                f"(attendu : {sorted(ALLOWED_TRANSFORMATION_MODES)})"
+            )
+    elif transformation_mode is not None and transformation_mode not in ALLOWED_TRANSFORMATION_MODES:
+        raise ValueError(
+            f"'transformation_mode' invalide : '{transformation_mode}' "
+            f"(attendu : {sorted(ALLOWED_TRANSFORMATION_MODES)})"
         )
 
     characters = data.get("characters")

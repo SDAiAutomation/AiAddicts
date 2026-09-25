@@ -110,6 +110,40 @@ class TestValidateScript(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_script({**VALID, "content_goal": "viral"})
 
+    def test_pasted_text_provenance_is_valid(self):
+        validate_script({
+            **VALID,
+            "source_type": "pasted_text",
+            "transformation_mode": "adapt",
+            "source_text": "Voici le texte original que le créateur a fourni.",
+        })
+
+    def test_pasted_text_requires_original(self):
+        with self.assertRaisesRegex(ValueError, "source_text"):
+            validate_script({
+                **VALID,
+                "source_type": "pasted_text",
+                "transformation_mode": "preserve",
+            })
+
+    def test_pasted_text_requires_known_transformation(self):
+        with self.assertRaisesRegex(ValueError, "transformation_mode"):
+            validate_script({
+                **VALID,
+                "source_type": "pasted_text",
+                "transformation_mode": "copy",
+                "source_text": "Un texte source.",
+            })
+
+    def test_source_text_size_is_bounded(self):
+        with self.assertRaisesRegex(ValueError, "texte source trop long"):
+            validate_script({
+                **VALID,
+                "source_type": "pasted_text",
+                "transformation_mode": "inspire",
+                "source_text": "x" * 12001,
+            })
+
 
 class TestLoadScript(unittest.TestCase):
     def test_load_script_fills_defaults(self):
@@ -121,6 +155,7 @@ class TestLoadScript(unittest.TestCase):
         self.assertEqual(data["organization"], "GrowthOS Dogfooding")
         self.assertEqual(data["language"], "fr")
         self.assertEqual(data["content_goal"], "reach")
+        self.assertEqual(data["source_type"], "idea")
 
 
 class TestSlug(unittest.TestCase):
