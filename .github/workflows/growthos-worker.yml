@@ -26,6 +26,14 @@ on:
     - cron: "7,17,27,37,47,57 * * * *"
   workflow_dispatch: {} # déclenchement manuel depuis l'onglet Actions, pour tester sans attendre
 
+# Réveils fréquents (site + horloge Supabase /api/cron/tick toutes les 10 min) :
+# un seul passage à la fois, les suivants attendent au lieu de s'empiler en
+# parallèle (GitHub ne garde qu'un passage en attente, ce qui suffit :
+# `--until-idle` vide toute la file).
+concurrency:
+  group: growthos-worker
+  cancel-in-progress: false
+
 jobs:
   process-queue:
     runs-on: ubuntu-latest

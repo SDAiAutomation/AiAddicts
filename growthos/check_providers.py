@@ -10,7 +10,8 @@ Vérifie :
 - OpenAI : clé valide et crédit disponible (un appel minimal) ;
 - ElevenLabs : clé valide et caractères restants sur l'abonnement ;
 - connexions YouTube / TikTok expirées ou révoquées ;
-- générations échouées récemment et file bloquée.
+- générations échouées récemment et file bloquée ;
+- montages AutoEdit bloqués (en file ou en traitement) ou en échec technique.
 
 Le dépôt est PUBLIC : ticket et logs sont visibles de tous, donc aucun
 secret, titre de vidéo ni message d'erreur brut dans le rapport.
@@ -179,6 +180,53 @@ def check_queue(client, now: datetime) -> list[tuple[str, str]]:
     return problems
 
 
+# Échecs dus à l'utilisateur (crédits, envoi abandonné, fichier absent) : pas
+# une panne de notre côté, donc pas d'alerte.
+_AUTOEDIT_USER_ERRORS = ("insufficient_credits", "upload_incomplete", "source_missing")
+# Un job réclamé est remis en file au bout de 15 min sans worker vivant.
+AUTOEDIT_RUNNING_STUCK_AFTER = timedelta(minutes=30)
+
+
+def check_autoedit(client, now: datetime) -> list[tuple[str, str]]:
+    """Montages AutoEdit bloqués en file, bloqués en cours de traitement ou en
+    échec technique récent (ajouté le 2026-09-25 : un montage est resté 2 h
+    en file sans qu'aucune alerte ne parte)."""
+    problems = []
+    queued = (
+        client.table("autoedit_jobs").select("id").eq("status", "queued")
+        .lte("updated_at", (now - QUEUED_STUCK_AFTER).isoformat()).execute().data or []
+    )
+    if queued:
+        problems.append((
+            "autoedit:stuck",
+            f"AutoEdit : **{len(queued)} montage(s) en file depuis plus de "
+            f"{int(QUEUED_STUCK_AFTER.total_seconds() // 60)} min** — le worker GitHub ne tourne peut-être plus.",
+        ))
+    running = (
+        client.table("autoedit_jobs").select("id").in_("status", ["analyzing", "planning", "rendering"])
+        .lte("updated_at", (now - AUTOEDIT_RUNNING_STUCK_AFTER).isoformat()).execute().data or []
+    )
+    if running:
+        problems.append((
+            "autoedit:running_stuck",
+            f"AutoEdit : **{len(running)} montage(s) bloqué(s) en traitement** depuis plus de "
+            f"{int(AUTOEDIT_RUNNING_STUCK_AFTER.total_seconds() // 60)} min.",
+        ))
+    failed = (
+        client.table("autoedit_jobs").select("id,error").eq("status", "failed")
+        .gte("updated_at", (now - FAILED_WINDOW).isoformat()).execute().data or []
+    )
+    technical = [r for r in failed if ((r.get("error") or {}).get("code")) not in _AUTOEDIT_USER_ERRORS]
+    if technical:
+        codes = sorted({str((r.get("error") or {}).get("code") or "?") for r in technical})
+        problems.append((
+            "autoedit:failed",
+            f"AutoEdit : **{len(technical)} montage(s) en échec technique** depuis "
+            f"{int(FAILED_WINDOW.total_seconds() // 3600)} h (codes : {', '.join(codes)}).",
+        ))
+    return problems
+
+
 def build_report(problems: list[tuple[str, str]], notes: list[str], now: datetime) -> str:
     lines = [f"Contrôle du {now:%Y-%m-%d %H:%M} UTC.", ""]
     if problems:
@@ -203,6 +251,7 @@ def main() -> int:
         client = db.get_service_client()
         problems += check_connections(client)
         problems += check_queue(client, now)
+        problems += check_autoedit(client, now)
     except Exception as exc:
         problems.append(("supabase:error", f"Supabase : contrôle impossible ({exc.__class__.__name__}: {exc})."))
 

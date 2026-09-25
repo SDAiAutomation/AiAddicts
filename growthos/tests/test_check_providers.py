@@ -3,7 +3,7 @@ import sys
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -88,6 +88,60 @@ class TestElevenLabsCheck(unittest.TestCase):
         with patch.object(check_providers.requests, "get", side_effect=[_response(401), _response(401)]):
             problems, _ = check_providers.check_elevenlabs()
         self.assertEqual([key for key, _ in problems], ["elevenlabs:auth"])
+
+
+class _FakeAutoEditTable:
+    """Imite la chaîne supabase-py : renvoie les lignes du statut demandé."""
+
+    def __init__(self, rows_by_status):
+        self.rows_by_status = rows_by_status
+        self.statuses = []
+
+    def select(self, *_):
+        return self
+
+    def eq(self, column, value):
+        if column == "status":
+            self.statuses = [value]
+        return self
+
+    def in_(self, column, values):
+        self.statuses = list(values)
+        return self
+
+    def lte(self, *_):
+        return self
+
+    def gte(self, *_):
+        return self
+
+    def execute(self):
+        rows = [r for s in self.statuses for r in self.rows_by_status.get(s, [])]
+        return Mock(data=rows)
+
+
+class TestAutoEditCheck(unittest.TestCase):
+    def _client(self, rows_by_status):
+        client = Mock()
+        client.table.side_effect = lambda name: _FakeAutoEditTable(rows_by_status)
+        return client
+
+    def test_healthy_autoedit_has_no_problem(self):
+        self.assertEqual(check_providers.check_autoedit(self._client({}), datetime(2026, 9, 25, tzinfo=timezone.utc)), [])
+
+    def test_stuck_queue_and_running_jobs_are_problems(self):
+        client = self._client({"queued": [{"id": "a"}], "rendering": [{"id": "b"}]})
+        keys = [k for k, _ in check_providers.check_autoedit(client, datetime(2026, 9, 25, tzinfo=timezone.utc))]
+        self.assertEqual(keys, ["autoedit:stuck", "autoedit:running_stuck"])
+
+    def test_user_caused_failures_do_not_alert_but_technical_ones_do(self):
+        user_only = self._client({"failed": [{"id": "a", "error": {"code": "insufficient_credits"}},
+                                             {"id": "b", "error": {"code": "upload_incomplete"}}]})
+        self.assertEqual(check_providers.check_autoedit(user_only, datetime(2026, 9, 25, tzinfo=timezone.utc)), [])
+        technical = self._client({"failed": [{"id": "c", "error": {"code": "internal_error"}}]})
+        problems = check_providers.check_autoedit(technical, datetime(2026, 9, 25, tzinfo=timezone.utc))
+        self.assertEqual([k for k, _ in problems], ["autoedit:failed"])
+        self.assertIn("internal_error", problems[0][1])
 
 
 class TestReport(unittest.TestCase):
