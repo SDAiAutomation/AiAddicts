@@ -1,0 +1,26 @@
+name: GrowthOS metrics
+
+# Relevé quotidien des métriques YouTube (vues, likes, commentaires, et
+# rétention/partages/abonnés quand le compte a accordé yt-analytics.readonly)
+# vers content_performance. La logique est dans growthos-web :
+# /api/cron/youtube-metrics (src/lib/youtube/metrics.ts).
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  youtube-metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Relever les métriques YouTube
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          curl --fail-with-body --show-error --silent \
+            --output metrics-result.json \
+            -X POST "$SITE_URL/api/cron/youtube-metrics" \
+            -H "Authorization: Bearer $CRON_SECRET"
+          cat metrics-result.json
