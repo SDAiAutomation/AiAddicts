@@ -98,12 +98,15 @@ type AutoEditDecision = {
   speed: number
   eventId: string | null
   cropTarget: string | null
-  effect: "slow_motion" | "none" | null
+  effect: "slow_motion" | "freeze" | "none" | null
+  zoom: "none" | "punch" | "progressive"
+  transitionOut: "cut" | "flash"
+  freezeSeconds: number // 0..0.5
   caption: string | null
 }
 
 type AutoEditPlan = {
-  version: string
+  version: "autoedit-plan-v2"
   durationSeconds: number
   style: "hype" | "cinematic" | "clean" | "emotional"
   decisions: AutoEditDecision[]

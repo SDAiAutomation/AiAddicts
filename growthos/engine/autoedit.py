@@ -26,9 +26,11 @@ DURATIONS = (15, 30, 60)
 EVENT_TYPES = (
     "goal", "shot", "pass", "dribble", "defense", "celebration", "highlight", "audio_peak", "scene_change",
 )
-EFFECTS = ("slow_motion", "none")
+EFFECTS = ("slow_motion", "freeze", "none")
+ZOOMS = ("none", "punch", "progressive")
+TRANSITIONS = ("cut", "flash")
 
-PLAN_VERSION = "autoedit-plan-v1"
+PLAN_VERSION = "autoedit-plan-v2"
 SIMULATED_ANALYZER = "simulated"
 
 # Bornes de validation de l'EDL (le modèle propose, le moteur déterministe exécute).
@@ -201,25 +203,38 @@ def plan_edit(events: list[dict], configuration: dict, source: SourceVideo, sour
         # la durée cible.
         if any(start < decision["endSeconds"] and end > decision["startSeconds"] for decision in chosen):
             continue
-        length = min(end - start, target - total)
+        style = configuration["style"]
+        score = event.get("score") or 0
+        strong = event["type"] == "audio_peak" and score >= 70
+        effect = "slow_motion" if strong and style in ("hype", "cinematic", "emotional") else None
+        speed = 0.75 if effect == "slow_motion" else 1.0
+        freeze_seconds = 0.25 if strong and style == "hype" and not chosen else 0.0
+        if freeze_seconds:
+            effect, speed = "freeze", 1.0
+        progressive_zoom = style in ("cinematic", "emotional") and not chosen
+        flash_count = sum(1 for decision in chosen if decision.get("transitionOut") == "flash")
+        length = min(end - start, max(0.0, (target - total - freeze_seconds) * speed))
         if length < _MIN_CLIP_SECONDS:
             continue
         chosen.append({
             "source": source.storage_path,
             "startSeconds": round(start, 2),
             "endSeconds": round(start + length, 2),
-            "speed": 1.0,
+            "speed": speed,
             "eventId": event["id"],
             "cropTarget": None,
-            "effect": None,
+            "effect": effect,
+            "zoom": "punch" if strong and style == "hype" else ("progressive" if progressive_zoom else "none"),
+            "transitionOut": "flash" if strong and style == "hype" and flash_count < 2 else "cut",
+            "freezeSeconds": freeze_seconds,
             "caption": None,
         })
-        total += length
+        total += length / speed + freeze_seconds
 
     chosen.sort(key=lambda d: d["startSeconds"])
     return {
         "version": PLAN_VERSION,
-        "durationSeconds": round(sum((d["endSeconds"] - d["startSeconds"]) / d["speed"] for d in chosen), 2),
+        "durationSeconds": round(sum((d["endSeconds"] - d["startSeconds"]) / d["speed"] + d.get("freezeSeconds", 0) for d in chosen), 2),
         "style": configuration["style"],
         "decisions": chosen,
     }
@@ -281,6 +296,13 @@ def validate_plan(
             problems.append(f"{where} : vitesse invalide ({speed!r})")
         if d.get("effect") is not None and d.get("effect") not in EFFECTS:
             problems.append(f"{where} : effet inconnu ({d.get('effect')!r})")
+        if d.get("zoom", "none") not in ZOOMS:
+            problems.append(f"{where} : zoom inconnu ({d.get('zoom')!r})")
+        if d.get("transitionOut", "cut") not in TRANSITIONS:
+            problems.append(f"{where} : transition inconnue ({d.get('transitionOut')!r})")
+        freeze = d.get("freezeSeconds", 0)
+        if not _is_number(freeze) or freeze < 0 or freeze > 0.5:
+            problems.append(f"{where} : freeze invalide ({freeze!r})")
         if known_event_ids is not None and d.get("eventId") is not None and d["eventId"] not in known_event_ids:
             problems.append(f"{where} : événement inconnu")
 

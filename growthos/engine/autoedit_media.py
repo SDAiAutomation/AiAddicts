@@ -161,13 +161,35 @@ def render_plan(source_path: str, plan: dict, output_path: str) -> str:
         inputs += ["-ss", f"{decision['startSeconds']:.3f}", "-to", f"{decision['endSeconds']:.3f}", "-i", source_path]
         label = f"v{index}"
         style_filter = _style_filter(plan["style"])
+        speed = float(decision.get("speed") or 1.0)
+        freeze = float(decision.get("freezeSeconds") or 0.0)
+        source_length = float(decision["endSeconds"] - decision["startSeconds"])
+        output_length = source_length / speed + freeze
+        effects = [
+            "scale=720:1280:force_original_aspect_ratio=increase",
+            f"crop=720:1280{style_filter}",
+            "setsar=1", "fps=30", f"setpts=(PTS-STARTPTS)/{speed:.5f}",
+        ]
+        if decision.get("zoom") == "punch":
+            effects += ["scale=778:1382", "crop=720:1280"]
+        elif decision.get("zoom") == "progressive":
+            effects += ["zoompan=z='min(zoom+0.0015,1.12)':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=720x1280:fps=30"]
+        if freeze:
+            effects += [f"tpad=stop_mode=clone:stop_duration={freeze:.3f}"]
+        if decision.get("transitionOut") == "flash" and output_length >= 0.3:
+            effects += [f"fade=t=out:st={output_length - 0.10:.3f}:d=0.10:color=white"]
+        # zoompan/scale peuvent recalculer le SAR ; concat exige des plans identiques.
+        effects += ["setsar=1"]
         filters.append(
-            f"[{index}:v]scale=720:1280:force_original_aspect_ratio=increase,"
-            f"crop=720:1280{style_filter},setsar=1,fps=30[{label}]"
+            f"[{index}:v]" + ",".join(effects) + f"[{label}]"
         )
         video_labels.append(f"[{label}]")
         if has_audio:
-            filters.append(f"[{index}:a]asetpts=PTS-STARTPTS[a{index}]")
+            audio_effects = ["asetpts=PTS-STARTPTS", f"atempo={speed:.5f}"]
+            if freeze:
+                audio_effects += [f"apad=pad_dur={freeze:.3f}"]
+            audio_effects += [f"atrim=duration={output_length:.3f}"]
+            filters.append(f"[{index}:a]" + ",".join(audio_effects) + f"[a{index}]")
             audio_labels.append(f"[a{index}]")
     concat_inputs = [label for pair in zip(video_labels, audio_labels) for label in pair] if has_audio else video_labels
     filters.append(

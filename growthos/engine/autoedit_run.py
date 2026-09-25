@@ -102,7 +102,7 @@ def process_job(client, job: dict, analyzer: autoedit.VideoAnalyzer) -> str:
             run.advance("planning")
             configuration = {
                 "focus": job["focus"], "style": job["style"], "durationSeconds": job["duration_seconds"],
-                "playerNumber": job.get("player_number"),
+                "playerNumber": job.get("player_number"), "profile": job.get("profile", "sports"),
             }
             plan = autoedit.plan_edit(analysis.events, configuration, source, analysis.duration_seconds)
             autoedit.validate_plan(

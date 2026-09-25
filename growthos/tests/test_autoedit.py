@@ -1,6 +1,7 @@
 import copy
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -137,6 +138,17 @@ class TestPlanEdit(unittest.TestCase):
         plan = autoedit.plan_edit(events, {"focus": "best", "style": "clean", "durationSeconds": 15}, source, 30.0)
         self.assertEqual([decision["eventId"] for decision in plan["decisions"]], ["audio", "later"])
 
+    def test_hype_turns_a_strong_audio_peak_into_bounded_effects(self):
+        source = autoedit.SourceVideo(JOB_ID, PATH, "m.mp4", 30.0)
+        event = {"id": "impact", "type": "audio_peak", "startSeconds": 5.0, "endSeconds": 9.0, "score": 95}
+        plan = autoedit.plan_edit([event], {"focus": "best", "style": "hype", "durationSeconds": 15}, source, 30.0)
+        decision = plan["decisions"][0]
+        self.assertEqual(decision["effect"], "freeze")
+        self.assertEqual(decision["zoom"], "punch")
+        self.assertEqual(decision["transitionOut"], "flash")
+        self.assertEqual(decision["freezeSeconds"], 0.25)
+        self.assertLessEqual(plan["durationSeconds"], 15)
+
 
 class TestValidatePlan(unittest.TestCase):
     def test_valid_plan_passes(self):
@@ -175,6 +187,31 @@ class TestValidatePlan(unittest.TestCase):
     def test_rejects_unknown_effect_and_event(self):
         self._assert_invalid(lambda p: p["decisions"][0].update(effect="explode"))
         self._assert_invalid(lambda p: None, known_event_ids={"other"})
+
+    def test_rejects_unknown_or_unbounded_creative_effects(self):
+        self._assert_invalid(lambda p: p["decisions"][0].update(zoom="teleport"))
+        self._assert_invalid(lambda p: p["decisions"][0].update(transitionOut="spin"))
+        self._assert_invalid(lambda p: p["decisions"][0].update(freezeSeconds=2))
+
+
+class TestCreativeRender(unittest.TestCase):
+    def test_renderer_executes_speed_zoom_freeze_and_flash(self):
+        plan = _valid_plan()
+        plan["decisions"][0].update(speed=0.75, effect="freeze", zoom="punch", transitionOut="flash", freezeSeconds=0.25)
+        with tempfile.TemporaryDirectory() as work:
+            output = str(Path(work) / "result.mp4")
+            commands = []
+            def fake_run(command, **_kwargs):
+                commands.append(command)
+                Path(output).write_bytes(b"video")
+                return Mock(stdout="", stderr="")
+            with patch.object(autoedit_media, "probe_has_audio", return_value=False), patch.object(autoedit_media, "_run", side_effect=fake_run):
+                autoedit_media.render_plan("source.mp4", plan, output)
+        graph = commands[0][commands[0].index("-filter_complex") + 1]
+        self.assertIn("setpts=(PTS-STARTPTS)/0.75000", graph)
+        self.assertIn("scale=778:1382", graph)
+        self.assertIn("tpad=stop_mode=clone:stop_duration=0.250", graph)
+        self.assertIn("fade=t=out", graph)
 
     def test_unknown_source_duration_skips_bounds_only(self):
         plan = _valid_plan()
