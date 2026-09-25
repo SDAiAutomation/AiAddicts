@@ -1,15 +1,17 @@
 """Orchestration d'un job AutoEdit réclamé par le worker.
 
-Jalon actuel : source vérifiée -> crédit réservé -> analyse (interface
-remplaçable) -> EDL validée -> résultat SIMULÉ en 'review'. Pas de rendu :
-`videoUrl` reste null. Toute erreur devient une erreur structurée
+Pipeline : source vérifiée -> crédit réservé -> analyse remplaçable -> EDL
+validée -> rendu déterministe si l'analyse est réelle -> résultat en review.
+Toute erreur devient une erreur structurée
 (`{code, message, retryable}`), le crédit réservé est remboursé et les durées
 par étape sont conservées dans `run_report` (observabilité).
 """
 import time
 import traceback
+import tempfile
+from pathlib import Path
 
-from engine import autoedit, autoedit_repo as repo
+from engine import autoedit, autoedit_repo as repo, poster, storage
 
 
 class _Run:
@@ -76,42 +78,45 @@ def process_job(client, job: dict, analyzer: autoedit.VideoAnalyzer) -> str:
             run.report["creditsReserved"] = cost
             repo.update_job(client, job_id, credits_reserved=cost)
 
-        source = autoedit.SourceVideo(
-            job_id=job_id,
-            storage_path=path,
-            filename=job["input_filename"],
-            duration_seconds=_float_or_none(job.get("input_duration_seconds")),
-        )
-        analysis = analyzer.analyze(source)
-        run.report["notes"] = analysis.notes
-        # Événements persistés dès l'analyse : réutilisables par d'autres montages.
-        repo.update_job(client, job_id, events=analysis.events)
+        with tempfile.TemporaryDirectory(prefix=f"autoedit-{job_id[:8]}-") as work:
+            local_source = None
+            if not analyzer.simulated:
+                local_source = repo.download_source(client, organization_id, job_id, str(Path(work) / "source"))
+            source = autoedit.SourceVideo(
+                job_id=job_id, storage_path=path, filename=job["input_filename"],
+                duration_seconds=_float_or_none(job.get("input_duration_seconds")), local_path=local_source,
+            )
+            analysis = analyzer.analyze(source)
+            run.report["notes"] = analysis.notes
+            repo.update_job(client, job_id, events=analysis.events)
 
-        run.advance("planning")
-        configuration = {
-            "focus": job["focus"], "style": job["style"], "durationSeconds": job["duration_seconds"],
-            "playerNumber": job.get("player_number"),
-        }
-        plan = autoedit.plan_edit(analysis.events, configuration, source, analysis.duration_seconds)
-        autoedit.validate_plan(
-            plan,
-            source_duration=analysis.duration_seconds,
-            allowed_sources={path},
-            known_event_ids={e["id"] for e in analysis.events},
-        )
+            run.advance("planning")
+            configuration = {
+                "focus": job["focus"], "style": job["style"], "durationSeconds": job["duration_seconds"],
+                "playerNumber": job.get("player_number"),
+            }
+            plan = autoedit.plan_edit(analysis.events, configuration, source, analysis.duration_seconds)
+            autoedit.validate_plan(
+                plan, source_duration=analysis.duration_seconds, allowed_sources={path},
+                known_event_ids={e["id"] for e in analysis.events},
+            )
 
-        if not analysis.simulated:
-            # Aucun analyseur réel n'existe encore ; le rendu (FFmpeg déterministe
-            # à partir de l'EDL) est le jalon suivant. Échouer franchement plutôt
-            # que de marquer 'completed' un montage jamais produit.
-            raise autoedit.AutoEditError(autoedit.ERR_INTERNAL, "Rendu AutoEdit non implémenté.", False)
+            result_fields = {}
+            if not analysis.simulated:
+                from engine.autoedit_media import render_plan
+                run.advance("rendering", plan=plan)
+                rendered = render_plan(local_source, plan, str(Path(work) / "result.mp4"))
+                result_fields["video_url"] = storage.upload_video(client, job_id, rendered)
+                try:
+                    poster_path = poster.extract_poster(rendered, str(Path(work) / "poster.jpg"))
+                    result_fields["poster_url"] = storage.upload_poster(client, job_id, poster_path)
+                except Exception:
+                    traceback.print_exc()
 
-        run.advance(
-            "review",
-            plan=plan,
-            quality=autoedit.build_quality(analysis),
-            usage=autoedit.build_usage(analysis),
-        )
+            run.advance(
+                "review", plan=plan, quality=autoedit.build_quality(analysis),
+                usage=autoedit.build_usage(analysis), **result_fields,
+            )
         return "review"
     except autoedit.AutoEditError as exc:
         return _fail(client, run, exc, reserved)

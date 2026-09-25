@@ -7,6 +7,7 @@ résultat/erreur ; l'utilisateur ne peut que créer la ligne puis la passer de
 'uploading' à 'queued' (voir la migration autoedit_jobs).
 """
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from engine import autoedit
 
@@ -140,6 +141,17 @@ def source_exists(client, organization_id: str, job_id: str) -> bool:
     (le client peut confirmer 'queued' sans avoir réellement téléversé)."""
     entries = client.storage.from_(BUCKET).list(f"{organization_id}/{job_id}")
     return any(e.get("name") == "source" for e in entries or [])
+
+
+def download_source(client, organization_id: str, job_id: str, destination: str) -> str:
+    """Télécharge la source privée avec le client service_role du worker."""
+    payload = client.storage.from_(BUCKET).download(autoedit.source_path(organization_id, job_id))
+    if not isinstance(payload, (bytes, bytearray)):
+        raise RuntimeError("réponse Storage invalide pendant le téléchargement de la source")
+    target = Path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
+    return str(target)
 
 
 def reserve_credit(client, job_id: str, credits: int) -> bool:

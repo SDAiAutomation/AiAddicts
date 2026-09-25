@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from engine import autoedit, autoedit_repo, autoedit_run
+from engine import autoedit, autoedit_media, autoedit_repo, autoedit_run
 
 JOB_ID = "11111111-1111-1111-1111-111111111111"
 ORG_ID = "22222222-2222-2222-2222-222222222222"
@@ -67,6 +67,21 @@ class TestSimulatedAnalyzer(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             autoedit.get_analyzer("vision-magic")
         self.assertEqual(autoedit.get_analyzer("simulated").name, "simulated")
+
+    def test_signal_analyzer_is_available(self):
+        self.assertEqual(autoedit.get_analyzer("signals").name, "signals")
+
+    def test_signal_analyzer_uses_measured_scene_changes(self):
+        source = autoedit.SourceVideo(JOB_ID, PATH, "match.mp4", None, "match.mp4")
+        with (
+            patch.object(autoedit_media, "probe_duration", return_value=20.0),
+            patch.object(autoedit_media, "detect_scene_changes", return_value=[4.0, 12.0]),
+        ):
+            result = autoedit_media.SignalAnalyzer().analyze(source)
+        self.assertFalse(result.simulated)
+        self.assertEqual([event["type"] for event in result.events], ["scene_change", "scene_change"])
+        self.assertEqual(result.duration_seconds, 20.0)
+        self.assertTrue(result.notes)
 
 
 class TestPlanEdit(unittest.TestCase):
@@ -214,6 +229,7 @@ class TestProcessJob(unittest.TestCase):
             update_job=Mock(side_effect=lambda c, jid, **f: self.updates.append(f)),
             fail_job=Mock(side_effect=lambda c, jid, err, rep=None: self.updates.append({"FAILED": err, "report": rep})),
             source_exists=Mock(return_value=True),
+            download_source=Mock(return_value="source.mp4"),
             reserve_credit=Mock(return_value=True),
             refund_credit=Mock(return_value=True),
         )
@@ -275,7 +291,7 @@ class TestProcessJob(unittest.TestCase):
         self.assertEqual(err["code"], autoedit.ERR_INTERNAL)
         self.assertTrue(err["retryable"])
 
-    def test_real_analyzer_without_renderer_fails_honestly_and_refunds(self):
+    def test_real_analyzer_renders_and_ends_in_review(self):
         real = Mock(simulated=False)
         real.name = "real"
         real.analyze.return_value = autoedit.SimulatedAnalyzer().analyze(
@@ -285,10 +301,18 @@ class TestProcessJob(unittest.TestCase):
             events=real.analyze.return_value.events, duration_seconds=90.0,
             analysis_cost=0.01, simulated=False, analyzer="real",
         )
-        status = autoedit_run.process_job(object(), _job(), real)
-        self.assertEqual(status, "failed")
-        autoedit_repo.refund_credit.assert_called_once()
-        self.assertNotIn("completed", [u.get("status") for u in self.updates])
+        with (
+            patch.object(autoedit_media, "render_plan", return_value="result.mp4"),
+            patch.object(autoedit_run.storage, "upload_video", return_value="https://cdn/result.mp4"),
+            patch.object(autoedit_run.poster, "extract_poster", return_value="poster.jpg"),
+            patch.object(autoedit_run.storage, "upload_poster", return_value="https://cdn/poster.jpg"),
+        ):
+            status = autoedit_run.process_job(object(), _job(), real)
+        self.assertEqual(status, "review")
+        self.assertEqual(self._final()["video_url"], "https://cdn/result.mp4")
+        self.assertEqual(self._final()["poster_url"], "https://cdn/poster.jpg")
+        self.assertIn("rendering", [u.get("status") for u in self.updates])
+        autoedit_repo.refund_credit.assert_not_called()
 
     def test_invalid_plan_fails_non_retryable(self):
         with patch.object(autoedit, "plan_edit", return_value={**_valid_plan(), "decisions": []}):
@@ -342,6 +366,16 @@ class TestRepo(unittest.TestCase):
         client.storage.from_.return_value.list.assert_called_with(f"{ORG_ID}/{JOB_ID}")
         client.storage.from_.return_value.list.return_value = [{"name": "other.mp4"}]
         self.assertFalse(autoedit_repo.source_exists(client, ORG_ID, JOB_ID))
+
+    def test_download_source_writes_private_storage_payload(self):
+        import tempfile
+        client = Mock()
+        client.storage.from_.return_value.download.return_value = b"video-bytes"
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "source"
+            self.assertEqual(autoedit_repo.download_source(client, ORG_ID, JOB_ID, str(destination)), str(destination))
+            self.assertEqual(destination.read_bytes(), b"video-bytes")
+        client.storage.from_.return_value.download.assert_called_with(PATH)
 
     def test_credit_rpcs(self):
         client = Mock()

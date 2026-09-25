@@ -147,14 +147,14 @@ type AutoEditResult = {
 
 Décision produit : infrastructure d'abord, expérimental, sans analyse vidéo payante. **Pas de serveur HTTP Python** : l'app web crée le job, le worker traite la file.
 
-**Jalon livré** : `upload → autoedit_jobs → claim worker → statuts → résultat simulé`. Jalon suivant : `analyse réelle → événements → EDL → rendu`.
+**Jalon livré** : `upload reprenable → autoedit_jobs → claim worker → analyse locale → événements → EDL → rendu FFmpeg → revue`.
 
 - Migration `20260923130000_autoedit_jobs.sql` (NON appliquée en remote tant que non validée) : table `autoedit_jobs`, bucket privé `autoedit-sources`, RPC `reserve_autoedit_credit` / `refund_autoedit_credit`.
 - Le frontend (client Supabase de l'utilisateur) : 1) `INSERT` dans `autoedit_jobs` avec seulement `organization_id, input_filename, input_duration_seconds?, focus, player_number?, style, duration_seconds` (statut `uploading` par défaut, `jobId` = `id` retourné) ; 2) upload du fichier vers `autoedit-sources` au chemin exact `<organization_id>/<jobId>/source` ; 3) `UPDATE status = 'queued'` — seule écriture permise (droits au niveau des colonnes + RLS). Un envoi jamais confirmé passe en `failed` (`upload_incomplete`) après 2 h.
 - Lecture : `SELECT` sur `autoedit_jobs` (RLS par organisation) pour le polling. Correspondance ligne → contrat : `engine/autoedit.py` `to_job_view` / `to_result_view` (`stage_label` → `stageLabel`, `input_filename` → `input.filename`, `error` = `{code, message, retryable}`, `events`, `plan`, `quality`, `usage`, `video_url`, `poster_url`).
-- Statuts posés par le worker : `queued → analyzing → planning → review` (le résultat simulé s'arrête en `review`, `videoUrl: null`, `quality.manualReview: true` + un flag « Résultat simulé »). `rendering` / `completed` arrivent avec le rendu. `stageLabel` est en français, posé par le backend ; les erreurs se localisent via `code`.
+- Statuts posés par le worker réel : `queued → analyzing → planning → rendering → review`. L'analyseur `signals` mesure les ruptures visuelles avec FFmpeg, exécute l'EDL et produit une vidéo verticale. La revue reste obligatoire car cette version ne reconnaît pas encore sémantiquement les buts ni les joueurs. L'analyseur `simulated` reste disponible pour les smoke tests et ne produit aucune vidéo.
 - Codes d'erreur : `source_missing`, `insufficient_credits`, `plan_invalid`, `upload_incomplete`, `worker_lost`, `internal_error`.
 - Crédits : quota commun avec Generate, consommation propre (`related_autoedit_job_id`, raisons `autoedit_*`), coût dans `usage` séparé de `generation_cost_report`. Analyse simulée = 0 crédit ; tarif d'une analyse réelle non mesuré (`AUTOEDIT_CREDIT_COST`, défaut provisoire 1).
-- Activation : `AUTOEDIT_ENABLED=true` côté worker (désactivé par défaut) ; le frontend garde la fonctionnalité derrière un état expérimental.
+- Activation : `AUTOEDIT_ENABLED=true` et `AUTOEDIT_ANALYZER=signals` côté worker (désactivé par défaut) ; le frontend garde la fonctionnalité derrière un état expérimental.
 - Événements persistés sur la ligne du job (`events`) pour l'instant ; une table dédiée sera nécessaire quand plusieurs montages devront réutiliser une analyse.
 - `AutoEditPlan.version` = `autoedit-plan-v1`. Limite de taille de la source : 500 Mo côté bucket, plafonnée par la limite globale du projet Supabase.

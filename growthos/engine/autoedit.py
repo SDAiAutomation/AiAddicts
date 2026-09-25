@@ -4,12 +4,10 @@ Capacité EXPÉRIMENTALE (AUTOEDIT_ENABLED=false par défaut, voir worker.py et
 AUTOEDIT_CONTRACT.md). Ce module ne fait AUCUN I/O : l'accès base/stockage vit
 dans `engine/autoedit_repo.py`, l'orchestration dans `engine/autoedit_run.py`.
 
-Jalon actuel : `upload -> autoedit_jobs -> claim worker -> statuts -> résultat
-SIMULÉ`. L'analyse vidéo réelle n'est pas branchée : `VideoAnalyzer` est
-l'interface remplaçable (`analyze(source) -> événements normalisés`), et la
-seule implémentation fournie est `SimulatedAnalyzer` (déterministe, gratuite,
-n'ouvre jamais la vidéo). Aucun appel Vision payant ne doit être ajouté avant
-un benchmark sur quelques vidéos réelles (décision produit 2026-09-23).
+`VideoAnalyzer` reste l'interface remplaçable (`analyze(source) -> événements
+normalisés`). `SignalAnalyzer` mesure localement les ruptures visuelles avec
+FFmpeg et produit un vrai rendu ; `SimulatedAnalyzer` reste disponible pour les
+smoke tests. Aucun appel Vision payant n'est activé.
 
 Un résultat simulé se déclare toujours comme tel (`quality.flags` +
 `manualReview`), jamais présenté comme un vrai montage.
@@ -88,6 +86,7 @@ class SourceVideo:
     storage_path: str  # chemin dans le bucket privé autoedit-sources
     filename: str
     duration_seconds: float | None
+    local_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -159,9 +158,11 @@ def get_analyzer(name: str | None = None) -> VideoAnalyzer:
     name = (name or os.environ.get("AUTOEDIT_ANALYZER") or SIMULATED_ANALYZER).strip().lower()
     if name == SIMULATED_ANALYZER:
         return SimulatedAnalyzer()
+    if name == "signals":
+        from engine.autoedit_media import SignalAnalyzer
+        return SignalAnalyzer()
     raise RuntimeError(
-        f"AUTOEDIT_ANALYZER={name!r} inconnu : seul '{SIMULATED_ANALYZER}' est disponible "
-        "(aucune analyse réelle branchée)."
+        f"AUTOEDIT_ANALYZER={name!r} inconnu (attendu : '{SIMULATED_ANALYZER}' ou 'signals')."
     )
 
 
@@ -290,7 +291,7 @@ SIMULATED_FLAG = "Résultat simulé : analyse vidéo non branchée, aucun montag
 def build_quality(analysis: AnalysisResult) -> dict:
     """`{score, flags, manualReview}`. Un résultat simulé n'a pas de score
     (aucune mesure) et exige toujours une revue."""
-    flags = [SIMULATED_FLAG] if analysis.simulated else []
+    flags = [SIMULATED_FLAG] if analysis.simulated else list(analysis.notes)
     return {"score": None, "flags": flags, "manualReview": bool(flags)}
 
 
