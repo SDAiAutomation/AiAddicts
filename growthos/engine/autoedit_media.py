@@ -100,7 +100,11 @@ def detect_scene_changes(path: str) -> list[float]:
 
 def detect_audio_peaks(path: str) -> list[tuple[float, int]]:
     """Retourne les maxima RMS relatifs. Le score décrit l'intensité mesurée
-    dans cette vidéo (0..100), jamais une probabilité de but ou de viralité."""
+    dans cette vidéo (0..100), jamais une probabilité de but ou de viralité.
+    Sans piste audio : aucun pic (ffmpeg échouerait sur un filtre audio sans
+    flux, ce qui faisait échouer tout le montage d'une vidéo muette)."""
+    if not probe_has_audio(path):
+        return []
     result = _run([
         "ffmpeg", "-i", str(Path(path).resolve()),
         "-af", f"asetnsamples=n=24000,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level",

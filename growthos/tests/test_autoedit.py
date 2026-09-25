@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from engine import autoedit, autoedit_media, autoedit_repo, autoedit_run
+from engine import autoedit, autoedit_captions, autoedit_media, autoedit_music, autoedit_repo, autoedit_run
 
 JOB_ID = "11111111-1111-1111-1111-111111111111"
 ORG_ID = "22222222-2222-2222-2222-222222222222"
@@ -458,6 +458,107 @@ class TestRetention(unittest.TestCase):
         fields = update.call_args.kwargs
         self.assertIn("purged_at", fields)
         self.assertIsNone(fields["result_video_path"])
+
+
+class TestSilentSource(unittest.TestCase):
+    def test_no_audio_stream_yields_no_audio_peaks_without_running_ffmpeg(self):
+        with (
+            patch.object(autoedit_media, "probe_has_audio", return_value=False),
+            patch.object(autoedit_media, "_run") as run,
+        ):
+            self.assertEqual(autoedit_media.detect_audio_peaks("muet.mp4"), [])
+        run.assert_not_called()
+
+
+class TestMusic(unittest.TestCase):
+    def _run(self):
+        run = Mock()
+        run.report = {}
+        return run
+
+    def test_source_with_sound_keeps_its_audio(self):
+        run, quality, usage = self._run(), {"flags": [], "manualReview": False}, {"renderCost": None}
+        with (
+            patch.object(autoedit_media, "probe_has_audio", return_value=True),
+            patch.object(autoedit_music, "mean_volume_db", return_value=-20.0),
+            patch.object(autoedit_music, "compose") as compose,
+        ):
+            out = autoedit_run._maybe_add_music(run, "src.mp4", "r.mp4", "hype", ".", quality, usage)
+        self.assertEqual(out, "r.mp4")
+        compose.assert_not_called()
+        self.assertEqual(run.report["music"], {"added": False, "reason": "source_has_audio"})
+
+    def test_silent_source_gets_generated_music_with_cost(self):
+        run, quality, usage = self._run(), {"flags": [], "manualReview": False}, {"renderCost": None}
+        with (
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k", "AUTOEDIT_MUSIC_USD_PER_MIN": "0.15"}),
+            patch.object(autoedit_media, "probe_has_audio", return_value=False),
+            patch.object(autoedit_media, "probe_duration", return_value=30.0),
+            patch.object(autoedit_music, "compose", return_value="music.mp3") as compose,
+            patch.object(autoedit_music, "mux_music", return_value="final.mp4"),
+        ):
+            out = autoedit_run._maybe_add_music(run, "src.mp4", "r.mp4", "cinematic", ".", quality, usage)
+        self.assertEqual(out, "final.mp4")
+        self.assertEqual(compose.call_args.args[:2], ("cinematic", 30.0))
+        self.assertTrue(run.report["music"]["added"])
+        self.assertEqual(run.report["music"]["reason"], "no_audio")
+        self.assertEqual(usage["renderCost"], 0.075)
+        self.assertEqual(quality["flags"], [])
+
+    def test_quiet_audio_track_counts_as_silent(self):
+        with patch.object(autoedit_music, "mean_volume_db", return_value=-70.0):
+            self.assertEqual(autoedit_music.silence_reason("x.mp4", True), "silent")
+        with patch.object(autoedit_music, "mean_volume_db", return_value=-30.0):
+            self.assertIsNone(autoedit_music.silence_reason("x.mp4", True))
+
+    def test_music_failure_keeps_the_edit_and_flags_it(self):
+        run, quality, usage = self._run(), {"flags": [], "manualReview": False}, {"renderCost": None}
+        with (
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k"}),
+            patch.object(autoedit_media, "probe_has_audio", return_value=False),
+            patch.object(autoedit_media, "probe_duration", return_value=15.0),
+            patch.object(autoedit_music, "compose", side_effect=RuntimeError("HTTP 500")),
+        ):
+            out = autoedit_run._maybe_add_music(run, "src.mp4", "r.mp4", "hype", ".", quality, usage)
+        self.assertEqual(out, "r.mp4")
+        self.assertFalse(run.report["music"]["added"])
+        self.assertTrue(quality["manualReview"])
+        self.assertTrue(any("Musique non ajoutée" in f for f in quality["flags"]))
+
+    def test_detection_failure_never_fails_the_job(self):
+        run = self._run()
+        with patch.object(autoedit_media, "probe_has_audio", side_effect=RuntimeError("ffprobe")):
+            out = autoedit_run._maybe_add_music(run, "src.mp4", "r.mp4", "hype", ".", {"flags": []}, {})
+        self.assertEqual(out, "r.mp4")
+        self.assertEqual(run.report["music"]["reason"], "detection_failed")
+
+    def test_music_can_be_disabled(self):
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k", "AUTOEDIT_MUSIC": "off"}):
+            self.assertFalse(autoedit_music.music_enabled())
+        with patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k"}):
+            os.environ.pop("AUTOEDIT_MUSIC", None)
+            self.assertTrue(autoedit_music.music_enabled())
+
+    def test_every_style_has_an_instrumental_prompt(self):
+        for style in ("hype", "cinematic", "clean", "emotional"):
+            self.assertIn("instrumental", autoedit_music.STYLE_PROMPTS[style].lower())
+
+
+class TestGeneralCaptions(unittest.TestCase):
+    def test_no_speech_keeps_the_edit(self):
+        run = Mock(report={})
+        quality, usage = {"flags": [], "manualReview": False}, {"analysisCost": None}
+        with (
+            patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k"}),
+            patch.object(autoedit_media, "probe_has_audio", return_value=True),
+            patch.object(autoedit_captions, "transcribe", return_value=[]) as transcribe,
+        ):
+            out = autoedit_run._maybe_add_captions(
+                run, "source.mp4", "rendered.mp4", {"decisions": []}, ".", quality, usage,
+            )
+        self.assertEqual(out, "rendered.mp4")
+        transcribe.assert_called_once_with("rendered.mp4")
+        self.assertEqual(run.report["captions"]["reason"], "no_speech")
 
 
 if __name__ == "__main__":

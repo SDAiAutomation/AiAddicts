@@ -1,6 +1,6 @@
 # AutoEdit — contrat frontend/backend v0
 
-Ce document définit le premier contrat partagé entre le frontend `growthos-web` et le backend GrowthOS. Le MVP concerne des clips sportifs courts. Le contrat doit rester compatible avec d'autres profils vidéo.
+Ce document définit le contrat partagé entre le frontend `growthos-web` et le backend GrowthOS. Deux profils sont disponibles : `sports` pour les temps forts sans sous-titres et `general` pour les vlogs, interviews et podcasts avec transcription de la parole.
 
 ## Création d'un job
 
@@ -9,15 +9,17 @@ Le frontend collecte une vidéo et une configuration. L'upload peut être direct
 ```ts
 type AutoEditCreateInput = {
   file: File
+  profile: "sports" | "general"
   focus: "best" | "player" | "goals"
   playerNumber?: string
   style: "hype" | "cinematic" | "clean" | "emotional"
   durationSeconds: 15 | 30 | 60
-  profile?: "sports"
 }
 ```
 
 Le backend répond rapidement avec un identifiant de job. Il ne doit pas maintenir la requête HTTP ouverte pendant l'analyse vidéo.
+
+Le profil `sports` n'ajoute jamais de sous-titres et conserve le son original ; si la source est sans piste audio ou quasi muette, Eleven Music peut produire une piste instrumentale adaptée au style. Le profil `general` transcrit uniquement le montage sélectionné avec ElevenLabs Scribe et réutilise le rendu de sous-titres mot par mot de Generate. Une panne de musique ou de transcription ne bloque pas le rendu : elle ajoute un signal de revue manuelle.
 
 ```ts
 type AutoEditCreateResponse = {
@@ -53,6 +55,7 @@ type AutoEditJob = {
     durationSeconds: number | null
   }
   configuration: {
+    profile: "sports" | "general"
     focus: "best" | "player" | "goals"
     playerNumber: string | null
     style: "hype" | "cinematic" | "clean" | "emotional"
@@ -154,7 +157,7 @@ Décision produit : infrastructure d'abord, expérimental, sans analyse vidéo p
 **Jalon livré** : `upload reprenable → autoedit_jobs → claim worker → analyse locale → événements → EDL → rendu FFmpeg → revue`.
 
 - Migration `20260923130000_autoedit_jobs.sql` (NON appliquée en remote tant que non validée) : table `autoedit_jobs`, bucket privé `autoedit-sources`, RPC `reserve_autoedit_credit` / `refund_autoedit_credit`.
-- Le frontend (client Supabase de l'utilisateur) : 1) `INSERT` dans `autoedit_jobs` avec seulement `organization_id, input_filename, input_duration_seconds?, focus, player_number?, style, duration_seconds` (statut `uploading` par défaut, `jobId` = `id` retourné) ; 2) upload du fichier vers `autoedit-sources` au chemin exact `<organization_id>/<jobId>/source` ; 3) `UPDATE status = 'queued'` — seule écriture permise (droits au niveau des colonnes + RLS). Un envoi jamais confirmé passe en `failed` (`upload_incomplete`) après 2 h.
+- Le frontend (client Supabase de l'utilisateur) : 1) `INSERT` dans `autoedit_jobs` avec seulement `organization_id, input_filename, input_duration_seconds?, profile, focus, player_number?, style, duration_seconds` (statut `uploading` par défaut, `jobId` = `id` retourné) ; 2) upload du fichier vers `autoedit-sources` au chemin exact `<organization_id>/<jobId>/source` ; 3) `UPDATE status = 'queued'` — seule écriture permise (droits au niveau des colonnes + RLS). Un envoi jamais confirmé passe en `failed` (`upload_incomplete`) après 2 h.
 - Lecture : `SELECT` sur `autoedit_jobs` (RLS par organisation) pour le polling. Correspondance ligne → contrat : `engine/autoedit.py` `to_job_view` / `to_result_view` (`stage_label` → `stageLabel`, `input_filename` → `input.filename`, `error` = `{code, message, retryable}`, `events`, `plan`, `quality`, `usage`, `video_url`, `poster_url`).
 - Statuts posés par le worker réel : `queued → analyzing → planning → rendering → review`. L'analyseur `signals` mesure les ruptures visuelles et les pics audio relatifs avec FFmpeg, fusionne les signaux qui couvrent le même passage, exécute l'EDL et produit une vidéo verticale. La revue reste obligatoire car cette version ne reconnaît pas encore sémantiquement les buts ni les joueurs. L'analyseur `simulated` reste disponible pour les smoke tests et ne produit aucune vidéo.
 - Codes d'erreur : `source_missing`, `insufficient_credits`, `plan_invalid`, `upload_incomplete`, `worker_lost`, `internal_error`.

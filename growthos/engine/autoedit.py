@@ -364,6 +364,7 @@ def to_job_view(row: dict) -> dict:
             "durationSeconds": _num(row.get("input_duration_seconds")),
         },
         "configuration": {
+            "profile": row.get("profile", "sports"),
             "focus": row["focus"],
             "playerNumber": row.get("player_number"),
             "style": row["style"],
