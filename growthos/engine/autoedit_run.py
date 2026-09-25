@@ -88,6 +88,12 @@ def process_job(client, job: dict, analyzer: autoedit.VideoAnalyzer) -> str:
                 duration_seconds=_float_or_none(job.get("input_duration_seconds")), local_path=local_source,
             )
             analysis = analyzer.analyze(source)
+            if job.get("profile", "sports") == "general" and not analysis.simulated:
+                # Les notes de l'analyseur parlent d'actions sportives et de
+                # joueur : hors sujet pour une vidéo générale.
+                analysis.notes[:] = [
+                    "Analyse locale limitée aux signaux visuels et audio : vérifiez que les moments retenus sont les bons."
+                ]
             if not analysis.simulated and job["focus"] == "player":
                 analysis.notes.append(
                     "Le numéro du joueur n'est pas encore suivi automatiquement : contrôlez chaque plan."

@@ -497,6 +497,53 @@ class TestRetention(unittest.TestCase):
         self.assertIsNone(fields["result_video_path"])
 
 
+class TestGeneralProfileNotes(unittest.TestCase):
+    def test_general_profile_quality_flag_does_not_mention_sports(self):
+        updates = []
+        real = Mock(simulated=False)
+        real.name = "real"
+        real.analyze.return_value = autoedit.AnalysisResult(
+            events=autoedit.SimulatedAnalyzer().analyze(autoedit.SourceVideo(JOB_ID, PATH, "m.mp4", 90.0)).events,
+            duration_seconds=90.0, analysis_cost=0.0, simulated=False, analyzer="real",
+            notes=["Analyse locale limitée aux signaux visuels et audio : vérifiez les actions sportives et le joueur ciblé."],
+        )
+        with (
+            patch.multiple(
+                autoedit_repo,
+                update_job=Mock(side_effect=lambda c, jid, **f: updates.append(f)),
+                source_exists=Mock(return_value=True), download_source=Mock(return_value="s.mp4"),
+                reserve_credit=Mock(return_value=True), refund_credit=Mock(return_value=True),
+                upload_result=Mock(side_effect=lambda c, path, local, ct: path),
+            ),
+            patch.object(autoedit_media, "render_plan", return_value="r.mp4"),
+            patch.object(autoedit_run, "_maybe_add_captions", side_effect=lambda run, s, r, *a: r),
+            patch.object(autoedit_run.poster, "extract_poster", return_value="p.jpg"),
+        ):
+            status = autoedit_run.process_job(object(), _job(profile="general", focus="best"), real)
+        self.assertEqual(status, "review")
+        flags = " ".join(updates[-1]["quality"]["flags"])
+        self.assertNotIn("sportive", flags)
+        self.assertNotIn("joueur", flags)
+
+
+class TestRenderFilterOrder(unittest.TestCase):
+    def test_slow_motion_is_applied_after_zoompan_so_video_keeps_audio_length(self):
+        plan = {"style": "cinematic", "decisions": [{
+            "startSeconds": 0.0, "endSeconds": 4.0, "speed": 0.75, "zoom": "progressive",
+            "transitionOut": "cut", "freezeSeconds": 0.0,
+        }]}
+        import tempfile
+        out = Path(tempfile.mkdtemp()) / "out.mp4"
+        with (
+            patch.object(autoedit_media, "probe_has_audio", return_value=True),
+            patch.object(autoedit_media, "_run", side_effect=lambda cmd: out.write_bytes(b"x")) as run,
+        ):
+            autoedit_media.render_plan("src.mp4", plan, str(out))
+        graph = run.call_args.args[0][run.call_args.args[0].index("-filter_complex") + 1]
+        self.assertLess(graph.index("zoompan"), graph.index("setpts=(PTS-STARTPTS)/0.75000"))
+        self.assertIn("atempo=0.75000", graph)
+
+
 class TestCaptionScale(unittest.TestCase):
     def test_captions_use_the_1080x1920_canvas_the_styles_are_calibrated_for(self):
         words = [{"text": "hello", "start": 0.0, "end": 0.4}]

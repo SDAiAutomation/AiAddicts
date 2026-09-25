@@ -168,12 +168,17 @@ def render_plan(source_path: str, plan: dict, output_path: str) -> str:
         effects = [
             "scale=720:1280:force_original_aspect_ratio=increase",
             f"crop=720:1280{style_filter}",
-            "setsar=1", "fps=30", f"setpts=(PTS-STARTPTS)/{speed:.5f}",
+            "setsar=1", "fps=30",
         ]
         if decision.get("zoom") == "punch":
             effects += ["scale=778:1382", "crop=720:1280"]
         elif decision.get("zoom") == "progressive":
             effects += ["zoompan=z='min(zoom+0.0015,1.12)':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=720x1280:fps=30"]
+        # Le ralenti APRÈS le zoom : zoompan réécrit les horodatages (une image
+        # sortie par image entrée, à 30 i/s) et annulait un ralenti appliqué
+        # avant lui -> image plus courte que le son (1,65 s de décalage mesuré
+        # en Cinématique/Émotionnel le 2026-09-25).
+        effects += [f"setpts=(PTS-STARTPTS)/{speed:.5f}"]
         if freeze:
             effects += [f"tpad=stop_mode=clone:stop_duration={freeze:.3f}"]
         if decision.get("transitionOut") == "flash" and output_length >= 0.3:
