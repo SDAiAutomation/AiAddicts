@@ -291,12 +291,38 @@ def get_account_performance(client, account_id: str) -> list[dict]:
         client.table("content_performance")
         .select(
             "content_item_id,captured_at,views,watch_time_pct,likes,comments,shares,"
-            "followers_delta,leads,content_items!inner(account_id,title,script)"
+            "followers_delta,leads,content_items!inner(account_id,title,script,story_features)"
         )
         .eq("content_items.account_id", account_id)
         .execute()
     )
     return result.data or []
+
+
+def clear_pending_recommendation(client, account_id: str) -> None:
+    """Retire la recommandation en attente quand les données ne justifient
+    plus aucune consigne : une ancienne décision ne doit pas continuer à
+    orienter la génération. Donnée dérivée, reconstruite au prochain calcul."""
+    client.table("recommendations").delete().eq("account_id", account_id).eq("status", "pending").execute()
+
+
+def get_accounts_with_performance(client) -> list[str]:
+    """Comptes ayant au moins un relevé, pour le recalcul quotidien de la
+    mémoire éditoriale (`refresh_learning.py`)."""
+    result = (
+        client.table("content_performance")
+        .select("content_items!inner(account_id)")
+        .execute()
+    )
+    return sorted({
+        row["content_items"]["account_id"] for row in (result.data or [])
+        if (row.get("content_items") or {}).get("account_id")
+    })
+
+
+def save_story_features(client, content_item_id: str, features: dict) -> None:
+    """Cache de la classification (`engine/story_features.py`)."""
+    client.table("content_items").update({"story_features": features}).eq("id", content_item_id).execute()
 
 
 def replace_account_insights(client, account_id: str, insights: list[dict]) -> None:

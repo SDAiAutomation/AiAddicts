@@ -1,9 +1,11 @@
 name: GrowthOS metrics
 
-# Relevé quotidien des métriques YouTube (vues, likes, commentaires, et
+# Chaque matin : relevé des métriques YouTube (vues, likes, commentaires, et
 # rétention/partages/abonnés quand le compte a accordé yt-analytics.readonly)
-# vers content_performance. La logique est dans growthos-web :
-# /api/cron/youtube-metrics (src/lib/youtube/metrics.ts).
+# vers content_performance — logique dans growthos-web :
+# /api/cron/youtube-metrics (src/lib/youtube/metrics.ts) — puis recalcul de la
+# mémoire éditoriale de chaque compte (growthos/refresh_learning.py), qui
+# alimente la recommandation injectée dans les prompts de script.
 on:
   schedule:
     - cron: "23 5 * * *"
@@ -12,12 +14,18 @@ on:
 jobs:
   youtube-metrics:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: growthos
     steps:
+      - uses: actions/checkout@v4
+
       - name: Relever les métriques YouTube
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SITE_URL: ${{ secrets.SITE_URL }}
+        working-directory: .
         run: |
           test -n "$CRON_SECRET" && test -n "$SITE_URL"
           SITE_URL="${SITE_URL%/}"
@@ -31,3 +39,27 @@ jobs:
             echo "Metrics cron returned HTTP $http_code; expected 200." >&2
             exit 1
           fi
+
+      - uses: actions/setup-python@v5
+        if: always()
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: growthos/requirements.txt
+
+      - name: Installer les dépendances Python
+        if: always()
+        run: pip install -r requirements.txt
+
+      - name: Recalculer la mémoire éditoriale des comptes
+        # Même si le relevé du jour a échoué : les relevés précédents restent
+        # valables et la recommandation doit rester à jour.
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Classe une seule fois chaque nouvelle vidéo (archétype + accroche).
+          LEARNING_MODEL: "gpt-5-mini"
+        run: python refresh_learning.py
