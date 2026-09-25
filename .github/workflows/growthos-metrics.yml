@@ -63,3 +63,13 @@ jobs:
           # Classe une seule fois chaque nouvelle vidéo (archétype + accroche).
           LEARNING_MODEL: "gpt-5-mini"
         run: python refresh_learning.py
+
+      - name: Purger les vidéos AutoEdit expirées
+        # Que AutoEdit soit activé ou non : les vidéos envoyées doivent
+        # disparaître à la date annoncée (expires_at).
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python purge_autoedit.py

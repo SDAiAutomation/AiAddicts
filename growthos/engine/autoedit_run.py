@@ -11,7 +11,7 @@ import traceback
 import tempfile
 from pathlib import Path
 
-from engine import autoedit, autoedit_repo as repo, poster, storage
+from engine import autoedit, autoedit_repo as repo, poster
 
 
 class _Run:
@@ -114,16 +114,21 @@ def process_job(client, job: dict, analyzer: autoedit.VideoAnalyzer) -> str:
                 from engine.autoedit_media import render_plan
                 run.advance("rendering", plan=plan)
                 rendered = render_plan(local_source, plan, str(Path(work) / "result.mp4"))
-                result_fields["video_url"] = storage.upload_video(client, job_id, rendered)
+                # Bucket privé : ce sont des vidéos envoyées par l'utilisateur.
+                result_fields["result_video_path"] = repo.upload_result(
+                    client, autoedit.result_video_path(organization_id, job_id), rendered, "video/mp4",
+                )
                 try:
                     poster_path = poster.extract_poster(rendered, str(Path(work) / "poster.jpg"))
-                    result_fields["poster_url"] = storage.upload_poster(client, job_id, poster_path)
+                    result_fields["result_poster_path"] = repo.upload_result(
+                        client, autoedit.result_poster_path(organization_id, job_id), poster_path, "image/jpeg",
+                    )
                 except Exception:
                     traceback.print_exc()
 
             run.advance(
                 "review", plan=plan, quality=autoedit.build_quality(analysis),
-                usage=autoedit.build_usage(analysis), **result_fields,
+                usage=autoedit.build_usage(analysis), expires_at=repo.expiry_from_now(), **result_fields,
             )
         return "review"
     except autoedit.AutoEditError as exc:

@@ -217,6 +217,13 @@ class TestContractViews(unittest.TestCase):
         self.assertIsNone(result["videoUrl"])
         self.assertTrue(result["quality"]["manualReview"])
 
+    def test_result_view_never_exposes_a_stored_url(self):
+        result = autoedit.to_result_view(self._row(video_url="https://public/x.mp4", expires_at="t9", purged_at=None))
+        self.assertIsNone(result["videoUrl"])
+        self.assertEqual(result["expiresAt"], "t9")
+        self.assertFalse(result["purged"])
+        self.assertTrue(autoedit.to_result_view(self._row(purged_at="t10"))["purged"])
+
 
 class TestCreditCostAndFlag(unittest.TestCase):
     def test_simulated_costs_nothing(self):
@@ -321,16 +328,22 @@ class TestProcessJob(unittest.TestCase):
             events=real.analyze.return_value.events, duration_seconds=90.0,
             analysis_cost=0.01, simulated=False, analyzer="real",
         )
+        uploads = []
         with (
             patch.object(autoedit_media, "render_plan", return_value="result.mp4"),
-            patch.object(autoedit_run.storage, "upload_video", return_value="https://cdn/result.mp4"),
+            patch.object(autoedit_repo, "upload_result", side_effect=lambda c, path, local, ct: uploads.append((path, ct)) or path),
             patch.object(autoedit_run.poster, "extract_poster", return_value="poster.jpg"),
-            patch.object(autoedit_run.storage, "upload_poster", return_value="https://cdn/poster.jpg"),
         ):
             status = autoedit_run.process_job(object(), _job(), real)
         self.assertEqual(status, "review")
-        self.assertEqual(self._final()["video_url"], "https://cdn/result.mp4")
-        self.assertEqual(self._final()["poster_url"], "https://cdn/poster.jpg")
+        final = self._final()
+        # Rendu privé : un chemin dans autoedit-results, jamais une URL publique.
+        self.assertEqual(final["result_video_path"], f"{ORG_ID}/{JOB_ID}/result.mp4")
+        self.assertEqual(final["result_poster_path"], f"{ORG_ID}/{JOB_ID}/poster.jpg")
+        self.assertNotIn("video_url", final)
+        self.assertNotIn("poster_url", final)
+        self.assertEqual(uploads, [(f"{ORG_ID}/{JOB_ID}/result.mp4", "video/mp4"), (f"{ORG_ID}/{JOB_ID}/poster.jpg", "image/jpeg")])
+        self.assertIn("expires_at", final)
         self.assertIn("rendering", [u.get("status") for u in self.updates])
         autoedit_repo.refund_credit.assert_not_called()
 
@@ -413,6 +426,38 @@ class TestWorkerWiring(unittest.TestCase):
         import py_compile
 
         py_compile.compile(str(Path(__file__).parent.parent / "worker.py"), doraise=True)
+
+
+class TestRetention(unittest.TestCase):
+    def test_retention_days_default_override_and_floor(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AUTOEDIT_RETENTION_DAYS", None)
+            self.assertEqual(autoedit.retention_days(), 7)
+        with patch.dict(os.environ, {"AUTOEDIT_RETENTION_DAYS": "30"}):
+            self.assertEqual(autoedit.retention_days(), 30)
+        with patch.dict(os.environ, {"AUTOEDIT_RETENTION_DAYS": "0"}):
+            self.assertEqual(autoedit.retention_days(), 1)
+        with patch.dict(os.environ, {"AUTOEDIT_RETENTION_DAYS": "abc"}):
+            self.assertEqual(autoedit.retention_days(), 7)
+
+    def test_failed_job_gets_an_expiry(self):
+        self.assertIn("expires_at", autoedit_repo._failed_fields({"code": "x"}))
+
+    def test_purge_removes_source_and_results_then_marks_job(self):
+        client = Mock()
+        query = client.table.return_value.select.return_value.is_.return_value.lt.return_value.limit.return_value
+        query.execute.return_value.data = [{"id": JOB_ID, "organization_id": ORG_ID}]
+        buckets = {}
+        client.storage.from_.side_effect = lambda name: buckets.setdefault(name, Mock())
+        with patch.object(autoedit_repo, "update_job") as update:
+            self.assertEqual(autoedit_repo.purge_expired(client), 1)
+        buckets["autoedit-sources"].remove.assert_called_once_with([f"{ORG_ID}/{JOB_ID}/source"])
+        buckets["autoedit-results"].remove.assert_called_once_with(
+            [f"{ORG_ID}/{JOB_ID}/result.mp4", f"{ORG_ID}/{JOB_ID}/poster.jpg"]
+        )
+        fields = update.call_args.kwargs
+        self.assertIn("purged_at", fields)
+        self.assertIsNone(fields["result_video_path"])
 
 
 if __name__ == "__main__":

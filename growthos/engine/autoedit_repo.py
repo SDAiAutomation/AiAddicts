@@ -28,12 +28,20 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def expiry_from_now() -> str:
+    """Date de suppression de la source et des rendus d'un job qui se termine
+    (en revue ou en échec) : la source reste disponible pour une nouvelle
+    tentative ou un autre montage jusque-là."""
+    return (_now() + timedelta(days=autoedit.retention_days())).isoformat()
+
+
 def _failed_fields(error: dict) -> dict:
     return {
         "status": "failed",
         "stage_label": autoedit.STAGE_LABELS["failed"],
         "progress": None,
         "error": error,
+        "expires_at": expiry_from_now(),
     }
 
 
@@ -152,6 +160,41 @@ def download_source(client, organization_id: str, job_id: str, destination: str)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(payload)
     return str(target)
+
+
+def upload_result(client, storage_path: str, local_path: str, content_type: str) -> str:
+    """Dépose un rendu dans le bucket PRIVÉ `autoedit-results` et retourne son
+    chemin (jamais une URL publique : l'API web signe une URL temporaire)."""
+    client.storage.from_(autoedit.RESULT_BUCKET).upload(
+        storage_path,
+        str(Path(local_path).resolve()),
+        file_options={"content-type": content_type, "upsert": "true"},
+    )
+    return storage_path
+
+
+def purge_expired(client, now: datetime | None = None, limit: int = 200) -> int:
+    """Supprime la source et les rendus des jobs dont `expires_at` est passé,
+    puis marque `purged_at`. Le job reste comme historique (plan, qualité),
+    sans vidéo. Idempotent : Storage ignore les chemins déjà absents."""
+    now = now or _now()
+    rows = (
+        client.table("autoedit_jobs")
+        .select("id,organization_id")
+        .is_("purged_at", "null")
+        .lt("expires_at", now.isoformat())
+        .limit(limit)
+        .execute()
+        .data or []
+    )
+    for row in rows:
+        org, job_id = row["organization_id"], row["id"]
+        client.storage.from_(BUCKET).remove([autoedit.source_path(org, job_id)])
+        client.storage.from_(autoedit.RESULT_BUCKET).remove([
+            autoedit.result_video_path(org, job_id), autoedit.result_poster_path(org, job_id),
+        ])
+        update_job(client, job_id, purged_at=now.isoformat(), result_video_path=None, result_poster_path=None)
+    return len(rows)
 
 
 def reserve_credit(client, job_id: str, credits: int) -> bool:

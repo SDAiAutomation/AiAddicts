@@ -321,6 +321,28 @@ def autoedit_enabled() -> bool:
     return os.environ.get("AUTOEDIT_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 
 
+RESULT_BUCKET = "autoedit-results"
+_DEFAULT_RETENTION_DAYS = 7
+
+
+def retention_days() -> int:
+    """Durée de conservation de la source et des rendus après la fin d'un job
+    (`AUTOEDIT_RETENTION_DAYS`, défaut 7, minimum 1)."""
+    try:
+        return max(1, int(os.environ.get("AUTOEDIT_RETENTION_DAYS", "").strip() or _DEFAULT_RETENTION_DAYS))
+    except ValueError:
+        return _DEFAULT_RETENTION_DAYS
+
+
+def result_video_path(organization_id: str, job_id: str) -> str:
+    """Montage rendu dans le bucket privé `autoedit-results`."""
+    return f"{organization_id}/{job_id}/result.mp4"
+
+
+def result_poster_path(organization_id: str, job_id: str) -> str:
+    return f"{organization_id}/{job_id}/poster.jpg"
+
+
 def source_path(organization_id: str, job_id: str) -> str:
     """Chemin de la source dans le bucket privé — calculé, jamais stocké ;
     doit rester aligné avec la policy `autoedit_sources_upload`."""
@@ -362,8 +384,12 @@ def to_result_view(row: dict) -> dict | None:
     return {
         "jobId": row["id"],
         "status": row["status"],
-        "videoUrl": row.get("video_url"),
-        "posterUrl": row.get("poster_url"),
+        # Le montage est privé : l'URL (signée, temporaire) est fabriquée par
+        # l'API web à chaque lecture, jamais stockée.
+        "videoUrl": None,
+        "posterUrl": None,
+        "expiresAt": row.get("expires_at"),
+        "purged": row.get("purged_at") is not None,
         "plan": plan,
         "eventsUsed": [d["eventId"] for d in plan.get("decisions", []) if d.get("eventId")],
         "quality": row.get("quality") or {"score": None, "flags": [], "manualReview": False},

@@ -117,6 +117,8 @@ type AutoEditResult = {
   status: "completed" | "review"
   videoUrl: string | null
   posterUrl: string | null
+  expiresAt: string | null
+  purged: boolean
   plan: AutoEditPlan
   eventsUsed: string[]
   quality: {
@@ -132,7 +134,9 @@ type AutoEditResult = {
 }
 ```
 
-`videoUrl` et `posterUrl` peuvent rester `null` pendant `review`. Le frontend doit proposer une revue lorsque `manualReview` vaut `true` ou lorsque `quality.flags` n'est pas vide.
+`videoUrl` et `posterUrl` peuvent rester `null` pendant `review`.
+
+**Confidentialité et rétention.** Le montage est rendu dans le bucket privé `autoedit-results` (`<organization_id>/<job_id>/result.mp4` et `poster.jpg`), jamais dans le bucket public des vidéos générées. `videoUrl` et `posterUrl` sont des URL **signées temporaires** (2 h) fabriquées par `GET /api/autoedit/jobs/:jobId` à chaque appel, après lecture du job sous RLS : le frontend ne doit ni les stocker, ni les partager, mais relire le job pour en obtenir de nouvelles. `expiresAt` est la date à laquelle la source et le montage seront supprimés (`AUTOEDIT_RETENTION_DAYS`, 7 jours par défaut, posée à la fin du job, en revue comme en échec) ; `purge_autoedit.py` les supprime chaque jour. Après suppression, `purged` vaut `true`, les URL restent `null` et le job reste visible comme historique : le frontend doit l'indiquer au lieu d'un lecteur vide. Le frontend doit proposer une revue lorsque `manualReview` vaut `true` ou lorsque `quality.flags` n'est pas vide.
 
 ## Règles de frontière
 
