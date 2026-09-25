@@ -9,6 +9,7 @@ from engine.video import _run
 
 SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 SCRIBE_MODEL = "scribe_v2"
+CAPTION_CANVAS = "1080x1920"
 
 
 def transcribe(path: str) -> list[dict]:
@@ -35,7 +36,11 @@ def burn(video_path: str, words: list[dict], output_path: str, work_dir: str) ->
         return video_path
     duration = max(word["end"] for word in words)
     cues = captions.build_cues([(words, duration)])
-    ass_path = captions.write_ass(cues, str(Path(work_dir) / "autoedit-captions.ass"), "word_pop", "720x1280")
+    # Les tailles et marges des styles sont calibrées pour 1080x1920 (Generate).
+    # On décrit donc le .ass dans ce repère : libass le met à l'échelle du
+    # montage 720x1280. Déclarer 720x1280 grossissait le texte de 50 % (3
+    # lignes pour 3 mots au lieu d'une, constaté le 2026-09-25).
+    ass_path = captions.write_ass(cues, str(Path(work_dir) / "autoedit-captions.ass"), "word_pop", CAPTION_CANVAS)
     _run([
         "ffmpeg", "-y", "-i", str(Path(video_path).resolve()), "-vf", f"subtitles={Path(ass_path).name}",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "copy", "-movflags", "+faststart",

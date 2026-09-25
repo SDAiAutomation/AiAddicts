@@ -103,6 +103,11 @@ jobs:
           # pics audio), montages dans le bucket privé autoedit-results.
           AUTOEDIT_ENABLED: "true"
           AUTOEDIT_ANALYZER: "signals"
+          # Musique Eleven Music ajoutée aux montages dont la source est muette
+          # (engine/autoedit_music.py) ; tarif API pour le suivi de coût.
+          AUTOEDIT_MUSIC_USD_PER_MIN: "0.15"
+          # Transcription Eleven Scribe des montages « Général » (sous-titres).
+          AUTOEDIT_SCRIBE_USD_PER_HOUR: "0.22"
         run: python worker.py --until-idle
 
   publish-queue:

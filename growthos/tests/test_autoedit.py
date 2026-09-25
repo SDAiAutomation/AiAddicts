@@ -460,6 +460,19 @@ class TestRetention(unittest.TestCase):
         self.assertIsNone(fields["result_video_path"])
 
 
+class TestCaptionScale(unittest.TestCase):
+    def test_captions_use_the_1080x1920_canvas_the_styles_are_calibrated_for(self):
+        words = [{"text": "hello", "start": 0.0, "end": 0.4}]
+        with (
+            patch.object(autoedit_captions.captions, "write_ass", return_value="x.ass") as write_ass,
+            patch.object(autoedit_captions, "_run"),
+            patch.object(autoedit_captions.Path, "exists", return_value=True),
+            patch.object(autoedit_captions.Path, "stat", return_value=Mock(st_size=10)),
+        ):
+            autoedit_captions.burn("in.mp4", words, "out.mp4", ".")
+        self.assertEqual(write_ass.call_args.args[3], "1080x1920")
+
+
 class TestSilentSource(unittest.TestCase):
     def test_no_audio_stream_yields_no_audio_peaks_without_running_ffmpeg(self):
         with (
