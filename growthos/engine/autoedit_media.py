@@ -69,7 +69,7 @@ class SignalAnalyzer:
             analysis_cost=0.0,
             simulated=False,
             analyzer=self.name,
-            notes=["Analyse locale limitée aux ruptures visuelles : vérifiez les actions sportives et le joueur ciblé."],
+            notes=["Analyse locale limitée aux signaux visuels et audio : vérifiez les actions sportives et le joueur ciblé."],
         )
 
 
