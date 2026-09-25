@@ -196,6 +196,11 @@ def plan_edit(events: list[dict], configuration: dict, source: SourceVideo, sour
             break
         start = max(0.0, event["startSeconds"] - _PADDING_SECONDS)
         end = min(source_duration, event["endSeconds"] + _PADDING_SECONDS)
+        # Une rupture visuelle et un pic audio décrivent souvent le même moment.
+        # Ne jamais répéter des images déjà retenues pour remplir artificiellement
+        # la durée cible.
+        if any(start < decision["endSeconds"] and end > decision["startSeconds"] for decision in chosen):
+            continue
         length = min(end - start, target - total)
         if length < _MIN_CLIP_SECONDS:
             continue

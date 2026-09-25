@@ -14,6 +14,7 @@ from engine.video import _run
 SCENE_THRESHOLD = 0.30
 MIN_EVENT_GAP_SECONDS = 1.0
 MAX_EVENTS = 80
+AUDIO_MIN_GAP_SECONDS = 2.0
 
 
 class SignalAnalyzer:
@@ -40,6 +41,17 @@ class SignalAnalyzer:
                 "confidence": None,
                 "subject": None,
                 "notes": "Rupture visuelle détectée localement par FFmpeg.",
+            })
+        for index, (at, score) in enumerate(detect_audio_peaks(source.local_path), start=1):
+            events.append({
+                "id": f"{source.job_id}-audio-{index}",
+                "type": "audio_peak",
+                "startSeconds": round(max(0.0, at - 1.5), 2),
+                "endSeconds": round(min(duration, at + 2.5), 2),
+                "score": score,
+                "confidence": None,
+                "subject": None,
+                "notes": "Pic d'intensité audio mesuré localement par FFmpeg.",
             })
         if not events:
             step = max(3.0, duration / 8)
@@ -84,6 +96,52 @@ def detect_scene_changes(path: str) -> list[float]:
         if not kept or value - kept[-1] >= MIN_EVENT_GAP_SECONDS:
             kept.append(value)
     return kept
+
+
+def detect_audio_peaks(path: str) -> list[tuple[float, int]]:
+    """Retourne les maxima RMS relatifs. Le score décrit l'intensité mesurée
+    dans cette vidéo (0..100), jamais une probabilité de but ou de viralité."""
+    result = _run([
+        "ffmpeg", "-i", str(Path(path).resolve()),
+        "-af", f"asetnsamples=n=24000,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level",
+        "-vn", "-f", "null", "-",
+    ])
+    samples = parse_audio_levels(result.stderr)
+    finite = [(at, level) for at, level in samples if level > -120]
+    if len(finite) < 3:
+        return []
+    levels = sorted(level for _, level in finite)
+    threshold = levels[max(0, int(len(levels) * 0.75) - 1)]
+    low, high = levels[0], levels[-1]
+    # Un public ou une musique constamment forts ne constituent pas une série
+    # de moments forts. Exiger une vraie dynamique relative évite de découper
+    # arbitrairement un signal presque constant.
+    if high - low < 3.0:
+        return []
+    candidates = sorted(((at, level) for at, level in finite if level >= threshold), key=lambda item: item[1], reverse=True)
+    selected: list[tuple[float, int]] = []
+    for at, level in candidates:
+        if any(abs(at - existing_at) < AUDIO_MIN_GAP_SECONDS for existing_at, _ in selected):
+            continue
+        score = 50 if high <= low else round(50 + 50 * (level - low) / (high - low))
+        selected.append((at, min(100, max(0, score))))
+        if len(selected) >= 20:
+            break
+    return sorted(selected)
+
+
+def parse_audio_levels(stderr: str) -> list[tuple[float, float]]:
+    current_time: float | None = None
+    samples: list[tuple[float, float]] = []
+    for line in stderr.splitlines():
+        time_match = re.search(r"pts_time:([0-9]+(?:\.[0-9]+)?)", line)
+        if time_match:
+            current_time = float(time_match.group(1))
+        level_match = re.search(r"lavfi\.astats\.Overall\.RMS_level=(-?(?:[0-9]+(?:\.[0-9]+)?|inf))", line, re.I)
+        if level_match and current_time is not None:
+            raw = level_match.group(1).lower()
+            samples.append((current_time, -999.0 if raw == "-inf" else float(raw)))
+    return samples
 
 
 def render_plan(source_path: str, plan: dict, output_path: str) -> str:

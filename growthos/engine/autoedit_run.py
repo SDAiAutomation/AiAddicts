@@ -87,6 +87,14 @@ def process_job(client, job: dict, analyzer: autoedit.VideoAnalyzer) -> str:
                 duration_seconds=_float_or_none(job.get("input_duration_seconds")), local_path=local_source,
             )
             analysis = analyzer.analyze(source)
+            if not analysis.simulated and job["focus"] == "player":
+                analysis.notes.append(
+                    "Le numéro du joueur n'est pas encore suivi automatiquement : contrôlez chaque plan."
+                )
+            if not analysis.simulated and job["focus"] == "goals":
+                analysis.notes.append(
+                    "Les buts ne sont pas encore reconnus sémantiquement : la sélection utilise l'image et l'audio."
+                )
             run.report["notes"] = analysis.notes
             repo.update_job(client, job_id, events=analysis.events)
 

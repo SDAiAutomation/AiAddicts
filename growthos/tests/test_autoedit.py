@@ -76,12 +76,22 @@ class TestSimulatedAnalyzer(unittest.TestCase):
         with (
             patch.object(autoedit_media, "probe_duration", return_value=20.0),
             patch.object(autoedit_media, "detect_scene_changes", return_value=[4.0, 12.0]),
+            patch.object(autoedit_media, "detect_audio_peaks", return_value=[]),
         ):
             result = autoedit_media.SignalAnalyzer().analyze(source)
         self.assertFalse(result.simulated)
         self.assertEqual([event["type"] for event in result.events], ["scene_change", "scene_change"])
         self.assertEqual(result.duration_seconds, 20.0)
         self.assertTrue(result.notes)
+
+    def test_audio_metadata_parser_keeps_timestamp_and_rms(self):
+        stderr = "\n".join([
+            "[Parsed_ametadata] frame:0 pts:0 pts_time:0.5",
+            "[Parsed_ametadata] lavfi.astats.Overall.RMS_level=-22.4",
+            "[Parsed_ametadata] frame:1 pts:1 pts_time:1.0",
+            "[Parsed_ametadata] lavfi.astats.Overall.RMS_level=-inf",
+        ])
+        self.assertEqual(autoedit_media.parse_audio_levels(stderr), [(0.5, -22.4), (1.0, -999.0)])
 
 
 class TestPlanEdit(unittest.TestCase):
@@ -116,6 +126,16 @@ class TestPlanEdit(unittest.TestCase):
         self.assertEqual(
             autoedit.plan_edit(events, cfg, source, 90.0), autoedit.plan_edit(events, cfg, source, 90.0)
         )
+
+    def test_overlapping_signals_do_not_repeat_the_same_footage(self):
+        source = autoedit.SourceVideo(JOB_ID, PATH, "m.mp4", 30.0)
+        events = [
+            {"id": "audio", "type": "audio_peak", "startSeconds": 5.0, "endSeconds": 9.0, "score": 90},
+            {"id": "scene", "type": "scene_change", "startSeconds": 6.0, "endSeconds": 10.0, "score": None},
+            {"id": "later", "type": "scene_change", "startSeconds": 15.0, "endSeconds": 19.0, "score": None},
+        ]
+        plan = autoedit.plan_edit(events, {"focus": "best", "style": "clean", "durationSeconds": 15}, source, 30.0)
+        self.assertEqual([decision["eventId"] for decision in plan["decisions"]], ["audio", "later"])
 
 
 class TestValidatePlan(unittest.TestCase):
