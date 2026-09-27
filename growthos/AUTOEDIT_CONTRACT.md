@@ -123,6 +123,7 @@ type AutoEditResult = {
   status: "completed" | "review"
   videoUrl: string | null
   posterUrl: string | null
+  downloadUrl: string | null // même fichier, servi en pièce jointe (`<nom>-faceloop.mp4`)
   expiresAt: string | null
   purged: boolean
   plan: AutoEditPlan
@@ -143,6 +144,30 @@ type AutoEditResult = {
 `videoUrl` et `posterUrl` peuvent rester `null` pendant `review`.
 
 **Confidentialité et rétention.** Le montage est rendu dans le bucket privé `autoedit-results` (`<organization_id>/<job_id>/result.mp4` et `poster.jpg`), jamais dans le bucket public des vidéos générées. `videoUrl` et `posterUrl` sont des URL **signées temporaires** (2 h) fabriquées par `GET /api/autoedit/jobs/:jobId` à chaque appel, après lecture du job sous RLS : le frontend ne doit ni les stocker, ni les partager, mais relire le job pour en obtenir de nouvelles. `expiresAt` est la date à laquelle la source et le montage seront supprimés (`AUTOEDIT_RETENTION_DAYS`, 7 jours par défaut, posée à la fin du job, en revue comme en échec) ; `purge_autoedit.py` les supprime chaque jour. Après suppression, `purged` vaut `true`, les URL restent `null` et le job reste visible comme historique : le frontend doit l'indiquer au lieu d'un lecteur vide. Le frontend doit proposer une revue lorsque `manualReview` vaut `true` ou lorsque `quality.flags` n'est pas vide.
+
+`downloadUrl` suit les mêmes règles que `videoUrl` (signée 2 h, `null` si purgé ou non terminé) ; le bouton « Télécharger » l'utilise tel quel, sans la stocker.
+
+## Historique des montages
+
+`GET /api/autoedit/jobs?limit=20&before=<createdAt>` liste les montages de l'organisation active, tous appareils confondus, du plus récent au plus ancien. `limit` vaut 20 par défaut (1 à 50). La lecture reste ouverte même quand `AUTOEDIT_ENABLED` est coupé.
+
+```ts
+type AutoEditHistoryItem = AutoEditJob & {
+  result: {
+    posterUrl: string | null // miniature signée 2 h
+    expiresAt: string | null
+    purged: boolean
+    manualReview: boolean // manualReview ou au moins un flag qualité
+  } | null // null tant que ni 'review' ni 'completed'
+}
+
+type AutoEditHistoryResponse = {
+  jobs: AutoEditHistoryItem[]
+  nextBefore: string | null // à repasser en ?before= ; null = fin de liste
+}
+```
+
+La liste ne contient jamais `videoUrl` ni `downloadUrl` : à l'ouverture d'un montage, le frontend appelle `GET /api/autoedit/jobs/:jobId`. Le `localStorage` ne sert plus qu'à reprendre le suivi du job en cours, pas de source d'historique. Erreurs : `invalid_input` (400), `unauthenticated` (401), `history_unavailable` (500).
 
 ## Règles de frontière
 
