@@ -169,6 +169,17 @@ type AutoEditHistoryResponse = {
 
 La liste ne contient jamais `videoUrl` ni `downloadUrl` : à l'ouverture d'un montage, le frontend appelle `GET /api/autoedit/jobs/:jobId`. Le `localStorage` ne sert plus qu'à reprendre le suivi du job en cours, pas de source d'historique. Erreurs : `invalid_input` (400), `unauthenticated` (401), `history_unavailable` (500).
 
+## Suppression d'un montage
+
+`DELETE /api/autoedit/jobs/:jobId` efface la source, le rendu et la miniature, puis retire le montage de l'historique. Réponse : `{ jobId: string, deleted: true }`.
+
+- Rôles : ceux qui peuvent créer un montage (`owner`, `strategist`, `editor`) ; sinon `forbidden` (403).
+- Statuts supprimables : `uploading` (envoi abandonné), `review`, `completed`, `failed`. En file ou en traitement : `job_in_progress` (409), le frontend propose d'attendre la fin.
+- Montage inconnu ou d'une autre organisation : `not_found` (404).
+- Échec du nettoyage des fichiers : `delete_failed` (500), le montage reste et l'appel peut être relancé.
+- Aucun remboursement : les écritures de crédit restent dans l'historique de facturation, détachées du montage.
+- Action irréversible : le frontend demande une confirmation avant l'appel, puis retire l'élément de la liste.
+
 ## Règles de frontière
 
 - Le frontend ne calcule pas les highlights, la qualité, les coûts ou les timecodes.
