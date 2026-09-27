@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from engine import db, learning, repo, story_features
+from engine import db, learning, repo, story_features, recommendation_tracking
 
 
 def _classify_missing(client, rows: list[dict]) -> int:
@@ -29,12 +29,15 @@ def _classify_missing(client, rows: list[dict]) -> int:
         content = row.get("content_items") or {}
         cached = content.get("story_features") or {}
         # Reclasse quand la consigne du classifieur a changé (VERSION).
-        if not item_id or item_id in done or cached.get("version") == story_features.VERSION:
+        fingerprint = recommendation_tracking.script_fingerprint(content.get("script") or {})
+        if not item_id or item_id in done or (cached.get("version") == story_features.VERSION
+                                             and cached.get("input_fingerprint") == fingerprint):
             continue
         done.add(item_id)
         features = story_features.classify(str(content.get("title") or ""), content.get("script") or {})
         if features is None:
             continue
+        features["input_fingerprint"] = fingerprint
         repo.save_story_features(client, item_id, features)
         classified += 1
         # Même objet partagé par toutes les lignes de cette vidéo : le calcul
@@ -44,6 +47,15 @@ def _classify_missing(client, rows: list[dict]) -> int:
             if str(other.get("content_item_id")) == item_id:
                 (other.get("content_items") or {})["story_features"] = features
     return classified
+
+
+def refresh_recommendation_reports(client, account_id: str, rows: list[dict]) -> int:
+    count = 0
+    for item in repo.get_account_recommendation_items(client, account_id):
+        report = recommendation_tracking.build_report(item, rows)
+        if report is not None and repo.save_recommendation_report(client, item, report):
+            count += 1
+    return count
 
 
 def main() -> int:
@@ -60,9 +72,11 @@ def main() -> int:
                 repo.save_pending_recommendation(client, account_id, recommendation)
             else:
                 repo.clear_pending_recommendation(client, account_id)
+            tracked = refresh_recommendation_reports(client, account_id, rows)
             print(
                 f"{account_id}: {classified} vidéo(s) classée(s), {len(insights)} insight(s), "
-                f"recommandation : {recommendation['confidence'] if recommendation else 'aucune (données insuffisantes)'}"
+                f"recommandation : {recommendation['confidence'] if recommendation else 'aucune (données insuffisantes)'}, "
+                f"{tracked} test(s) suivi(s)"
             )
             if recommendation:
                 print(f"    {recommendation['body']}")

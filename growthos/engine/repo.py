@@ -287,16 +287,16 @@ def get_recent_scripts(client, account_id: str, exclude_content_item_id: str | N
 
 def get_account_performance(client, account_id: str) -> list[dict]:
     """Snapshots de performance avec le script nécessaire à l'apprentissage."""
-    result = (
-        client.table("content_performance")
-        .select(
-            "content_item_id,captured_at,views,watch_time_pct,likes,comments,shares,"
-            "followers_delta,leads,content_items!inner(account_id,title,script,story_features)"
-        )
-        .eq("content_items.account_id", account_id)
-        .execute()
-    )
-    return result.data or []
+    rows = []
+    while True:
+        page = (client.table("content_performance")
+                .select("content_item_id,captured_at,views,watch_time_pct,likes,comments,shares,"
+                        "followers_delta,leads,content_items!inner(account_id,title,script,story_features,updated_at)")
+                .eq("content_items.account_id", account_id).order("captured_at").order("id")
+                .range(len(rows), len(rows) + 499).execute().data or [])
+        rows.extend(page)
+        if not page:
+            return rows
 
 
 def clear_pending_recommendation(client, account_id: str) -> None:
@@ -309,15 +309,49 @@ def clear_pending_recommendation(client, account_id: str) -> None:
 def get_accounts_with_performance(client) -> list[str]:
     """Comptes ayant au moins un relevé, pour le recalcul quotidien de la
     mémoire éditoriale (`refresh_learning.py`)."""
-    result = (
-        client.table("content_performance")
-        .select("content_items!inner(account_id)")
-        .execute()
-    )
-    return sorted({
-        row["content_items"]["account_id"] for row in (result.data or [])
-        if (row.get("content_items") or {}).get("account_id")
-    })
+    accounts = set()
+    offset = 0
+    while True:
+        rows = (client.table("content_performance").select("content_items!inner(account_id)")
+                .order("id").range(offset, offset + 499).execute().data or [])
+        accounts.update(row["content_items"]["account_id"] for row in rows
+                        if (row.get("content_items") or {}).get("account_id"))
+        if not rows:
+            break
+        offset += len(rows)
+    # A new account can have a traced draft before its first metric arrives.
+    offset = 0
+    while True:
+        rows = (client.table("content_items").select("account_id")
+                .not_.is_("script->>recommendation_receipt", "null")
+                .order("id").range(offset, offset + 499).execute().data or [])
+        accounts.update(row["account_id"] for row in rows)
+        if not rows:
+            break
+        offset += len(rows)
+    return sorted(accounts)
+
+
+def get_account_recommendation_items(client, account_id: str) -> list[dict]:
+    """Include unmeasured drafts so 'awaiting metrics' is explicit. Paginated."""
+    rows = []
+    while True:
+        page = (client.table("content_items")
+                .select("id,account_id,title,script,story_features,updated_at,script_version,video_script_version")
+                .eq("account_id", account_id)
+                .not_.is_("script->>recommendation_receipt", "null")
+                .order("id").range(len(rows), len(rows) + 499).execute().data or [])
+        rows.extend(page)
+        if not page:
+            return rows
+
+
+def save_recommendation_report(client, item: dict, report: dict) -> bool:
+    """Do not attach a diagnostic to a script edited during the computation."""
+    result = (client.table("content_items").update({"recommendation_report": report})
+              .eq("id", item["id"]).eq("account_id", item["account_id"])
+              .eq("updated_at", item["updated_at"]).execute())
+    return bool(result.data)
 
 
 def save_story_features(client, content_item_id: str, features: dict) -> None:

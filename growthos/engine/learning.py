@@ -120,6 +120,25 @@ def build_insights(rows: list[dict]) -> list[dict]:
         return []
     scores = {id(row): performance_score(row) for row in videos}
     account_median = median(scores.values())
+    # The experiment baseline uses complete snapshots: never divide a newer
+    # view count by engagement/retention measured on a different date.
+    complete = {}
+    for row in sorted(rows, key=lambda r: str(r.get("captured_at") or "")):
+        if _eligible(row):
+            complete[str(row["content_item_id"])] = row
+    complete = dict(sorted(complete.items(), key=lambda pair: (str(pair[1].get("captured_at") or ""), pair[0]))[-200:])
+    baseline = {
+        "metric": "watch_time_pct",
+        "method": "median_latest_complete_snapshot_v1",
+        "value": round(median(float(r["watch_time_pct"]) for r in complete.values()), 2) if complete else None,
+        "sample_size": len(complete),
+        "sources": [{"content_item_id": key, "captured_at": row.get("captured_at")}
+                    for key, row in sorted(complete.items())],
+        "window_start": min((str(r.get("captured_at") or "") for r in complete.values()), default=None),
+        "window_end": max((str(r.get("captured_at") or "") for r in complete.values()), default=None),
+        "minimum_views": MIN_VIEWS,
+        "maximum_videos": 200,
+    }
 
     grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in videos:
@@ -140,6 +159,7 @@ def build_insights(rows: list[dict]) -> list[dict]:
                 "accountMedian": round(account_median, 2),
                 "accountVideos": len(videos),
                 "avgRetention": round(mean(float(r["watch_time_pct"]) for r in members), 1),
+                "baseline": baseline,
                 "examples": [
                     str((r.get("content_items") or {}).get("title") or "")[:120] for r in members
                 ][:3],
@@ -192,11 +212,25 @@ def build_recommendation(insights: list[dict]) -> dict | None:
 
     videos = max((i["metadata"].get("accountVideos", 0) for i in solid), default=0)
     confidence = "high" if videos >= 15 else "medium" if videos >= 6 else "low"
+    # One primary hypothesis; the other observations remain context. Prefer a
+    # narrative/hook change over settings that the script writer cannot change.
+    target = min(solid, key=lambda i: (_KIND_ORDER.index(i["kind"]), -abs(i["metadata"]["lift"]), i["label"]))
+    direction = "favor" if target["metadata"]["lift"] > 0 else "avoid"
+    hypothesis = f"{'Tester' if direction == 'favor' else 'Éviter'} {target['kind']} « {target['label']} » dans une histoire originale."
     return {
-        "body": ". ".join(parts) + ". Quoi qu'il en soit, change à chaque vidéo de personnage, de lieu et "
-                "de retournement : ne refais pas une histoire déjà publiée.",
+        "body": f"Test prioritaire : {hypothesis} " + ". ".join(parts) + ". Varie la situation, la progression et "
+                "le retournement : ne refais pas une histoire déjà publiée. Un personnage récurrent peut être conservé.",
         "reasoning": f"Calculé sur {videos} vidéo(s) avec rétention et au moins {MIN_VIEWS} vues ; "
                      f"groupes d'au moins {MIN_GROUP_SIZE} vidéos, écart d'au moins {MIN_LIFT:g} points "
                      "à la médiane du compte.",
         "confidence": confidence,
+        "experiment": {
+            "version": 1,
+            "hypothesis": hypothesis,
+            "target": {"kind": target["kind"], "label": target["label"], "direction": direction},
+            "baseline": target["metadata"].get("baseline"),
+            "selection_method": "account_feature_lift_v1",
+            "sample_size": target["sample_size"],
+            "observed_score_lift": target["metadata"]["lift"],
+        },
     }

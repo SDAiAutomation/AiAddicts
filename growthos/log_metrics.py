@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from engine import db, learning, repo
+from refresh_learning import refresh_recommendation_reports
 
 
 def main():
@@ -63,6 +64,9 @@ def main():
                 f"Mémoire du compte actualisée : {len(insights)} insight(s), "
                 f"recommandation {recommendation['confidence']}."
             )
+        else:
+            repo.clear_pending_recommendation(client, account_id)
+        refresh_recommendation_reports(client, account_id, rows)
     except Exception as exc:
         # Le snapshot brut est déjà enregistré et reste la source de vérité.
         # Une panne de la vue dérivée ne doit pas faire croire que les

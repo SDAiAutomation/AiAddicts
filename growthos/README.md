@@ -2,6 +2,7 @@
 
 Doctrine produit Faceloop : [PRODUCT_DOCTRINE.md](PRODUCT_DOCTRINE.md).
 Instructions communes à Codex et Claude : [AGENTS.md](AGENTS.md).
+Suivi des recommandations et des résultats : [RECOMMENDATION_CONTRACT.md](RECOMMENDATION_CONTRACT.md).
 La doctrine décrit la cible et ses priorités ; ce README documente le moteur existant.
 
 Cycle minimal : `script.json` → voix off → vidéo texte-carte sous-titrée → package prêt à publier manuellement.
