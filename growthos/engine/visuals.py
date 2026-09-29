@@ -65,7 +65,7 @@ from pathlib import Path
 
 import requests
 
-from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, openai_images
+from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, style_treatments, video
 
 # Les appels OpenAI /images sont indépendants par scène (I/O réseau) : quelques-uns
 # en parallèle réduisent le temps total de "somme des scènes" à ~"scène la plus
@@ -88,6 +88,11 @@ except ValueError:
 # lieu des images IA — pour les sujets concrets (sport, cuisine, voyage,
 # actu) qui rendent mieux en footage réel qu'en illustration.
 _STOCK_FOOTAGE_IDS = {"stock_footage", "stock_video", "stock"}
+
+# `visual_style` qui déclenche le rendu Motion Graphics local (numéros
+# animés, graphiques, checklists...) au lieu des images IA — voir
+# engine/motion_graphics/. Aucun appel réseau, donc pas de repli "aucune clé".
+_MOTION_GRAPHICS_IDS = {"motion_graphics", "motion_graphic", "infographic"}
 
 # Extraction de mots-clés volontairement simple (pas de dépendance NLP, le
 # pipeline reste léger) : mots de 4+ lettres hors stop-words français
@@ -145,6 +150,66 @@ def _block_visual_text(block: dict) -> str:
     return visual or block["text"]
 
 
+_KINETIC_TYPOGRAPHY_IDS = {"flat_color"}
+
+
+def prefers_kinetic_typography(visual_style_id: str, visual_style_consigne: str) -> bool:
+    """True si le style demandé est « fond uni + texte » — Phase 2 : ce
+    style bascule sur une typographie cinétique locale (voir
+    engine/kinetic_typography.py) plutôt que sur une image IA générique,
+    contrairement à avant où un OPENAI_API_KEY configuré déclenchait quand
+    même une image photo-réaliste pour ce style (incohérent avec son
+    intention). Aucun appel réseau, jamais bloquant."""
+    vid = (visual_style_id or "").strip().lower()
+    return vid in _KINETIC_TYPOGRAPHY_IDS
+
+
+def fetch_kinetic_typography_clips(
+    blocks: list[dict],
+    durations: list[float],
+    aspect_ratio: str,
+    work_dir: Path,
+    theme_overrides: dict | None = None,
+) -> list[str | None]:
+    """Un clip `.mp4` de typographie cinétique local par bloc — voir
+    `engine.kinetic_typography.build_emphasis_scene` (Phase 2.6) pour l'ordre
+    de priorité : `motion_graphic` explicite déjà présent sur le bloc,
+    sinon un nombre/pourcentage/montant détecté dans `visual` OU `text`
+    (narration inspectée même quand `visual` est renseigné — correctif du
+    benchmark : un `visual` sans chiffre masquait un chiffre présent dans la
+    narration), sinon une courte phrase dérivée déterministiquement (jamais
+    inventée). `None` pour CE bloc précis seulement si rien d'exploitable
+    n'existe : contrairement à `fetch_motion_graphics_clips`, l'absence
+    n'est jamais comblée par `_fill_missing_visuals` — un `None` ici est un
+    état final valide (repli sur le fond uni existant côté
+    `engine/video.py`, pas un échec)."""
+    from . import kinetic_typography
+
+    images_dir = Path(work_dir) / "images"
+    paths: list[str | None] = [None] * len(blocks)
+    resolution = video.RESOLUTIONS.get(aspect_ratio, video.RESOLUTIONS["9:16"])
+    for i, block in enumerate(blocks):
+        if i > 0 and block.get("reuse_visual_from_previous"):
+            paths[i] = paths[i - 1]
+            continue
+        scene = kinetic_typography.build_emphasis_scene(block)
+        if not scene:
+            continue  # rien d'exploitable -> fond uni (comportement d'avant cette phase)
+        clip_path = images_dir / f"kinetic-{i + 1:02d}.mp4"
+        if _exists_nonempty(clip_path):
+            paths[i] = str(clip_path)
+            continue
+        try:
+            motion_graphics.render_scene_clip(
+                scene, durations[i] if i < len(durations) else 3.0, str(clip_path),
+                resolution=resolution, theme_overrides=theme_overrides,
+            )
+            paths[i] = str(clip_path)
+        except RuntimeError as exc:
+            print(f"       bloc {i + 1} : typographie cinétique échouée ({exc}) — fond uni")
+    return paths
+
+
 def prefers_stock_footage(visual_style_id: str, visual_style_consigne: str) -> bool:
     """True si le style demandé veut des vidéos de stock (Pexels) plutôt que
     des images IA."""
@@ -153,6 +218,52 @@ def prefers_stock_footage(visual_style_id: str, visual_style_consigne: str) -> b
         return True
     haystack = f"{vid} {(visual_style_consigne or '').lower()}"
     return any(k in haystack for k in ("stock footage", "vidéo de stock", "footage réel", "images d'archives"))
+
+
+def prefers_motion_graphics(visual_style_id: str, visual_style_consigne: str) -> bool:
+    """True si le style demandé veut le rendu Motion Graphics local plutôt
+    que des images IA ou du stock footage."""
+    vid = (visual_style_id or "").strip().lower()
+    if vid in _MOTION_GRAPHICS_IDS:
+        return True
+    haystack = f"{vid} {(visual_style_consigne or '').lower()}"
+    return any(k in haystack for k in ("motion graphics", "motion graphic", "infographic", "infographie"))
+
+
+def fetch_motion_graphics_clips(
+    blocks: list[dict],
+    durations: list[float],
+    aspect_ratio: str,
+    work_dir: Path,
+    theme_overrides: dict | None = None,
+) -> list[str | None]:
+    """Un clip `.mp4` Motion Graphics local par bloc, rendu à la durée EXACTE
+    de sa voix off (voir engine/motion_graphics/renderer.py) — jamais bloquant :
+    un bloc dont le rendu échoue reste `None`, comblé ensuite par
+    `_fill_missing_visuals` comme n'importe quel autre visuel manquant.
+    Mis en cache sur disque comme les scènes IA (relance = pas de re-rendu)."""
+    images_dir = Path(work_dir) / "images"
+    paths: list[str | None] = [None] * len(blocks)
+    resolution = video.RESOLUTIONS.get(aspect_ratio, video.RESOLUTIONS["9:16"])
+    for i, block in enumerate(blocks):
+        if i > 0 and block.get("reuse_visual_from_previous"):
+            paths[i] = paths[i - 1]
+            continue
+        clip_path = images_dir / f"motion-{i + 1:02d}.mp4"
+        if _exists_nonempty(clip_path):
+            paths[i] = str(clip_path)
+            continue
+        fallback_text = _block_visual_text(block)
+        scene = motion_graphics.resolve_scene(block.get("motion_graphic"), fallback_text)
+        try:
+            motion_graphics.render_scene_clip(
+                scene, durations[i] if i < len(durations) else 3.0, str(clip_path),
+                resolution=resolution, theme_overrides=theme_overrides,
+            )
+            paths[i] = str(clip_path)
+        except RuntimeError as exc:
+            print(f"       bloc {i + 1} : motion graphics échoué ({exc})")
+    return _fill_missing_visuals(paths)
 
 
 def search_image_url(query: str, api_key: str, orientation: str = "portrait") -> str | None:
@@ -227,7 +338,7 @@ def fetch_block_images(
     characters: list[dict] | None = None,
     visual_style: str | None = None,
     visual_style_prompt: str | None = None,
-) -> tuple[list[str | None], list[dict]]:
+) -> tuple[list[str | None], list[dict], list[dict], list[dict]]:
     """Un visuel local par bloc (chemin `.jpg` image ou `.mp4` clip vidéo), ou
     None (pas de clé / pas de résultat / échec réseau) — jamais bloquant, un
     bloc sans visuel retombe sur le fond couleur unie côté video.py. Résultats
@@ -236,17 +347,33 @@ def fetch_block_images(
     - Style « stock footage » -> un clip vidéo Pexels par bloc (photo Pexels
       en repli, `api_key` = clé Pexels).
     - Sinon -> une image IA par groupe de `_BLOCKS_PER_IMAGE` blocs (défaut
-      1), Pexels photo en repli bloc par bloc. Passe par
-      `image_quality_control` si `IMAGE_QC_ENABLED` (sinon comportement
-      identique à avant : une génération, jamais de QC/boucle).
+      1). Passe par `image_quality_control` si `IMAGE_QC_ENABLED` (sinon
+      comportement identique à avant : une génération, jamais de QC/boucle).
+      Repli sur Pexels UNIQUEMENT si OpenAI n'est pas configuré DU TOUT pour
+      cette vidéo (Pexels est alors la stratégie principale, pas un repli
+      d'identité) ; si OpenAI est configuré et qu'une scène précise échoue,
+      le repli est la réutilisation d'une scène déjà générée dans la MÊME
+      vidéo (jamais Pexels) — voir `_build_fallback_events` (Phase 2.6,
+      correctif du benchmark visuel : un repli Pexels sur un style à
+      identité IA cassait visiblement le style et le personnage).
 
     `characters` / `visual_style(_prompt)` : fiche personnage figée + style
     graphique fixe, injectés en tête de chaque prompt d'image (cohérence).
 
-    Retourne `(image_paths, scene_reports)` — `scene_reports` : une entrée
-    par scène RÉELLEMENT (re)générée cette fois (pas les scènes servies par
-    le cache disque), voir `_generate_scene_with_qc`. Consommé par
-    `assembler.py` pour construire `image_generation_report`."""
+    Retourne `(image_paths, scene_reports, fallback_events, style_treatments)` :
+    - `scene_reports` : une entrée par scène RÉELLEMENT (re)générée cette
+      fois (pas les scènes servies par le cache disque), voir
+      `_generate_scene_with_qc`. Consommé par `assembler.py` pour construire
+      `image_generation_report`.
+    - `fallback_events` : une entrée par bloc dont le visuel a dû être
+      comblé par réutilisation (block index, style demandé, stratégie
+      d'asset, type d'échec, source de repli, intégrité de style préservée
+      ou non) — voir `_build_fallback_events`. Vide si aucun repli n'a été
+      nécessaire.
+    - `style_treatments` (Phase 3) : une entrée par bloc traité par
+      `engine.style_treatments` (`comic_book`/`gta_loading` uniquement) —
+      voir `_apply_style_treatments`. `image_paths` pointe alors vers le
+      fichier `.treated.jpg`, jamais vers l'original (conservé sur disque)."""
     n = len(blocks)
     paths: list[str | None] = [None] * n
     images_dir = Path(work_dir) / "images"
@@ -256,16 +383,19 @@ def fetch_block_images(
     style_id = style_bible["visual_style_id"]
     style_consigne = style_bible["consigne"]
 
+    def _treat(filled: list[str | None]) -> tuple[list[str | None], list[dict]]:
+        return _apply_style_treatments(filled, blocks, style_id, images_dir)
+
     if prefers_stock_footage(style_id, style_consigne):
         if not api_key:
             print("       style « stock footage » demandé mais PEXELS_API_KEY absente — fond uni")
-            return paths, []
+            return paths, [], [], []
         for i, block in enumerate(blocks):
             if i > 0 and block.get("reuse_visual_from_previous"):
                 paths[i] = paths[i - 1]
             else:
                 paths[i] = _fetch_stock_clip(_block_visual_text(block), niche, orientation, images_dir, i, api_key)
-        return paths, []
+        return paths, [], [], []
 
     character_prefix = image_character_bible.build_character_prefix(characters, style_consigne)
 
@@ -281,7 +411,12 @@ def fetch_block_images(
                 paths[i] = str(image_path)
             continue
         texts = [_block_visual_text(blocks[i]) for i in group]
-        prompt = image_prompt_builder.build_scene_prompt(texts, niche, character_prefix, aspect_ratio, style_bible)
+        # Le shotType du 1er bloc du groupe représente la scène — un groupe
+        # >1 bloc (VISUALS_BLOCKS_PER_IMAGE) reste l'exception, voir plus haut.
+        shot_type = blocks[group[0]].get("shotType")
+        prompt = image_prompt_builder.build_scene_prompt(
+            texts, niche, character_prefix, aspect_ratio, style_bible, shot_type=shot_type
+        )
         pending.append((group, image_path, prompt))
 
     scene_reports: list[dict] = []
@@ -296,14 +431,40 @@ def fetch_block_images(
                 if scene_path:
                     for i in group:
                         paths[i] = scene_path
+                # `blockIndex` (0-based, 1er bloc du groupe) : sert à retrouver
+                # la raison d'échec d'un bloc précis pour `_build_fallback_events`.
+                report["blockIndex"] = group[0]
                 scene_reports.append(report)
 
     for i, block in enumerate(blocks):
         if i > 0 and block.get("reuse_visual_from_previous"):
             paths[i] = paths[i - 1]
 
+    motion_profile = style_bible["motion_profile"]
+    openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
+    if openai_enabled:
+        # AI-image est la stratégie principale de cette vidéo (Phase 2.6,
+        # correctif du benchmark) : un bloc encore sans visuel a échoué à la
+        # génération (moderation, réseau, timeout...) — basculer sur une
+        # photo Pexels sans rapport casserait le style ET le personnage pour
+        # CE seul bloc, alors que le reste de la vidéo reste dans le style
+        # demandé. Repli : réutilisation d'une scène déjà générée dans la
+        # MÊME vidéo (voisin le plus proche, précédent en priorité — voir
+        # `_fill_missing_visuals`), jamais Pexels. Le mouvement de caméra
+        # (engine/motion_profiles.py) est recalculé pour le bloc receveur —
+        # jamais pour le bloc source — donc la scène réutilisée ne bouge pas
+        # à l'identique (voir `resolve_motion_sequence`).
+        fallback_sources = _nearest_fallback_sources(paths)
+        filled = _fill_missing_visuals(paths)
+        fallback_events = _build_fallback_events(
+            filled, fallback_sources, scene_reports, style_id, motion_profile, "ai_image",
+        )
+        treated, treatment_reports = _treat(filled)
+        return treated, scene_reports, fallback_events, treatment_reports
+
     if not api_key:
-        return _fill_missing_visuals(paths), scene_reports
+        treated, treatment_reports = _treat(_fill_missing_visuals(paths))
+        return treated, scene_reports, [], treatment_reports
 
     for i, block in enumerate(blocks):
         if paths[i]:
@@ -320,7 +481,17 @@ def fetch_block_images(
             paths[i] = str(photo_path)
         except requests.RequestException:
             pass
-    return _fill_missing_visuals(paths), scene_reports
+
+    # Ici, OpenAI n'est pas configuré du tout : Pexels EST la stratégie
+    # principale de cette vidéo (pas un repli d'identité IA) — une
+    # réutilisation entre blocs Pexels ne casse aucun style.
+    fallback_sources = _nearest_fallback_sources(paths)
+    filled = _fill_missing_visuals(paths)
+    fallback_events = _build_fallback_events(
+        filled, fallback_sources, scene_reports, style_id, motion_profile, "pexels_photo",
+    )
+    treated, treatment_reports = _treat(filled)
+    return treated, scene_reports, fallback_events, treatment_reports
 
 
 def _fill_missing_visuals(paths: list[str | None]) -> list[str | None]:
@@ -334,6 +505,115 @@ def _fill_missing_visuals(paths: list[str | None]) -> list[str | None]:
             paths[i] = paths[nearest]
             print(f"       bloc {i + 1} : réutilisation du visuel du bloc {nearest + 1}")
     return paths
+
+
+def _nearest_fallback_sources(paths: list[str | None]) -> dict[int, int]:
+    """Pour chaque bloc encore sans visuel, l'index (0-based) du bloc déjà
+    généré qui va le combler — MÊME règle de voisinage que `_fill_missing_visuals`
+    (bloc précédent d'abord, sinon suivant), calculée séparément AVANT l'appel à
+    `_fill_missing_visuals` pour construire les métadonnées de repli
+    (`_build_fallback_events`) sans toucher à cette fonction historique."""
+    available = [i for i, path in enumerate(paths) if path]
+    sources: dict[int, int] = {}
+    if not available:
+        return sources
+    for i, path in enumerate(paths):
+        if path is None:
+            sources[i] = min(available, key=lambda candidate: (abs(candidate - i), candidate > i))
+    return sources
+
+
+# Identité visuelle : un profil de mouvement "kinetic"/"none" correspond à un
+# style sans image IA (typographie/stock/rendu local) — un repli Pexels n'y
+# casse rien puisqu'il n'y a pas d'identité graphique IA à préserver. Tout
+# autre profil (cinematic/gentle/energetic/comic) EST une identité graphique
+# IA : un fichier `block-NN.*` (photo Pexels, voir `_search_query`/`_fetch_stock_clip`)
+# à la place d'un `scene-NN.jpg` y casse le style — voir `is_style_integrity_preserved`.
+_AI_IMAGE_MOTION_PROFILES = {"cinematic", "gentle", "energetic", "comic"}
+_PEXELS_PHOTO_FALLBACK_RE = re.compile(r"[/\\]block-\d+\.jpg$", re.IGNORECASE)
+
+
+def is_style_integrity_preserved(motion_profile: str, asset_path: str | None) -> bool:
+    """Signal de qualité déterministe (aucun appel IA) : `False` seulement
+    quand un style à identité graphique IA (`_AI_IMAGE_MOTION_PROFILES`) se
+    retrouve avec une photo Pexels de repli (`block-NN.jpg`) — le seul cas qui
+    casse visiblement le style. Une réutilisation d'un `scene-NN.jpg` du même
+    style, ou tout asset pour un style qui n'a pas d'identité IA à préserver
+    (stock footage, motion graphics, typographie cinétique), est `True`."""
+    if motion_profile not in _AI_IMAGE_MOTION_PROFILES:
+        return True
+    if not asset_path:
+        return True  # fond uni neutre : pas idéal, mais ne casse pas le style
+    return not bool(_PEXELS_PHOTO_FALLBACK_RE.search(asset_path.replace("\\", "/")))
+
+
+def _build_fallback_events(
+    paths_after: list[str | None],
+    fallback_sources: dict[int, int],
+    scene_reports: list[dict],
+    style_id: str,
+    motion_profile: str,
+    asset_strategy: str,
+) -> list[dict]:
+    """Section 5/6 du benchmark (Phase 2.6) : une entrée par bloc dont le
+    visuel a dû être comblé par réutilisation — jamais pour un bloc qui avait
+    déjà son propre visuel. Consommée par `assembler.py` (metrics) et
+    `engine.quality` (pénalité si l'identité de style est cassée)."""
+    reports_by_block = {r["blockIndex"]: r for r in scene_reports if "blockIndex" in r}
+    events: list[dict] = []
+    for block_index, source_index in fallback_sources.items():
+        report = reports_by_block.get(block_index)
+        events.append({
+            "blockIndex": block_index,
+            "requestedVisualStyle": style_id,
+            "assetStrategy": asset_strategy,
+            "failureType": (report or {}).get("failureReason") or "generation_unavailable",
+            "fallbackStrategy": "reuse_same_video_scene",
+            "fallbackSource": source_index,
+            "styleIntegrityPreserved": is_style_integrity_preserved(motion_profile, paths_after[block_index]),
+        })
+    return events
+
+
+def _apply_style_treatments(
+    paths: list[str | None], blocks: list[dict], style_id: str, images_dir: Path,
+) -> tuple[list[str | None], list[dict]]:
+    """Phase 3 : passe de compositing locale (`engine.style_treatments`,
+    `comic_book`/`gta_loading` uniquement) sur les visuels déjà résolus —
+    génération fraîche OU réutilisation Phase 2.6, peu importe : ce qui
+    compte est l'image FINALEMENT assignée à CE bloc, traitée avec les
+    métadonnées shotType/visualPurpose de CE bloc (voir la section 13 du
+    brief Phase 3 : un bloc qui réutilise la scène d'un voisin reçoit quand
+    même SON PROPRE traitement, jamais celui du voisin).
+
+    Un fichier `.treated.jpg` par bloc, nommage prévisible — l'original
+    (`scene-NN.jpg`/`block-NN.jpg`) n'est jamais modifié (debug/comparaison,
+    voir section 12). Mis en cache sur disque comme le reste du pipeline
+    (relance = pas de retraitement). Jamais bloquant : un échec de filtre
+    graphique retombe sur l'image d'origine pour ce bloc, jamais un échec de
+    rendu."""
+    if not style_treatments.has_treatment(style_id):
+        return paths, []
+    treated_paths = list(paths)
+    reports: list[dict] = []
+    for i, (path, block) in enumerate(zip(paths, blocks)):
+        if not path:
+            continue
+        out_path = images_dir / f"scene-{i + 1:02d}.treated.jpg"
+        if _exists_nonempty(out_path):
+            treated_paths[i] = str(out_path)
+            reports.append({"blockIndex": i, "styleTreatment": style_id, "treatmentApplied": True, "cached": True})
+            continue
+        try:
+            metadata = style_treatments.apply_treatment(
+                style_id, path, str(out_path), block.get("shotType"), block.get("visualPurpose"),
+            )
+            treated_paths[i] = str(out_path)
+            reports.append({"blockIndex": i, **(metadata or {})})
+        except Exception as exc:  # noqa: BLE001 - un filtre graphique ne casse jamais le rendu
+            print(f"       bloc {i + 1} : traitement de style « {style_id} » échoué ({exc}) — image d'origine conservée")
+            reports.append({"blockIndex": i, "styleTreatment": style_id, "treatmentApplied": False, "error": str(exc)})
+    return treated_paths, reports
 
 
 def _fetch_stock_clip(
@@ -413,6 +693,7 @@ def _generate_scene_with_qc(
         "approved": None,
         "manualReview": False,
     }
+    report["failureReason"] = None if path else openai_images.pop_last_error()
     if not path:
         print(f"       scène : image IA échouée ({time.monotonic() - t0:.1f}s)")
         return None, report

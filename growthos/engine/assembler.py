@@ -13,8 +13,8 @@ from typing import Callable
 
 from . import (
     captions, db, editorial_quality, generation_cache, image_style_bible,
-    originality, poster, publish_pack, quality, quiz_cover, repo, script as script_module,
-    storage, tts, video, visuals, voices,
+    motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo,
+    script as script_module, shot_planning, storage, tts, video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -133,31 +133,64 @@ def _generate(
         )
 
     openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
-    stock_footage = visuals.prefers_stock_footage(
+    motion_graphics_style = visuals.prefers_motion_graphics(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    if stock_footage:
+    kinetic_typography_style = not motion_graphics_style and visuals.prefers_kinetic_typography(
+        (data.get("visual_style") or ""),
+        (data.get("visual_style_prompt") or ""),
+    )
+    stock_footage = not motion_graphics_style and not kinetic_typography_style and visuals.prefers_stock_footage(
+        (data.get("visual_style") or ""),
+        (data.get("visual_style_prompt") or ""),
+    )
+    if motion_graphics_style:
+        visuals_desc = "motion graphics (rendu local, sans appel API)"
+    elif kinetic_typography_style:
+        visuals_desc = "typographie cinétique (rendu local, sans appel API) + fond uni en repli"
+    elif stock_footage:
         visuals_desc = "vidéos de stock Pexels par bloc" if pexels_key else "fond uni — pas de clé Pexels"
     elif openai_enabled:
         visuals_desc = "OpenAI, une image par bloc" + (" + Pexels en repli" if pexels_key else "")
     else:
         visuals_desc = "Pexels photo par bloc" if pexels_key else "fond uni — pas de clé"
-    if openai_enabled and not stock_footage and data.get("characters"):
+    if openai_enabled and not stock_footage and not motion_graphics_style and not kinetic_typography_style and data.get("characters"):
         names = ", ".join(str(c.get("name", "?")) for c in data["characters"])
         visuals_desc += f" — fiche personnage : {names}"
     print(f"[3/5] Visuels ({visuals_desc})…")
     step(f"Visuels ({visuals_desc})")
     t0 = time.monotonic()
-    image_paths, image_reports = visuals.fetch_block_images(
-        data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
-        characters=data.get("characters"),
-        # `visual_style` = id du pack (sert la décision "stock footage vs IA") ;
-        # `visual_style_prompt` = phrase de style résolue par Faceloop pour le
-        # prompt d'image. En CLI seul `visual_style` est renseigné.
-        visual_style=data.get("visual_style"),
-        visual_style_prompt=data.get("visual_style_prompt"),
-    )
+    # `visual_fallbacks` (Phase 2.6) : observabilité des reprises de visuel —
+    # voir `visuals._build_fallback_events`. Seul `fetch_block_images` (styles
+    # image IA) l'alimente aujourd'hui : motion_graphics/kinetic_typography
+    # gèrent déjà leurs propres reprises sans casser leur identité (rendu
+    # local dans les deux cas), stock_footage n'a pas d'identité IA à casser.
+    if motion_graphics_style:
+        image_paths = visuals.fetch_motion_graphics_clips(
+            data["blocks"], durations, data["aspect_ratio"], work_dir,
+            theme_overrides=data.get("motion_graphics_theme"),
+        )
+        image_reports: list[dict] = []
+        visual_fallbacks: list[dict] = []
+        style_treatment_reports: list[dict] = []
+    elif kinetic_typography_style:
+        image_paths = visuals.fetch_kinetic_typography_clips(
+            data["blocks"], durations, data["aspect_ratio"], work_dir,
+        )
+        image_reports = []
+        visual_fallbacks = []
+        style_treatment_reports = []
+    else:
+        image_paths, image_reports, visual_fallbacks, style_treatment_reports = visuals.fetch_block_images(
+            data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
+            characters=data.get("characters"),
+            # `visual_style` = id du pack (sert la décision "stock footage vs IA") ;
+            # `visual_style_prompt` = phrase de style résolue par Faceloop pour le
+            # prompt d'image. En CLI seul `visual_style` est renseigné.
+            visual_style=data.get("visual_style"),
+            visual_style_prompt=data.get("visual_style_prompt"),
+        )
     found = sum(1 for p in image_paths if p)
     suffix = f"{found}/{n_blocks} image(s) trouvée(s), le reste en fond uni" if pexels_key else ""
     print(f"       terminé en {time.monotonic() - t0:.1f}s" + (f" — {suffix}" if suffix else ""))
@@ -203,12 +236,25 @@ def _generate(
     )
     print(f"       sous-titres : style « {caption_style} »")
 
+    # Style Identity (Phase 2) : résolu une seconde fois ici (déjà fait une
+    # fois à l'intérieur de `visuals.fetch_block_images` pour les styles
+    # image IA) — appel pur et bon marché, plus simple que de faire remonter
+    # le dict depuis `visuals.py` pour ce seul besoin.
+    style_bible = image_style_bible.resolve_style_bible(data.get("visual_style"), data.get("visual_style_prompt"))
+    motion_profile = style_bible["motion_profile"]
+    transition = style_bible["transition"]
+    fade_duration = 0.3 if transition == "fade" else 0.0
+    render_shots = video.plan_shots(render_durations, render_image_paths)
+    resolved_moves = motion_profiles.resolve_motion_sequence(render_shots, render_blocks, motion_profile)
+    print(f"       mouvement : profil « {motion_profile} », transition « {transition} »")
+
     print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
     step(f"Rendu vidéo final ({n_blocks} clip(s))")
     t0 = time.monotonic()
     final_video = video.render_final(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
+        moves=resolved_moves, fade_duration=fade_duration,
     )
     print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")
 
@@ -231,6 +277,16 @@ def _generate(
         "voice_characters": sum(synthesized_chars),
         "script_usage": data.get("script_usage"),
         "editorial": editorial_report,
+        "shot_planning": shot_planning.analyze_shot_diversity(data["blocks"]),
+        "motion_direction": {
+            "visualStyle": data.get("visual_style"),
+            "motionProfile": motion_profile,
+            "transition": transition,
+            "moves": resolved_moves,
+            **motion_profiles.analyze_motion_diversity(resolved_moves, shots=render_shots),
+        },
+        "visual_fallbacks": visual_fallbacks,
+        "style_treatments": style_treatment_reports,
     }
     return final_video, work_dir, metrics
 
