@@ -13,12 +13,26 @@ from functools import lru_cache
 
 from PIL import Image, ImageDraw, ImageFont
 
-# Mirrors the burned-caption safe zone (engine/captions.py's per-style
-# `margin_v`, ~540-550px on a 1920px-tall canvas): scenes keep their most
-# important content out of the bottom band reserved for subtitles, and out of
-# the top band reserved for platform UI (profile/follow button).
+# SAFE_TOP_RATIO mirrors the platform-UI band (profile/follow button) —
+# unaffected by Phase 2.7, unchanged from the original estimate.
+#
+# SAFE_BOTTOM_RATIO (Phase 2.7) is DERIVED from engine/captions.py's real
+# caption-rendering constants, not chosen:
+#   - tallest caption style: word_pop, font_size=104px (_CAPTION_STYLES)
+#   - largest margin_v across styles: 550px (sleek/boxed; word_pop uses 540)
+#   - a caption cue CAN wrap to 2 lines (WrapStyle=0 in the .ass header;
+#     _MAX_CUE_CHARS=22 only shrinks the font past that length, it does not
+#     guarantee a single line)
+#   - ~1.2x font size per rendered line is the standard ascent+descent+
+#     leading approximation for a sans-serif face at Spacing=0
+#   reserved_px = margin_v + 2 * font_size * 1.2
+#               = 550 + 2 * 104 * 1.2 = 799.6px on a 1920-tall reference canvas
+#   reserved_ratio = 799.6 / 1920 ≈ 0.4165, rounded to 0.42
+# Was 0.30 (a single-caption-line budget) before Phase 2.7's layout audit —
+# see engine/motion_graphics/layout.py and the Phase 2.7 report for the
+# collision this under-sizing allowed.
 SAFE_TOP_RATIO = 0.09
-SAFE_BOTTOM_RATIO = 0.30
+SAFE_BOTTOM_RATIO = 0.42
 
 # Verified empirically (rendered + inspected a real frame): Pillow's bundled
 # default font (Aileron, via ImageFont.load_default) only covers basic ASCII —

@@ -10,15 +10,26 @@ strictly cheaper and faster than an AI image per block.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
-from . import schema
+from . import layout, schema
 from .scenes import RENDERERS
 from .theme import Theme, resolve_theme
 
 DEFAULT_FPS = 25
+
+# Phase 2.7 debug layout mode (section 10): draws the content/caption/
+# platform safe-zone guides directly on every rendered frame — LOCAL only,
+# disabled by default, never gated by anything but this env var so it can
+# never leak into a production render by accident.
+_DEBUG_LAYOUT_ENV = "MOTION_GRAPHICS_DEBUG_LAYOUT"
+
+
+def debug_layout_enabled() -> bool:
+    return os.environ.get(_DEBUG_LAYOUT_ENV, "").strip().lower() in ("1", "true", "yes")
 
 # Mirrors engine/video.py's `_CRF`/preset choice for visual consistency
 # across every clip in the final assembly.
@@ -72,10 +83,13 @@ def render_scene_clip(
         shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True)
 
+    debug = debug_layout_enabled()
     try:
         for i in range(n_frames):
             t = i / max(n_frames - 1, 1)
             frame = render(scene, t, theme, (width, height))
+            if debug:
+                frame = layout.draw_debug_overlay(frame)
             frame.save(frames_dir / f"frame-{i:04d}.png")
 
         tmp_out = out.with_suffix(".tmp.mp4")
