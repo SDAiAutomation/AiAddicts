@@ -31,7 +31,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
-from ._shared import border_width, center_crop, draw_rect_border
+from ._shared import border_width, center_crop, draw_inset_border
 
 LAYOUTS = ("FULL_PANEL", "SINGLE_PANEL", "SPLIT_HORIZONTAL", "INSET_PANEL")
 
@@ -84,7 +84,11 @@ def _halftone(img: Image.Image) -> Image.Image:
 
 
 def _render_full_panel(img: Image.Image) -> Image.Image:
-    return draw_rect_border(_halftone(_ink(img)), _INK_COLOR)
+    # Bordure décorative tracée à `safe_margin()` du bord (pas flush) : voir
+    # engine/style_treatments/_shared.py::safe_margin — une bordure flush est
+    # rognée par le crop d'aspect ratio + Ken Burns du pipeline de rendu
+    # final, confirmé sur une vraie vidéo rendue (QA visuelle Phase 3).
+    return draw_inset_border(_halftone(_ink(img)), _INK_COLOR)
 
 
 def _render_single_panel(img: Image.Image) -> Image.Image:
@@ -108,7 +112,7 @@ def _render_inset_panel(img: Image.Image) -> Image.Image:
         draw.rectangle(
             (x0 - i, y0 - i, x0 + inset_w - 1 + i, y0 + inset_h - 1 + i), outline=_INK_COLOR
         )
-    return draw_rect_border(canvas, _INK_COLOR)
+    return draw_inset_border(canvas, _INK_COLOR)
 
 
 def _render_split_horizontal(img: Image.Image) -> Image.Image:
@@ -120,7 +124,7 @@ def _render_split_horizontal(img: Image.Image) -> Image.Image:
     canvas = Image.new("RGB", (w, h), _INK_COLOR)
     canvas.paste(_halftone(top), (0, 0))
     canvas.paste(_halftone(bottom), (0, band_h + gutter))
-    return draw_rect_border(canvas, _INK_COLOR)
+    return draw_inset_border(canvas, _INK_COLOR)
 
 
 _RENDERERS = {

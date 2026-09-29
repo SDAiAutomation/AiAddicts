@@ -13,6 +13,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from engine import style_treatments
 from engine.style_treatments import comic, game_art
+from engine.style_treatments._shared import safe_margin
+
+
+def _has_color_near(img: Image.Image, color, box, tolerance=24) -> bool:
+    for pixel in img.crop(box).getdata():
+        if all(abs(pixel[i] - color[i]) <= tolerance for i in range(3)):
+            return True
+    return False
 
 
 def _make_source(path: Path, size=(600, 900)) -> str:
@@ -102,6 +110,82 @@ class TestGameArtWantsLoadingMotif(unittest.TestCase):
     def test_rule_is_deterministic(self):
         for _ in range(5):
             self.assertTrue(game_art.wants_loading_motif("wide", "hook"))
+
+
+class TestComicBorderSafeMargin(unittest.TestCase):
+    """Regression (Phase 3 final-video QA) : une bordure dessinée flush
+    contre le bord était intégralement rognée par le crop d'aspect ratio +
+    Ken Burns du pipeline de rendu final (engine/video.py) — confirmé
+    invisible sur une vraie vidéo rendue. Doit être tracée à `safe_margin()`
+    du bord, jamais à 0."""
+
+    def test_full_panel_border_is_inset_not_at_the_raw_edge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = _make_source(Path(tmp) / "scene-01.jpg", size=(1024, 1536))
+            out = Path(tmp) / "out.jpg"
+            comic.apply(str(src), str(out), "wide", "establish")
+            with Image.open(out) as treated:
+                w, h = treated.size
+                margin = safe_margin((w, h))
+                self.assertFalse(_has_color_near(treated, comic._INK_COLOR, (0, 0, w, 4)))
+                self.assertFalse(_has_color_near(treated, comic._INK_COLOR, (0, 0, 4, h)))
+                band = (0, margin - 3, w, margin + 3)
+                self.assertTrue(_has_color_near(treated, comic._INK_COLOR, band))
+
+
+class TestGameArtFrameSafeMargin(unittest.TestCase):
+    """Regression (Phase 3 final-video QA), même défaut que le comic :
+    cadre décoratif et motif LOADING flush contre le bord étaient rognés par
+    le pipeline de rendu final (confirmé : le "L" de "LOADING" et le début
+    de la barre de progression étaient hors-cadre sur une vraie vidéo)."""
+
+    def test_frame_is_inset_not_at_the_raw_edge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = _make_source(Path(tmp) / "scene-01.jpg", size=(1024, 1536))
+            out = Path(tmp) / "out.jpg"
+            game_art.apply(str(src), str(out), "wide", "establish")
+            with Image.open(out) as treated:
+                w, h = treated.size
+                margin = safe_margin((w, h))
+                self.assertFalse(_has_color_near(treated, game_art._FRAME_COLOR, (0, 0, w, 4)))
+                band = (0, margin - 4, w, margin + 4)
+                self.assertTrue(_has_color_near(treated, game_art._FRAME_COLOR, band))
+
+    def test_loading_motif_label_is_not_clipped_at_the_left_edge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = _make_source(Path(tmp) / "scene-01.jpg", size=(1024, 1536))
+            out = Path(tmp) / "out.jpg"
+            game_art.apply(str(src), str(out), "wide", "hook")
+            with Image.open(out) as treated:
+                w, h = treated.size
+                margin = safe_margin((w, h))
+                self.assertFalse(
+                    _has_color_near(treated, game_art._FRAME_COLOR, (0, 0, margin - 5, h))
+                )
+
+
+class TestGameArtVignette(unittest.TestCase):
+    """Regression (Phase 3 visual QA) : une 1re version assombrissait le
+    CENTRE et éclaircissait les COINS — l'inverse d'une vignette — confirmé
+    en comparant la luminosité moyenne coin/centre sur une vraie image de
+    scène avant/après traitement. Corrigé dans `_vignette()`."""
+
+    def test_corners_are_darker_than_center_after_vignette(self):
+        # Image source unie : toute différence coin/centre après traitement
+        # vient UNIQUEMENT de la vignette, jamais du contenu de l'image.
+        flat = Image.new("RGB", (400, 600), (180, 180, 180))
+        treated = game_art._vignette(flat)
+        w, h = treated.size
+
+        def avg_luma(box):
+            pixels = list(treated.crop(box).getdata())
+            return sum(sum(p) for p in pixels) / (len(pixels) * 3)
+
+        corner = avg_luma((0, 0, 40, 40))
+        center = avg_luma((w // 2 - 20, h // 2 - 20, w // 2 + 20, h // 2 + 20))
+        self.assertLess(corner, center)
+        self.assertLess(corner, 180)  # le coin doit être assombri par rapport à l'original
+        self.assertGreater(center, corner + 20)  # écart net, pas un artefact d'arrondi
 
 
 class TestGameArtApply(unittest.TestCase):

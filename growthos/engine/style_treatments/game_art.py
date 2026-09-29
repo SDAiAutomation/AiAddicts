@@ -22,7 +22,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
-from ._shared import draw_rect_border
+from ._shared import safe_margin
 
 # Or/laiton sobre, générique "clé d'art jeu vidéo" — jamais la palette d'une
 # franchise précise.
@@ -50,10 +50,15 @@ def _vignette(img: Image.Image) -> Image.Image:
     max_r = (cx ** 2 + cy ** 2) ** 0.5
     # Anneaux concentriques du bord (sombre) vers le centre (clair) — pas
     # besoin d'un vrai dégradé radial pixel par pixel pour un effet sobre.
+    # Dessinés du plus grand cercle (le bord, sombre) au plus petit (le
+    # centre, clair, dessiné en dernier donc par-dessus) : `level` doit
+    # CROÎTRE quand `i` DÉCROÎT (le contraire d'une 1re version qui
+    # assombrissait le centre et éclaircissait les coins — vérifié en
+    # comparant la luminosité moyenne coin/centre avant/après traitement).
     steps = 40
     for i in range(steps, -1, -1):
         r = max_r * i / steps
-        level = int(255 * (1 - _VIGNETTE_STRENGTH * (1 - i / steps)))
+        level = int(255 * (1 - _VIGNETTE_STRENGTH * (i / steps)))
         draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=level)
     dark = Image.new("RGB", (w, h), (0, 0, 0))
     return Image.composite(img, dark, mask)
@@ -66,8 +71,12 @@ def _poster_contrast(img: Image.Image) -> Image.Image:
 
 
 def _frame(img: Image.Image) -> Image.Image:
+    # Marge de sécurité (voir engine/style_treatments/_shared.py::safe_margin) :
+    # une 1re version (marge ~3.5%) était intégralement rognée par le crop
+    # d'aspect ratio + Ken Burns du pipeline de rendu final — confirmé
+    # invisible sur une vraie vidéo rendue (QA visuelle Phase 3).
     w, h = img.size
-    margin = max(10, round(min(w, h) * 0.035))
+    margin = safe_margin(img.size)
     outer_w = max(3, round(min(w, h) * 0.006))
     draw = ImageDraw.Draw(img)
     draw.rectangle(
@@ -77,12 +86,15 @@ def _frame(img: Image.Image) -> Image.Image:
 
 
 def _loading_motif(img: Image.Image) -> Image.Image:
+    # Même correctif que `_frame` : une marge ~4.5% de la hauteur laissait le
+    # "L" de "LOADING" et le début de la barre se faire rogner sur le bord
+    # gauche — confirmé sur une vraie vidéo rendue (QA visuelle Phase 3).
     w, h = img.size
     draw = ImageDraw.Draw(img)
     font_size = max(16, round(h * 0.024))
     font = ImageFont.load_default(size=font_size)
     label = "LOADING"
-    margin = max(24, round(h * 0.045))
+    margin = safe_margin(img.size)
     y = round(h * _LOADING_Y_RATIO)
     draw.text((margin, y), label, font=font, fill=_FRAME_COLOR, anchor="lm")
     label_w = draw.textlength(label, font=font)
@@ -109,7 +121,6 @@ def apply(source_path: str, out_path: str, shot_type: str | None, visual_purpose
         img = img.convert("RGB")
         img = _poster_contrast(img)
         img = _vignette(img)
-        img = draw_rect_border(img, _FRAME_COLOR, width=max(2, round(min(img.size) * 0.004)))
         img = _frame(img)
         if loading:
             img = _loading_motif(img)
