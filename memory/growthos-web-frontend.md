@@ -157,3 +157,58 @@ L'utilisateur a signalé que « Les incidents mystérieux » restait toujours «
 Correctif publié : `growthos-web` `master` commit `b8c19d5` et `AiAddicts` `growthos/mvp` commit `a0c77a7`. `src/lib/series-runner.ts` partage la génération entre `/api/cron/series` et les actions utilisateur. Le bouton « Générer maintenant » et l'option du premier épisode lancent directement le script puis demandent le passage du worker GitHub si `GITHUB_WORKFLOW_DISPATCH_TOKEN` est configuré. La réservation atomique `claim_series_run` évite les doublons. Le workflow GitHub utilise des minutes décalées et échoue visiblement en cas d'erreur HTTP ou d'échec d'une série, tout en exécutant le worker ensuite. `vercel.json` ajoute un cron de rattrapage quotidien à 08h05 UTC. Sur Vercel Hobby, le cron quotidien peut être exécuté jusqu'à 59 minutes plus tard; GitHub ne garantit pas non plus la ponctualité des workflows planifiés. Ne pas promettre une génération automatique à la minute exacte sans un ordonnanceur plus fiable.
 
 L'interface n'affiche plus « GrowthOS Dogfooding » dans la barre latérale et les réglages; le nom reste en base pour les relations et scripts. Les tirets longs de ponctuation ont été retirés des textes visibles. Validation : 15 tests, TypeScript, ESLint et build de production réussis; le site public a été vérifié sur la nouvelle version après le push. Les deux branches distantes étaient à jour et les arbres de travail propres lors de cette vérification.
+
+### Quiz vidéo dédié + internationalisation (2026-09-20)
+
+Le quiz est désormais un parcours produit dédié dans les deux repos.
+
+**Frontend `growthos-web` (`master`)** :
+- `/quiz/new` propose cinq recettes (`quick`, `true_false`, `riddle`, `logo`, `impossible`), génération IA, contre-vérification des réponses, relecture et aperçu 9:16.
+- L'étape générique niche/style vidéo a été remplacée par une étape quiz : la niche vient automatiquement du compte; l'utilisateur choisit template, style de texte, voix, langue et effets sonores.
+- Huit templates propres aux quiz : `studio`, `arcade`, `education`, `sport`, `pop`, `minimal`, `photo`, `logo`. Les univers narratifs (Pixar, anime, cinématique, etc.) restent réservés aux vidéos classiques.
+- Effets de compte à rebours : `automatic`, `subtle`, `off`.
+- Le bug qui refusait la génération vidéo d'un quiz sans `blocks` est corrigé : `queueGeneration` accepte `script.quiz.questions` et garde le contrôle historique pour les vidéos classiques.
+- L'IA génère aussi une description de publication et 5 à 8 hashtags. Ils sont éditables dans la relecture, stockés au niveau du script et utilisés par TikTok/YouTube.
+- Commits principaux : `6d10f05`, `7d521ca`, `10c74d0`, `17cb2f6`, `d8bf645`, `18e9046`, `a7c907c`.
+
+**Moteur `AiAddicts/growthos` (`growthos/mvp`)** :
+- Recettes normalisées, validation des types/difficultés/templates, progression `QUESTION n/total` et configuration de série via migration `20260920120000_series_quiz_configuration.sql`.
+- Les couleurs des cartes, du compteur et de la révélation dépendent du template quiz sans modifier le rendu des vidéos classiques.
+- Les bips sont synthétisés localement par FFmpeg, mixés uniquement dans la pause après narration; dernière pulsation plus haute. Aucun asset externe ni coût API.
+- Commits principaux : `8a623f5`, `e05f57e`, `b8933e8`.
+
+**i18n frontend** : depuis `8da9e9c`, tout texte UI passe par `next-intl`. Toujours faire `git pull --ff-only origin master` avant de modifier `growthos-web`. Utiliser `useTranslations(namespace)` côté client, `await getTranslations(namespace)` côté serveur, et `await te(key)` pour les erreurs d'actions serveur. Ajouter chaque clé avec les mêmes variables ICU dans `messages/fr.json` et `messages/en.json`. Ne pas traduire les prompts OpenAI ni les textes publiés YouTube. Avant push : `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`.
+
+Identité Git locale requise dans `growthos-web` : `user.email=sdaiautomation@gmail.com` (évite le blocage Vercel observé avec `contact@sdaiautomation.com`).
+
+### Sélection du sujet et titres IA pour les quiz (2026-09-20, `ed21f2c`)
+
+La première étape de `/quiz/new` propose maintenant une catégorie en liste (`science`, `geography`, `animals`, `movies`, `history`, `logos`, `general`, `impossible`) et un sujet précis facultatif. L'utilisateur peut demander trois titres IA, en sélectionner un puis le modifier librement avant de continuer. Le titre choisi alimente la génération des questions et reste le titre du contenu.
+
+Le changement de catégorie préconfigure aussi la couverture : libellé, couleur de série et titre court en anglais (`SCIENCE QUIZ`, `ANIMAL QUIZ`, etc.). Ces réglages restent modifiables dans l'étape Apparence. L'action serveur `suggestQuizTitles` applique les contrôles de rôle et le quota `quiz`, respecte la langue choisie et transmet seulement catégorie, sujet, recette et langue à OpenAI. Elle ne transmet pas les briefs internes du compte. L'interface ne promet pas une viralité garantie; elle parle de titres optimisés pour attirer l'attention.
+
+Frontend poussé sur `growthos-web/master`, commit `ed21f2c`. Validation réussie : `npx tsc --noEmit`, `npm run lint`, 38 tests et `npm run build`.
+
+### Landing Faceloop et sous-titres (2026-09-21)
+
+Préférence explicite : s'inspirer de FacelessReels pour la structure de la landing, tout en respectant la charte Faceloop dans `docs/design-system.md`. Accent bleu `#2563EB`, neutres blancs/slate, Geist, boutons 6 px, cartes 8 px, bordures fines et ombres discrètes. Pas de palette violette, de dégradés décoratifs ou de grosses ombres. La landing hérite des tokens globaux, y compris en mode sombre.
+
+Frontend `growthos-web/master` : `5a587b4` (titre centré et galerie de styles) puis `8981b27` (alignement sur la charte) créés et poussés sur `origin/master`. Le dernier push inclut seulement `src/app/page.tsx`, `src/app/landing.module.css`, `src/components/pricing-section.tsx`. Build de production et lint ciblé réussis. Le déploiement Vercel et le rendu public après ce push n'ont pas été vérifiés.
+
+Clarification importante de l'utilisateur : la capture rapprochée des vidéos était une référence pour les SOUS-TITRES des vidéos générées, pas une demande de nouvelle galerie ni de changement du style visuel des scènes. La modification supplémentaire de galerie issue de cette mauvaise interprétation a été annulée avant commit. La galerie fixe du commit `5a587b4` reste présente.
+
+Sous-titres encore LOCAUX, ni commités ni poussés : `messages/fr.json`, `messages/en.json`, `src/app/(app)/content/content-config.tsx`, `src/app/(app)/content/visual-styles.ts`. Le style existant `bold_stroke` montre un mot à la fois, en majuscules blanches grasses avec contour noir ; aperçu et descriptions FR/EN mis à jour. Les changements moteur correspondants sont dans `AiAddicts/growthos`, voir `active-project-growthos.md`. Publier frontend et moteur ensemble si demandé. Ne pas affirmer que les sous-titres sont déployés : le dernier « push » concernait seulement la landing.
+
+Validation sous-titres frontend : TypeScript sans émission, ESLint ciblé et 38 tests réussis. Les modifications locales ont aussi été incluses dans la compilation de production réussie pendant la correction de la charte.
+
+### Caption commits pushed (2026-09-21, supersedes local-only status above)
+
+User explicitly requested commit + push of the caption changes. Engine commit `ea52cc4` is pushed to `AiAddicts/origin/growthos/mvp`; frontend commit `b0ed949` is pushed to `growthos-web/origin/master`. These contain the centered white uppercase word-by-word captions, tests, UI preview, and FR/EN descriptions. Previous validation: 57 engine tests, 38 frontend tests, TypeScript, targeted ESLint, and production build passed. Deployment/worker rollout was not verified; existing rendered videos require regeneration. Memory files remain local and were excluded from these implementation commits.
+
+### AutoEdit frontend delivered (2026-09-25)
+
+`/autoedit` is a working flow rather than a preview. Uploads use resumable TUS with progress, MP4/MOV/WebM up to 500 MB, and remember the last job for polling/restoration (`8c93c95`, `c67cd49`). The API returns only short-lived signed URLs from the private result bucket (`17baac6`); the browser stores only the job id. The review player displays clip count, duration, quality flags, expiry date, and an explicit deleted state after purge (`7ae98ba`). CSP permits the Supabase storage host (`171df15`), and upload confirmation immediately wakes the worker (`3de627a`).
+
+The creation form has a `Sport | Vidéo générale` selector (`e62bdf2`). Sport exposes best/player/goals; General forces best-moments selection and explains automatic spoken captions. The backend schema migration allowing `general` is committed but was not applied from the local machine; until it is applied, production inserts for General can fail the database constraint. The interface and API contract already send and return `profile`.
+
+Creative effect visibility is pushed in `6ceeca5`: the review summarizes how many selected clips contain a non-default effect, while technical controls remain internal. The underlying EDL supports slow motion, freeze, punch/progressive zoom and short flashes. Validation at delivery: 53 frontend tests, TypeScript, ESLint and Next.js production build passed. `master` and `origin/master` were synchronized after the push.
