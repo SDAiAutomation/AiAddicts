@@ -1,0 +1,53 @@
+{
+  "title": "Inflation du style de vie",
+  "niche": "productivite-business",
+  "account": "benchmark",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "language": "fr",
+  "visual_style": "stock_footage",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "La plupart des gens ignorent combien l'inflation du style de vie leur coute vraiment.",
+      "visual": "Notification de virement de salaire sur un ecran de smartphone.",
+      "shotType": "close_up",
+      "visualPurpose": "hook"
+    },
+    {
+      "role": "point",
+      "text": "Chaque augmentation de salaire se transforme vite en nouvelles depenses invisibles.",
+      "visual": "Personne qui fait des achats en ligne sur un ordinateur portable.",
+      "shotType": "medium",
+      "visualPurpose": "evidence"
+    },
+    {
+      "role": "point",
+      "text": "Un cafe plus cher, un abonnement de plus, un diner livre chaque semaine.",
+      "visual": "Livraison de repas a domicile devant une porte d'entree.",
+      "shotType": "insert",
+      "visualPurpose": "evidence"
+    },
+    {
+      "role": "point",
+      "text": "Le paiement mensuel de la voiture grimpe aussi, sans qu'on y prete attention.",
+      "visual": "Voiture neuve garee devant une maison moderne.",
+      "shotType": "wide",
+      "visualPurpose": "action"
+    },
+    {
+      "role": "point",
+      "text": "Resultat : le solde bancaire ne bouge presque jamais, malgre les augmentations.",
+      "visual": "Ecran de banque en ligne affichant un solde qui stagne.",
+      "shotType": "close_up",
+      "visualPurpose": "reveal"
+    },
+    {
+      "role": "cta",
+      "text": "Ton niveau de vie a-t-il grimpe aussi vite que ton salaire ?",
+      "visual": "Portefeuille vide pose sur une table.",
+      "shotType": "medium",
+      "visualPurpose": "cta"
+    }
+  ]
+}

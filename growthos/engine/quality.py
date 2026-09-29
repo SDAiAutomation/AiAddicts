@@ -80,6 +80,43 @@ def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:
         detail = f" {issues[0]}" if issues else ""
         flags.append(f"Qualité éditoriale faible ({editorial_score}/100).{detail}")
 
+    shot_planning = metrics.get("shot_planning") or {}
+    if shot_planning.get("available"):
+        shot_issues = shot_planning.get("issues") or []
+        if shot_issues:
+            # -5/défaut plafonné à -20 : signal de planification de plans,
+            # jamais aussi pénalisant qu'un défaut structurel (fichier
+            # manquant, hook trop long...). Purement déterministe, aucun
+            # appel IA (engine/shot_planning.py).
+            score -= min(20, 5 * len(shot_issues))
+            flags.append(f"Planification des plans : {shot_issues[0]}")
+
+    motion_direction = metrics.get("motion_direction") or {}
+    if motion_direction.get("available"):
+        motion_issues = motion_direction.get("issues") or []
+        if motion_issues:
+            # Signal encore plus mineur que la diversité de shotType : le
+            # mouvement est un raffinement esthétique, pas une structure
+            # narrative. Purement déterministe (engine/motion_profiles.py).
+            score -= min(10, 3 * len(motion_issues))
+            flags.append(f"Mouvement de caméra : {motion_issues[0]}")
+
+    # Signal d'intégrité de style (Phase 2.6, correctif du benchmark) : un
+    # repli qui CASSE le style (ex. photo Pexels sans rapport sur une vidéo
+    # cinematic_real) est nettement plus grave qu'une simple réutilisation
+    # dans le même style — jamais pénalisé pour une réutilisation saine
+    # (`styleIntegrityPreserved=True`). Purement déterministe, aucun appel IA
+    # (engine/visuals.is_style_integrity_preserved).
+    visual_fallbacks = metrics.get("visual_fallbacks") or []
+    broken = [f for f in visual_fallbacks if not f.get("styleIntegrityPreserved", True)]
+    if broken:
+        score -= min(30, 15 * len(broken))
+        first = broken[0]
+        flags.append(
+            f"Intégrité de style cassée au bloc {first.get('blockIndex', '?')} "
+            f"({first.get('failureType', 'inconnu')}, repli {first.get('fallbackStrategy', 'inconnu')})."
+        )
+
     n_blocks = int(metrics.get("n_blocks") or 0)
     blocks_with_image = int(metrics.get("blocks_with_image") or 0)
     if metrics.get("visuals_possible") and n_blocks and blocks_with_image < n_blocks:

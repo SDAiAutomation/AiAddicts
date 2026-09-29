@@ -63,5 +63,50 @@ class TestUsageExtraction(unittest.TestCase):
         self.assertIsNone(openai_images._extract_usage({"data": []}))
 
 
+class TestErrorTracking(unittest.TestCase):
+    """Phase 2.6 (benchmark fix) : `pop_last_error` doit exposer la même
+    catégorie que `_classify_error` aurait loguée, pour que `visuals.py`
+    puisse journaliser POURQUOI une scène a basculé en repli — voir
+    `visuals._build_fallback_events`. Même contrat "pop-once" que
+    `pop_last_usage`."""
+
+    def test_content_policy_rejection_is_recorded_and_popped_once(self):
+        # Texte calqué sur le rejet réel observé pendant le benchmark visuel
+        # (voir engine/openai_images._classify_error : détecté via "safety").
+        rejection = Mock(
+            status_code=400,
+            text='{"error": {"message": "Your request was rejected by the safety system.", "code": "moderation_block"}}',
+            headers={},
+        )
+        with patch.dict(openai_images.os.environ, {"OPENAI_API_KEY": "test-key"}), \
+             patch.object(openai_images, "_wait_for_image_slot"), \
+             patch.object(openai_images.requests, "post", return_value=rejection):
+            path = openai_images.generate_image("un prompt", "/tmp/out.jpg", "9:16")
+        self.assertIsNone(path)
+        self.assertEqual(openai_images.pop_last_error(), "content_policy")
+        self.assertIsNone(openai_images.pop_last_error())  # popped once, like pop_last_usage
+
+    def test_network_failure_is_recorded_as_unknown(self):
+        with patch.dict(openai_images.os.environ, {"OPENAI_API_KEY": "test-key"}), \
+             patch.object(openai_images, "_wait_for_image_slot"), \
+             patch.object(openai_images.requests, "post", side_effect=ValueError("boom")):
+            path = openai_images.generate_image("un prompt", "/tmp/out.jpg", "9:16")
+        self.assertIsNone(path)
+        self.assertEqual(openai_images.pop_last_error(), "unknown")
+
+    def test_success_does_not_leave_a_stale_error(self):
+        import base64
+        success = Mock(status_code=200, text="", headers={})
+        success.json.return_value = {"data": [{"b64_json": base64.b64encode(b"x").decode()}]}
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict(openai_images.os.environ, {"OPENAI_API_KEY": "test-key"}), \
+                 patch.object(openai_images, "_wait_for_image_slot"), \
+                 patch.object(openai_images.requests, "post", return_value=success):
+                path = openai_images.generate_image("un prompt", os.path.join(tmp, "a.jpg"), "9:16")
+        self.assertIsNotNone(path)
+        self.assertIsNone(openai_images.pop_last_error())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -192,6 +192,26 @@ def pop_last_usage() -> dict | None:
     return usage
 
 
+_error_local = threading.local()
+
+
+def _set_last_error(kind: str) -> None:
+    _error_local.kind = kind
+
+
+def pop_last_error() -> str | None:
+    """Catégorie (`_classify_error`) du dernier échec de CE thread ("content_policy",
+    "rate_limit", "network", "timeout", "invalid_request", "server_error", "unknown"),
+    puis l'oublie — même contrat que `pop_last_usage`. Consommé par
+    `visuals._generate_scene_with_qc` pour journaliser POURQUOI une scène a basculé
+    en repli (voir `visuals._build_fallback_events`), jamais pour changer le
+    comportement best-effort existant (toujours `None` en cas d'échec, jamais
+    d'exception)."""
+    kind = getattr(_error_local, "kind", None)
+    _error_local.kind = None
+    return kind
+
+
 def _decode_and_write(resp, out_path: str) -> str:
     body = resp.json()
     _usage_local.usage = _extract_usage(body)
@@ -267,9 +287,11 @@ def generate_image(
         return _decode_and_write(resp, out_path)
     except GenerationError as exc:
         print(f"       image IA : échec ({exc.kind}) — {exc}")
+        _set_last_error(exc.kind)
         return None
     except (requests.RequestException, KeyError, ValueError, IndexError, OSError) as exc:
         print(f"       image IA : échec (unknown) — {exc}")
+        _set_last_error("unknown")
         return None
 
 
@@ -315,7 +337,9 @@ def edit_image(
         return _decode_and_write(resp, out_path)
     except GenerationError as exc:
         print(f"       image IA (edit) : échec ({exc.kind}) — {exc}")
+        _set_last_error(exc.kind)
         return None
     except (requests.RequestException, KeyError, ValueError, IndexError, OSError) as exc:
         print(f"       image IA (edit) : échec (unknown) — {exc}")
+        _set_last_error("unknown")
         return None

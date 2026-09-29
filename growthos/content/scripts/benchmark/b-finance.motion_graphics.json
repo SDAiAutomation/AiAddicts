@@ -1,0 +1,59 @@
+{
+  "title": "Epargne 3000 dollars (motion graphics)",
+  "niche": "finance-personnelle",
+  "account": "benchmark",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "language": "fr",
+  "visual_style": "motion_graphics",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Si tu gagnes 3 000 dollars par mois, l'epargne ne devrait pas etre ce qui reste a la fin.",
+      "visual": "Numero anime montrant le revenu mensuel.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "motion_graphic": {"sceneType": "big_number", "title": "Revenu mensuel", "displayValue": "$3,000", "value": 3000}
+    },
+    {
+      "role": "point",
+      "text": "Beaucoup attendent la fin du mois pour epargner ce qu'il reste, souvent rien.",
+      "visual": "Icone d'un portefeuille avec le texte du probleme.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "motion_graphic": {"sceneType": "icon_text", "icon": "wallet", "text": "Epargner en dernier ne marche pas"}
+    },
+    {
+      "role": "point",
+      "text": "Mets plutot 600 dollars de cote immediatement, des que l'argent arrive.",
+      "visual": "Numero anime montrant le montant epargne en premier.",
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "motion_graphic": {"sceneType": "big_number", "title": "Epargne immediate", "displayValue": "$600", "value": 600, "icon": "piggy_bank"}
+    },
+    {
+      "role": "point",
+      "text": "Il te reste alors 2 400 dollars pour gerer le reste du mois.",
+      "visual": "Numero anime montrant le budget restant.",
+      "shotType": "medium",
+      "visualPurpose": "action",
+      "motion_graphic": {"sceneType": "big_number", "title": "Budget restant", "displayValue": "$2,400", "value": 2400}
+    },
+    {
+      "role": "point",
+      "text": "La regle est simple : revenu moins epargne egale budget de depense.",
+      "visual": "Formule animee de la regle.",
+      "shotType": "wide",
+      "visualPurpose": "payoff",
+      "motion_graphic": {"sceneType": "formula", "title": "La regle", "terms": ["REVENU", "- EPARGNE", "= BUDGET"]}
+    },
+    {
+      "role": "cta",
+      "text": "Tu epargnes en premier, ou tu epargnes ce qu'il reste ?",
+      "visual": "Checklist du conseil.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "motion_graphic": {"sceneType": "checklist", "title": "A retenir", "items": ["Epargne d'abord", "Depense le reste"]}
+    }
+  ]
+}

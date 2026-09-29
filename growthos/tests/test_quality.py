@@ -86,6 +86,74 @@ class TestScoreGeneration(unittest.TestCase):
         self.assertEqual(score, 60)
         self.assertTrue(any("anormalement petit" in f for f in flags))
 
+    def test_no_shot_planning_key_is_backward_compatible(self):
+        # Toutes les vidéos générées avant Phase 1 : la clé n'existe même pas.
+        self.assertEqual(quality.score_generation(NOMINAL, _big_file()), (100, []))
+
+    def test_unavailable_shot_planning_is_not_penalised(self):
+        metrics = {**NOMINAL, "shot_planning": {"available": False, "issues": []}}
+        self.assertEqual(quality.score_generation(metrics, _big_file()), (100, []))
+
+    def test_shot_planning_issues_are_penalised(self):
+        metrics = {**NOMINAL, "shot_planning": {
+            "available": True, "issues": ["shotType 'medium' domine la vidéo (5/6 plans) : varie davantage le cadrage"],
+        }}
+        score, flags = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 95)
+        self.assertTrue(any("Planification des plans" in f for f in flags))
+
+    def test_shot_planning_penalty_is_capped(self):
+        metrics = {**NOMINAL, "shot_planning": {"available": True, "issues": ["a", "b", "c", "d", "e", "f"]}}
+        score, _ = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 80)  # 6*5=30, plafonné à 20
+
+    def test_no_motion_direction_key_is_backward_compatible(self):
+        self.assertEqual(quality.score_generation(NOMINAL, _big_file()), (100, []))
+
+    def test_unavailable_motion_direction_is_not_penalised(self):
+        metrics = {**NOMINAL, "motion_direction": {"available": False, "issues": []}}
+        self.assertEqual(quality.score_generation(metrics, _big_file()), (100, []))
+
+    def test_motion_direction_issues_are_penalised(self):
+        metrics = {**NOMINAL, "motion_direction": {
+            "available": True, "issues": ["mouvement 'in' domine (5/6 plans)"],
+        }}
+        score, flags = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 97)
+        self.assertTrue(any("Mouvement de caméra" in f for f in flags))
+
+    def test_motion_direction_penalty_is_capped(self):
+        metrics = {**NOMINAL, "motion_direction": {"available": True, "issues": ["a", "b", "c", "d", "e"]}}
+        score, _ = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 90)  # 5*3=15, plafonné à 10
+
+    def test_no_visual_fallbacks_key_is_backward_compatible(self):
+        self.assertEqual(quality.score_generation(NOMINAL, _big_file()), (100, []))
+
+    def test_style_preserving_fallback_is_not_penalised(self):
+        metrics = {**NOMINAL, "visual_fallbacks": [{
+            "blockIndex": 3, "requestedVisualStyle": "cinematic_real", "assetStrategy": "ai_image",
+            "failureType": "content_policy", "fallbackStrategy": "reuse_same_video_scene",
+            "fallbackSource": 2, "styleIntegrityPreserved": True,
+        }]}
+        self.assertEqual(quality.score_generation(metrics, _big_file()), (100, []))
+
+    def test_style_breaking_fallback_is_penalised(self):
+        metrics = {**NOMINAL, "visual_fallbacks": [{
+            "blockIndex": 5, "requestedVisualStyle": "cinematic_real", "assetStrategy": "ai_image",
+            "failureType": "content_policy", "fallbackStrategy": "reuse_same_video_scene",
+            "fallbackSource": 4, "styleIntegrityPreserved": False,
+        }]}
+        score, flags = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 85)
+        self.assertTrue(any("Intégrité de style cassée" in f for f in flags))
+
+    def test_style_breaking_penalty_is_capped(self):
+        events = [{"blockIndex": i, "styleIntegrityPreserved": False, "failureType": "x", "fallbackStrategy": "y"} for i in range(4)]
+        metrics = {**NOMINAL, "visual_fallbacks": events}
+        score, _flags = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 70)  # 4*15=60, plafonné à 30
+
     def test_score_never_negative(self):
         metrics = {**NOMINAL, "total_duration": 2, "hook_duration": 10,
                    "max_shot_duration": 10, "blocks_with_image": 0, "n_cues": 100,

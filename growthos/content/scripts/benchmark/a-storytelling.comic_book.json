@@ -1,0 +1,60 @@
+{
+  "title": "La boite a musique de Nour (comic_book)",
+  "niche": "histoires-courtes",
+  "account": "benchmark",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "language": "fr",
+  "characters": [
+    {
+      "name": "Nour",
+      "description": "un jeune renard roux anthropomorphe, pelage orange vif, petite taille, grands yeux ambres, sans vetements",
+      "negative": "jamais un renard realiste non stylise, jamais un humain"
+    }
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Nour trouva une boite a musique cassee, oubliee depuis des annees.",
+      "visual": "Gros plan sur une boite a musique en bois poussiereuse et abimee, tenue par de petites pattes.",
+      "shotType": "close_up",
+      "visualPurpose": "hook"
+    },
+    {
+      "role": "point",
+      "text": "Le grenier abandonne ou elle vivait etait rempli de vieux souvenirs silencieux.",
+      "visual": "Plan large d'un grenier poussiereux eclaire par un rayon de lumiere, objets entasses partout.",
+      "shotType": "wide",
+      "visualPurpose": "establish"
+    },
+    {
+      "role": "point",
+      "text": "Une manivelle rouillee refusait de tourner, bloquee depuis trop longtemps.",
+      "visual": "Plan d'insert sur une manivelle en metal rouille sur le cote de la boite a musique.",
+      "shotType": "insert",
+      "visualPurpose": "evidence"
+    },
+    {
+      "role": "point",
+      "text": "Nour insista doucement, jusqu'a ce qu'un leger cliquetis se fasse entendre.",
+      "visual": "Plan moyen sur Nour concentree, ses pattes posees sur la manivelle de la boite.",
+      "shotType": "medium",
+      "visualPurpose": "action"
+    },
+    {
+      "role": "point",
+      "text": "A l'interieur, une petite photo montrait une famille de renards qu'elle n'avait jamais vue.",
+      "visual": "Gros plan sur une photo jaunie a l'interieur de la boite a musique, montrant une famille de renards.",
+      "shotType": "close_up",
+      "visualPurpose": "reveal"
+    },
+    {
+      "role": "cta",
+      "text": "Aurais-tu ouvert la boite tout de suite, ou attendu le bon moment ?",
+      "visual": "Plan moyen sur Nour tenant la photo contre elle, regard pensif.",
+      "shotType": "medium",
+      "visualPurpose": "cta"
+    }
+  ],
+  "visual_style": "comic_book"
+}
