@@ -90,6 +90,55 @@ class TestValidateScript(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_script(data)
 
+    def test_motion_graphic_optional(self):
+        validate_script(VALID)  # absent -> OK
+
+    def test_motion_graphic_must_be_an_object(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x", "motion_graphic": "big_number"}]}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_motion_graphic_object_is_valid(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x", "motion_graphic": {"sceneType": "big_number", "displayValue": "$3,000"}}]}
+        validate_script(data)  # no exception — deep validation happens at render time
+
+    def test_motion_graphics_theme_must_be_an_object(self):
+        data = {**VALID, "motion_graphics_theme": "dark"}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_motion_graphics_theme_object_is_valid(self):
+        data = {**VALID, "motion_graphics_theme": {"primary": "#22C55E"}}
+        validate_script(data)  # no exception
+
+    def test_shot_type_optional(self):
+        validate_script(VALID)  # absent -> OK
+
+    def test_valid_shot_type_passes(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x", "shotType": "close_up"}]}
+        validate_script(data)  # no exception
+
+    def test_invalid_shot_type_raises(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x", "shotType": "extreme_wide"}]}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_visual_purpose_optional(self):
+        validate_script(VALID)  # absent -> OK
+
+    def test_valid_visual_purpose_passes(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x", "visualPurpose": "hook"}]}
+        validate_script(data)  # no exception
+
+    def test_invalid_visual_purpose_raises(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x", "visualPurpose": "not_a_purpose"}]}
+        with self.assertRaises(ValueError):
+            validate_script(data)
+
+    def test_block_without_shot_type_or_purpose_is_backward_compatible(self):
+        data = {**VALID, "blocks": [{"role": "hook", "text": "x"}, {"role": "cta", "text": "y"}]}
+        validate_script(data)  # no exception, matches every script generated before Phase 1
+
     def test_invalid_aspect_ratio_raises(self):
         data = {**VALID, "aspect_ratio": "4:5"}
         with self.assertRaises(ValueError):

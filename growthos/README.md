@@ -108,6 +108,38 @@ image_quality_control  -> QC vision OPT-IN (IMAGE_QC_ENABLED) + boucle edit cibl
 
 Voir `exemple-02-histoire.json`.
 
+### Planification structurée des plans (`shotType` / `visualPurpose`)
+
+Deux champs optionnels par bloc, générés par `growthos-web` dans le MÊME appel IA que `text`/`visual` (aucun appel supplémentaire) : `shotType` (COMMENT le plan est cadré — `wide`/`medium`/`close_up`/`insert`/`pov`) et `visualPurpose` (POURQUOI ce plan existe — `hook`/`establish`/`action`/`evidence`/`reaction`/`explain`/`reveal`/`payoff`/`cta`). Voir `engine/shot_planning.py` pour les valeurs autorisées (doit rester aligné avec `content/shot-planning.ts` côté web) et `engine/script.py` pour la validation.
+
+`shotType`, quand présent, est explicitement honoré dans le prompt d'image (`image_prompt_builder.build_scene_prompt`, section CADRAGE) au lieu de dépendre uniquement de la conformité du modèle à la consigne texte. Les deux champs sont optionnels partout : un script (ou un bloc) sans eux — tout ce qui existait avant cette fonctionnalité, ou un style `motion_graphics` où le cadrage caméra ne s'applique pas — se comporte exactement comme avant.
+
+`engine.shot_planning.analyze_shot_diversity` détecte, sans aucun appel IA, les shotType identiques sur deux blocs consécutifs (CTA exempté), la domination d'un seul shotType (>60 % des plans typés) et un usage excessif de `pov` (>25 %) — consommé par `engine.quality.score_generation` (pénalité plafonnée, jamais un échec bloquant). Le même jeu de règles est revalidé côté `growthos-web` (`content/shot-planning.ts::shotDiversityIssues`) avant même d'accepter une génération, dans la boucle de réécriture déjà existante (`ai-actions.ts`).
+
+### Style visuel « Motion Graphics »
+
+`visual_style: "motion_graphics"` bascule chaque bloc sur un **rendu local** (numéros animés, graphiques, checklists, formules...) au lieu d'une image IA ou d'un clip Pexels — voir `engine/motion_graphics/`. Aucun appel réseau : les frames sont dessinées avec Pillow (police intégrée `ImageFont.load_default`, pas de fichier de police à livrer) puis encodées en `.mp4` par ffmpeg, un clip par bloc, à la durée exacte de sa voix off — le même format que les autres visuels par bloc, donc `engine/video.py` n'a rien à connaître de plus.
+
+Chaque bloc porte un objet `motion_graphic` — c'est le contrat que **growthos-web** (`ai-actions.ts`) doit produire en plus de `text`/`visual` quand ce style est choisi :
+
+```json
+{
+  "sceneType": "money_split",
+  "title": "$3,000 Monthly Income",
+  "data": [
+    {"label": "Needs", "value": 1500, "displayValue": "$1,500"},
+    {"label": "Wants", "value": 900, "displayValue": "$900"},
+    {"label": "Savings", "value": 600, "displayValue": "$600"}
+  ],
+  "emphasis": "Savings",
+  "icon": "wallet"
+}
+```
+
+13 types (`engine/motion_graphics/schema.py::SCENE_TYPES`) : `big_number`, `money_split`, `progress_bar`, `bar_chart`, `donut_chart`, `comparison`, `before_after`, `timeline`, `compound_growth`, `checklist`, `warning`, `formula`, `icon_text`. Le renderer **n'invente jamais un chiffre** : tout ce qui s'affiche vient de `value`/`displayValue`/`data` fournis par le script. Un `motion_graphic` absent, mal formé ou d'un type inconnu ne fait jamais échouer le rendu — repli automatique sur une scène `icon_text` construite à partir de `visual`/`text` du bloc (voir `resolve_scene`).
+
+Thème optionnel : `motion_graphics_theme` au niveau du script (`{"primary": "#22C55E", ...}`, voir `engine/motion_graphics/theme.py::Theme`) surcharge le thème neutre par défaut — jamais spécifique à un compte dans le moteur lui-même. Voir `exemple-motion-graphics.json`.
+
 ### Format quiz vidéo
 
 Le parcours produit peut proposer cinq recettes stables : `quick`,

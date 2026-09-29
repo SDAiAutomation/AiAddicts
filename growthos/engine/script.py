@@ -3,9 +3,14 @@ import json
 import os
 from pathlib import Path
 
-from . import quiz
+from . import quiz, shot_planning
 
 ALLOWED_ROLES = {"hook", "point", "cta"}
+# `shotType`/`visualPurpose` (optional, per block) — voir engine/shot_planning.py.
+# Doit rester aligné avec SHOT_TYPES/VISUAL_PURPOSES de growthos-web
+# (content/blocks-editor.tsx).
+ALLOWED_SHOT_TYPES = shot_planning.ALLOWED_SHOT_TYPES
+ALLOWED_VISUAL_PURPOSES = shot_planning.ALLOWED_VISUAL_PURPOSES
 ALLOWED_PLATFORMS = {"tiktok", "instagram", "youtube"}  # matches the accounts table's check constraint
 ALLOWED_ASPECT_RATIOS = {"9:16", "1:1", "16:9"}  # matches engine.video.RESOLUTIONS
 ALLOWED_CAPTION_STYLES = {"bold_stroke", "sleek", "boxed", "neon", "word_pop"}  # engine.captions._CAPTION_STYLES
@@ -151,6 +156,25 @@ def validate_script(data: dict) -> None:
             raise ValueError(
                 f"blocks[{i}] : role '{role}' invalide (attendu : {sorted(ALLOWED_ROLES)})"
             )
+        motion_graphic = block.get("motion_graphic")
+        if motion_graphic is not None and not isinstance(motion_graphic, dict):
+            raise ValueError(f"blocks[{i}] : 'motion_graphic' doit être un objet (ou absent)")
+
+        shot_type = block.get("shotType")
+        if shot_type is not None and shot_type not in ALLOWED_SHOT_TYPES:
+            raise ValueError(
+                f"blocks[{i}] : 'shotType' invalide : '{shot_type}' (attendu : {sorted(ALLOWED_SHOT_TYPES)})"
+            )
+        visual_purpose = block.get("visualPurpose")
+        if visual_purpose is not None and visual_purpose not in ALLOWED_VISUAL_PURPOSES:
+            raise ValueError(
+                f"blocks[{i}] : 'visualPurpose' invalide : '{visual_purpose}' "
+                f"(attendu : {sorted(ALLOWED_VISUAL_PURPOSES)})"
+            )
+
+    motion_graphics_theme = data.get("motion_graphics_theme")
+    if motion_graphics_theme is not None and not isinstance(motion_graphics_theme, dict):
+        raise ValueError("'motion_graphics_theme' doit être un objet (ou absent)")
 
 
 def _validate_characters(characters) -> None:

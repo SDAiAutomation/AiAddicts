@@ -51,6 +51,35 @@ class TestBuildScenePrompt(unittest.TestCase):
         self.assertIn("n'ajoute ni visage ni personnage", prompt)
         self.assertNotIn("avec une pose, une expression", prompt)
 
+    def test_shot_type_is_honored_in_cadrage(self):
+        prompt = image_prompt_builder.build_scene_prompt(
+            ["Une clé posée sur une table."], None, "", "9:16", None, shot_type="insert"
+        )
+        self.assertIn("Plan d'insert", prompt)
+        self.assertIn("CADRAGE : cadrage vertical plein cadre (format 9:16, TikTok/Reels/Shorts). Plan d'insert", prompt)
+
+    def test_unknown_shot_type_is_ignored(self):
+        prompt = image_prompt_builder.build_scene_prompt(
+            ["Une scène."], None, "", "9:16", None, shot_type="extreme_wide"
+        )
+        self.assertNotIn("Plan d'insert", prompt)
+
+    def test_absent_shot_type_is_backward_compatible(self):
+        with_shot = image_prompt_builder.build_scene_prompt(["Une scène."], None, "", "9:16")
+        self.assertNotIn("Plan ", with_shot.split("CADRAGE")[1].split("\n")[0])
+
+    def test_style_identity_palette_contrast_texture_are_appended(self):
+        style_bible = image_style_bible.resolve_style_bible("cinematic_real")
+        prompt = image_prompt_builder.build_scene_prompt(["Un homme marche."], None, "", "9:16", style_bible)
+        self.assertIn("contraste cinématographique modéré", prompt)
+        self.assertIn("léger grain de film", prompt)
+
+    def test_style_without_identity_extras_has_unchanged_style_line(self):
+        style_bible = image_style_bible.resolve_style_bible("anime")
+        prompt = image_prompt_builder.build_scene_prompt(["Une scène."], None, "", "9:16", style_bible)
+        style_line = [line for line in prompt.splitlines() if line.startswith("STYLE VERROUILLÉ")][0]
+        self.assertNotIn("(", style_line)
+
     def test_horizontal_scene_does_not_receive_vertical_composition_rules(self):
         prompt = image_prompt_builder.build_scene_prompt(
             ["Plan large d'une rue."], None, "", "16:9",

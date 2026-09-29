@@ -40,6 +40,50 @@ class TestResolveStyleBible(unittest.TestCase):
         self.assertEqual(bible["version"], image_style_bible.STYLE_BIBLE_VERSION)
         self.assertEqual(bible["prompt_version"], image_style_bible.IMAGE_PROMPT_VERSION)
 
+    def test_motion_profile_present_for_every_bible(self):
+        for style_id in ("cinematic_real", "anime", "flat_color", "storybook", "comic_book", None, "unknown_id"):
+            bible = image_style_bible.resolve_style_bible(style_id)
+            self.assertIn("motion_profile", bible)
+            self.assertTrue(bible["motion_profile"])
+
+    def test_known_styles_map_to_expected_motion_profiles(self):
+        self.assertEqual(image_style_bible.resolve_style_bible("cinematic_real")["motion_profile"], "cinematic")
+        self.assertEqual(image_style_bible.resolve_style_bible("storybook")["motion_profile"], "gentle")
+        self.assertEqual(image_style_bible.resolve_style_bible("comic_book")["motion_profile"], "comic")
+        self.assertEqual(image_style_bible.resolve_style_bible("flat_color")["motion_profile"], "kinetic")
+        self.assertEqual(image_style_bible.resolve_style_bible("stock_footage")["motion_profile"], "none")
+
+    def test_legacy_style_ids_still_resolve_a_motion_profile(self):
+        self.assertEqual(image_style_bible.resolve_style_bible("pixar_3d")["motion_profile"], "cinematic")
+        self.assertEqual(image_style_bible.resolve_style_bible("gta_loading")["motion_profile"], "energetic")
+
+    def test_unknown_style_defaults_transition_to_cut(self):
+        for style_id in ("cinematic_real", "anime", "flat_color", None, "unknown_id"):
+            self.assertEqual(image_style_bible.resolve_style_bible(style_id)["transition"], "cut")
+
+    def test_storybook_opts_into_fade_transition(self):
+        self.assertEqual(image_style_bible.resolve_style_bible("storybook")["transition"], "fade")
+
+    def test_palette_contrast_texture_default_to_none(self):
+        bible = image_style_bible.resolve_style_bible("cinematic_real")
+        for field in ("palette", "contrast", "texture"):
+            self.assertIn(field, bible)
+        # cinematic_real définit contrast/texture mais pas palette :
+        self.assertIsNone(bible["palette"])
+        self.assertTrue(bible["contrast"])
+        self.assertTrue(bible["texture"])
+
+    def test_style_without_identity_has_no_palette_contrast_texture(self):
+        bible = image_style_bible.resolve_style_bible("unknown_style_id")
+        self.assertIsNone(bible["palette"])
+        self.assertIsNone(bible["contrast"])
+        self.assertIsNone(bible["texture"])
+
+    def test_motion_profile_for_matches_resolve_style_bible(self):
+        self.assertEqual(image_style_bible.motion_profile_for("comic_book"), "comic")
+        self.assertIsNone(image_style_bible.motion_profile_for("not_a_real_style"))
+        self.assertIsNone(image_style_bible.motion_profile_for(None))
+
 
 if __name__ == "__main__":
     unittest.main()

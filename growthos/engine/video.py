@@ -167,6 +167,30 @@ def _scaled_resolution(resolution: str, factor: int) -> str:
     return f"{int(w) * factor}x{int(h) * factor}"
 
 
+def _resolve_kb_move(block_index: int, motion_move: str | None) -> str:
+    """The Ken Burns move for one shot. `motion_move`, when given (Phase 2 —
+    see engine/motion_profiles.py), always wins. `None` preserves the
+    original `block_index % len(_KB_MOVES)` rotation exactly — the default
+    for any caller that hasn't been updated to pass a resolved move."""
+    if motion_move in _KB_MOVES:
+        return motion_move
+    return _KB_MOVES[(block_index - 1) % len(_KB_MOVES)]
+
+
+def _fade_filter(duration: float, fade_duration: float) -> str:
+    """A `fade in, fade out` ffmpeg filter fragment for one clip, or `""` when
+    `fade_duration<=0` or the clip is too short to fit both fades cleanly —
+    NOT a cross-dissolve between two clips (that would need `xfade` on a
+    filter graph replacing the concat demuxer, judged too risky for this
+    phase — see engine/motion_profiles.py's module docstring for context).
+    This only fades each clip briefly to/from black at its own boundaries,
+    entirely within that clip's own independent encode."""
+    if fade_duration <= 0 or duration <= fade_duration * 2:
+        return ""
+    fade_out_start = max(0.0, duration - fade_duration)
+    return f"fade=t=in:st=0:d={fade_duration:.3f},fade=t=out:st={fade_out_start:.3f}:d={fade_duration:.3f}"
+
+
 def _kenburns_filter(move: str, resolution: str, n_frames: int, fps: int) -> str:
     """Expression `zoompan` pour un mouvement Ken Burns donné. L'image est déjà
     scalée+croppée à `resolution` en amont, donc iw/ih = W/H cible."""
@@ -197,15 +221,25 @@ def _render_block_clip(
     fps: int,
     block_index: int = 1,
     source_offset: float = 0.0,
+    motion_move: str | None = None,
+    fade_duration: float = 0.0,
 ) -> str:
     """Un clip silencieux pour un bloc :
-    - `.mp4/.mov/...` -> clip vidéo de stock, recadré plein cadre, bouclé/coupé
-      à la durée du bloc (pas de Ken Burns, il bouge déjà) ;
-    - image -> Ken Burns (mouvement variable selon `block_index`) ;
-    - None -> fond couleur unie."""
+    - `.mp4/.mov/...` -> clip vidéo de stock ou Motion Graphics, recadré plein
+      cadre, bouclé/coupé à la durée du bloc (pas de Ken Burns, il bouge déjà
+      ou porte sa propre animation — voir engine/motion_graphics/) ;
+    - image -> Ken Burns (mouvement `motion_move` si fourni — voir
+      engine/motion_profiles.py — sinon rotation historique par `block_index`) ;
+    - None -> fond couleur unie.
+
+    `fade_duration` (Phase 2, tous les cas sauf `.mp4`) : fondu au noir en
+    entrée/sortie DE CE CLIP UNIQUEMENT, jamais un fondu enchaîné entre deux
+    plans — voir `_fade_filter`."""
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     n_frames = max(1, round(duration * fps))
+    fade = _fade_filter(duration, fade_duration)
+    fade_part = f",{fade}" if fade else ""
 
     if image_path and image_path.lower().endswith(_VIDEO_EXTS):
         vf = (
@@ -229,13 +263,13 @@ def _render_block_clip(
         # Sur-cadre (sur-échantillonné, voir _KENBURNS_SUPERSAMPLE) puis crop
         # avant le zoom : sinon le zoompan révèle les bords de l'image source
         # dès qu'il recadre.
-        move = _KB_MOVES[(block_index - 1) % len(_KB_MOVES)]
+        move = _resolve_kb_move(block_index, motion_move)
         super_res = _scaled_resolution(resolution, _KENBURNS_SUPERSAMPLE)
         vf = (
             f"scale={super_res}:force_original_aspect_ratio=increase:flags=lanczos,"
             f"crop={super_res.replace('x', ':')},"
             f"{_kenburns_filter(move, resolution, n_frames, fps)},"
-            f"{_VIGNETTE},format=yuv420p"
+            f"{_VIGNETTE},format=yuv420p{fade_part}"
         )
         _run(
             [
@@ -248,17 +282,19 @@ def _render_block_clip(
             ]
         )
     else:
-        _run(
-            [
-                "ffmpeg", "-y",
-                "-f", "lavfi", "-i", f"color=c={bg_color}:s={resolution}:r={fps}",
-                "-t", f"{duration:.3f}", "-pix_fmt", "yuv420p", "-c:v", "libx264",
-                "-crf", _CRF,
-                # Fond fixe, aucun mouvement réel : tuning x264 dédié.
-                "-tune", "stillimage", "-an",
-                str(out.resolve()),
-            ]
-        )
+        vf = f"format=yuv420p{fade_part}" if fade_part else None
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", f"color=c={bg_color}:s={resolution}:r={fps}",
+            "-t", f"{duration:.3f}", "-pix_fmt", "yuv420p", "-c:v", "libx264",
+            "-crf", _CRF,
+            # Fond fixe, aucun mouvement réel : tuning x264 dédié.
+            "-tune", "stillimage", "-an",
+        ]
+        if vf:
+            cmd += ["-vf", vf]
+        cmd.append(str(out.resolve()))
+        _run(cmd)
     return out_path
 
 
@@ -298,11 +334,22 @@ def render_final(
     bg_color: str = DEFAULT_BG,
     font: str | None = None,
     fps: int = DEFAULT_FPS,
+    moves: list[str | None] | None = None,
+    fade_duration: float = 0.0,
 ) -> str:
     """`durations` = durée (s) de chaque bloc, dans l'ordre — sert à caler un
     clip par bloc sur sa voix off. `image_paths` (même longueur, ou None pour
     tout en fond uni) = image locale par bloc, ou None pour ce bloc précis
-    (repli fond uni, jamais bloquant)."""
+    (repli fond uni, jamais bloquant).
+
+    `moves` (Phase 2, optionnel) : un mouvement Ken Burns par PLAN (même
+    ordre que `plan_shots`, pas par bloc narratif — voir
+    engine/motion_profiles.resolve_motion_sequence, appelé par
+    engine/assembler.py AVANT ce rendu pour rester déterministe même si les
+    plans sont ensuite rendus en parallèle). `None`/absent : rotation
+    historique `block_index % len(_KB_MOVES)`, comportement inchangé.
+    `fade_duration` : fondu au noir en entrée/sortie de chaque plan (voir
+    `_fade_filter`), 0 = coupes franches comme avant cette phase."""
     resolution = RESOLUTIONS.get(aspect_ratio, RESOLUTIONS["9:16"])
     font = font or os.environ.get("SUBTITLE_FONT") or DEFAULT_FONT
     image_paths = image_paths or [None] * len(durations)
@@ -316,23 +363,24 @@ def render_final(
     shots = plan_shots(durations, image_paths)
     n_clips = len(shots)
     clip_names = []
-    pending: list[tuple[int, int, str | None, float, float, Path]] = []
+    pending: list[tuple[int, int, str | None, float, float, Path, str | None]] = []
     for i, (block_index, image_path, duration, source_offset) in enumerate(shots, start=1):
         clip_path = clips_dir / f"shot-{i:03d}.mp4"
         clip_names.append(clip_path.name)
+        move = moves[i - 1] if moves and i - 1 < len(moves) else None
         if _exists_nonempty(clip_path):
             print(f"       plan {i}/{n_clips} déjà rendu — réutilisé")
         else:
-            pending.append((i, block_index, image_path, duration, source_offset, clip_path))
+            pending.append((i, block_index, image_path, duration, source_offset, clip_path, move))
 
     if pending:
-        def _render(item: tuple[int, int, str | None, float, float, Path]) -> None:
-            i, block_index, image_path, duration, source_offset, clip_path = item
+        def _render(item: tuple[int, int, str | None, float, float, Path, str | None]) -> None:
+            i, block_index, image_path, duration, source_offset, clip_path, move = item
             print(f"       plan {i}/{n_clips} — bloc {block_index} ({duration:.1f}s)…")
             t0 = time.monotonic()
             _render_block_clip(
                 image_path, duration, str(clip_path), resolution, bg_color, fps,
-                block_index=i, source_offset=source_offset,
+                block_index=i, source_offset=source_offset, motion_move=move, fade_duration=fade_duration,
             )
             print(f"       plan {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
 
