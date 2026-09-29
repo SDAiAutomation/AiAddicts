@@ -3,3 +3,7 @@
 requests==2.34.2
 python-dotenv==1.2.3
 supabase==2.31.0
+# Rendu local du style visuel "motion_graphics" (engine/motion_graphics/) :
+# dessin des frames (texte, formes, icônes). >=10.1 requis pour
+# ImageFont.load_default(size=...) (police intégrée, aucun fichier à livrer).
+Pillow==12.2.0

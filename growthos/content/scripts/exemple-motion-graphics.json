@@ -1,0 +1,83 @@
+{
+  "title": "Save first, spend what's left",
+  "niche": "personal-finance",
+  "account": "test-account-01",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "language": "en",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": ["#personalfinance", "#budgeting", "#savingsplan", "#moneytips"],
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "If you make $3,000 a month, don't wait until the end of the month to save.",
+      "visual": "A big animated number showing the monthly income.",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Monthly income",
+        "displayValue": "$3,000",
+        "value": 3000,
+        "label": "Don't wait until month-end to save",
+        "icon": "wallet"
+      }
+    },
+    {
+      "role": "point",
+      "text": "Move your savings first.",
+      "visual": "An icon representing savings, with the instruction as text.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "piggy_bank",
+        "text": "Move your savings first"
+      }
+    },
+    {
+      "role": "point",
+      "text": "For example, put $600 aside immediately.",
+      "visual": "A big animated number showing the amount saved first.",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "displayValue": "$600",
+        "value": 600,
+        "label": "Savings first",
+        "icon": "piggy_bank"
+      }
+    },
+    {
+      "role": "point",
+      "text": "Then manage the remaining $2,400.",
+      "visual": "A sequence showing income, then savings taken out, then what's left to spend.",
+      "motion_graphic": {
+        "sceneType": "compound_growth",
+        "title": "Where the $3,000 goes",
+        "data": [
+          {"label": "Income", "displayValue": "$3,000"},
+          {"label": "Saved first", "displayValue": "$600"},
+          {"label": "Available to spend", "displayValue": "$2,400"}
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "text": "Saving shouldn't be what happens to the money you didn't spend. Spending should happen with the money you didn't save.",
+      "visual": "A simple formula showing income minus savings equals spending budget.",
+      "motion_graphic": {
+        "sceneType": "formula",
+        "title": "The rule",
+        "terms": ["INCOME", "- SAVINGS", "= SPENDING BUDGET"]
+      }
+    },
+    {
+      "role": "cta",
+      "text": "Save first. Spend what's left. Follow for more simple money rules.",
+      "visual": "A takeaway card with the core rule as a checklist.",
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "The takeaway",
+        "items": ["Save first", "Spend what's left", "Follow for more money rules"]
+      }
+    }
+  ]
+}
