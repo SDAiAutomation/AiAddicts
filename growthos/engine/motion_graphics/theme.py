@@ -15,7 +15,7 @@ THEME_VERSION = "1.0.0"
 
 @dataclass(frozen=True)
 class Theme:
-    background: str = "#0B1220"
+    background: str = "#16233A"
     primary: str = "#22D3EE"
     secondary: str = "#94A3B8"
     accent: str = "#F59E0B"
