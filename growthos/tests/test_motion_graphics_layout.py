@@ -129,6 +129,50 @@ class TestFindCollisions(unittest.TestCase):
         self.assertFalse(layout.intrudes_zone(safe_box, zone))
 
 
+class TestTimelineLabelsStayInsideFrame(unittest.TestCase):
+    """Phase 2.7 validation finding: the first timeline label ("Quarterly
+    payment made", dot at 0.12w) was centred on its dot with a width wider
+    than the distance to the frame edge and rendered clipped ("UARTERLY")."""
+
+    def test_clamp_center_x_keeps_box_inside_margin(self):
+        self.assertEqual(layout.clamp_center_x(130, 200, 1080, 54), 254)
+        self.assertEqual(layout.clamp_center_x(950, 200, 1080, 54), 826)
+        self.assertEqual(layout.clamp_center_x(540, 200, 1080, 54), 540)
+
+    def test_real_timeline_has_no_designed_pixels_touching_frame_edges(self):
+        theme = resolve_theme(None)
+        scene = {
+            "sceneType": "timeline", "title": "Refund timeline",
+            "steps": ["Quarterly payment made", "Refund flagged", "Transfer pending"],
+        }
+        w, h = SIZE
+        frame = RENDERERS["timeline"](scene, 1.0, theme, SIZE).convert("RGB")
+        band = round(w * 0.03)
+        y0, y1 = round(h * 0.40), round(h * 0.55)
+        for x0, x1 in ((0, band), (w - band, w)):
+            strip = frame.crop((x0, y0, x1, y1))
+            brightest = max(sum(p) for p in strip.getdata())
+            self.assertLess(brightest, 150, "label pixels reach the frame edge (clipped)")
+
+    def test_adjacent_timeline_labels_do_not_touch(self):
+        theme = resolve_theme(None)
+        for steps in (
+            ["Quarterly payment made", "Refund flagged", "Transfer pending"],
+            ["Two-year refund issued", "Separate week flagged", "Audit pending"],
+        ):
+            scene = {"sceneType": "timeline", "title": "T", "steps": steps}
+            w, h = SIZE
+            frame = RENDERERS["timeline"](scene, 1.0, theme, SIZE).convert("RGB")
+            y0, y1 = round(h * 0.47), round(h * 0.56)  # label band, below the dots
+            spacing = (w * 0.80 - w * 0.20) / 2
+            for k in (1, 2):
+                mid = round(w * 0.20 + spacing * (k - 0.5))
+                strip = frame.crop((mid - 8, y0, mid + 8, y1))
+                brightest = max(sum(p) for p in strip.getdata())
+                self.assertLess(brightest, 150, f"labels {k} and {k + 1} touch for {steps}")
+
+
+
 class TestDensityGuard(unittest.TestCase):
     def test_rows_fit_within_available_height_are_unchanged(self):
         self.assertEqual(layout.max_rows_for_height(1000, 4), 4)

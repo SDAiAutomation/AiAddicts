@@ -161,6 +161,19 @@ def draw_fitted(
     return (round(x0), round(y0), round(x1), round(y1))
 
 
+def clamp_center_x(cx: float, half_width: float, frame_width: int, margin: float) -> float:
+    """Shifts a horizontally-centred box's centre so the whole box stays inside
+    [margin, frame_width - margin]. Used for labels centred on a point that
+    sits near a frame edge (first/last timeline step) — a label as wide as its
+    step spacing is wider than the distance from that point to the edge, so
+    centring it there clips it against the frame."""
+    lo = margin + half_width
+    hi = frame_width - margin - half_width
+    if lo > hi:
+        return frame_width / 2
+    return min(max(cx, lo), hi)
+
+
 # --- Density guard (section 7) --------------------------------------------
 
 # Below this row height (px, on a 1920-tall reference canvas), a row of text

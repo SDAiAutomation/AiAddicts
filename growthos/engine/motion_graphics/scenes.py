@@ -356,7 +356,10 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
     steps = data.get("steps") or []
     n = len(steps)
     y = h * 0.45
-    x0, x1 = w * 0.12, w * 0.88
+    # 0.20w/0.80w (was 0.12/0.88): end dots must be far enough from the frame
+    # edge that a label as wide as 90% of the step spacing still fits inside
+    # the margin without being shifted into its neighbour.
+    x0, x1 = w * 0.20, w * 0.80
     line_progress = anim.ease_out_cubic(anim.phase(t, 0.1, 0.75))
     line_color = lerp_color(theme.background, theme.secondary, 1.0 if line_progress > 0 else 0.0)
     if n > 1:
@@ -375,8 +378,14 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
         if r > 0:
             draw.ellipse((cx - r, y - r, cx + r, y + r), fill=dot_color)
         label_color = lerp_color(theme.background, theme.text, p)
+        label = str(step).upper()
+        # The first/last dots sit at 0.12w / 0.88w, closer to the frame edge
+        # than half of a full-spacing label — centring there clipped the label
+        # ("UARTERLY PAYMENT MADE"). Keep the fitted box inside the frame margin.
+        fit = layout.fit_text(draw, label, label_base_px, label_max_width, bold=True)
+        label_cx = layout.clamp_center_x(cx, fit.line_width / 2, w, w * 0.05)
         layout.draw_fitted(
-            draw, (cx, y + h * 0.05), str(step).upper(), label_base_px, label_max_width, label_color, bold=True,
+            draw, (label_cx, y + h * 0.05), label, label_base_px, label_max_width, label_color, bold=True,
         )
     return image
 
