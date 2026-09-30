@@ -57,6 +57,7 @@ Optionnel : sans aucune clé (Pexels et/ou OpenAI), `fetch_block_images()`
 retourne des None partout — `engine/video.render_final()` retombe sur le
 fond couleur unie d'origine, rien ne casse pour les configs sans clé.
 """
+import json
 import os
 import re
 import time
@@ -236,6 +237,7 @@ def fetch_motion_graphics_clips(
     aspect_ratio: str,
     work_dir: Path,
     theme_overrides: dict | None = None,
+    preflight_report: list | None = None,
 ) -> list[str | None]:
     """Un clip `.mp4` Motion Graphics local par bloc, rendu à la durée EXACTE
     de sa voix off (voir engine/motion_graphics/renderer.py) — jamais bloquant :
@@ -255,15 +257,52 @@ def fetch_motion_graphics_clips(
             continue
         fallback_text = _block_visual_text(block)
         scene = motion_graphics.resolve_scene(block.get("motion_graphic"), fallback_text)
+        duration = durations[i] if i < len(durations) else 3.0
+        scene = _sync_and_preflight(
+            scene, fallback_text, duration, Path(work_dir) / "audio" / f"block-{i + 1:02d}.words.json",
+            (int(v) for v in resolution.split("x")), theme_overrides, i, preflight_report,
+        )
         try:
             motion_graphics.render_scene_clip(
-                scene, durations[i] if i < len(durations) else 3.0, str(clip_path),
+                scene, duration, str(clip_path),
                 resolution=resolution, theme_overrides=theme_overrides,
             )
             paths[i] = str(clip_path)
         except RuntimeError as exc:
             print(f"       bloc {i + 1} : motion graphics échoué ({exc})")
     return _fill_missing_visuals(paths)
+
+
+def _sync_and_preflight(
+    scene: dict, fallback_text: str, duration: float, words_path: Path, size, theme_overrides: dict | None,
+    block_index: int, report: list | None,
+) -> dict:
+    """1) révélations calées sur la voix (engine/motion_graphics/sync.py),
+    2) contrôle de mise en page de l'image finale (preflight.py) — une erreur
+    grave (chevauchement, sortie du cadre, zone des sous-titres) remplace la
+    scène par le repli `icon_text` plutôt que de publier une scène cassée.
+    Jamais bloquant : toute exception ici laisse la scène telle quelle."""
+    from .motion_graphics import preflight, sync
+    from .motion_graphics.theme import resolve_theme
+
+    entry: dict = {"blockIndex": block_index, "sceneType": scene.get("sceneType"), "synced": False, "action": "none"}
+    try:
+        w, h = tuple(size)
+        if words_path.exists():
+            scene = sync.attach_reveals(scene, json.loads(words_path.read_text(encoding="utf-8")), duration)
+            entry["synced"] = "_reveals" in scene
+        result = preflight.check_scene(scene, resolve_theme(theme_overrides), (w, h))
+        entry.update({"minFontPx": result["minFontPx"], "errors": result["errors"], "warnings": result["warnings"]})
+        if not result["ok"]:
+            scene = motion_graphics.resolve_scene(None, fallback_text)
+            entry["action"] = "fallback_icon_text"
+            print(f"       bloc {block_index + 1} : mise en page {entry['sceneType']} invalide "
+                  f"({', '.join(e['kind'] for e in result['errors'])}) — repli icon_text")
+    except Exception as exc:  # noqa: BLE001 — jamais bloquant
+        entry["error"] = str(exc)[:160]
+    if report is not None:
+        report.append(entry)
+    return scene
 
 
 def search_image_url(query: str, api_key: str, orientation: str = "portrait") -> str | None:

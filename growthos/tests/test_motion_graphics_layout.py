@@ -155,22 +155,19 @@ class TestTimelineLabelsStayInsideFrame(unittest.TestCase):
             self.assertLess(brightest, 150, "label pixels reach the frame edge (clipped)")
 
     def test_adjacent_timeline_labels_do_not_touch(self):
+        # Labels now alternate below/above the line (zigzag), so "adjacent"
+        # is checked on the recorded text boxes, not a single pixel band.
+        from engine.motion_graphics import preflight
+
         theme = resolve_theme(None)
         for steps in (
             ["Quarterly payment made", "Refund flagged", "Transfer pending"],
             ["Two-year refund issued", "Separate week flagged", "Audit pending"],
+            ["Snap photos now", "Save originals to cloud", "Email to your agent"],
         ):
             scene = {"sceneType": "timeline", "title": "T", "steps": steps}
-            w, h = SIZE
-            frame = RENDERERS["timeline"](scene, 1.0, theme, SIZE).convert("RGB")
-            y0, y1 = round(h * 0.47), round(h * 0.56)  # label band, below the dots
-            spacing = (w * 0.80 - w * 0.20) / 2
-            for k in (1, 2):
-                mid = round(w * 0.20 + spacing * (k - 0.5))
-                strip = frame.crop((mid - 8, y0, mid + 8, y1))
-                brightest = max(sum(p) for p in strip.getdata())
-                self.assertLess(brightest, 150, f"labels {k} and {k + 1} touch for {steps}")
-
+            result = preflight.check_scene(scene, theme, SIZE)
+            self.assertEqual(result["errors"], [], f"{steps}: {result['errors']}")
 
 
 class TestDensityGuard(unittest.TestCase):

@@ -23,6 +23,22 @@ from . import layout
 from .theme import Theme, lerp_color
 
 
+# Seconds an item takes to fade in once the narrator reaches it.
+_REVEAL_FADE_SECONDS = 0.35
+
+
+def _stag(data: dict, t: float, index: int, count: int, start: float = 0.05, span: float = 0.55, item_duration: float = 0.35) -> float:
+    """Item entrance progress. When `engine.motion_graphics.sync` attached
+    narration-derived reveal times (`_reveals`, normalised 0..1), the item
+    appears when the narrator says it; otherwise the original even stagger."""
+    reveals = data.get("_reveals")
+    if reveals and index < len(reveals):
+        duration = max(float(data.get("_duration") or 0.0), 0.5)
+        r = float(reveals[index])
+        return anim.ease_out_cubic(anim.phase(t, r, r + _REVEAL_FADE_SECONDS / duration))
+    return anim.stagger(t, index, count, start, span, item_duration)
+
+
 def _title(image: Image.Image, draw, theme: Theme, size: tuple[int, int], text: str, t: float, y_ratio: float = 0.15) -> None:
     """Phase 2.7 fix: width-fit via `layout.draw_fitted` — every scene calls
     this for its title, so this one change protects all of them from a
@@ -111,7 +127,7 @@ def render_money_split(data: dict, t: float, theme: Theme, size: tuple[int, int]
     label_base_px = round(h * 0.028)
     value_base_px = round(h * 0.032)
     for i, row in enumerate(rows):
-        p = anim.stagger(t, i, n, start=0.1, span=0.6, item_duration=0.4)
+        p = _stag(data, t, i, n, start=0.1, span=0.6, item_duration=0.4)
         offset = anim.slide_up(t, 0, 1, distance=24) * (1 - p) if p < 1 else 0
         cy = h * rows_start_ratio + row_h * i + row_h / 2 + offset
         is_emphasis = str(row.get("label", "")).strip().lower() == emphasis
@@ -193,7 +209,7 @@ def render_bar_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     label_max_width = track_x0 - w * 0.05 - w * 0.02
     value_max_width = w - value_x - w * 0.03
     for i, row in enumerate(rows):
-        p = anim.stagger(t, i, n, start=0.08, span=0.65, item_duration=0.4)
+        p = _stag(data, t, i, n, start=0.08, span=0.65, item_duration=0.4)
         cy = top_ratio * h + row_h * i + row_h / 2
         label_color = lerp_color(theme.background, theme.text, min(p * 2, 1))
         row_max_height = row_h * 0.85
@@ -225,7 +241,11 @@ def render_donut_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]
     # the tightened caption-reserved zone, see canvas.SAFE_BOTTOM_RATIO) — the
     # donut is nudged up slightly and the legend now starts right after it,
     # bounded by the real content zone.
-    cx, cy, r = w / 2, h * 0.34, w * 0.24
+    # Preflight finding: at r=0.24w / cy=0.34h the legend started at ~1008px of a
+    # 1120px content zone, so the density guard silently dropped the 3rd
+    # legend row and the 2nd intruded the caption zone. A slightly smaller
+    # donut higher up leaves room for a full 3-5 row legend.
+    cx, cy, r = w / 2, h * 0.30, w * 0.19
     overall = anim.ease_out_cubic(anim.phase(t, 0.05, 0.8))
     start_angle = -90.0
     for i, value in enumerate(values):
@@ -238,7 +258,7 @@ def render_donut_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]
     draw.ellipse((cx - hole, cy - hole, cx + hole, cy + hole), fill=theme.background)
 
     _, _, _, content_bottom_px = layout.content_zone(w, h)
-    legend_y = cy + r + h * 0.05
+    legend_y = cy + r + h * 0.04
     row_span = h * 0.045
     available = content_bottom_px - legend_y
     # Density guard: every chart segment still shows in the pie by colour —
@@ -246,11 +266,13 @@ def render_donut_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]
     # of it (priority ladder, section 6: decorative/supporting text may
     # disappear before primary information becomes unreadable).
     rows = rows[: layout.max_rows_for_height(available, len(rows))] if available > 0 else []
+    if rows:
+        row_span = min(row_span, available / len(rows))
     legend_base_px = round(h * 0.026)
     legend_max_width = w * 0.68
     n = len(rows)
     for i, row in enumerate(rows):
-        p = anim.stagger(t, i, n, start=0.5, span=0.4, item_duration=0.3)
+        p = _stag(data, t, i, n, start=0.5, span=0.4, item_duration=0.3)
         color = lerp_color(theme.background, palette[i % len(palette)], p)
         swatch = h * 0.014
         y = legend_y + i * row_span
@@ -286,7 +308,7 @@ def render_comparison(data: dict, t: float, theme: Theme, size: tuple[int, int])
     value_base_px = round(h * 0.045)
 
     def _option(box, option, index, accent):
-        p = anim.stagger(t, index, 2, start=0.1, span=0.5, item_duration=0.4)
+        p = _stag(data, t, index, 2, start=0.1, span=0.5, item_duration=0.4)
         img, dr = _card(image, draw, box, theme, p)
         color = lerp_color(theme.background, theme.text, p)
         cx = (box[0] + box[2]) / 2
@@ -370,8 +392,13 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
     # each other — same collision family as the comparison-card bug.
     step_spacing = (x1 - x0) / max(n - 1, 1) if n > 1 else x1 - x0
     label_max_width = max(step_spacing * 0.9, w * 0.12)
+    # 3+ steps: alternate labels below/above the line. Same-side neighbours are
+    # then TWO spacings apart, so each label gets ~2x the width and keeps a
+    # legible font instead of shrinking to ~28px (preflight: below the floor).
+    zigzag = n >= 3
+    edge_margin = w * 0.03
     for i, step in enumerate(steps):
-        p = anim.stagger(t, i, n, start=0.05, span=0.7, item_duration=0.35)
+        p = _stag(data, t, i, n, start=0.05, span=0.7, item_duration=0.35)
         cx = x0 if n <= 1 else x0 + (x1 - x0) * i / (n - 1)
         r = h * 0.014 * anim.scale_in(t, 0, 1, from_scale=0.3) if p > 0 else 0
         dot_color = lerp_color(theme.background, theme.primary, p)
@@ -382,10 +409,16 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
         # The first/last dots sit at 0.12w / 0.88w, closer to the frame edge
         # than half of a full-spacing label — centring there clipped the label
         # ("UARTERLY PAYMENT MADE"). Keep the fitted box inside the frame margin.
-        fit = layout.fit_text(draw, label, label_base_px, label_max_width, bold=True)
-        label_cx = layout.clamp_center_x(cx, fit.line_width / 2, w, w * 0.05)
+        if zigzag:
+            width = min(step_spacing * 2 * 0.9, 2 * (min(cx, w - cx) - edge_margin))
+            width = max(width, w * 0.12)
+            label_y = y + h * 0.05 if i % 2 == 0 else y - h * 0.05
+        else:
+            width, label_y = label_max_width, y + h * 0.05
+        fit = layout.fit_text(draw, label, label_base_px, width, bold=True, wrap_first=True)
+        label_cx = layout.clamp_center_x(cx, fit.line_width / 2, w, edge_margin)
         layout.draw_fitted(
-            draw, (label_cx, y + h * 0.05), label, label_base_px, label_max_width, label_color, bold=True,
+            draw, (label_cx, label_y), label, label_base_px, width, label_color, bold=True, wrap_first=True,
         )
     return image
 
@@ -405,7 +438,7 @@ def render_compound_growth(data: dict, t: float, theme: Theme, size: tuple[int, 
     step_h = (bottom_ratio - top_ratio) * h / max(n, 1)
     value_max_width = w - w * 0.62 - w * 0.05
     for i, row in enumerate(rows):
-        p = anim.stagger(t, i, n, start=0.05, span=0.75, item_duration=0.45)
+        p = _stag(data, t, i, n, start=0.05, span=0.75, item_duration=0.45)
         cy = top_ratio * h + step_h * i + step_h / 2
         is_last = i == n - 1
         color = theme.accent if is_last else theme.primary
@@ -444,7 +477,7 @@ def render_checklist(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     icon_span = h * 0.03
     item_max_width = w - (w * 0.12 + icon_span * 1.6) - w * 0.05
     for i, item in enumerate(items):
-        p = anim.stagger(t, i, n, start=0.05, span=0.75, item_duration=0.4)
+        p = _stag(data, t, i, n, start=0.05, span=0.75, item_duration=0.4)
         cy = top_ratio * h + row_h * i + row_h / 2
         offset = (1 - p) * h * 0.02
         check_color = lerp_color(theme.background, theme.positive, p)
@@ -500,7 +533,7 @@ def render_formula(data: dict, t: float, theme: Theme, size: tuple[int, int]) ->
     row_h = (bottom_ratio - top_ratio) * h / max(n, 1)
     term_max_width = w * 0.86
     for i, term in enumerate(terms):
-        p = anim.stagger(t, i, n, start=0.1, span=0.7, item_duration=0.4)
+        p = _stag(data, t, i, n, start=0.1, span=0.7, item_duration=0.4)
         cy = top_ratio * h + row_h * i + row_h / 2
         offset = anim.slide_up(t, 0, 1, distance=20) * (1 - p) if p < 1 else 0
         is_result = str(term).strip().startswith("=")

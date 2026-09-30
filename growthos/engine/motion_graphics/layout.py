@@ -93,8 +93,12 @@ class FitResult:
     total_height: float
 
 
+_WRAP_FIRST_MIN_RATIO = 0.8
+
+
 def fit_text(
     draw, text: str, base_font_px: int, max_width: float, *, bold: bool = False, max_height: float | None = None,
+    wrap_first: bool = False,
 ) -> FitResult:
     """The largest font size (down to `_MIN_FONT_RATIO` of `base_font_px`) at
     which `text` fits `max_width` on one line. If even the minimum size still
@@ -109,6 +113,25 @@ def fit_text(
         return FitResult(canvas.font(max(1, base_font_px)), [], 0.0, 0.0)
     min_px = max(1, round(base_font_px * _MIN_FONT_RATIO))
     stroke = max(1, base_font_px // 22) if bold else 0
+    if wrap_first:
+        # Legibility over compactness: keep the font >= 80% of requested by
+        # wrapping to at most 2 lines BEFORE shrinking further (the default
+        # path shrinks to 60% on one line first, which can be unreadably small).
+        floor = max(1, round(base_font_px * _WRAP_FIRST_MIN_RATIO))
+        size = base_font_px
+        while True:
+            f = canvas.font(size)
+            line_h = canvas.text_size(draw, "Ag", f, stroke_width=stroke)[1]
+            w1 = canvas.text_size(draw, text, f, stroke_width=stroke)[0]
+            if w1 <= max_width:
+                return FitResult(f, [text], w1, line_h)
+            lines = canvas.wrap_text(draw, text, f, max_width)
+            widths = [canvas.text_size(draw, ln, f, stroke_width=stroke)[0] for ln in lines]
+            if len(lines) <= 2 and max(widths, default=0) <= max_width:
+                return FitResult(f, lines, max(widths, default=0), line_h * len(lines) * _LINE_GAP)
+            if size <= floor:
+                break
+            size = max(floor, round(size * _FONT_SHRINK_STEP))
     size = base_font_px
     while size > min_px:
         f = canvas.font(size)
@@ -131,9 +154,30 @@ def fit_text(
         size = max(wrap_min_px, round(size * _FONT_SHRINK_STEP))
 
 
+# Preflight recorder: while a `record_boxes()` context is active, every
+# `draw_fitted` call appends its drawn box + final font size. Off (None) in
+# normal rendering, so scenes pay nothing and need no changes.
+_RECORDER: list | None = None
+
+
+class record_boxes:
+    """`with record_boxes() as rec:` -> `rec` is a list of
+    {"text","box","font","base","lines"} for every fitted text drawn inside."""
+
+    def __enter__(self) -> list:
+        global _RECORDER
+        self._previous = _RECORDER
+        _RECORDER = []
+        return _RECORDER
+
+    def __exit__(self, *exc) -> None:
+        global _RECORDER
+        _RECORDER = self._previous
+
+
 def draw_fitted(
     draw, xy: tuple[float, float], text: str, base_font_px: int, max_width: float, fill, *,
-    bold: bool = False, anchor: str = "mm", max_height: float | None = None,
+    bold: bool = False, anchor: str = "mm", max_height: float | None = None, wrap_first: bool = False,
 ) -> tuple[int, int, int, int]:
     """Drop-in, width-safe replacement for `canvas.draw_text` wherever a
     value's length isn't guaranteed short (labels, displayValues, legend
@@ -141,7 +185,7 @@ def draw_fitted(
     fixed-height row/pill/card so a 2-line wrap doesn't just trade a
     horizontal overflow for a vertical one. Returns the bounding box it
     actually drew, for collision checks / the debug overlay."""
-    result = fit_text(draw, text, base_font_px, max_width, bold=bold, max_height=max_height)
+    result = fit_text(draw, text, base_font_px, max_width, bold=bold, max_height=max_height, wrap_first=wrap_first)
     x, y = xy
     if not result.lines:
         return (round(x), round(y), round(x), round(y))
@@ -158,6 +202,11 @@ def draw_fitted(
     y0 = min(b[1] for b in boxes)
     x1 = max(b[2] for b in boxes)
     y1 = max(b[3] for b in boxes)
+    if _RECORDER is not None:
+        _RECORDER.append({
+            "text": text[:40], "box": (round(x0), round(y0), round(x1), round(y1)),
+            "font": getattr(result.font, "size", base_font_px), "base": base_font_px, "lines": len(result.lines),
+        })
     return (round(x0), round(y0), round(x1), round(y1))
 
 

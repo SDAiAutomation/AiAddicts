@@ -167,10 +167,11 @@ def _generate(
     # gèrent déjà leurs propres reprises sans casser leur identité (rendu
     # local dans les deux cas), stock_footage n'a pas d'identité IA à casser.
     stock_selection: dict = {}
+    motion_preflight: list = []
     if motion_graphics_style:
         image_paths = visuals.fetch_motion_graphics_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
-            theme_overrides=data.get("motion_graphics_theme"),
+            theme_overrides=data.get("motion_graphics_theme"), preflight_report=motion_preflight,
         )
         image_reports: list[dict] = []
         visual_fallbacks: list[dict] = []
@@ -291,6 +292,8 @@ def _generate(
         "style_treatments": style_treatment_reports,
         # Phase 4 : plan sémantique + choix par bloc (style stock footage), sinon None.
         "stock_selection": stock_selection or None,
+        # Motion Graphics : synchro voix + contrôle de mise en page par bloc (liste vide sinon).
+        "motion_preflight": motion_preflight,
     }
     return final_video, work_dir, metrics
 

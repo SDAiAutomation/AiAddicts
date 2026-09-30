@@ -9,7 +9,11 @@ _GENERATION_MODULES = (
     "assembler.py", "captions.py", "editorial_quality.py", "generation_cache.py", "quiz.py", "quiz_cover.py",
     "image_character_bible.py",
     "image_model_router.py", "image_prompt_builder.py", "image_style_bible.py",
-    "openai_images.py", "quality.py", "stock_planner.py", "tts.py", "video.py", "visuals.py",
+    "openai_images.py", "quality.py", "stock_planner.py", "tts.py",
+    "kinetic_typography.py",
+    "motion_graphics/animations.py", "motion_graphics/canvas.py", "motion_graphics/layout.py",
+    "motion_graphics/preflight.py", "motion_graphics/renderer.py", "motion_graphics/scenes.py",
+    "motion_graphics/schema.py", "motion_graphics/sync.py", "motion_graphics/theme.py", "video.py", "visuals.py",
 )
 
 _GENERATION_ENV = (
