@@ -414,7 +414,11 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
             width = max(width, w * 0.12)
             label_y = y + h * 0.05 if i % 2 == 0 else y - h * 0.05
         else:
-            width, label_y = label_max_width, y + h * 0.05
+            # 1-2 steps: still bounded by the room left before the frame edge, else two wide
+            # edge labels get recentred into each other (2 long steps used to overlap).
+            width = min(label_max_width, 2 * (min(cx, w - cx) - edge_margin))
+            width = max(width, w * 0.12)
+            label_y = y + h * 0.05
         fit = layout.fit_text(draw, label, label_base_px, width, bold=True, wrap_first=True)
         label_cx = layout.clamp_center_x(cx, fit.line_width / 2, w, edge_margin)
         layout.draw_fitted(

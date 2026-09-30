@@ -255,7 +255,12 @@ def fetch_motion_graphics_clips(
         if _exists_nonempty(clip_path):
             paths[i] = str(clip_path)
             continue
-        fallback_text = _block_visual_text(block)
+        # Fallback text = the scene's own content, else the narration — never the
+        # `visual` shot description (see preflight.fallback_text).
+        from .motion_graphics import preflight as _preflight
+
+        narration = str(block.get("text") or "")
+        fallback_text = _preflight.fallback_text(block.get("motion_graphic"), narration)
         scene = motion_graphics.resolve_scene(block.get("motion_graphic"), fallback_text)
         duration = durations[i] if i < len(durations) else 3.0
         scene = _sync_and_preflight(
@@ -294,7 +299,7 @@ def _sync_and_preflight(
         result = preflight.check_scene(scene, resolve_theme(theme_overrides), (w, h))
         entry.update({"minFontPx": result["minFontPx"], "errors": result["errors"], "warnings": result["warnings"]})
         if not result["ok"]:
-            scene = motion_graphics.resolve_scene(None, fallback_text)
+            scene = motion_graphics.resolve_scene(None, preflight.fallback_text(scene, fallback_text))
             entry["action"] = "fallback_icon_text"
             print(f"       bloc {block_index + 1} : mise en page {entry['sceneType']} invalide "
                   f"({', '.join(e['kind'] for e in result['errors'])}) — repli icon_text")

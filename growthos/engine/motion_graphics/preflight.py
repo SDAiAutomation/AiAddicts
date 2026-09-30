@@ -62,3 +62,51 @@ def check_scene(scene: dict, theme: Theme, size: tuple[int, int]) -> dict:
         "warnings": warnings,
         "ok": not errors,
     }
+
+
+_FALLBACK_MAX_CHARS = 90
+
+
+def _shorten(text: str, limit: int = _FALLBACK_MAX_CHARS) -> str:
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",;:- ")
+    return cut + "…"
+
+
+def fallback_text(scene: object, narration: str) -> str:
+    """On-screen text for the `icon_text` fallback.
+
+    Built from the failed scene's OWN content (its text, title, values, items...)
+    and, only if there is none, from the narration. NEVER from the block's
+    `visual`: that field is a shot description written for the editor
+    ("Close_up, hands dropping $50 bills into a jar...") and must not be shown
+    to viewers.
+    """
+    if isinstance(scene, dict):
+        pieces: list[str] = []
+        for key in ("text", "title", "displayValue", "label"):
+            if scene.get(key):
+                pieces.append(str(scene[key]))
+        for key in ("steps", "items", "terms"):
+            values = scene.get(key)
+            if isinstance(values, list) and values:
+                pieces.append(" · ".join(str(v) for v in values))
+        rows = scene.get("data")
+        if isinstance(rows, list) and rows:
+            pieces.append(" · ".join(
+                f"{r.get('label', '')} {r.get('displayValue', '')}".strip() for r in rows if isinstance(r, dict)))
+        for key in ("optionA", "optionB", "before", "after"):
+            opt = scene.get(key)
+            if isinstance(opt, dict) and (opt.get("label") or opt.get("displayValue")):
+                pieces.append(f"{opt.get('label', '')} {opt.get('displayValue', '')}".strip())
+        if pieces:
+            # title first when there is one, then the content
+            return _shorten(" — ".join(p for p in pieces if p)[:400])
+    sentence = " ".join(str(narration or "").split())
+    for sep in (". ", "? ", "! "):
+        if sep in sentence:
+            sentence = sentence.split(sep, 1)[0]
+            break
+    return _shorten(sentence) or " "

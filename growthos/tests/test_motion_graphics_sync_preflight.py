@@ -175,3 +175,76 @@ class TestWrapFirst(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFallbackNeverShowsTheShotDescription(unittest.TestCase):
+    """Production bug: a scene that failed the layout check (or was invalid) fell back to
+    `icon_text` showing the block's `visual` — a shot description for the editor
+    ("Close_up, hands dropping $50 bills...") — as on-screen text."""
+
+    VISUAL = "Close_up, hands dropping $50 bills into a clear jar labeled 'Emergency Fund'"
+
+    def test_fallback_text_uses_the_scenes_own_content(self):
+        scene = {"sceneType": "timeline", "title": "Savings pace", "steps": ["$50 per week = 20 weeks", "$100 per month = 10 months"]}
+        text = preflight.fallback_text(scene, "narration")
+        self.assertIn("Savings pace", text)
+        self.assertIn("20 weeks", text)
+
+    def test_fallback_text_uses_the_narration_first_sentence_when_the_scene_is_unusable(self):
+        text = preflight.fallback_text(None, "How fast should you build it? If you can save $50 a week it takes 20 weeks.")
+        self.assertEqual(text, "How fast should you build it")
+
+    def test_fallback_text_is_bounded_and_never_empty(self):
+        self.assertLessEqual(len(preflight.fallback_text(None, "word " * 100)), 92)
+        self.assertEqual(preflight.fallback_text(None, ""), " ")
+
+    def test_invalid_scene_falls_back_to_narration_not_visual(self):
+        from unittest import mock
+        from engine import visuals
+
+        blocks = [{"role": "point", "text": "Save fifty dollars a week. It adds up fast.", "visual": self.VISUAL,
+                   "motion_graphic": {"sceneType": "timeline"}}]  # no steps -> invalid
+        captured = []
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            visuals.motion_graphics, "render_scene_clip", side_effect=lambda scene, *a, **k: captured.append(scene)
+        ):
+            visuals.fetch_motion_graphics_clips(blocks, [5.0], "9:16", Path(tmp))
+        self.assertEqual(len(captured), 1)
+        shown = captured[0].get("text", "")
+        self.assertNotIn("Close_up", shown)
+        self.assertNotIn("jar", shown.lower())
+        self.assertIn("Save fifty dollars a week", shown)
+
+    def test_failed_preflight_keeps_the_scene_content_and_drops_the_visual(self):
+        from unittest import mock
+        from engine import visuals
+
+        blocks = [{"role": "point", "text": "Narration.", "visual": self.VISUAL,
+                   "motion_graphic": {"sceneType": "timeline", "title": "Pace", "steps": ["A one", "B two"]}}]
+        captured = []
+        import tempfile
+        bad = {"ok": False, "errors": [{"kind": "overlap", "text": "x"}], "warnings": [], "minFontPx": 40}
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(preflight, "check_scene", return_value=bad), \
+                mock.patch.object(visuals.motion_graphics, "render_scene_clip",
+                                  side_effect=lambda scene, *a, **k: captured.append(scene)):
+            visuals.fetch_motion_graphics_clips(blocks, [5.0], "9:16", Path(tmp))
+        shown = captured[0].get("text", "")
+        self.assertEqual(captured[0]["sceneType"], "icon_text")
+        self.assertNotIn("Close_up", shown)
+        self.assertIn("A one", shown)
+
+
+class TestTwoLongTimelineSteps(unittest.TestCase):
+    def test_two_long_steps_do_not_overlap(self):
+        # Production scene: 2 long steps used to be recentred into each other -> false overlap -> fallback.
+        scene = {"sceneType": "timeline", "steps": ["$50 per week = 20 weeks", "$100 per month = 10 months"]}
+        r = preflight.check_scene(scene, THEME, SIZE)
+        self.assertTrue(r["ok"], r["errors"])
+        self.assertGreaterEqual(r["minFontPx"], preflight.MIN_FONT_PX_1920)
+
+    def test_single_and_two_step_timelines_stay_inside_the_frame(self):
+        for steps in (["A very long single step label that needs wrapping"], ["Short", "Another quite long label here"]):
+            r = preflight.check_scene({"sceneType": "timeline", "steps": steps}, THEME, SIZE)
+            self.assertTrue(r["ok"], (steps, r["errors"]))
