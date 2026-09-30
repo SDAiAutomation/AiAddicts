@@ -166,6 +166,7 @@ def _generate(
     # image IA) l'alimente aujourd'hui : motion_graphics/kinetic_typography
     # gèrent déjà leurs propres reprises sans casser leur identité (rendu
     # local dans les deux cas), stock_footage n'a pas d'identité IA à casser.
+    stock_selection: dict = {}
     if motion_graphics_style:
         image_paths = visuals.fetch_motion_graphics_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
@@ -190,6 +191,7 @@ def _generate(
             # prompt d'image. En CLI seul `visual_style` est renseigné.
             visual_style=data.get("visual_style"),
             visual_style_prompt=data.get("visual_style_prompt"),
+            durations=durations, language=data.get("language"), stock_report=stock_selection,
         )
     found = sum(1 for p in image_paths if p)
     suffix = f"{found}/{n_blocks} image(s) trouvée(s), le reste en fond uni" if pexels_key else ""
@@ -287,6 +289,8 @@ def _generate(
         },
         "visual_fallbacks": visual_fallbacks,
         "style_treatments": style_treatment_reports,
+        # Phase 4 : plan sémantique + choix par bloc (style stock footage), sinon None.
+        "stock_selection": stock_selection or None,
     }
     return final_video, work_dir, metrics
 
@@ -596,6 +600,14 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
             "cost": originality_cost,
         }
 
+    stock_planning = ((metrics.get("stock_selection") or {}).get("planning") or {})
+    stock_block = None
+    if stock_planning.get("llmCalls"):
+        # Tokens toujours enregistrés ; pas de tarif codé en dur pour ce modèle
+        # (STOCK_PLANNER_MODEL/ORIGINALITY_MODEL) -> coût non estimé ici.
+        stock_block = {"model": stock_planning.get("model"), "calls": stock_planning["llmCalls"],
+                       "tokens": stock_planning.get("tokens")}
+
     missing: list[str] = []
     if script and not _script_rates():
         missing.append("script")
@@ -614,6 +626,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
         "voice": {"characters": chars, "cost": voice_cost},
         **({"script": script} if script else {}),
         **({"originality": originality_block} if originality_block else {}),
+        **({"stockPlanning": stock_block} if stock_block else {}),
         "totalEstimatedCost": total,
         "missingRates": missing,
         # Vrai si cette vidéo a coûté plus que le seuil d'alerte (GENERATION_COST_ALERT_USD).

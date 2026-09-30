@@ -65,7 +65,7 @@ from pathlib import Path
 
 import requests
 
-from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, style_treatments, video
+from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, stock_planner, style_treatments, video
 
 # Les appels OpenAI /images sont indépendants par scène (I/O réseau) : quelques-uns
 # en parallèle réduisent le temps total de "somme des scènes" à ~"scène la plus
@@ -317,6 +317,27 @@ def search_video_url(query: str, api_key: str, orientation: str = "portrait") ->
         return None
 
 
+def search_video_candidates(query: str, api_key: str, orientation: str | None = "portrait") -> list[dict]:
+    """Pool de candidats Pexels normalisés (métadonnées réelles uniquement —
+    voir `stock_planner.normalize_pexels_video`) pour `query`. `orientation`
+    None = toutes orientations. Ne lève jamais : liste vide en cas d'échec."""
+    params = {"query": query, "per_page": stock_planner.CANDIDATES_PER_SEARCH}
+    if orientation:
+        params["orientation"] = orientation
+    try:
+        resp = requests.get(PEXELS_VIDEO_SEARCH_URL, headers={"Authorization": api_key}, params=params, timeout=20)
+        resp.raise_for_status()
+        raw = resp.json().get("videos") or []
+    except (requests.RequestException, ValueError):
+        return []
+    out = []
+    for rank, item in enumerate(raw):
+        cand = stock_planner.normalize_pexels_video(item, rank)
+        if cand:
+            out.append(cand)
+    return out
+
+
 def _download(url: str, out_path: str, timeout: int = 30) -> str:
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
@@ -338,14 +359,20 @@ def fetch_block_images(
     characters: list[dict] | None = None,
     visual_style: str | None = None,
     visual_style_prompt: str | None = None,
+    durations: list[float] | None = None,
+    language: str | None = None,
+    stock_report: dict | None = None,
 ) -> tuple[list[str | None], list[dict], list[dict], list[dict]]:
     """Un visuel local par bloc (chemin `.jpg` image ou `.mp4` clip vidéo), ou
     None (pas de clé / pas de résultat / échec réseau) — jamais bloquant, un
     bloc sans visuel retombe sur le fond couleur unie côté video.py. Résultats
     mis en cache sur disque (relance = pas de re-fetch).
 
-    - Style « stock footage » -> un clip vidéo Pexels par bloc (photo Pexels
-      en repli, `api_key` = clé Pexels).
+    - Style « stock footage » -> un clip vidéo Pexels par bloc, choisi par
+      le planificateur sémantique (engine/stock_planner.py, Phase 4 ; photo
+      Pexels en dernier repli, `api_key` = clé Pexels). `durations`/`language`
+      affinent le classement/le plan ; `stock_report` (dict, optionnel) est
+      rempli avec le plan, les requêtes tentées et le choix par bloc.
     - Sinon -> une image IA par groupe de `_BLOCKS_PER_IMAGE` blocs (défaut
       1). Passe par `image_quality_control` si `IMAGE_QC_ENABLED` (sinon
       comportement identique à avant : une génération, jamais de QC/boucle).
@@ -390,11 +417,9 @@ def fetch_block_images(
         if not api_key:
             print("       style « stock footage » demandé mais PEXELS_API_KEY absente — fond uni")
             return paths, [], [], []
-        for i, block in enumerate(blocks):
-            if i > 0 and block.get("reuse_visual_from_previous"):
-                paths[i] = paths[i - 1]
-            else:
-                paths[i] = _fetch_stock_clip(_block_visual_text(block), niche, orientation, images_dir, i, api_key)
+        paths = _fetch_stock_blocks(
+            blocks, niche, orientation, images_dir, api_key, durations, language, Path(work_dir), stock_report,
+        )
         return paths, [], [], []
 
     character_prefix = image_character_bible.build_character_prefix(characters, style_consigne)
@@ -616,29 +641,10 @@ def _apply_style_treatments(
     return treated_paths, reports
 
 
-def _fetch_stock_clip(
-    text: str, niche: str | None, orientation: str, images_dir: Path, i: int, api_key: str
-) -> str | None:
-    """Un clip vidéo Pexels pour ce bloc, ou une photo Pexels en repli, ou
-    None. Mis en cache : `block-NN.mp4` puis `block-NN.jpg`."""
-    video_path = images_dir / f"block-{i + 1:02d}.mp4"
-    if _exists_nonempty(video_path):
-        return str(video_path)
-    photo_path = images_dir / f"block-{i + 1:02d}.jpg"
-    if _exists_nonempty(photo_path):
-        return str(photo_path)
-
-    query = _search_query(text, niche)
-    url = search_video_url(query, api_key, orientation)
-    if url:
-        try:
-            t0 = time.monotonic()
-            _download(url, str(video_path), timeout=90)
-            print(f"       bloc {i + 1} : clip vidéo Pexels ({time.monotonic() - t0:.1f}s)")
-            return str(video_path)
-        except requests.RequestException:
-            pass
-
+def _fetch_stock_photo(query: str, photo_path: Path, orientation: str, api_key: str) -> str | None:
+    """Dernier repli d'un bloc stock : une photo Pexels pour la requête la plus
+    large de son échelle (comportement historique, mais après l'échelle
+    sémantique). `None` -> fond uni."""
     url = search_image_url(query, api_key, orientation)
     if url:
         try:
@@ -647,6 +653,35 @@ def _fetch_stock_clip(
         except requests.RequestException:
             pass
     return None
+
+
+def _fetch_stock_blocks(
+    blocks: list[dict], niche: str | None, orientation: str, images_dir: Path, api_key: str,
+    durations: list[float] | None, language: str | None, work_dir: Path, report: dict | None,
+) -> list[str | None]:
+    """Phase 4 : plan sémantique (1 appel LLM max pour toute la vidéo) -> échelle
+    de requêtes -> pool de candidats classés de façon déterministe ->
+    téléchargement du gagnant. Voir engine/stock_planner.py."""
+    t0 = time.monotonic()
+    plans, planning = stock_planner.plan_blocks(blocks, niche, language, work_dir)
+    paths, block_reports = stock_planner.select_stock_clips(
+        blocks, plans, images_dir=images_dir, durations=durations, orientation=orientation,
+        search_fn=lambda q, o: search_video_candidates(q, api_key, o),
+        download_fn=lambda url, out: _download(url, out, timeout=90),
+        photo_fn=lambda q, out: _fetch_stock_photo(q, out, orientation, api_key),
+    )
+    for r in block_reports:
+        if r.get("fallback") not in {"reused_previous"} and not r.get("cached"):
+            print(
+                f"       bloc {r['blockIndex'] + 1} : « {r.get('selectedQuery')} » "
+                f"({r.get('fallback')}, {r.get('candidateCount', 0)} candidats, {r.get('searches', 0)} recherche(s))"
+            )
+    if report is not None:
+        report["planning"] = planning
+        report["blocks"] = block_reports
+        report["searches"] = sum(r.get("searches", 0) for r in block_reports)
+        report["seconds"] = round(time.monotonic() - t0, 2)
+    return paths
 
 
 def _exists_nonempty(path: Path) -> bool:
