@@ -284,6 +284,16 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                 # Four thin panels form a frame without covering the image.
                 frame_y, frame_h = round(height * 0.285), round(height * 0.19)
                 frame_t = max(3, round(7 * scale))
+                # Spotlight: dim everything except the window so the picture
+                # reads as a deliberate frame even when the image is soft.
+                bleed = 60
+                events.extend([
+                    _quiz_scrim(start, end, -bleed, -bleed, width + 2 * bleed, frame_y + bleed, _QUIZ_SCRIM_ALPHA),
+                    _quiz_scrim(start, end, -bleed, frame_y + frame_h, width + 2 * bleed,
+                                height - frame_y - frame_h + bleed, _QUIZ_SCRIM_ALPHA),
+                    _quiz_scrim(start, end, -bleed, frame_y, left + bleed, frame_h, _QUIZ_SCRIM_ALPHA),
+                    _quiz_scrim(start, end, right, frame_y, width - right + bleed, frame_h, _QUIZ_SCRIM_ALPHA),
+                ])
                 events.extend([
                     _quiz_panel(start, end, left, frame_y, card_width, frame_t, accent, scale),
                     _quiz_panel(start, end, left, frame_y + frame_h - frame_t, card_width, frame_t, accent, scale),
@@ -374,6 +384,17 @@ def _quiz_panel(start: float, end: float, x: int, y: int, width: int, height: in
             f"l {r} {h} b 0 {h} 0 {h} 0 {h-r} l 0 {r} b 0 0 0 0 {r} 0")
     tags = f"{{\\an7\\pos({x},{y})\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{animation}}}"
     return _dialogue(start, end, tags + path + "{\\p0}", "QuizPanel", 1)
+
+
+# Black scrim opacity outside the illustration window (0x70 ~ 56% black).
+_QUIZ_SCRIM_ALPHA = "70"
+
+
+def _quiz_scrim(start: float, end: float, x: int, y: int, width: int, height: int, alpha_hex: str) -> str:
+    """Square-cornered translucent black rectangle (ASS alpha: 00 opaque .. FF clear)."""
+    path = f"m 0 0 l {width} 0 l {width} {height} l 0 {height}"
+    tags = f"{{\\an7\\pos({x},{y})\\p1\\bord0\\shad0\\1c&H000000&\\1a&H{alpha_hex}&}}"
+    return _dialogue(start, end, tags + path + "{\\p0}", "QuizPanel", 0)
 
 
 def _word_pop_events(cue: dict, preset: dict, fs_prefix: str, reset: str) -> list[str]:
