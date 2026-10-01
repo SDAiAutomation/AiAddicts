@@ -1,5 +1,6 @@
 """Validation et compilation du format quiz vers les blocs du pipeline vidéo."""
 
+import re
 from copy import deepcopy
 
 
@@ -123,6 +124,9 @@ def _question_lead(phrases: dict, number: int, total: int) -> str:
     return phrases["question"].format(n=number)
 
 
+_GENERIC_VISUAL = re.compile(r"brainloop|emblem", re.IGNORECASE)
+
+
 def _quiz_visual_prompt(question: str) -> str:
     """Describe the subject while keeping every glyph in the ASS overlay."""
     return (
@@ -148,7 +152,10 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
         # Logo and image quizzes depend on the creator-supplied asset. Other
         # quiz kinds get a semantic illustration instead of branded filler or
         # narration rendered as text inside the background.
-        if question and kind not in {"logo", "image"}:
+        # A logo/image block still carrying the generic BrainLoop emblem has no
+        # real creator asset: it would frame the same filler on every question.
+        generic = bool(_GENERIC_VISUAL.search(str(block.get("visual") or "")))
+        if question and (kind not in {"logo", "image"} or generic):
             block["visual"] = _quiz_visual_prompt(question)
     return result
 

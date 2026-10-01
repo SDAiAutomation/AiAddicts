@@ -44,6 +44,16 @@ class TestQuiz(unittest.TestCase):
         self.assertIn("Quelle plan", upgraded["blocks"][1]["visual"])
         self.assertEqual(compiled["blocks"][1]["visual"], "BrainLoop premium emblem")
 
+    def test_logo_quiz_replaces_generic_emblem_but_keeps_specific_visual(self):
+        questions = [{**q, "visual": "placeholder"} for q in QUIZ_SCRIPT["quiz"]["questions"]]
+        script = {**QUIZ_SCRIPT, "quiz": {**QUIZ_SCRIPT["quiz"], "kind": "logo", "questions": questions}}
+        compiled = compile_quiz(script)
+        compiled["blocks"][1]["visual"] = "BrainLoop premium emblem, a sleek circular loop icon"
+        compiled["blocks"][3]["visual"] = "The Nike swoosh on a white sneaker"
+        upgraded = compile_quiz(compiled)
+        self.assertIn("Editorial quiz illustration", upgraded["blocks"][1]["visual"])
+        self.assertEqual(upgraded["blocks"][3]["visual"], "The Nike swoosh on a white sneaker")
+
     def test_narration_follows_script_language(self):
         english = {**QUIZ_SCRIPT, "language": "en"}
         blocks = compile_quiz(english)["blocks"]
