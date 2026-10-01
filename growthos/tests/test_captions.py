@@ -200,7 +200,8 @@ class TestWriteAss(unittest.TestCase):
         self.assertIn("Style: QuizQuestion", ass)
         self.assertIn("La capitale de la France ?", ass.replace("\\N", " "))
         self.assertIn("QUESTION 2/5", ass)
-        self.assertIn("A. Paris", ass)
+        self.assertIn("}A", ass)
+        self.assertIn("}Paris", ass)
         self.assertIn(",0:00:05.00,", ass)
         self.assertIn(",QuizTimer,", ass)
 
@@ -282,7 +283,20 @@ class TestWriteAss(unittest.TestCase):
                 self.assertEqual(positions(before), positions(after))
                 self.assertTrue(all(int(x) < width * 0.85 and int(y) < height * 0.70 for x, y in positions(after)))
                 correct = next(event for event in after if ",QuizCorrect," in event)
-                self.assertIn("✓ C. Third", correct)
+                self.assertTrue(correct.endswith("Third"))
+
+    def test_quiz_choices_use_separate_badges_and_left_aligned_labels(self):
+        from engine.captions import _quiz_events
+
+        block = {"quiz_phase": "question", "quiz_question": "Which one?",
+                 "quiz_choices": ["First", "Second"], "quiz_correct_choice": 0}
+        events = _quiz_events([block], [3], 1080, 1920)
+        labels = [event for event in events if ",QuizChoice," in event]
+        badges = [event for event in events if ",QuizQuestion," in event and event.endswith(("A", "B"))]
+        self.assertEqual(len(labels), 2)
+        self.assertEqual(len(badges), 2)
+        self.assertTrue(all("\\an4" in event for event in labels))
+        self.assertTrue(labels[0].endswith("First"))
 
     def test_quiz_timer_never_leaks_outside_the_question(self):
         from engine.captions import _quiz_events

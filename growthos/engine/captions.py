@@ -297,14 +297,34 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                 choice_y = round(height * (choices_top + index * 0.058))
                 row_h = round(height * 0.050)
                 selected = phase == "reveal" and index == correct
-                events.append(_quiz_panel(start, end, left, choice_y - row_h // 2,
-                                          card_width, row_h, correct_colour if selected else card, scale))
-                marker = "✓ " if selected else ""
-                size, answer = _quiz_fit_text(f"{marker}{letters[index]}. {choice}",
-                                              card_width - round(80 * scale), round(58 * scale), 2)
+                row_top = choice_y - row_h // 2
+                shadow_offset = max(2, round(6 * scale))
+                inset = max(2, round(3 * scale))
+                fill = correct_colour if selected else card
+                events.append(_quiz_panel(start, end, left + shadow_offset, row_top + shadow_offset,
+                                          card_width, row_h, "#050914", scale))
+                events.append(_quiz_panel(start, end, left, row_top, card_width, row_h,
+                                          correct_colour if selected else accent, scale))
+                events.append(_quiz_panel(start, end, left + inset, row_top + inset,
+                                          card_width - inset * 2, row_h - inset * 2, fill, scale))
+                badge_size = row_h - round(18 * scale)
+                badge_x = left + round(14 * scale)
+                badge_y = choice_y - badge_size // 2
+                badge_colour = "#ffffff" if selected else accent
+                events.append(_quiz_panel(start, end, badge_x, badge_y,
+                                          badge_size, badge_size, badge_colour, scale))
+                badge_text = f"{{\\an5\\pos({badge_x + badge_size // 2},{choice_y})\\fs{round(38 * scale)}\\bord0\\shad0\\1c{_ass_rgb(correct_colour if selected else _contrast_text(accent))}}}{letters[index]}"
+                events.append(_dialogue(start, end, badge_text, "QuizQuestion", 3))
+                text_x = badge_x + badge_size + round(24 * scale)
+                right_reserve = round(72 * scale) if selected else round(28 * scale)
+                size, answer = _quiz_fit_text(choice, right - text_x - right_reserve,
+                                              round(52 * scale), 2)
                 colour = _ass_rgb("#ffffff" if selected else foreground)
-                tags = f"{{\\an5\\pos({centre},{choice_y})\\fs{size}\\bord0\\shad0\\1c{colour}\\q2}}"
+                tags = f"{{\\an4\\pos({text_x},{choice_y})\\fs{size}\\bord0\\shad0\\1c{colour}\\q2}}"
                 events.append(_dialogue(start, end, tags + answer, "QuizCorrect" if selected else "QuizChoice", 2))
+                if selected:
+                    check = f"{{\\an5\\pos({right - round(38 * scale)},{choice_y})\\fs{round(42 * scale)}\\bord0\\shad0\\1c{_ass_rgb('#ffffff')}}}✓"
+                    events.append(_dialogue(start, end, check, "QuizQuestion", 3))
             if phase == "question":
                 countdown = int(block.get("hold_after_seconds") or 0)
                 timer_start = max(start, end - countdown)
