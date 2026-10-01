@@ -8,6 +8,7 @@ For the AutoEdit integration boundary, use [AUTOEDIT_CONTRACT.md](AUTOEDIT_CONTR
 
 - Claude Code owns the backend: database, workers, AI orchestration, media analysis, EDL generation, rendering and backend contracts.
 - Codex owns the frontend: product flows, screens, states, form design, feedback, accessibility and integration with the backend contracts.
+- Codex also owns Quiz end-to-end (user assignment, 2026-10-01): research, quiz generation, quiz rendering, quality and its product flow. Coordinate shared pipeline changes with backend ownership; extend the existing quiz contract rather than adding a parallel engine.
 - Keep the boundary explicit. Frontend work may propose or document a contract, but must not silently duplicate backend business logic. Backend changes should expose stable, UI-oriented states and errors.
 
 Faceloop is an AI content engine for faceless creators, designed to help them produce original, engaging short-form content that respects platform requirements.

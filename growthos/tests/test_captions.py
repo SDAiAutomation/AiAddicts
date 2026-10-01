@@ -198,7 +198,7 @@ class TestWriteAss(unittest.TestCase):
             blocks=blocks, block_durations=[8.0],
         )).read_text(encoding="utf-8")
         self.assertIn("Style: QuizQuestion", ass)
-        self.assertIn("La capitale de la France ?", ass)
+        self.assertIn("La capitale de la France ?", ass.replace("\\N", " "))
         self.assertIn("QUESTION 2/5", ass)
         self.assertIn("A. Paris", ass)
         self.assertIn(",0:00:05.00,", ass)
@@ -225,6 +225,86 @@ class TestWriteAss(unittest.TestCase):
         ass = Path(write_ass(cues, str(path), "bold_stroke", "1080x1920", blocks=blocks, block_durations=[5.0, 5.0])).read_text(encoding="utf-8")
         self.assertNotIn("QUESTION TEXT", ass)
         self.assertIn("THE ANSWER", ass)
+
+    def test_quiz_boundary_cues_do_not_overlap_cards(self):
+        from engine.captions import _without_question_cues
+
+        blocks = [{"quiz_phase": phase} for phase in ("cover", "intro", "question", "reveal")]
+        cues = [
+            {"start": 0.5, "end": 1.8, "text": "cover overlap"},
+            {"start": 1.0, "end": 2.0, "text": "intro"},
+            {"start": 1.2, "end": 2.1, "text": "question overlap"},
+            {"start": 2.9, "end": 3.8, "text": "reveal overlap"},
+            {"start": 3.0, "end": 4.0, "text": "explanation"},
+        ]
+        self.assertEqual(
+            [cue["text"] for cue in _without_question_cues(cues, blocks, [1.0] * 4)],
+            ["intro", "explanation"],
+        )
+
+    def test_quiz_explanations_use_smaller_bottom_aligned_captions(self):
+        for style in ("bold_stroke", "sleek", "boxed", "neon", "word_pop"):
+            with self.subTest(style=style):
+                path = Path(tempfile.mkdtemp()) / "quiz.ass"
+                blocks = [{"quiz_phase": "reveal", "quiz_question": "When?",
+                           "quiz_choices": ["1905", "1912"], "quiz_correct_choice": 1}]
+                cues = [{"start": 0, "end": 1, "text": "In April 1912", "words": []}]
+                ass = Path(write_ass(cues, str(path), style, blocks=blocks,
+                                     block_durations=[2.0])).read_text(encoding="utf-8")
+                default = next(line for line in ass.splitlines() if line.startswith("Style: Default,"))
+                fields = default.removeprefix("Style: ").split(",")
+                self.assertEqual(fields[2], "72")
+                self.assertEqual(fields[18], "2")
+                self.assertEqual(fields[21], "538")
+                self.assertIn("In April 1912", ass)
+                narration = [line for line in ass.splitlines() if line.startswith("Dialogue:") and ",Default," in line]
+                self.assertTrue(narration)
+                self.assertTrue(all("\\an5" not in line for line in narration))
+
+    def test_quiz_reveal_keeps_choices_in_their_original_rows(self):
+        import re
+        from engine.captions import _quiz_events
+
+        question = {"quiz_phase": "question", "quiz_question": "Which one?",
+                    "quiz_choices": ["First", "Second", "Third", "Fourth"],
+                    "quiz_correct_choice": 2, "hold_after_seconds": 3}
+        reveal = {**question, "quiz_phase": "reveal"}
+        for width, height in ((1080, 1920), (720, 1280), (1080, 1080), (1920, 1080)):
+            with self.subTest(resolution=(width, height)):
+                before = _quiz_events([question], [7], width, height)
+                after = _quiz_events([reveal], [3], width, height)
+                choices = lambda events: [event for event in events if ",QuizChoice," in event or ",QuizCorrect," in event]
+                self.assertEqual(len(choices(before)), 4)
+                self.assertEqual(len(choices(after)), 4)
+                self.assertFalse(any(",QuizCorrect," in event for event in before))
+                self.assertEqual(sum(",QuizCorrect," in event for event in after), 1)
+                positions = lambda events: [re.search(r"\\pos\((\d+),(\d+)\)", event).groups() for event in choices(events)]
+                self.assertEqual(positions(before), positions(after))
+                self.assertTrue(all(int(x) < width * 0.85 and int(y) < height * 0.64 for x, y in positions(after)))
+                correct = next(event for event in after if ",QuizCorrect," in event)
+                self.assertIn("✓ C. Third", correct)
+
+    def test_quiz_timer_never_leaks_outside_the_question(self):
+        from engine.captions import _quiz_events
+
+        block = {"quiz_phase": "question", "quiz_question": "Q?",
+                 "quiz_choices": ["Yes", "No"], "hold_after_seconds": 5}
+        events = _quiz_events([block], [2], 1080, 1920)
+        timers = [event for event in events if ",QuizTimer," in event]
+        self.assertEqual(len(timers), 2)
+        self.assertIn(",0:00:00.00,0:00:01.00,", timers[0])
+        self.assertIn(",0:00:01.00,0:00:02.00,", timers[1])
+        self.assertTrue(timers[0].endswith("2"))
+        self.assertTrue(timers[1].endswith("1"))
+
+    def test_quiz_long_text_wraps_without_losing_words(self):
+        from engine.captions import _quiz_fit_text
+
+        text = "Une réponse assez longue pour occuper plusieurs lignes, avec des accents et tous ses mots."
+        size, rendered = _quiz_fit_text(text, 740, 58, 2)
+        self.assertLessEqual(len(rendered.split("\\N")), 2)
+        self.assertLess(size, 58)
+        self.assertEqual(rendered.replace("\\N", " "), text)
 
     def test_every_quiz_theme_has_readable_text_on_its_card(self):
         from engine.captions import _QUIZ_THEME_COLOURS

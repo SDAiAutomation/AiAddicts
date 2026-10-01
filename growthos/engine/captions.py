@@ -11,6 +11,7 @@ opaque, halo coloré, surlignage du mot en cours). `write_srt` reste écrit en
 parallèle pour le debug / repli.
 """
 import os
+import textwrap
 from pathlib import Path
 
 # 2-4 mots par écran (choisi avec l'utilisateur) : assez court pour bouger
@@ -183,8 +184,6 @@ _QUIZ_CARD_ALPHA = 0x1F  # carte ~88 % opaque : le fond reste devinable sans nui
 
 # Positions verticales (fraction de la hauteur) : tout reste dans la bande sûre 12-72 %.
 _QUIZ_QUESTION_MARGIN_TOP = 250   # px sur 1920 (~13 %)
-_QUIZ_CHOICES_Y = 0.47
-_QUIZ_TIMER_Y = 0.65
 
 
 def _ass_header(width: int, height: int, preset: dict, font: str, quiz_theme: str = "studio") -> str:
@@ -217,6 +216,7 @@ def _ass_header(width: int, height: int, preset: dict, font: str, quiz_theme: st
         f"Style: QuizChoice,{font},58,{quiz_text},{quiz_text},{quiz_card},{quiz_card},-1,0,0,0,100,100,0,0,3,20,0,5,100,100,0,1\n"
         f"Style: QuizCorrect,{font},64,&H00FFFFFF,&H00FFFFFF,{quiz_correct},{quiz_correct},-1,0,0,0,100,100,0,0,3,24,0,5,100,100,0,1\n"
         f"Style: QuizTimer,{font},180,{quiz_accent},{quiz_accent},&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,0,5,0,0,0,1\n\n"
+        f"Style: QuizPanel,{font},20,&H00FFFFFF,&H00FFFFFF,&HFF000000,&HFF000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n"
         f"Style: QuizCoverTitle,{font},128,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,3,28,0,5,90,90,0,1\n"
         f"Style: QuizCoverBrand,{font},40,{quiz_accent},{quiz_accent},&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,3,0,8,80,80,100,1\n\n"
         "[Events]\n"
@@ -244,36 +244,90 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
             cursor = end
             continue
         if phase in {"question", "reveal"}:
-            question = _ass_escape(str(block.get("quiz_question") or ""))
+            card, foreground, correct_colour, accent = _QUIZ_THEME_COLOURS.get(
+                str(block.get("quiz_theme")), _QUIZ_THEME_COLOURS["studio"]
+            )
+            scale = min(width / 1080, height / 1920)
+            # Leave room for the social action rail on the right. Stable rows
+            # let the viewer locate their choice again when the answer appears.
+            left, right = round(width * 0.08), round(width * 0.84)
+            centre = (left + right) // 2
+            card_width = right - left
             number = int(block.get("quiz_question_number") or 0)
             total = int(block.get("quiz_question_total") or 0)
             if number and total:
-                # Couleur du libellé = accent du thème (l'or d'avant était illisible sur les cartes blanches).
-                label_colour = _ass_rgb(_QUIZ_THEME_COLOURS.get(str(block.get("quiz_theme")), _QUIZ_THEME_COLOURS["studio"])[3])
-                question = f"{{\\fs34\\c{label_colour}}}QUESTION {number}/{total}{{\\rQuizQuestion}}\\N{question}"
+                events.append(_quiz_panel(start, end, left, round(height * 0.125), card_width,
+                                          round(height * 0.043), card, scale))
+                label = f"{{\\an5\\pos({centre},{round(height * 0.146)})\\fs{round(34 * scale)}\\bord0\\shad0\\1c{_ass_rgb(accent)}}}QUESTION {number}/{total}"
+                events.append(_dialogue(start, end, label, "QuizQuestion", 2))
+                progress_y, progress_h = round(height * 0.179), max(2, round(6 * scale))
+                events.append(_quiz_panel(start, end, left, progress_y, card_width, progress_h, card, scale))
+                events.append(_quiz_panel(start, end, left, progress_y,
+                                          round(card_width * min(number / total, 1)), progress_h, accent, scale))
+
+            question_size, question = _quiz_fit_text(str(block.get("quiz_question") or ""),
+                                                     card_width - round(64 * scale), round(72 * scale), 3)
+            events.append(_quiz_panel(start, end, left, round(height * 0.20), card_width,
+                                      round(height * 0.135), card, scale))
+            question_tags = f"{{\\an5\\pos({centre},{round(height * 0.2675)})\\fs{question_size}\\bord0\\shad0\\1c{_ass_rgb(foreground)}\\q2}}"
+            events.append(_dialogue(start, end, question_tags + question, "QuizQuestion", 2))
             choices = [str(choice) for choice in block.get("quiz_choices") or []]
-            events.append(_dialogue(start, end, f"{{\\fad(100,100)}}{question}", "QuizQuestion", 0))
-            rendered_choices = "\\N\\N".join(
-                f"{letters[i]}. {_ass_escape(choice)}" for i, choice in enumerate(choices)
-            )
-            choice_y = round(height * _QUIZ_CHOICES_Y)
-            if phase == "reveal":
-                correct = int(block.get("quiz_correct_choice") or 0)
-                answer = f"✓ {letters[correct]}. {_ass_escape(choices[correct])}"
-                events.append(_dialogue(start, end, f"{{\\pos({width // 2},{choice_y})\\fad(80,120)}}{answer}", "QuizCorrect", 1))
-            else:
-                events.append(_dialogue(start, end, f"{{\\pos({width // 2},{choice_y})\\fad(80,120)}}{rendered_choices}", "QuizChoice", 1))
+            correct = int(block.get("quiz_correct_choice") or 0)
+            for index, choice in enumerate(choices):
+                choice_y = round(height * (0.38 + index * 0.074))
+                row_h = round(height * 0.066)
+                selected = phase == "reveal" and index == correct
+                events.append(_quiz_panel(start, end, left, choice_y - row_h // 2,
+                                          card_width, row_h, correct_colour if selected else card, scale))
+                marker = "✓ " if selected else ""
+                size, answer = _quiz_fit_text(f"{marker}{letters[index]}. {choice}",
+                                              card_width - round(80 * scale), round(58 * scale), 2)
+                colour = _ass_rgb("#ffffff" if selected else foreground)
+                tags = f"{{\\an5\\pos({centre},{choice_y})\\fs{size}\\bord0\\shad0\\1c{colour}\\q2}}"
+                events.append(_dialogue(start, end, tags + answer, "QuizCorrect" if selected else "QuizChoice", 2))
+            if phase == "question":
                 countdown = int(block.get("hold_after_seconds") or 0)
                 timer_start = max(start, end - countdown)
-                timer_y = round(height * _QUIZ_TIMER_Y)
+                timer_y = round(height * 0.674)
+                if countdown > 0 and timer_start < end:
+                    events.append(_quiz_panel(timer_start, end, left, round(height * 0.649),
+                                              card_width, round(height * 0.068), card, scale))
+                    # Smooth draining bar, timed to the actual audio hold.
+                    bar_width = card_width - round(40 * scale)
+                    milliseconds = max(1, round((end - timer_start) * 1000))
+                    events.append(_quiz_panel(timer_start, end, left + round(20 * scale),
+                                              round(height * 0.705), bar_width, max(2, round(7 * scale)),
+                                              accent, scale, f"\\t(0,{milliseconds},\\fscx0)"))
                 for remaining in range(countdown, 0, -1):
-                    seg_start = timer_start + (countdown - remaining)
-                    seg_end = min(seg_start + 1, end)
+                    seg_start = max(start, end - remaining)
+                    seg_end = min(end - remaining + 1, end)
                     if seg_start < seg_end:
-                        timer = f"{{\\pos({width // 2},{timer_y})\\fad(80,80)}}{remaining}"
-                        events.append(_dialogue(seg_start, seg_end, timer, "QuizTimer", 1))
+                        timer = f"{{\\pos({centre},{timer_y})\\fs{round(64 * scale)}\\bord0\\shad0\\1c{_ass_rgb(accent)}}}{remaining}"
+                        events.append(_dialogue(seg_start, seg_end, timer, "QuizTimer", 2))
         cursor = end
     return events
+
+
+def _quiz_fit_text(text: str, width: int, font_size: int, max_lines: int) -> tuple[int, str]:
+    """Wrap without truncating an answer; reduce type for unusually long text."""
+    size = max(1, font_size)
+    while True:
+        lines = textwrap.wrap(" ".join(text.split()), width=max(1, int(width / (size * 0.65)))) or [""]
+        if len(lines) <= max_lines or size == 1:
+            return size, "\\N".join(_ass_escape(line) for line in lines)
+        size -= 1
+
+
+def _quiz_panel(start: float, end: float, x: int, y: int, width: int, height: int,
+                colour: str, scale: float, animation: str = "") -> str:
+    """Draw a rounded card with libass; no extra images or network calls."""
+    radius = min(round(18 * scale), width // 2, height // 2)
+    w, h, r = width, height, radius
+    path = (f"m {r} 0 l {w-r} 0 b {w} 0 {w} 0 {w} {r} "
+            f"l {w} {h-r} b {w} {h} {w} {h} {w-r} {h} "
+            f"l {r} {h} b 0 {h} 0 {h} 0 {h-r} l 0 {r} b 0 0 0 0 {r} 0")
+    tags = f"{{\\an7\\pos({x},{y})\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{animation}}}"
+    return _dialogue(start, end, tags + path + "{\\p0}", "QuizPanel", 1)
 
 
 def _word_pop_events(cue: dict, preset: dict, fs_prefix: str, reset: str) -> list[str]:
@@ -307,14 +361,15 @@ def _without_question_cues(cues: list[dict], blocks: list[dict], durations: list
     cursor = 0.0
     for block, duration in zip(blocks, durations):
         end = cursor + max(float(duration), 0.0)
-        if block.get("quiz_phase") == "question":
+        if block.get("quiz_phase") in {"cover", "question"}:
             spans.append((cursor, end))
         cursor = end
     if not spans:
         return cues
     return [
         cue for cue in cues
-        if not any(start <= (cue["start"] + cue["end"]) / 2 < end for start, end in spans)
+        # A cue crossing a phase boundary must not leak narration onto a card.
+        if not any(cue["start"] < end and cue["end"] > start for start, end in spans)
     ]
 
 
@@ -331,14 +386,21 @@ def write_ass(
     passer tel quel au filtre `subtitles` d'ffmpeg (libass lit le style
     embarqué, pas besoin de `force_style`)."""
     preset = _CAPTION_STYLES.get(style, _CAPTION_STYLES[DEFAULT_CAPTION_STYLE])
-    # Quiz cards occupy the centre: retain their existing narration layout.
-    if preset.get("single_word") and any(b.get("quiz_phase") for b in (blocks or [])):
-        preset = {**preset, "single_word": False, "font_size": 108}
+    is_quiz = any(b.get("quiz_phase") for b in (blocks or []))
     font = font or os.environ.get("SUBTITLE_FONT") or "Arial"
     try:
         width, height = (int(x) for x in resolution.lower().split("x"))
     except ValueError:
         width, height = 1080, 1920
+
+    if is_quiz:
+        # Reserve the centre for answer cards; explanations stay below them
+        # and above platform controls, including with the word-pop style.
+        preset = {
+            **preset, "single_word": False,
+            "font_size": max(1, round(72 * min(width / 1080, height / 1920))),
+            "margin_v": round(height * 0.28),
+        }
 
     base_fs = preset["font_size"]
     events: list[str] = []
