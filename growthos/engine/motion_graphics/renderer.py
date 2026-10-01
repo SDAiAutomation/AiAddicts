@@ -15,7 +15,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import layout, schema
+from . import display_text, layout, schema
 from .scenes import RENDERERS
 from .theme import Theme, resolve_theme
 
@@ -51,11 +51,25 @@ def _run(cmd: list[str]) -> None:
 def resolve_scene(raw: object, fallback_text: str) -> dict:
     """Validated scene data, or a safe `icon_text` fallback built from the
     block's own narration/visual text — never `None`, so callers never have
-    to special-case "nothing to render" (see schema.py's contract)."""
+    to special-case "nothing to render" (see schema.py's contract).
+
+    Phase 2.8: the result is a `display_text.viewer_scene` — viewer fields
+    only. An `icon_text` whose line was nothing but a production direction
+    ("Animation: icons pop...") is empty after cleaning and gets the
+    fallback line instead."""
     validated = schema.validate_scene(raw)
     if validated is not None:
-        return validated
-    text = (fallback_text or "").strip()
+        # Untouched when there is nothing to clean (the renderers apply the
+        # viewer whitelist + budgets themselves, scenes._viewer_only).
+        if not display_text.leaks_in_scene(validated) and not (
+            validated.get("sceneType") == "icon_text" and not display_text.display_text_of(validated)
+        ):
+            return validated
+        scene = display_text.viewer_scene(validated)
+        if scene.get("sceneType") == "icon_text" and not str(scene.get("text") or "").strip():
+            scene["text"] = display_text.fit_budget(display_text.strip_directions(fallback_text), "display_text") or " "
+        return scene
+    text = display_text.fit_budget(display_text.strip_directions(fallback_text), "display_text")
     return {"sceneType": schema.FALLBACK_SCENE_TYPE, "text": text[:140] or " "}
 
 

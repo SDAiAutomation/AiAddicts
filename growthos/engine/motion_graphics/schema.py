@@ -11,6 +11,18 @@ STRUCTURE (right shape, non-empty) — it is deliberately not a strict
 type-checker, so a scene that is merely incomplete still renders (missing
 optional fields are just omitted), matching the pipeline's "never block the
 whole render" philosophy used throughout `engine/visuals.py`.
+
+Phase 2.8 — VIEWER-VISIBLE vs PRODUCTION fields (see `display_text.py`):
+only title / label / displayText (alias `text`, icon_text) / displayValue /
+emphasis / data[] / optionA·optionB·before·after / steps / items / terms are
+ever drawn. `icon`, `icons` pick drawn glyphs. Everything else —
+`animation` ({"type": "sequential_pop"}), `visual`, descriptions, notes — is
+production metadata and is dropped before any renderer runs:
+
+    {"sceneType": "icon_text", "displayText": "Small purchases add up",
+     "icons": ["shopping_cart", "wallet"], "animation": {"type": "sequential_pop"}}
+
+`icon_text.text` is still accepted (legacy scripts); `displayText` wins.
 """
 from __future__ import annotations
 
@@ -40,7 +52,7 @@ _REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "checklist": ("items",),
     "warning": ("title",),
     "formula": ("terms",),
-    "icon_text": ("text",),
+    "icon_text": ("displayText|text",),
 }
 
 
@@ -75,6 +87,10 @@ def validate_scene(raw: object) -> dict | None:
         return None
 
     for field in _REQUIRED_FIELDS[scene_type]:
+        if "|" in field:  # alias group: any one non-empty
+            if not any(str(raw.get(alt) or "").strip() for alt in field.split("|")):
+                return None
+            continue
         value = raw.get(field)
         if field == "data":
             if not (isinstance(value, list) and value and all(_valid_data_item(v) for v in value)):

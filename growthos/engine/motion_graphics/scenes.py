@@ -14,10 +14,13 @@ Shared conventions:
 """
 from __future__ import annotations
 
+import functools
+
 from PIL import Image, ImageDraw
 
 from . import animations as anim
 from . import canvas
+from . import display_text
 from . import icons
 from . import layout
 from .theme import Theme, lerp_color
@@ -551,30 +554,65 @@ def render_formula(data: dict, t: float, theme: Theme, size: tuple[int, int]) ->
     return image
 
 
+_MAX_ICON_ROW = 3
+
+
+def _icon_row(image: Image.Image, draw, theme: Theme, size: tuple[int, int], names: list[str], t: float, y_ratio: float) -> None:
+    """Up to `_MAX_ICON_ROW` drawable icons, popping in one after another
+    (the sequential_pop the script describes — as motion, never as text)."""
+    w, h = size
+    span = h * 0.09
+    gap = span * 0.55
+    total = len(names) * span + (len(names) - 1) * gap
+    x0 = w / 2 - total / 2
+    cy = h * y_ratio
+    for i, name in enumerate(names):
+        start = 0.0 + 0.12 * i
+        scale = anim.scale_in(t, start, start + 0.25, from_scale=0.6)
+        half = (span * scale) / 2
+        cx = x0 + span / 2 + i * (span + gap)
+        icons.draw_icon(draw, name, (cx - half, cy - half, cx + half, cy + half), theme.primary)
+
+
 def render_icon_text(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
+    """LEVEL 1 = the short display line (fitted, max 2 lines, never a
+    paragraph), LEVEL 2 = optional label; the icons are decoration. Receives
+    a `display_text.viewer_scene`, so `data["text"]` is already the cleaned,
+    budgeted viewer line."""
     image, draw = canvas.new_frame(size, theme.background)
     w, h = size
-    _icon(image, draw, theme, size, data.get("icon"), t, y_ratio=0.32)
+    drawable = [n for n in (data.get("icons") or []) if n in icons.ICONS][:_MAX_ICON_ROW]
+    if len(drawable) >= 2:
+        _icon_row(image, draw, theme, size, drawable, t, 0.32)
+    else:
+        _icon(image, draw, theme, size, (drawable[0] if drawable else data.get("icon")), t, y_ratio=0.32)
     text = str(data.get("text") or "")
-    f = canvas.font(round(h * 0.036))
     color = lerp_color(theme.background, theme.text, anim.fade_in(t, 0.1, 0.35))
-    lines = canvas.wrap_text(draw, text.upper(), f, w * 0.82)
-    line_h = h * 0.05
-    start_y = h * 0.48 - line_h * (len(lines) - 1) / 2
     offset = anim.slide_up(t, 0.05, 0.35, distance=16)
-    for i, line in enumerate(lines):
-        canvas.draw_text(draw, (w / 2, start_y + line_h * i + offset), line, f, color, bold=True)
+    box = layout.draw_fitted(
+        draw, (w / 2, h * 0.48 + offset), text.upper(), round(h * 0.046), w * 0.84, color,
+        bold=True, wrap_first=True,
+    )
     if data.get("label"):
-        # Phase 2.7 fix: with several wrapped `text` lines, this position
-        # used to be able to drift past the caption-reserved zone — now
-        # clamped to the real content-zone bottom.
+        # Clamped to the real content-zone bottom (Phase 2.7): a 2-line text
+        # block can never push the label into the caption-reserved zone.
         _, _, _, content_bottom_px = layout.content_zone(w, h)
-        label_y_ratio = min(0.48 + line_h * len(lines) / h + 0.06, content_bottom_px / h - 0.04)
-        _label(image, draw, theme, size, str(data["label"]), t, y_ratio=label_y_ratio, start=0.35)
+        label_y = min(box[3] + h * 0.045, content_bottom_px - h * 0.04)
+        _label(image, draw, theme, size, str(data["label"]), t, y_ratio=label_y / h, start=0.35)
     return image
 
 
-RENDERERS = {
+def _viewer_only(render):
+    """Every renderer sees ONLY viewer-visible, direction-free, budgeted
+    fields (`display_text.viewer_scene`) — the Phase 2.8 contract. Production
+    metadata (animation, visual, ...) cannot reach a text-drawing call."""
+    @functools.wraps(render)
+    def wrapped(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
+        return render(display_text.viewer_scene(data), t, theme, size)
+    return wrapped
+
+
+_RAW_RENDERERS = {
     "big_number": render_big_number,
     "money_split": render_money_split,
     "progress_bar": render_progress_bar,
@@ -589,3 +627,5 @@ RENDERERS = {
     "formula": render_formula,
     "icon_text": render_icon_text,
 }
+
+RENDERERS = {kind: _viewer_only(fn) for kind, fn in _RAW_RENDERERS.items()}

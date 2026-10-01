@@ -16,7 +16,7 @@ looked at the result; this is that missing look.
 """
 from __future__ import annotations
 
-from . import layout
+from . import display_text, layout
 from .scenes import RENDERERS
 from .theme import Theme
 
@@ -82,9 +82,12 @@ def fallback_text(scene: object, narration: str) -> str:
     and, only if there is none, from the narration. NEVER from the block's
     `visual`: that field is a shot description written for the editor
     ("Close_up, hands dropping $50 bills into a jar...") and must not be shown
-    to viewers.
+    to viewers, nor from production metadata (`animation`, ...).
     """
     if isinstance(scene, dict):
+        # viewer fields only, directions stripped (Phase 2.8): a leaked
+        # "Animation: ..." in the failed scene must not resurface here.
+        scene = display_text.viewer_scene(scene)
         pieces: list[str] = []
         for key in ("text", "title", "displayValue", "label"):
             if scene.get(key):
