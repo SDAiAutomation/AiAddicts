@@ -127,7 +127,10 @@ def _quiz_visual_prompt(question: str) -> str:
     """Describe the subject while keeping every glyph in the ASS overlay."""
     return (
         f"Editorial quiz illustration about: {question.strip()} "
-        "Show the subject, place, object, or historical setting clearly in one strong composition. "
+        "Depict the concrete, recognisable subject of the question (the real place, event, person, "
+        "object, or historical scene it refers to), even when the question asks for a date, a number or a name. "
+        "Photorealistic editorial style in one strong composition. "
+        "Never draw abstract shapes, rings, gradients, 3D renders, or generic office objects. "
         "Leave calm negative space near the top and lower half for the quiz interface. "
         "Do not show the answer, answer choices, text, letters, numbers, labels, logos, or watermarks."
     )
