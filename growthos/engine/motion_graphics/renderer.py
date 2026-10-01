@@ -15,6 +15,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from PIL import Image
+
 from . import display_text, layout, schema
 from .scenes import RENDERERS
 from .theme import Theme, resolve_theme
@@ -34,6 +36,23 @@ def debug_layout_enabled() -> bool:
 # Mirrors engine/video.py's `_CRF`/preset choice for visual consistency
 # across every clip in the final assembly.
 _CRF = "19"
+
+
+# Frames are drawn at SUPERSAMPLE x the output size then downscaled (Lanczos):
+# Pillow does not anti-alias shapes, so this removes the jagged edges.
+SUPERSAMPLE = max(1.0, float(os.environ.get("MOTION_GRAPHICS_SUPERSAMPLE", "1.5") or 1.5))
+
+
+def render_frame(scene: dict, t: float, size: tuple[int, int], theme: Theme, scene_renderer=None):
+    """One output-size frame of `scene` at progress `t` (supersampled)."""
+    width, height = size
+    if scene_renderer is None:
+        scene_renderer = RENDERERS.get(
+            schema.normalized_scene_type(scene) or schema.FALLBACK_SCENE_TYPE, RENDERERS[schema.FALLBACK_SCENE_TYPE])
+    if SUPERSAMPLE <= 1.0:
+        return scene_renderer(scene, t, theme, (width, height))
+    frame = scene_renderer(scene, t, theme, (round(width * SUPERSAMPLE), round(height * SUPERSAMPLE)))
+    return frame.resize((width, height), Image.LANCZOS)
 
 
 def _run(cmd: list[str]) -> None:
@@ -101,7 +120,7 @@ def render_scene_clip(
     try:
         for i in range(n_frames):
             t = i / max(n_frames - 1, 1)
-            frame = render(scene, t, theme, (width, height))
+            frame = render_frame(scene, t, (width, height), theme, render)
             if debug:
                 frame = layout.draw_debug_overlay(frame)
             frame.save(frames_dir / f"frame-{i:04d}.png")

@@ -112,7 +112,7 @@ def fit_text(
     if not text:
         return FitResult(canvas.font(max(1, base_font_px)), [], 0.0, 0.0)
     min_px = max(1, round(base_font_px * _MIN_FONT_RATIO))
-    stroke = max(1, base_font_px // 22) if bold else 0
+    stroke = canvas.faux_bold_stroke(base_font_px, bold)
     if wrap_first:
         # Legibility over compactness: keep the font >= 80% of requested by
         # wrapping to at most 2 lines BEFORE shrinking further (the default
@@ -120,7 +120,7 @@ def fit_text(
         floor = max(1, round(base_font_px * _WRAP_FIRST_MIN_RATIO))
         size = base_font_px
         while True:
-            f = canvas.font(size)
+            f = canvas.font(size, bold)
             line_h = canvas.text_size(draw, "Ag", f, stroke_width=stroke)[1]
             w1 = canvas.text_size(draw, text, f, stroke_width=stroke)[0]
             if w1 <= max_width:
@@ -134,7 +134,7 @@ def fit_text(
             size = max(floor, round(size * _FONT_SHRINK_STEP))
     size = base_font_px
     while size > min_px:
-        f = canvas.font(size)
+        f = canvas.font(size, bold)
         w, _h = canvas.text_size(draw, text, f, stroke_width=stroke)
         if w <= max_width:
             line_h = canvas.text_size(draw, "Ag", f, stroke_width=stroke)[1]
@@ -144,7 +144,7 @@ def fit_text(
     wrap_min_px = max(1, round(base_font_px * _MIN_FONT_RATIO_WRAPPED))
     size = min_px
     while True:
-        f = canvas.font(size)
+        f = canvas.font(size, bold)
         lines = canvas.wrap_text(draw, text, f, max_width)[:_MAX_LINES]
         line_h = canvas.text_size(draw, "Ag", f, stroke_width=stroke)[1]
         total_h = line_h * len(lines) * _LINE_GAP
@@ -189,7 +189,7 @@ def draw_fitted(
     x, y = xy
     if not result.lines:
         return (round(x), round(y), round(x), round(y))
-    stroke = max(1, base_font_px // 22) if bold else 0
+    stroke = canvas.faux_bold_stroke(base_font_px, bold)
     line_h = canvas.text_size(draw, "Ag", result.font, stroke_width=stroke)[1] * _LINE_GAP
     vertical_center = "m" == anchor[1:2] if len(anchor) > 1 else False
     start_y = y - (len(result.lines) - 1) * line_h / 2 if vertical_center else y

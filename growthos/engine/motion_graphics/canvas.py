@@ -10,8 +10,16 @@ from __future__ import annotations
 
 import unicodedata
 from functools import lru_cache
+from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+# Bundled Poppins (SIL OFL, assets/fonts/OFL.txt): real regular + bold weights
+# and full Latin accents, so scripts in fr/es/de/it/pt render correctly. If the
+# files are ever missing we fall back to Pillow's ASCII-only default font.
+_FONT_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
+_FONT_FILES = {False: _FONT_DIR / "Poppins-Regular.ttf", True: _FONT_DIR / "Poppins-Bold.ttf"}
+_BUNDLED_FONTS = all(path.is_file() for path in _FONT_FILES.values())
 
 # SAFE_TOP_RATIO mirrors the platform-UI band (profile/follow button) —
 # unaffected by Phase 2.7, unchanged from the original estimate.
@@ -49,7 +57,17 @@ _CHAR_FALLBACK = {
 }
 
 
+def _keeps_glyph(ch: str) -> bool:
+    code = ord(ch)
+    return code < 0x250 or 0x2010 <= code <= 0x2027 or 0x20A0 <= code <= 0x20BF
+
+
 def sanitize_text(text: str) -> str:
+    if _BUNDLED_FONTS:
+        # Poppins covers Latin + Latin Extended and common punctuation; drop
+        # only what it cannot draw (emoji, CJK...) and map the true minus sign.
+        replaced = text.replace("\u2212", "-")
+        return unicodedata.normalize("NFC", "".join(ch for ch in replaced if _keeps_glyph(ch)))
     replaced = "".join(_CHAR_FALLBACK.get(ch, ch) for ch in text)
     decomposed = unicodedata.normalize("NFKD", replaced)
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
@@ -57,8 +75,16 @@ def sanitize_text(text: str) -> str:
 
 
 @lru_cache(maxsize=None)
-def font(size: int) -> ImageFont.FreeTypeFont:
+def font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
+    if _BUNDLED_FONTS:
+        return ImageFont.truetype(str(_FONT_FILES[bool(bold)]), max(1, size))
     return ImageFont.load_default(size=max(1, size))
+
+
+def faux_bold_stroke(font_px: int, bold: bool) -> int:
+    """Stroke width used to fake a heavier weight - only needed on the
+    single-weight default-font fallback; the bundled Bold is a real weight."""
+    return 0 if _BUNDLED_FONTS or not bold else max(1, font_px // 22)
 
 
 def safe_box(width: int, height: int) -> tuple[int, int, int, int]:
@@ -66,10 +92,34 @@ def safe_box(width: int, height: int) -> tuple[int, int, int, int]:
     return 0, round(height * SAFE_TOP_RATIO), width, round(height * (1 - SAFE_BOTTOM_RATIO))
 
 
-def new_frame(size: tuple[int, int], background: str) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+@lru_cache(maxsize=8)
+def _backdrop(size: tuple[int, int], background: str, glow: str) -> Image.Image:
+    """Soft radial backdrop: a gentle lift of the theme colour towards the
+    upper third, a faint tint of `glow` behind the content, darker corners.
+    Computed on a small grid and upscaled bicubic, so it is smooth and cheap."""
     from .theme import hex_to_rgb
 
-    image = Image.new("RGB", size, hex_to_rgb(background))
+    width, height = size
+    gw, gh = 48, max(2, round(48 * height / width))
+    base, tint = hex_to_rgb(background), hex_to_rgb(glow)
+    small = Image.new("RGB", (gw, gh))
+    px = small.load()
+    for y in range(gh):
+        for x in range(gw):
+            nx, ny = (x + 0.5) / gw, (y + 0.5) / gh
+            d_top = ((nx - 0.5) ** 2 + ((ny - 0.30) * 0.75) ** 2) ** 0.5
+            lift = max(0.0, 1.0 - d_top / 0.75) * 0.10
+            glow_k = max(0.0, 1.0 - (((nx - 0.5) ** 2 + (ny - 0.46) ** 2) ** 0.5) / 0.45) * 0.07
+            edge = max(0.0, (((nx - 0.5) ** 2 + (ny - 0.5) ** 2) ** 0.5 - 0.35) / 0.45) * 0.28
+            px[x, y] = tuple(
+                max(0, min(255, round((base[i] + (255 - base[i]) * lift) * (1 - edge) * (1 - glow_k) + tint[i] * glow_k)))
+                for i in range(3)
+            )
+    return small.resize(size, Image.BICUBIC)
+
+
+def new_frame(size: tuple[int, int], background: str, glow: str | None = None) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    image = _backdrop(tuple(size), background, glow or background).copy()
     return image, ImageDraw.Draw(image)
 
 
@@ -87,9 +137,8 @@ def draw_text(
     anchor: str = "mm",
     bold: bool = False,
 ) -> None:
-    """`bold` fakes a heavier weight via stroke — Pillow's bundled default
-    font only ships one weight."""
-    stroke_width = max(1, f.size // 22) if bold else 0
+    """`bold` only fakes a heavier weight (stroke) on the default-font fallback."""
+    stroke_width = faux_bold_stroke(f.size, bold)
     draw.text(xy, sanitize_text(text), font=f, fill=fill, anchor=anchor, stroke_width=stroke_width, stroke_fill=fill)
 
 
@@ -115,14 +164,35 @@ def rounded_rect(draw: ImageDraw.ImageDraw, box, radius: float, fill=None, outli
 
 
 def panel(image: Image.Image, box, radius: float, color: str, alpha: int = 26) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    """Composites a soft translucent rounded panel at `box` onto `image` and
-    returns the new `(image, draw)` pair — used for card-style groupings
-    within a scene (e.g. each row of a money split, a comparison card)."""
+    """Composites a translucent "glass" card at `box` onto `image`: soft drop
+    shadow, tinted fill, fine light border. Works on a cropped region only
+    (the blur is the expensive part) and updates `image` in place. Returns
+    `(image, draw)` - used for card-style groupings within a scene."""
     from .theme import hex_to_rgb
 
     if alpha <= 0:
         return image, ImageDraw.Draw(image)
-    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    ImageDraw.Draw(overlay).rounded_rectangle(box, radius=max(0, radius), fill=(*hex_to_rgb(color), alpha))
-    composited = Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
-    return composited, ImageDraw.Draw(composited)
+    x0, y0, x1, y1 = (round(v) for v in box)
+    blur = max(4, round(image.size[0] * 0.012))
+    drop = round(blur * 0.8)
+    margin = blur * 3
+    left, top = max(0, x0 - margin), max(0, y0 - margin)
+    right, bottom = min(image.size[0], x1 + margin), min(image.size[1], y1 + margin + drop)
+    if right <= left or bottom <= top:
+        return image, ImageDraw.Draw(image)
+    region = image.crop((left, top, right, bottom)).convert("RGBA")
+    local = (x0 - left, y0 - top, x1 - left, y1 - top)
+
+    shadow = Image.new("RGBA", region.size, (0, 0, 0, 0))
+    shadow_alpha = min(110, round(alpha * 3.2))
+    ImageDraw.Draw(shadow).rounded_rectangle(
+        (local[0], local[1] + drop, local[2], local[3] + drop), radius=max(0, radius), fill=(0, 0, 0, shadow_alpha))
+    region = Image.alpha_composite(region, shadow.filter(ImageFilter.GaussianBlur(blur)))
+
+    card = Image.new("RGBA", region.size, (0, 0, 0, 0))
+    ImageDraw.Draw(card).rounded_rectangle(
+        local, radius=max(0, radius), fill=(*hex_to_rgb(color), min(255, round(alpha * 1.25))),
+        outline=(255, 255, 255, min(70, round(alpha * 1.8))), width=max(1, round(image.size[0] / 540)))
+    region = Image.alpha_composite(region, card).convert("RGB")
+    image.paste(region, (left, top))
+    return image, ImageDraw.Draw(image)
