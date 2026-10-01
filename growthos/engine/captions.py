@@ -278,20 +278,23 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
             question_tags = f"{{\\an5\\pos({centre},{round(height * 0.2175)})\\fs{question_size}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(question_colour))}\\q2}}"
             events.append(_dialogue(start, end, question_tags + question, "QuizQuestion", 2))
 
-            # The generated visual remains visible through this window. Four
-            # thin panels form a frame without covering the underlying image.
-            frame_y, frame_h = round(height * 0.285), round(height * 0.19)
-            frame_t = max(3, round(7 * scale))
-            events.extend([
-                _quiz_panel(start, end, left, frame_y, card_width, frame_t, accent, scale),
-                _quiz_panel(start, end, left, frame_y + frame_h - frame_t, card_width, frame_t, accent, scale),
-                _quiz_panel(start, end, left, frame_y, frame_t, frame_h, accent, scale),
-                _quiz_panel(start, end, right - frame_t, frame_y, frame_t, frame_h, accent, scale),
-            ])
+            has_visual = block.get("quiz_visual_available", True)
+            if has_visual:
+                # The generated visual remains visible through this window.
+                # Four thin panels form a frame without covering the image.
+                frame_y, frame_h = round(height * 0.285), round(height * 0.19)
+                frame_t = max(3, round(7 * scale))
+                events.extend([
+                    _quiz_panel(start, end, left, frame_y, card_width, frame_t, accent, scale),
+                    _quiz_panel(start, end, left, frame_y + frame_h - frame_t, card_width, frame_t, accent, scale),
+                    _quiz_panel(start, end, left, frame_y, frame_t, frame_h, accent, scale),
+                    _quiz_panel(start, end, right - frame_t, frame_y, frame_t, frame_h, accent, scale),
+                ])
             choices = [str(choice) for choice in block.get("quiz_choices") or []]
             correct = int(block.get("quiz_correct_choice") or 0)
+            choices_top = 0.515 if has_visual else 0.335
             for index, choice in enumerate(choices):
-                choice_y = round(height * (0.515 + index * 0.058))
+                choice_y = round(height * (choices_top + index * 0.058))
                 row_h = round(height * 0.050)
                 selected = phase == "reveal" and index == correct
                 events.append(_quiz_panel(start, end, left, choice_y - row_h // 2,
@@ -305,13 +308,14 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
             if phase == "question":
                 countdown = int(block.get("hold_after_seconds") or 0)
                 timer_start = max(start, end - countdown)
-                timer_y = round(height * 0.748)
+                timer_y = round(height * (0.748 if has_visual else 0.568))
                 if countdown > 0 and timer_start < end:
                     # Smooth draining bar, timed to the actual audio hold.
                     bar_width = card_width - round(40 * scale)
                     milliseconds = max(1, round((end - timer_start) * 1000))
                     events.append(_quiz_panel(timer_start, end, left + round(20 * scale),
-                                              round(height * 0.775), bar_width, max(2, round(7 * scale)),
+                                              round(height * (0.775 if has_visual else 0.595)),
+                                              bar_width, max(2, round(7 * scale)),
                                               accent, scale, f"\\t(0,{milliseconds},\\fscx0)"))
                 for remaining in range(countdown, 0, -1):
                     seg_start = max(start, end - remaining)

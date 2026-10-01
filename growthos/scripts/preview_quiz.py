@@ -29,6 +29,8 @@ def main() -> None:
     script["quiz"]["questions"][0]["choices"].append("La Terre")
     blocks = compile_quiz(script)["blocks"]
     blocks = [block for block in blocks if block["quiz_phase"] in {"question", "reveal"}]
+    for block in blocks:
+        block["quiz_visual_available"] = False
     durations = [7.0 if block["quiz_phase"] == "question" else 3.0 for block in blocks]
     cues = []
     cursor = 0.0

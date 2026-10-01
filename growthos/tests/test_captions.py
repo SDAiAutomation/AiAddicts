@@ -297,6 +297,20 @@ class TestWriteAss(unittest.TestCase):
         self.assertTrue(timers[0].endswith("2"))
         self.assertTrue(timers[1].endswith("1"))
 
+    def test_quiz_without_visual_removes_empty_frame_and_moves_choices_up(self):
+        import re
+        from engine.captions import _quiz_events
+
+        block = {"quiz_phase": "question", "quiz_question": "Q?",
+                 "quiz_choices": ["Yes", "No"], "hold_after_seconds": 3,
+                 "quiz_visual_available": False}
+        events = _quiz_events([block], [5], 1080, 1920)
+        choices = [event for event in events if ",QuizChoice," in event]
+        first_y = int(re.search(r"\\pos\(\d+,(\d+)\)", choices[0]).group(1))
+        self.assertLess(first_y, 1920 * 0.4)
+        panels = [event for event in events if ",QuizPanel," in event]
+        self.assertFalse(any("\\pos(86,547)" in event for event in panels))
+
     def test_quiz_long_text_wraps_without_losing_words(self):
         from engine.captions import _quiz_fit_text
 

@@ -234,9 +234,14 @@ def _generate(
     captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
+    caption_blocks = [
+        ({**block, "quiz_visual_available": bool(render_image_paths[index])}
+         if block.get("quiz_phase") in {"question", "reveal"} else block)
+        for index, block in enumerate(render_blocks)
+    ]
     ass_file = captions.write_ass(
         cues, str(work_dir / "captions.ass"), caption_style, resolution,
-        blocks=render_blocks, block_durations=render_durations,
+        blocks=caption_blocks, block_durations=render_durations,
     )
     print(f"       sous-titres : style « {caption_style} »")
 
