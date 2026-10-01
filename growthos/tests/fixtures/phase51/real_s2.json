@@ -1,0 +1,309 @@
+{
+  "title": "You Got a Raise... So Why Are You Still Broke?",
+  "niche": "Finance perso",
+  "niche_id": "3a4f5627-3cd0-40a8-8fc7-d7e67be841b4",
+  "visual_style": "motion_graphics",
+  "visual_style_prompt": "",
+  "caption_style": "word_pop",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "language": "en",
+  "account": "PocketLogicMoney",
+  "organization": "GrowthOS Dogfooding",
+  "platform": "youtube",
+  "aspect_ratio": "9:16",
+  "content_goal": "monetization",
+  "cta": "",
+  "description": "",
+  "hashtags": [
+    "#RaiseReality",
+    "#PersonalFinance",
+    "#PayYourselfFirst",
+    "#RaiseHacks",
+    "#MoneyHabits",
+    "#FinancialWellness",
+    "#fyp"
+  ],
+  "made_for_kids": false,
+  "characters": [],
+  "script_usage": {
+    "model": "gpt-5-mini",
+    "input": 4624,
+    "output": 2573
+  },
+  "recommendation_receipt": null,
+  "content_format": "standard",
+  "source_type": "idea",
+  "transformation_mode": null,
+  "source_text": null,
+  "blocks": [
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Raise, same wallet"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "retentionRole": "hook",
+      "informationGain": "new_question",
+      "role": "hook",
+      "text": "You got a raise. Why are you still broke?",
+      "visual": "Close-up on the edge of a pay stub showing a highlighted 'Net Pay' line."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Instant Upgrade Pressure",
+        "emphasis": "After raise",
+        "icon": "shopping_cart",
+        "optionA": {
+          "label": "Before raise",
+          "displayValue": "Same old phone"
+        },
+        "optionB": {
+          "label": "After raise",
+          "displayValue": "New phone every year"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "evidence",
+      "retentionRole": "setup",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "First thing people do is upgrade lifestyle instantly, new phone or dinners every weekend.",
+      "visual": "Medium shot of a hand tapping 'Buy' on a smartphone checkout screen with a new gadget image."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "bar_chart",
+        "title": "Where extra pay disappears",
+        "label": "Categories",
+        "emphasis": "Subscriptions",
+        "icon": "credit_card",
+        "data": [
+          {
+            "label": "Subscriptions",
+            "displayValue": "$X",
+            "value": 1
+          },
+          {
+            "label": "Dining Out",
+            "displayValue": "$Y",
+            "value": 1
+          }
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Second trap is 'hidden recurring costs', streaming, subscriptions, higher bills by habit.",
+      "visual": "Insert, close shot of several app subscription icons stacked, a finger hovering over a credit card."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "More pay, same expenses",
+        "icon": "house",
+        "before": {
+          "label": "Income",
+          "displayValue": "Lower"
+        },
+        "after": {
+          "label": "Discretionary spending",
+          "displayValue": "Higher"
+        }
+      },
+      "shotType": "wide",
+      "visualPurpose": "establish",
+      "retentionRole": "escalation",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Imagine this, you get more salary and your rent or lifestyle doesn't change, yet your free cash shrinks.",
+      "visual": "Wide shot of a small apartment living room, a single lamp on, an empty wallet on the table."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "The debt timeline",
+        "icon": "credit_card",
+        "steps": [
+          "Raise received",
+          "Spending rises",
+          "Credit balances increase"
+        ]
+      },
+      "shotType": "medium",
+      "visualPurpose": "action",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Big escalation, debt quietly grows. People use cards to bridge between higher lifestyle and payday.",
+      "visual": "Medium shot of a hand sliding a credit card into a reader, a balance alert glowing on phone screen."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "donut_chart",
+        "title": "Paycheck split example",
+        "emphasis": "Take-home",
+        "icon": "bank",
+        "data": [
+          {
+            "label": "Deductions",
+            "displayValue": "$D",
+            "value": 1
+          },
+          {
+            "label": "Take-home",
+            "displayValue": "$T",
+            "value": 1
+          }
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "explain",
+      "retentionRole": "evidence",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Small detail most miss, paycheck illusions. Taxes, retirement contributions, and benefits can cut take-home pay.",
+      "visual": "Insert, close-up of a payroll breakdown on screen showing labeled deductions (Taxes, 401k, Insurance)."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "title": "Saving portion example",
+        "displayValue": "Savings increase",
+        "emphasis": "Savings increase",
+        "icon": "piggy_bank",
+        "targetRatio": 0.4
+      },
+      "shotType": "close_up",
+      "visualPurpose": "reaction",
+      "retentionRole": "pattern_interrupt",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Pattern interrupt, some people actually save more after a raise. What's different is one habit.",
+      "visual": "Close-up on two jars labeled 'Spend' and 'Save' as one hand moves a bill into 'Save'."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Pay yourself first",
+        "emphasis": "Auto-transfer",
+        "icon": "investment",
+        "optionA": {
+          "label": "No auto-transfer",
+          "displayValue": "Spend first"
+        },
+        "optionB": {
+          "label": "Auto-transfer",
+          "displayValue": "Save first"
+        }
+      },
+      "shotType": "pov",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Concrete trick used: 'pay yourself first', automatically move a share of the raise to savings before spending.",
+      "visual": "POV shot looking down at a phone confirming an automatic transfer labeled 'Emergency fund'."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "compound_growth",
+        "title": "Hypothetical split example",
+        "icon": "chart",
+        "data": [
+          {
+            "label": "Saved portion",
+            "displayValue": "$Saved"
+          },
+          {
+            "label": "Spent portion",
+            "displayValue": "$Spent"
+          }
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Here's a simple example, if you increase your saving share of the raise to just a portion, your free cash still covers upgrades.",
+      "visual": "Insert, close shot of calculator showing an example labeled 'Example, hypothetical split' (no numbers shown in narration)."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Choices, not income"
+      },
+      "shotType": "wide",
+      "visualPurpose": "reveal",
+      "retentionRole": "reveal",
+      "informationGain": "answer",
+      "role": "point",
+      "text": "Reveal, the real reason you're broke after a raise is not the raise. It's the shift in choices and invisible commitments.",
+      "visual": "Wide shot of the same apartment now with visible bills on table and a single coin in the wallet."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "3-step raise plan",
+        "emphasis": "Automate transfer",
+        "icon": "check",
+        "items": [
+          "Automate transfer",
+          "Cap new subscriptions",
+          "Increase debt payments"
+        ]
+      },
+      "shotType": "medium",
+      "visualPurpose": "payoff",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Resolution, make one rule. Automate a part of every raise to savings or debt paydown, then enjoy the rest guilt-free.",
+      "visual": "Medium shot of a phone setting an recurring transfer labeled 'Raise → Savings' and a checkmark appearing."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Which are you?",
+        "optionA": {
+          "label": "Automate",
+          "displayValue": ""
+        },
+        "optionB": {
+          "label": "Spend",
+          "displayValue": ""
+        }
+      },
+      "shotType": "close_up",
+      "visualPurpose": "cta",
+      "retentionRole": "cta",
+      "informationGain": "cta",
+      "role": "cta",
+      "text": "Would you automate part of your raise or spend it all?",
+      "visual": "Close-up on two labeled jars 'Automate' and 'Spend', camera centered between them."
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "Understand why a raise doesn't solve money stress and get a simple rule to change it.",
+    "coreQuestion": "Why does a raise often leave you with no more free cash?",
+    "viewerProblem": "You earn more but your spending and hidden costs rise, so you feel no better off.",
+    "payoff": "Automate a portion of any raise to savings or debt paydown first, then spend the rest. Example placeholders shown as $Saved and $Spent in visuals.",
+    "curiosityMechanism": "Start with the surprising fact, then show the exact small choices that undo a raise and a concrete automated fix.",
+    "emotionalDriver": "Relief",
+    "hookType": "contradiction",
+    "ctaIntent": "question",
+    "hookText": "You got a raise. Why are you still broke?",
+    "targetDurationSec": 90
+  },
+  "openLoops": [
+    {
+      "question": "Why are you still broke after a raise?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 10
+    }
+  ]
+}

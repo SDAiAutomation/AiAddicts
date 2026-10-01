@@ -1,0 +1,282 @@
+{
+  "title": "Why Your First $10,000 Feels So Hard",
+  "niche": "Finance perso",
+  "niche_id": "3a4f5627-3cd0-40a8-8fc7-d7e67be841b4",
+  "visual_style": "motion_graphics",
+  "visual_style_prompt": "",
+  "caption_style": "word_pop",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "language": "en",
+  "account": "PocketLogicMoney",
+  "organization": "GrowthOS Dogfooding",
+  "platform": "youtube",
+  "aspect_ratio": "9:16",
+  "content_goal": "monetization",
+  "cta": "",
+  "description": "",
+  "hashtags": [
+    "#First10000",
+    "#SavingsHabit",
+    "#AutomateSavings",
+    "#PersonalFinance",
+    "#MoneyMindset",
+    "#QuarterlyReview",
+    "#fyp"
+  ],
+  "made_for_kids": false,
+  "characters": [],
+  "script_usage": {
+    "model": "gpt-5-mini",
+    "input": 11448,
+    "output": 4915
+  },
+  "recommendation_receipt": null,
+  "content_format": "standard",
+  "source_type": "idea",
+  "transformation_mode": null,
+  "source_text": null,
+  "blocks": [
+    {
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "First Milestone",
+        "displayValue": "$10,000"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "retentionRole": "hook",
+      "informationGain": "new_question",
+      "role": "hook",
+      "text": "Why your first $10,000 feels impossible",
+      "visual": "Close-up on a glass jar labeled \"$10,000\" showing a single coin at the bottom"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Small leaks add up"
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "setup",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Tiny leaks matter. A daily coffee and a streaming plan quietly subtract predictable amounts from your balance every week.",
+      "visual": "Insert shot of a coffee cup beside a printed receipt and a finger tapping a subscription icon on a phone"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "label": "Progress toward $10,000",
+        "displayValue": "$1,200 saved",
+        "icon": "bank",
+        "targetRatio": 0.12
+      },
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_visual_evidence",
+      "role": "point",
+      "text": "You log progress but the number crawls forward. Those tiny deposits feel invisible because the percent change is almost nothing.",
+      "visual": "Wide shot of a phone screen with a savings balance slowly ticking up by a few dollars"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Slow rewards feel unrewarding"
+      },
+      "shotType": "medium",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Your brain expects big rewards quickly and labels steady small wins as boring. That cuts motivation even when you are technically improving.",
+      "visual": "Medium shot of a person looking at tiny balance change on a phone and closing the app with a sigh"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "Common setbacks",
+        "items": [
+          "Unexpected bills",
+          "Temporary withdrawals",
+          "Delayed progress"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Then life happens. A car repair or a vet bill forces withdrawals and those months of work suddenly feel erased in one swipe.",
+      "visual": "Insert close shot of a credit card being used and an empty wallet on a kitchen counter"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "What social posts hide",
+        "icon": "chart",
+        "optionA": {
+          "label": "Public milestone",
+          "displayValue": "Highlights only"
+        },
+        "optionB": {
+          "label": "Your timeline",
+          "displayValue": "Every month counted"
+        }
+      },
+      "shotType": "close_up",
+      "visualPurpose": "evidence",
+      "retentionRole": "pattern_interrupt",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Social media worsens it. You only see polished milestones from others and assume immediate success is normal when it often is not.",
+      "visual": "Close_up on a phone feed scrolling through glossy savings screenshots annotated with big numbers and confetti stickers"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "Reframe approach",
+        "before": {
+          "label": "Random saving",
+          "displayValue": "Inconsistent"
+        },
+        "after": {
+          "label": "Habit saving",
+          "displayValue": "Regular small amounts"
+        }
+      },
+      "shotType": "wide",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Reframe the goal. Think of the first ten thousand as a habit built from weekly deposits and small predictable rituals that stack over time.",
+      "visual": "Wide shot of hands building a small brick wall with bricks labeled \"week 1\" \"week 2\" and \"week 3\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "Stacking effect",
+        "steps": [
+          "Week 1 add",
+          "Week 2 add",
+          "Month grows"
+        ]
+      },
+      "shotType": "pov",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Imagine dropping coins into a jar every week. Each coin barely moves the level yet after months the jar becomes heavy and visible growth appears.",
+      "visual": "Pov of coins falling one by one into a glass jar until the liquid or coin level slowly rises visibly"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Automate it"
+      },
+      "shotType": "medium",
+      "visualPurpose": "action",
+      "retentionRole": "reveal",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Practical move one. Automate a small transfer each pay period so the action happens without debate and your habit becomes nearly effortless.",
+      "visual": "Medium shot of a bank app automation screen and a finger enabling an auto transfer toggle then confirming"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "Buffer checklist",
+        "icon": "piggy_bank",
+        "items": [
+          "Keep a small buffer",
+          "Avoid withdrawals",
+          "Let savings grow"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "retentionRole": "reveal",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Practical move two. Keep a tiny emergency buffer separate from your goal so real setbacks do not force you to raid that steady savings jar.",
+      "visual": "Insert of a small envelope labeled \"buffer\" placed beside the jar and sealed with a clip"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "label": "Halfway to $10,000",
+        "displayValue": "$5,000 saved",
+        "icon": "target",
+        "targetRatio": 0.5
+      },
+      "shotType": "wide",
+      "visualPurpose": "reveal",
+      "retentionRole": "payoff",
+      "informationGain": "answer",
+      "role": "point",
+      "text": "Result confirmed. Over months those steady automated transfers plus a small buffer turn into a real ten thousand dollar balance rather than just a lingering wish.",
+      "visual": "Wide shot of the jar now half full and a phone screen showing a savings goal at fifty percent toward ten thousand"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "Quarterly boost",
+        "steps": [
+          "Quarterly review",
+          "Cancel unused",
+          "Redirect funds"
+        ]
+      },
+      "shotType": "medium",
+      "visualPurpose": "action",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Extra tip. Review subscriptions quarterly and move any saved amount straight into your goal so small freed funds accelerate progress without much effort.",
+      "visual": "Medium shot of a calendar page being flipped to a quarterly review date while a hand moves leftover money into the jar"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Which do you pick?",
+        "icon": "check",
+        "optionA": {
+          "label": "Automate",
+          "displayValue": "Set and forget"
+        },
+        "optionB": {
+          "label": "Manual",
+          "displayValue": "Control each move"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "retentionRole": "cta",
+      "informationGain": "cta",
+      "role": "cta",
+      "text": "Are you team automate transfers or team manual control?",
+      "visual": "Medium shot of two jars side by side labeled \"Auto\" and \"Manual\" with hands poised above each jar"
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "Understand why saving the first $10,000 feels so slow and learn clear repeatable steps you can use to actually build that balance.",
+    "coreQuestion": "Why does hitting the first $10,000 feel impossible and what concrete actions make it happen over months?",
+    "viewerProblem": "Small wins feel invisible. Emergencies and public comparisons stall progress and motivation fades because rewards feel delayed.",
+    "payoff": "Automate small regular transfers and keep a tiny emergency buffer so steady deposits accumulate into $10,000 over months using habit and quarterly boosts.",
+    "curiosityMechanism": "Expose the mental and mechanical reasons small savings feel worthless then show exact habit based steps that produce visible results.",
+    "emotionalDriver": "Relief",
+    "hookType": "specific_number",
+    "ctaIntent": "question",
+    "hookText": "Why your first $10,000 feels impossible",
+    "targetDurationSec": 95
+  },
+  "openLoops": [
+    {
+      "question": "Why your first $10,000 feels impossible",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 11
+    }
+  ]
+}

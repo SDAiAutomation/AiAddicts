@@ -180,10 +180,9 @@ def render_progress_bar(data: dict, t: float, theme: Theme, size: tuple[int, int
     fill_x1 = track_x0 + (track_x1 - track_x0) * ratio
     if fill_x1 > track_x0 + 2:
         canvas.rounded_rect(draw, (track_x0, track_y0, fill_x1, track_y1), (track_y1 - track_y0) / 2, fill=theme.primary)
-    pct_text = f"{round(ratio * 100)}%"
-    pct_color = lerp_color(theme.background, theme.muted_text, anim.fade_in(t, 0.5, 0.7))
-    f_pct = canvas.font(round(h * 0.024))
-    canvas.draw_text(draw, (w / 2, h * 0.565), pct_text, f_pct, pct_color, bold=True)
+    # Phase 5.2 : plus de « NN % » dérivé. `targetRatio` règle seulement le remplissage de la barre (paramètre
+    # d'animation) ; l'afficher en pourcentage fabriquait une donnée financière (« 49 % », « 58 % ») sans
+    # rapport avec le script. La quantité visible est `displayValue`, fournie par le script.
     return image
 
 

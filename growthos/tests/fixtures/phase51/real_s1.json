@@ -1,0 +1,210 @@
+{
+  "title": "The $1,000 Emergency Fund Rule",
+  "niche": "Finance perso",
+  "niche_id": "3a4f5627-3cd0-40a8-8fc7-d7e67be841b4",
+  "visual_style": "motion_graphics",
+  "visual_style_prompt": "",
+  "caption_style": "word_pop",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "language": "en",
+  "account": "PocketLogicMoney",
+  "organization": "GrowthOS Dogfooding",
+  "platform": "youtube",
+  "aspect_ratio": "9:16",
+  "content_goal": "monetization",
+  "cta": "",
+  "description": "",
+  "hashtags": [
+    "#EmergencyFund",
+    "#PersonalFinance",
+    "#MoneyBuffer",
+    "#SavingsHabits",
+    "#StarterFund",
+    "#fyp",
+    "#shorts"
+  ],
+  "made_for_kids": false,
+  "characters": [],
+  "script_usage": {
+    "model": "gpt-5-mini",
+    "input": 11278,
+    "output": 4883
+  },
+  "recommendation_receipt": null,
+  "content_format": "standard",
+  "source_type": "idea",
+  "transformation_mode": null,
+  "source_text": null,
+  "blocks": [
+    {
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Starter Emergency Fund"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "retentionRole": "hook",
+      "informationGain": "new_fact",
+      "role": "hook",
+      "text": "A $1,000 emergency fund stopped everything.",
+      "visual": "Close-up, a hand dropping a folded US $1,000 stack into a small metal box, fingers closing on the lid."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "warning"
+      },
+      "shotType": "medium",
+      "visualPurpose": "evidence",
+      "retentionRole": "setup",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Two weeks later the boiler died, steam filling the hallway, and rent was due that same morning so cash needed to work immediately without credit.",
+      "visual": "Medium shot, a kettle leaking steam in a narrow hallway, a landlord notice pinned to a fridge, a closed laptop nearby."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "What $1,000 did"
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_visual_evidence",
+      "role": "point",
+      "text": "I opened the metal box, counted crisp notes, and handed cash directly to the plumber so the leak stopped same day and no loan was needed.",
+      "visual": "Insert, a hand opening the emergency box, counting notes, sliding a receipt stamped PAID across a kitchen counter to a receipt folder."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "With vs Without"
+      },
+      "shotType": "wide",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "This wasn't a miracle, it was a buffer that prevented one missed paycheck from becoming a high interest debt spiral and months of recovery.",
+      "visual": "Wide shot, a small living room with an open empty wallet on a couch, a phone showing a blank bank app screen on the table."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "wallet"
+      },
+      "shotType": "insert",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Quick rule explained simply, keep $1,000 as the first layer of defense, separate from long term savings and investment accounts for immediate access.",
+      "visual": "Insert, a small metal box labeled Emergency placed on a shelf beside a closed investment brochure and a piggy bank pushed slightly aside."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "Analogy: Finances as First Aid",
+        "emphasis": "No quick cash",
+        "before": {
+          "label": "No quick cash"
+        },
+        "after": {
+          "label": "$1,000 ready"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "explain",
+      "retentionRole": "pattern_interrupt",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Imagine your finances as a first aid kit, that thousand is the bandage you grab to stop bleeding, before you call for bigger treatment or plan repairs.",
+      "visual": "Medium shot, a first aid kit opening to reveal a small wrapped stack of cash inside, a bandage rolled beside it on a table."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "Fast build steps",
+        "icon": "check"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "action",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "How to build it fast, set up small automatic transfers every week, sell one unused item this month, and pause one subscription to move that money into the box.",
+      "visual": "Close-up, a phone screen showing an app scheduling a $25 weekly transfer, a thumb pressing confirm and a sold item notification on a second screen."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "Small habits"
+      },
+      "shotType": "wide",
+      "visualPurpose": "action",
+      "retentionRole": "escalation",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Also consider small weekly habits that add up, like packing lunches three times this month, or brewing coffee at home instead of daily takeout to accelerate savings.",
+      "visual": "Wide shot, a kitchen counter with a homemade lunch in a container, a reusable coffee cup and a calendar with check marks on days saved."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "check"
+      },
+      "shotType": "medium",
+      "visualPurpose": "reveal",
+      "retentionRole": "reveal",
+      "informationGain": "answer",
+      "role": "point",
+      "text": "Once the box holds $1,000 you stop the urgent stress, you avoid taking high interest loans, and you buy time to plan the real long term safety net.",
+      "visual": "Medium shot, the metal box closed and placed into a home drawer next to a blank notebook titled Plan and a pen ready to write."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "target"
+      },
+      "shotType": "insert",
+      "visualPurpose": "payoff",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Remember this is only the starter layer, not the whole plan, after $1,000 you can build a larger emergency fund and then consider investments once short term risk is covered.",
+      "visual": "Insert, a notebook open to a financial plan page labeled Emergency Fund Steps, a pen pointing at the next goal number left blank for future filling."
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Which first?"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "cta",
+      "retentionRole": "cta",
+      "informationGain": "cta",
+      "role": "cta",
+      "text": "Which would you start with first, the $1,000 stash ready or investing now for growth?",
+      "visual": "Close-up, two hands on a table, one holding a small cash bundle labeled Emergency, the other holding an investment brochure labeled Invest, both resting on wood."
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "A clear simple rule to stop small emergencies from turning into big debt fast and practical steps to build that buffer quickly.",
+    "coreQuestion": "Can a $1,000 emergency fund really stop a financial emergency before it becomes debt?",
+    "viewerProblem": "Unexpected bills or a missed paycheck can force high interest borrowing and long recovery, leaving you stressed and behind on goals.",
+    "payoff": "A $1,000 starter emergency fund covers immediate shocks so you avoid high interest debt and gain time to build a fuller safety net.",
+    "curiosityMechanism": "Show a dramatic immediate rescue by a $1,000 fund then detail concrete steps and small habits that build it quickly.",
+    "emotionalDriver": "Relief",
+    "hookType": "specific_number",
+    "ctaIntent": "question",
+    "hookText": "A $1,000 emergency fund stopped everything.",
+    "targetDurationSec": 100
+  },
+  "openLoops": [
+    {
+      "question": "Can a $1,000 fund actually stop a financial emergency?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 8
+    }
+  ]
+}

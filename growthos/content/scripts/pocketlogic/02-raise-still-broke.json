@@ -1,0 +1,173 @@
+{
+  "title": "You Got a Raise... So Why Are You Still Broke?",
+  "niche": "personal-finance",
+  "account": "PocketLogicMoney",
+  "platform": "youtube",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "language": "en",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#personalfinance",
+    "#moneytips",
+    "#shorts"
+  ],
+  "contentStrategy": {
+    "audiencePromise": "See exactly where a raise disappears and how to keep part of it.",
+    "coreQuestion": "Why is a raise not leaving you any better off?",
+    "viewerProblem": "Spending quietly grows to match a higher income.",
+    "payoff": "A $1,000 raise had $850 of new spending attached, leaving $150; saving $500 first fixes it.",
+    "hookType": "contradiction",
+    "hookText": "You got a raise. So why are you still broke?",
+    "curiosityMechanism": "A contradiction the viewer recognises, resolved with an itemised example.",
+    "emotionalDriver": "recognition",
+    "targetDurationSec": 30,
+    "ctaIntent": "next_episode"
+  },
+  "openLoops": [
+    {
+      "question": "Why is a raise not leaving you any better off?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 4
+    }
+  ],
+  "series": {
+    "name": "Money Rules Nobody Taught You",
+    "episode": 2,
+    "continuityCTA": "Money Rule #3 is next"
+  },
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "You got a raise. So why are you still broke?",
+      "visual": "Big +$1,000.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Monthly raise",
+        "displayValue": "+$1,000",
+        "value": 1000
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Say your pay goes up $1,000 a month. Great news, on paper.",
+      "visual": "Raise card.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_example",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "money",
+        "displayText": "Raise: +$1,000 a month"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "A pricier apartment adds $400. A car payment adds $300. Dining out adds $150.",
+      "visual": "Three bars build up.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_example",
+      "motion_graphic": {
+        "sceneType": "bar_chart",
+        "title": "New monthly costs",
+        "data": [
+          {
+            "label": "Apartment",
+            "value": 400,
+            "displayValue": "$400"
+          },
+          {
+            "label": "Car payment",
+            "value": 300,
+            "displayValue": "$300"
+          },
+          {
+            "label": "Dining out",
+            "value": 150,
+            "displayValue": "$150"
+          }
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "That's $850 a month of new spending, and your lifestyle now costs that much more.",
+      "visual": "Big $850.",
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "New monthly spending",
+        "displayValue": "$850",
+        "value": 850
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "So only $150 of your $1,000 raise is left over.",
+      "visual": "Raise splits in two.",
+      "shotType": "close_up",
+      "visualPurpose": "reveal",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "money_split",
+        "title": "Where the raise went",
+        "data": [
+          {
+            "label": "Spent",
+            "value": 850,
+            "displayValue": "$850"
+          },
+          {
+            "label": "Left over",
+            "value": 150,
+            "displayValue": "$150"
+          }
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "Your raise didn't vanish, your spending grew to meet it. Save half the raise before it lands: $500.",
+      "visual": "Formula.",
+      "shotType": "medium",
+      "visualPurpose": "payoff",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "formula",
+        "title": "Raise rule",
+        "terms": [
+          "$1,000 RAISE",
+          "- $500 SAVED FIRST",
+          "= $500 TO SPEND"
+        ]
+      }
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Money Rule #3 is next.",
+      "visual": "Minimal teaser card.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "calendar",
+        "displayText": "Rule #3 is next"
+      }
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "title": "Why Your First $10,000 Feels So Hard",
+  "niche": "personal-finance",
+  "account": "PocketLogicMoney",
+  "platform": "youtube",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "language": "en",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#personalfinance",
+    "#moneytips",
+    "#shorts"
+  ],
+  "contentStrategy": {
+    "audiencePromise": "Understand why early saving feels slow and why it speeds up.",
+    "coreQuestion": "Why is the first $10,000 so much harder than the next?",
+    "viewerProblem": "Slow early progress makes people quit before growth kicks in.",
+    "payoff": "At an assumed 7%, $10,000 earns about $700 a year; every extra $10,000 adds about $700 more.",
+    "hookType": "curiosity_gap",
+    "hookText": "Why is your first $10,000 so much harder than the next?",
+    "curiosityMechanism": "An everyday frustration phrased as a puzzle with a mechanical answer.",
+    "emotionalDriver": "reassurance",
+    "targetDurationSec": 30,
+    "ctaIntent": "save"
+  },
+  "openLoops": [
+    {
+      "question": "Why is the first $10,000 so much harder than the next?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 4
+    }
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "Why is your first $10,000 so much harder than the next?",
+      "visual": "Big $10,000.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Your first",
+        "displayValue": "$10,000",
+        "value": 10000
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Saving $400 a month, it takes 25 months to get there.",
+      "visual": "Bar fills.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "title": "Saving $400 a month",
+        "displayValue": "25 months",
+        "targetRatio": 1.0
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "pattern_interrupt",
+      "text": "And in that stretch, almost every dollar is your own effort.",
+      "visual": "Emphasis card.",
+      "shotType": "insert",
+      "visualPurpose": "reaction",
+      "informationGain": "new_consequence",
+      "motion_graphic": {
+        "sceneType": "warning",
+        "title": "Mostly your effort"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "At an assumed 7% a year, $10,000 earns about $700. A $100,000 balance earns $7,000.",
+      "visual": "Side-by-side.",
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "informationGain": "new_example",
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Same 7%",
+        "optionA": {
+          "label": "$10,000",
+          "displayValue": "$700 a year"
+        },
+        "optionB": {
+          "label": "$100,000",
+          "displayValue": "$7,000 a year"
+        }
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "That's the answer: early on, you do the work. Later, your money does too.",
+      "visual": "Before and after.",
+      "shotType": "medium",
+      "visualPurpose": "reveal",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "Who does the work",
+        "before": {
+          "label": "First $10,000",
+          "displayValue": "Mostly you"
+        },
+        "after": {
+          "label": "Later",
+          "displayValue": "Mostly growth"
+        }
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "So keep going: every extra $10,000 adds about $700 a year at the same assumed 7%.",
+      "visual": "Big +$700.",
+      "shotType": "close_up",
+      "visualPurpose": "payoff",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Per extra $10,000",
+        "displayValue": "+$700",
+        "value": 700,
+        "label": "A year, at an assumed 7%"
+      }
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Save this for the slow months.",
+      "visual": "Minimal save card.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "target",
+        "displayText": "Save this for later"
+      }
+    }
+  ]
+}

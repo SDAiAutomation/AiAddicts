@@ -1,0 +1,99 @@
+{
+  "title": "La boite a musique de Nour",
+  "niche": "histoires-courtes",
+  "account": "benchmark",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "language": "fr",
+  "characters": [
+    {
+      "name": "Nour",
+      "description": "un jeune renard roux anthropomorphe, pelage orange vif, petite taille, grands yeux ambres, sans vetements",
+      "negative": "jamais un renard realiste non stylise, jamais un humain"
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "Découvrir qui est la famille de la photo cachée dans la boîte à musique.",
+    "coreQuestion": "Quelle famille se cachait dans cette boîte à musique cassée ?",
+    "viewerProblem": "Une boîte cassée et oubliée : que contient-elle ?",
+    "payoff": "La photo montre la famille de Nour : le nom au dos est celui de sa grand-mère.",
+    "hookType": "curiosity_gap",
+    "hookText": "Quelle famille se cachait dans cette boîte à musique cassée ?",
+    "curiosityMechanism": "Question sur un objet concret, résolue par un objet plus petit à l'intérieur.",
+    "emotionalDriver": "émotion",
+    "targetDurationSec": 30,
+    "ctaIntent": "question"
+  },
+  "openLoops": [
+    {
+      "question": "Quelle famille se cachait dans la boîte à musique ?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 5
+    }
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "Quelle famille se cachait dans cette boîte à musique cassée ?",
+      "visual": "Gros plan sur une boîte à musique en bois poussiéreuse et abîmée, tenue par de petites pattes.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question"
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Nour l'avait trouvée au fond d'un grenier, couverte de poussière.",
+      "visual": "Plan large d'un grenier poussiéreux éclairé par un rayon de lumière, objets entassés partout.",
+      "shotType": "wide",
+      "visualPurpose": "establish",
+      "informationGain": "new_fact"
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "Sa manivelle rouillée refusait de tourner. Nour insista, doucement, encore et encore.",
+      "visual": "Plan d'insert sur une manivelle en métal rouillé sur le côté de la boîte à musique.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_consequence"
+    },
+    {
+      "role": "point",
+      "retentionRole": "pattern_interrupt",
+      "text": "Clic. La musique se mit à jouer, une mélodie qu'elle connaissait déjà.",
+      "visual": "Plan moyen sur Nour, les oreilles dressées, surprise, la boîte ouverte devant elle.",
+      "shotType": "medium",
+      "visualPurpose": "reaction",
+      "informationGain": "new_fact"
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "Sous le mécanisme, une photo : une famille de renards qu'elle n'avait jamais vue.",
+      "visual": "Gros plan sur une photo jaunie dissimulée sous le mécanisme, montrant une famille de renards.",
+      "shotType": "close_up",
+      "visualPurpose": "reveal",
+      "informationGain": "new_visual_evidence"
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "Au dos, un nom : sa grand-mère. Cette famille était la sienne, et la mélodie, sa berceuse.",
+      "visual": "Plan moyen sur Nour tenant la photo retournée contre elle, les yeux brillants.",
+      "shotType": "medium",
+      "visualPurpose": "payoff",
+      "informationGain": "answer"
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Tu aurais ouvert la boîte tout de suite ?",
+      "visual": "Plan large du grenier avec Nour assise, la boîte à musique posée sur ses genoux.",
+      "shotType": "wide",
+      "visualPurpose": "cta",
+      "informationGain": "cta"
+    }
+  ]
+}

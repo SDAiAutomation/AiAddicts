@@ -1,0 +1,264 @@
+{
+  "title": "The 24-Hour Rule That Stops Impulse Buying",
+  "niche": "Finance perso",
+  "niche_id": "3a4f5627-3cd0-40a8-8fc7-d7e67be841b4",
+  "visual_style": "motion_graphics",
+  "visual_style_prompt": "",
+  "caption_style": "word_pop",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "language": "en",
+  "account": "PocketLogicMoney",
+  "organization": "GrowthOS Dogfooding",
+  "platform": "youtube",
+  "aspect_ratio": "9:16",
+  "content_goal": "monetization",
+  "cta": "",
+  "description": "",
+  "hashtags": [
+    "#ImpulseBuying",
+    "#PersonalFinance",
+    "#FrugalHabits",
+    "#MoneyTips",
+    "#24HourRule",
+    "#SpendingHabits",
+    "#fyp"
+  ],
+  "made_for_kids": false,
+  "characters": [],
+  "script_usage": {
+    "model": "gpt-5-mini",
+    "input": 4623,
+    "output": 2505
+  },
+  "recommendation_receipt": null,
+  "content_format": "standard",
+  "source_type": "idea",
+  "transformation_mode": null,
+  "source_text": null,
+  "blocks": [
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Wait 24 Hours"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "retentionRole": "hook",
+      "informationGain": "new_question",
+      "role": "hook",
+      "text": "Wait 24 hours before you buy that thing.",
+      "visual": "Close-up on a smartphone screen showing a product page with the 'Buy' button inches from being tapped"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "steps": [
+          "Spot item",
+          "Emotional surge",
+          "Plan to buy"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "setup",
+      "informationGain": "new_visual_evidence",
+      "role": "point",
+      "text": "First test, you feel a spike in heart rate and fast scrolling when you see the item.",
+      "visual": "Insert, fingers scrolling fast through product photos on a phone, heartbeat icon pulsing at the edge of the screen"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "items": [
+          "Emotional impulse",
+          "Justification",
+          "Quick checkout"
+        ]
+      },
+      "shotType": "medium",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Second immediate detail, you justify it out loud, 'I deserve it' or 'it's a deal', and tap buy.",
+      "visual": "Medium shot of only hands speaking aloud near the phone, thumb hovering over 'Buy' button"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "displayValue": "24-hour delay",
+        "targetRatio": 0.5
+      },
+      "shotType": "wide",
+      "visualPurpose": "action",
+      "retentionRole": "escalation",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Now add 24 hours. That friction turns the decision from instant to deliberate.",
+      "visual": "Wide shot of the phone placed face down on a table, a sticky note reading 'Wait 24h' beside it"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "items": [
+          "Sleep on it",
+          "Compare alternatives",
+          "Check budget"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "During the wait you do three things, sleep on it, compare alternatives, check your budget.",
+      "visual": "Insert, a small paper checklist being ticked: 'Sleep', 'Compare', 'Budget'"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "optionA": {
+          "label": "Impulse choice",
+          "displayValue": "Original item"
+        },
+        "optionB": {
+          "label": "Delayed choice",
+          "displayValue": "Better deal found"
+        }
+      },
+      "shotType": "medium",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Pattern interrupt, the next day the urge is weaker and you spot cheaper or better options.",
+      "visual": "Medium shot of the phone again, this time showing a comparison page with two similar items side by side"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "before": {
+          "label": "Immediate",
+          "displayValue": "Emotional buy"
+        },
+        "after": {
+          "label": "After 24h",
+          "displayValue": "Deliberate buy"
+        }
+      },
+      "shotType": "close_up",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_visual_evidence",
+      "role": "point",
+      "text": "If you still want it after 24 hours, your reason is less emotional and more practical.",
+      "visual": "Close-up on a notepad where someone writes 'Need' and 'Want' and circles 'Need' or 'Want'"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Like refrigerating leftovers"
+      },
+      "shotType": "insert",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Quick analogy, it's like putting leftovers in the fridge overnight; you see if it's still worth reheating.",
+      "visual": "Insert, a small Tupperware labeled 'temptation' placed into a refrigerator and the door closing"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "steps": [
+          "Flash sale appears",
+          "Wait 24 hours",
+          "Decision without rush"
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Common obstacle, social pressure from limited-time offers. A 24-hour rule forces you to miss most marketing rush.",
+      "visual": "Wide shot of a flashing sale banner on a website, then a calendar page with '24h' highlighted"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "emphasis": "After 24h",
+        "before": {
+          "label": "Impulse pile",
+          "displayValue": "Many buys"
+        },
+        "after": {
+          "label": "After 24h",
+          "displayValue": "Fewer chosen buys"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "reveal",
+      "retentionRole": "reveal",
+      "informationGain": "answer",
+      "role": "point",
+      "text": "Real payoff, the rule filters out purchases driven only by emotion and keeps only those you still want.",
+      "visual": "Medium shot of a small pile of impulse items on one side and a single chosen item on the other"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "items": [
+          "Set a reminder",
+          "Add a note",
+          "Remove saved card"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "How to start, set a phone reminder, add 'Wait 24h' sticky note, and remove saved cards from the app.",
+      "visual": "Insert, a hand deleting saved card details in an app, then setting a phone alarm labeled 'Wait 24h'"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "optionA": {
+          "label": "Yes",
+          "displayValue": ""
+        },
+        "optionB": {
+          "label": "No",
+          "displayValue": ""
+        }
+      },
+      "shotType": "close_up",
+      "visualPurpose": "cta",
+      "retentionRole": "cta",
+      "informationGain": "cta",
+      "role": "cta",
+      "text": "Do you think a 24-hour pause would stop your impulse buys?",
+      "visual": "Close-up of the phone screen showing a simple poll: 'Yes' and 'No' options"
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "You will get a simple, testable habit that cuts impulse spending without harsh budgets.",
+    "coreQuestion": "Does a 24-hour delay actually stop impulse buying?",
+    "viewerProblem": "You buy things on impulse and later regret it or waste money.",
+    "payoff": "A 24-hour delay creates friction that weakens emotional urges, encourages comparison, and leaves only deliberate purchases.",
+    "curiosityMechanism": "Show the immediate urge, then the exact mental steps that change after a full day.",
+    "emotionalDriver": "Relief",
+    "hookType": "challenge",
+    "ctaIntent": "question",
+    "hookText": "Wait 24 hours before you buy that thing.",
+    "targetDurationSec": 90
+  },
+  "openLoops": [
+    {
+      "question": "Does a 24-hour delay actually stop impulse buying?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 10
+    }
+  ]
+}

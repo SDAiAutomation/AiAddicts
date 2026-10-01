@@ -13,6 +13,11 @@ alimenter une future boucle d'apprentissage.
 from pathlib import Path
 
 PASS_THRESHOLD = 70
+# Doit rester aligné avec engine.retention.BLOCKING_CODES (dupliqué pour que ce module reste sans dépendance).
+_BLOCKING_RETENTION_CODES = frozenset((
+    "arithmetic_inconsistency", "projection_assumption_missing", "guaranteed_language", "role_label_leak",
+    "viewer_placeholder", "unsupported_cta_promise",
+))
 MIN_MONETIZATION_DURATION_S = 60.0
 MIN_REACH_DURATION_S = 8.0
 MAX_REACH_DURATION_S = 60.0
@@ -79,6 +84,25 @@ def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:
         issues = editorial.get("issues") or []
         detail = f" {issues[0]}" if issues else ""
         flags.append(f"Qualité éditoriale faible ({editorial_score}/100).{detail}")
+
+    retention_report = metrics.get("retention") or {}
+    # Intégrité du contenu (Phase 5.3) : un chiffre faux, une promesse inexistante, une étiquette interne ou un
+    # texte de remplissage visible ne partent jamais en publication automatique, quel que soit le script
+    # (même sans contentStrategy) : la vidéo passe en `quality_check` pour un coup d'œil humain.
+    blocking = [i for i in retention_report.get("issues") or [] if i.get("code") in _BLOCKING_RETENTION_CODES]
+    if blocking:
+        score -= 35  # sous PASS_THRESHOLD à lui seul : la vidéo passe en quality_check
+        flags.append(f"Intégrité du contenu : {blocking[0]['message']}")
+    if retention_report.get("hasContentStrategy"):
+        # Uniquement pour les scripts qui déclarent un contentStrategy (les
+        # anciens scripts sont notés exactement comme avant) et seulement pour
+        # les défauts de sévérité « high » (payoff/boucle/répétition). Plafonné
+        # à -12 : un diagnostic descriptif, jamais un verdict de viralité.
+        high = [i for i in retention_report.get("issues") or []
+                if i.get("severity") == "high" and i.get("code") not in _BLOCKING_RETENTION_CODES]
+        if high:
+            score -= min(12, 4 * len(high))
+            flags.append(f"Rétention : {high[0]['message']}")
 
     shot_planning = metrics.get("shot_planning") or {}
     if shot_planning.get("available"):

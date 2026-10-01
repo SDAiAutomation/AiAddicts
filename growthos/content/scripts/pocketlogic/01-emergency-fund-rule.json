@@ -1,0 +1,160 @@
+{
+  "title": "The $1,000 Emergency Fund Rule",
+  "niche": "personal-finance",
+  "account": "PocketLogicMoney",
+  "platform": "youtube",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "language": "en",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#personalfinance",
+    "#moneytips",
+    "#shorts"
+  ],
+  "contentStrategy": {
+    "audiencePromise": "A first savings target small enough to start this month.",
+    "coreQuestion": "Do you have $1,000 when a surprise bill hits?",
+    "viewerProblem": "One unexpected bill pushes people onto a credit card.",
+    "payoff": "Save a $1,000 starter buffer first; at $100 a month it takes ten months.",
+    "hookType": "scenario",
+    "hookText": "Your car breaks down tomorrow. Do you have $1,000?",
+    "curiosityMechanism": "Direct question about the viewer's own situation, answered with a concrete first target.",
+    "emotionalDriver": "relief",
+    "targetDurationSec": 30,
+    "ctaIntent": "next_episode"
+  },
+  "openLoops": [
+    {
+      "question": "Do you have $1,000 when a surprise bill hits?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 5
+    }
+  ],
+  "series": {
+    "name": "Money Rules Nobody Taught You",
+    "episode": 1,
+    "continuityCTA": "Money Rule #2 is next"
+  },
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "Your car breaks down tomorrow. Do you have $1,000?",
+      "visual": "Big animated $1,000.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "One surprise bill",
+        "displayValue": "$1,000",
+        "value": 1000
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "One surprise bill is how a solid budget turns into card debt.",
+      "visual": "Card icon with the consequence.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_consequence",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "credit_card",
+        "displayText": "Surprise bill, then debt"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "The card covers it today, then interest quietly adds to what you owe.",
+      "visual": "Three-step timeline.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_consequence",
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "How it snowballs",
+        "steps": [
+          "Bill arrives",
+          "Card pays it",
+          "Interest builds"
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "With $1,000 set aside, the same bill is just a bill. You pay it and move on.",
+      "visual": "Side-by-side outcomes.",
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "informationGain": "new_example",
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Same bill, two outcomes",
+        "optionA": {
+          "label": "No buffer",
+          "displayValue": "Debt"
+        },
+        "optionB": {
+          "label": "$1,000 buffer",
+          "displayValue": "Paid"
+        }
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "So the rule is simple: before anything else, save your first $1,000.",
+      "visual": "Bar fills to the target.",
+      "shotType": "medium",
+      "visualPurpose": "reveal",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "title": "Starter buffer",
+        "displayValue": "$1,000",
+        "targetRatio": 1.0
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "Not a perfect fund, just a starter. At $100 a month, you have your $1,000 in ten months.",
+      "visual": "Before and after.",
+      "shotType": "close_up",
+      "visualPurpose": "payoff",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "Ten months",
+        "before": {
+          "label": "Today",
+          "displayValue": "$0"
+        },
+        "after": {
+          "label": "In 10 months",
+          "displayValue": "$1,000"
+        }
+      }
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Money Rule #2 is next.",
+      "visual": "Minimal teaser card.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "calendar",
+        "displayText": "Rule #2 is next"
+      }
+    }
+  ]
+}

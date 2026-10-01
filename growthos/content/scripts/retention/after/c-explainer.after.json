@@ -1,0 +1,93 @@
+{
+  "title": "Inflation du style de vie",
+  "niche": "productivite-business",
+  "account": "benchmark",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "language": "fr",
+  "visual_style": "stock_footage",
+  "contentStrategy": {
+    "audiencePromise": "Voir en chiffres où passe une augmentation de salaire.",
+    "coreQuestion": "Pourquoi ton solde n'a-t-il pas bougé après une augmentation ?",
+    "viewerProblem": "Le niveau de vie monte avec le salaire et absorbe l'augmentation.",
+    "payoff": "Sur 300 € d'augmentation, 270 € repartent en dépenses ; il en reste 30, d'où l'épargne en premier.",
+    "hookType": "contradiction",
+    "hookText": "Ton salaire a augmenté. Pourquoi ton solde n'a pas bougé ?",
+    "curiosityMechanism": "Contradiction reconnaissable résolue par un exemple chiffré (illustratif).",
+    "emotionalDriver": "reconnaissance",
+    "targetDurationSec": 30,
+    "ctaIntent": "question"
+  },
+  "openLoops": [
+    {
+      "question": "Pourquoi ton solde n'a-t-il pas bougé après une augmentation ?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 4
+    }
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "Ton salaire a augmenté. Pourquoi ton solde n'a pas bougé ?",
+      "visual": "Notification de virement de salaire sur un écran de smartphone.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question"
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Imagine : 300 euros de plus par mois. Sur le papier, c'est une bonne nouvelle.",
+      "visual": "Personne qui regarde sa fiche de paie avec le sourire, bureau lumineux.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_example"
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "Mais un loyer plus cher ajoute 120 euros, la voiture 90, les livraisons 60.",
+      "visual": "Livraison de repas à domicile devant une porte d'entrée, voiture neuve garée devant une maison.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_example"
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "Cela fait 270 euros de dépenses en plus, chaque mois.",
+      "visual": "Écran de banque en ligne montrant une liste de dépenses mensuelles qui s'allonge.",
+      "shotType": "close_up",
+      "visualPurpose": "evidence",
+      "informationGain": "new_fact"
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "Sur tes 300 euros d'augmentation, il n'en reste que 30.",
+      "visual": "Écran de banque en ligne affichant un solde qui stagne.",
+      "shotType": "wide",
+      "visualPurpose": "reveal",
+      "informationGain": "answer"
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "Ton salaire a monté, ton niveau de vie l'a rattrapé. Mets 150 euros de côté dès le premier virement.",
+      "visual": "Personne qui programme un virement d'épargne sur son téléphone.",
+      "shotType": "medium",
+      "visualPurpose": "payoff",
+      "informationGain": "answer"
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Ton niveau de vie a-t-il rattrapé ton salaire ?",
+      "visual": "Portefeuille vide posé sur une table.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta"
+    }
+  ]
+}

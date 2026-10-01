@@ -67,6 +67,7 @@ from pathlib import Path
 import requests
 
 from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, stock_planner, style_treatments, video
+from .motion_graphics import semantic as motion_semantic
 
 # Les appels OpenAI /images sont indépendants par scène (I/O réseau) : quelques-uns
 # en parallèle réduisent le temps total de "somme des scènes" à ~"scène la plus
@@ -267,11 +268,20 @@ def fetch_motion_graphics_clips(
 
         narration = str(block.get("text") or "")
         fallback_text = _preflight.fallback_text(block.get("motion_graphic"), narration)
+        schema_invalid = motion_graphics.validate_scene(block.get("motion_graphic")) is None
         scene = motion_graphics.resolve_scene(block.get("motion_graphic"), fallback_text)
+        # Phase 5.2 : une scène dont les DONNÉES ne signifient rien (placeholder, graphique sans valeur,
+        # comparaison vide…) n'est jamais dessinée ; repli typographique sûr, RECORDÉ, aucune valeur inventée.
+        semantic = motion_semantic.semantic_issues(scene)
+        if semantic or schema_invalid:
+            replacement = motion_semantic.fallback_scene(block.get("motion_graphic") if schema_invalid else scene, narration)
+            scene = motion_graphics.resolve_scene(replacement, motion_semantic.fallback_text(replacement, narration))
+            reason = ", ".join(x["code"] for x in semantic) or "structure incomplète"
+            print(f"       bloc {i + 1} : scène inutilisable ({reason}) — repli {scene.get('sceneType')}")
         duration = durations[i] if i < len(durations) else 3.0
         scene = _sync_and_preflight(
             scene, fallback_text, duration, Path(work_dir) / "audio" / f"block-{i + 1:02d}.words.json",
-            (int(v) for v in resolution.split("x")), theme_overrides, i, preflight_report,
+            (int(v) for v in resolution.split("x")), theme_overrides, i, preflight_report, semantic, schema_invalid,
         )
         try:
             motion_graphics.render_scene_clip(
@@ -286,7 +296,7 @@ def fetch_motion_graphics_clips(
 
 def _sync_and_preflight(
     scene: dict, fallback_text: str, duration: float, words_path: Path, size, theme_overrides: dict | None,
-    block_index: int, report: list | None,
+    block_index: int, report: list | None, semantic: list | None = None, schema_invalid: bool = False,
 ) -> dict:
     """1) révélations calées sur la voix (engine/motion_graphics/sync.py),
     2) contrôle de mise en page de l'image finale (preflight.py) — une erreur
@@ -297,6 +307,11 @@ def _sync_and_preflight(
     from .motion_graphics.theme import resolve_theme
 
     entry: dict = {"blockIndex": block_index, "sceneType": scene.get("sceneType"), "synced": False, "action": "none"}
+    if schema_invalid:
+        entry["action"] = "fallback_schema"  # structure incomplète : repli icon_text (comportement historique), désormais RECORDÉ
+    if semantic:
+        entry["action"] = "fallback_semantic"
+        entry["semanticIssues"] = [x["code"] for x in semantic]
     try:
         w, h = tuple(size)
         if words_path.exists():

@@ -1,0 +1,168 @@
+{
+  "title": "The 24-Hour Rule That Stops Impulse Buying",
+  "niche": "personal-finance",
+  "account": "PocketLogicMoney",
+  "platform": "youtube",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "language": "en",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#personalfinance",
+    "#moneytips",
+    "#shorts"
+  ],
+  "contentStrategy": {
+    "audiencePromise": "A one-step habit that stops regret purchases.",
+    "coreQuestion": "What should you do instead of buying the moment you want something?",
+    "viewerProblem": "Small impulse buys add up without being noticed.",
+    "payoff": "Wait 24 hours; if you still want it, buy it, if not you keep the money.",
+    "hookType": "warning",
+    "hookText": "Never buy it the moment you want it.",
+    "curiosityMechanism": "A prohibition that raises the question of what to do instead.",
+    "emotionalDriver": "self-control",
+    "targetDurationSec": 30,
+    "ctaIntent": "follow_for_series"
+  },
+  "openLoops": [
+    {
+      "question": "What should you do instead of buying right away?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 4
+    }
+  ],
+  "series": {
+    "name": "Money Rules Nobody Taught You",
+    "episode": 3,
+    "continuityCTA": "Follow for Rule #4"
+  },
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "Never buy it the moment you want it.",
+      "visual": "Warning card.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question",
+      "motion_graphic": {
+        "sceneType": "warning",
+        "title": "Don't buy yet"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Impulse buys feel urgent. That feeling is what you're paying for.",
+      "visual": "Cart icon.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "shopping_cart",
+        "displayText": "The urge feels urgent"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "Four small buys at $45 each is $180 a month, and you barely notice any one of them.",
+      "visual": "Running total builds.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_consequence",
+      "motion_graphic": {
+        "sceneType": "compound_growth",
+        "title": "Small buys add up",
+        "data": [
+          {
+            "label": "1 buy",
+            "displayValue": "$45"
+          },
+          {
+            "label": "2 buys",
+            "displayValue": "$90"
+          },
+          {
+            "label": "3 buys",
+            "displayValue": "$135"
+          },
+          {
+            "label": "4 buys",
+            "displayValue": "$180"
+          }
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "Over a year, that's $2,160.",
+      "visual": "Big $2,160.",
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Impulse buys, per year",
+        "displayValue": "$2,160",
+        "value": 2160
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "Instead, use the 24-hour rule: put it in the cart, then wait a full day before buying.",
+      "visual": "Three steps.",
+      "shotType": "medium",
+      "visualPurpose": "reveal",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "The 24-hour rule",
+        "steps": [
+          "Want it",
+          "Wait 24 hours",
+          "Decide"
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "If you still want it tomorrow, buy it. If not, you just kept $45.",
+      "visual": "Before and after.",
+      "shotType": "close_up",
+      "visualPurpose": "payoff",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "After one day",
+        "before": {
+          "label": "Tonight",
+          "displayValue": "I need it"
+        },
+        "after": {
+          "label": "Tomorrow",
+          "displayValue": "Keep $45"
+        }
+      }
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Follow for Rule #4.",
+      "visual": "Minimal follow card.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "calendar",
+        "displayText": "Follow for Rule #4"
+      }
+    }
+  ]
+}

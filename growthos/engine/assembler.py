@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import (
     captions, db, editorial_quality, generation_cache, image_style_bible,
-    motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo,
+    motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo, retention,
     script as script_module, shot_planning, storage, tts, video, visuals, voices,
 )
 
@@ -272,6 +272,13 @@ def _generate(
         (durations[i] for i, block in enumerate(data["blocks"]) if block.get("role") == "hook"),
         None,
     )
+    # Retention Engine : diagnostics déterministes (aucun appel externe), écrits
+    # dans le script (jsonb existant, pas de migration) pour /content/[id] et
+    # la future boucle d'analytique. Ne modifie ni le rendu ni le cache.
+    retention_report = retention.analyze(data, durations=durations, scene_reports=motion_preflight)
+    data["retentionDiagnostics"] = retention_report
+    data["generationMetadata"] = retention.build_generation_metadata(data, retention_report)
+
     metrics = {
         "total_duration": total_duration,
         "content_goal": data.get("content_goal", "reach"),
@@ -286,6 +293,7 @@ def _generate(
         "voice_characters": sum(synthesized_chars),
         "script_usage": data.get("script_usage"),
         "editorial": editorial_report,
+        "retention": retention_report,
         "shot_planning": shot_planning.analyze_shot_diversity(data["blocks"]),
         "motion_direction": {
             "visualStyle": data.get("visual_style"),

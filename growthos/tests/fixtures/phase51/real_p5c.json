@@ -1,0 +1,284 @@
+{
+  "title": "What Happens If You Invest $5 a Day?",
+  "niche": "Finance perso",
+  "niche_id": "3a4f5627-3cd0-40a8-8fc7-d7e67be841b4",
+  "visual_style": "motion_graphics",
+  "visual_style_prompt": "",
+  "caption_style": "word_pop",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "language": "en",
+  "account": "PocketLogicMoney",
+  "organization": "GrowthOS Dogfooding",
+  "platform": "youtube",
+  "aspect_ratio": "9:16",
+  "content_goal": "monetization",
+  "cta": "",
+  "description": "",
+  "hashtags": [
+    "#MicroInvesting",
+    "#DollarADay",
+    "#CompoundInterest",
+    "#PersonalFinance",
+    "#InvestingTips",
+    "#FinancialHabits",
+    "#fyp"
+  ],
+  "made_for_kids": false,
+  "characters": [],
+  "script_usage": {
+    "model": "gpt-5-mini",
+    "input": 4621,
+    "output": 3001
+  },
+  "recommendation_receipt": null,
+  "content_format": "standard",
+  "source_type": "idea",
+  "transformation_mode": null,
+  "source_text": null,
+  "blocks": [
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "retentionRole": "hook",
+      "informationGain": "new_fact",
+      "role": "hook",
+      "text": "I invested five dollars every single day.",
+      "visual": "Insert, close-up on a hand folding a $5 bill and sliding it into a clear jar labeled \"SAVINGS\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "Daily Habit",
+        "steps": [
+          "Wake up",
+          "Put $5 in jar",
+          "Repeat"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "setup",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "First deposit, same ritual, five dollars into the jar every morning before work.",
+      "visual": "Insert, tight shot of a wristwatch at 7:10 and a hand dropping a $5 bill into the jar"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "title": "Micro deposits, small growth",
+        "displayValue": "$5 deposits",
+        "targetRatio": 0.05
+      },
+      "shotType": "medium",
+      "visualPurpose": "action",
+      "retentionRole": "evidence",
+      "informationGain": "new_visual_evidence",
+      "role": "point",
+      "text": "Two weeks later the jar looks the same, but the account linked to it started compounding.",
+      "visual": "Medium, animated bank app screen showing a deposit labeled \"$5\" and a tiny interest number appearing"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "optionA": {
+          "label": "No growth",
+          "displayValue": "Jar only"
+        },
+        "optionB": {
+          "label": "7% return (example)",
+          "displayValue": "Invested"
+        }
+      },
+      "shotType": "wide",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_question",
+      "role": "point",
+      "text": "I used a hypothetical example, imagine a 7 percent annual return to see how small adds up.",
+      "visual": "Wide, simple animated farm field where seedlings sprout each day along a row labeled \"5$\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "before": {
+          "label": "Day 1",
+          "displayValue": "One seed"
+        },
+        "after": {
+          "label": "Decades",
+          "displayValue": "Strong plant"
+        }
+      },
+      "shotType": "insert",
+      "visualPurpose": "explain",
+      "retentionRole": "pattern_interrupt",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Analogy, it's like planting seeds every day, then letting rain and sun do the heavy lifting over decades.",
+      "visual": "Insert, close-up of a single seed in soil, then a split showing small sprout and a taller plant labeled \"interest\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "displayValue": "$1,825 / year"
+      },
+      "shotType": "medium",
+      "visualPurpose": "evidence",
+      "retentionRole": "escalation",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Concrete numbers as an example only: $5 a day equals $1,825 a year invested at 7 percent compound annually.",
+      "visual": "Medium, calculator display reading \"1825\" then an arrow to a small chart labeled \"7%\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "bar_chart",
+        "title": "Hypothetical Growth",
+        "emphasis": "Year 20 Value",
+        "data": [
+          {
+            "label": "Contributions",
+            "displayValue": "$36,500",
+            "value": 36500
+          },
+          {
+            "label": "Year 20 Value",
+            "displayValue": "$74,859",
+            "value": 74859
+          }
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "retentionRole": "escalation",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "After 20 years that example grows to about $75,000, again this is a hypothetical 7 percent scenario.",
+      "visual": "Wide, animated bar that rises to a label \"Year 20: $75,000\" next to a smaller bar labeled \"Contributions\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "compound_growth",
+        "emphasis": "Year 30",
+        "data": [
+          {
+            "label": "Year 30",
+            "displayValue": "$172,400",
+            "value": 172400
+          }
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "reveal",
+      "retentionRole": "reveal",
+      "informationGain": "answer",
+      "role": "point",
+      "text": "At year 30 that same example reaches roughly $172,000, mostly driven by interest compounding on prior gains.",
+      "visual": "Insert, animated line chart showing a curve accelerating then a highlight at \"Year 30: $172,400\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "donut_chart",
+        "title": "Longer Time, Bigger Value",
+        "emphasis": "Year 40",
+        "data": [
+          {
+            "label": "Year 20",
+            "displayValue": "$74,859",
+            "value": 74859
+          },
+          {
+            "label": "Year 30",
+            "displayValue": "$172,400",
+            "value": 172400
+          },
+          {
+            "label": "Year 40",
+            "displayValue": "$364,320",
+            "value": 364320
+          }
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "payoff",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Stretch to 40 years in this same example and you get about $364,000, demonstrating how time multiplies results.",
+      "visual": "Wide, stacked bars for Year 20, Year 30, Year 40 rising left to right with labels and values"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "warning",
+        "title": "Example Only"
+      },
+      "shotType": "medium",
+      "visualPurpose": "explain",
+      "retentionRole": "evidence",
+      "informationGain": "new_question",
+      "role": "point",
+      "text": "Important note, this uses one example rate. Real returns vary, fees matter, and results are not guaranteed.",
+      "visual": "Medium, close-up on a document titled \"Example Only\" with a finger tapping the words \"Not guaranteed\""
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "items": [
+          "Invest small regularly",
+          "Let returns compound",
+          "Watch time do the work"
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "payoff",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "So the real takeaway, small daily amounts plus time and reinvestment can build significant sums, depending on returns.",
+      "visual": "Wide, montage of jar filling, bank app balance rising, and a calendar flipping years quickly"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "optionA": {
+          "label": "$5/day",
+          "displayValue": "Start now"
+        },
+        "optionB": {
+          "label": "Lump Sum",
+          "displayValue": "Wait"
+        }
+      },
+      "shotType": "close_up",
+      "visualPurpose": "cta",
+      "retentionRole": "cta",
+      "informationGain": "cta",
+      "role": "cta",
+      "text": "Would you start $5 a day or wait for a bigger lump sum?",
+      "visual": "Close_up, two labeled envelopes on a table, one titled \"$5/day\" and the other \"Lump Sum\", hand hovering between them"
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "See exactly how a small daily habit can grow into meaningful retirement money using a clear example.",
+    "coreQuestion": "What actually happens if you invest $5 every day instead of waiting?",
+    "viewerProblem": "Want to build savings but think small daily amounts won't matter or you should wait for more money.",
+    "payoff": "Hypothetical example at 7%: Year 20 ≈ $74,859; Year 30 ≈ $172,400; Year 40 ≈ $364,320. Contributions shown: $1,825/year.",
+    "curiosityMechanism": "Show the immediate habit, then reveal accelerating growth numbers using a clear 7% hypothetical example.",
+    "emotionalDriver": "Hope",
+    "hookType": "scenario",
+    "ctaIntent": "question",
+    "hookText": "I invested five dollars every single day.",
+    "targetDurationSec": 90
+  },
+  "openLoops": [
+    {
+      "question": "What happens if you invest $5 every day?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 8
+    }
+  ]
+}

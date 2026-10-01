@@ -1,0 +1,300 @@
+{
+  "title": "What Happens If You Invest $5 a Day?",
+  "niche": "Finance perso",
+  "niche_id": "3a4f5627-3cd0-40a8-8fc7-d7e67be841b4",
+  "visual_style": "motion_graphics",
+  "visual_style_prompt": "",
+  "caption_style": "word_pop",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "language": "en",
+  "account": "PocketLogicMoney",
+  "organization": "GrowthOS Dogfooding",
+  "platform": "youtube",
+  "aspect_ratio": "9:16",
+  "content_goal": "monetization",
+  "cta": "",
+  "description": "",
+  "hashtags": [
+    "#microinvesting",
+    "#personalfinance",
+    "#compoundinterest",
+    "#saveandinvest",
+    "#financialhabits",
+    "#fyp",
+    "#shorts"
+  ],
+  "made_for_kids": false,
+  "characters": [],
+  "script_usage": {
+    "model": "gpt-5-mini",
+    "input": 4621,
+    "output": 2724
+  },
+  "recommendation_receipt": null,
+  "content_format": "standard",
+  "source_type": "idea",
+  "transformation_mode": null,
+  "source_text": null,
+  "blocks": [
+    {
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "text": "Save $5 a day",
+        "icon": "piggy_bank"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "retentionRole": "hook",
+      "informationGain": "new_question",
+      "role": "hook",
+      "text": "Invest five dollars a day, watch what happens.",
+      "visual": "Insert, close-up on a US $5 bill sliding into a piggy bank slot"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "displayValue": "Yearly total: $1,825"
+      },
+      "shotType": "insert",
+      "visualPurpose": "establish",
+      "retentionRole": "setup",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Two immediate facts, that's $35 a week and about $1,825 a year, as an example.",
+      "visual": "Insert, calculator screen showing 5 × 7 = 35, then 5 × 365 = 1825 in sequence"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Save vs Invest (example)",
+        "optionA": {
+          "label": "Saved under mattress",
+          "displayValue": "$1,825 after 1 year"
+        },
+        "optionB": {
+          "label": "Invested example",
+          "displayValue": "$1,825 plus returns"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "action",
+      "retentionRole": "evidence",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "But money sitting idle stays the same. Investing adds growth, not just savings.",
+      "visual": "Medium, stack of five-dollar bills stays flat, then a second stack labeled 'invested' shows tiny upward ticks"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "compound_growth",
+        "title": "Hypothetical annual returns",
+        "data": [
+          {
+            "label": "5% example",
+            "displayValue": "example rate"
+          },
+          {
+            "label": "8% example",
+            "displayValue": "example rate"
+          }
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Imagine two example rates: 5% and 8% annual return. These are just examples.",
+      "visual": "Wide, two labeled growth lines appear blank, one tagged 5% the other 8% without numbers"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "timeline",
+        "title": "How daily investing works",
+        "steps": [
+          "Add $5 daily",
+          "Balance grows",
+          "Interest compounds"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "escalation",
+      "informationGain": "new_visual_evidence",
+      "role": "point",
+      "text": "Here's the concrete mechanic, you add $5 each day and interest compounds on the total.",
+      "visual": "Insert, hand drops a $5 bill into a jar, quarter-turn close-up as a small plus sign appears on jar"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "Like watering plants",
+        "before": {
+          "label": "No returns",
+          "displayValue": "$1,825"
+        },
+        "after": {
+          "label": "With returns (example)",
+          "displayValue": "$growth over time"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "explain",
+      "retentionRole": "pattern_interrupt",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "Analogy, it's like watering two plants every day, same water amount, but one gets fertilizer.",
+      "visual": "Medium, two potted plants side by side, identical watering, one pot labeled 'with fertilizer' sprouts faster"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "bar_chart",
+        "title": "Example growth after 10 years",
+        "data": [
+          {
+            "label": "5% example",
+            "displayValue": "example"
+          },
+          {
+            "label": "8% example",
+            "displayValue": "example"
+          }
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "action",
+      "retentionRole": "escalation",
+      "informationGain": "new_fact",
+      "role": "point",
+      "text": "Fast forward 10 years using examples: 5% gives one total, 8% gives a noticeably larger total.",
+      "visual": "Wide, two line graphs animating from year 0 to year 10, 8% line clearly above 5% line"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "displayValue": "Principal vs Total (example)",
+        "targetRatio": 0.6
+      },
+      "shotType": "insert",
+      "visualPurpose": "evidence",
+      "retentionRole": "evidence",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Concrete payoff, with $5 daily, you keep adding principal and compounding magnifies the difference.",
+      "visual": "Insert, close-up on jar labeled 'principal' filling while a second jar labeled 'total' grows faster"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "checklist",
+        "title": "Why daily investing works",
+        "items": [
+          "Daily habit builds principal",
+          "Compounding multiplies returns",
+          "Small amounts scale over time"
+        ]
+      },
+      "shotType": "medium",
+      "visualPurpose": "reveal",
+      "retentionRole": "reveal",
+      "informationGain": "answer",
+      "role": "point",
+      "text": "That means small daily habits beat one-time big deposits for steady long-term growth.",
+      "visual": "Medium, timelapse of calendar pages flipping, a small coin added each day piles up over months"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "warning",
+        "title": "Examples are hypothetical"
+      },
+      "shotType": "close_up",
+      "visualPurpose": "explain",
+      "retentionRole": "escalation",
+      "informationGain": "new_question",
+      "role": "point",
+      "text": "Example totals used here are hypothetical. Real returns vary and depend on investments chosen.",
+      "visual": "Close_up, a legal-style disclaimer on a black background reading 'Example only'"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "formula",
+        "title": "Simple estimate terms",
+        "terms": [
+          "Annual input: $1,825",
+          "Example rate: choose 5% or 8%",
+          "Years: choose duration"
+        ]
+      },
+      "shotType": "insert",
+      "visualPurpose": "explain",
+      "retentionRole": "evidence",
+      "informationGain": "new_example",
+      "role": "point",
+      "text": "If you want a quick estimate, pick an example rate and compound your $1,825 annual input over years.",
+      "visual": "Insert, smartphone screen with a simple input form: 'Annual input $1,825' and rate field blank"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "donut_chart",
+        "title": "Principal vs Returns (example)",
+        "emphasis": "Returns (example)",
+        "data": [
+          {
+            "label": "Principal contributed",
+            "displayValue": "$1,825 per year (example)"
+          },
+          {
+            "label": "Returns (example)",
+            "displayValue": "Varies by rate"
+          }
+        ]
+      },
+      "shotType": "wide",
+      "visualPurpose": "payoff",
+      "retentionRole": "payoff",
+      "informationGain": "new_consequence",
+      "role": "point",
+      "text": "Final take, five dollars daily becomes real wealth only if you reinvest returns and stay consistent.",
+      "visual": "Wide, steady hand places a final $5 into a growing pile of coins labeled 'consistency'"
+    },
+    {
+      "motion_graphic": {
+        "sceneType": "comparison",
+        "title": "Pick an example rate",
+        "optionA": {
+          "label": "5% example",
+          "displayValue": "Steadier growth"
+        },
+        "optionB": {
+          "label": "8% example",
+          "displayValue": "Higher potential"
+        }
+      },
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "retentionRole": "cta",
+      "informationGain": "cta",
+      "role": "cta",
+      "text": "Which would you pick, cautious 5% or riskier 8% example?",
+      "visual": "Medium, two labeled cards side by side, left '5% example', right '8% example', no faces"
+    }
+  ],
+  "contentStrategy": {
+    "audiencePromise": "See exactly how a $5 daily habit can grow your money over years, using clear examples.",
+    "coreQuestion": "What happens if you invest $5 a day?",
+    "viewerProblem": "You want to build wealth but think small daily amounts won't matter.",
+    "payoff": "Daily $5 equals $1,825 per year, and with reinvested returns it compounds. Examples used: 5% and 8% annual rates (hypothetical).",
+    "curiosityMechanism": "Start with a concrete daily detail, then show yearly totals, hypothetical growth paths, and the final compounded result.",
+    "emotionalDriver": "Curiosity",
+    "hookType": "scenario",
+    "ctaIntent": "question",
+    "hookText": "Invest five dollars a day, watch what happens.",
+    "targetDurationSec": 90
+  },
+  "openLoops": [
+    {
+      "question": "What happens if you invest $5 a day?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 11
+    }
+  ]
+}

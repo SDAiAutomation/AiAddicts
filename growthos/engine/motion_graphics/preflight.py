@@ -106,10 +106,16 @@ def fallback_text(scene: object, narration: str) -> str:
                 pieces.append(f"{opt.get('label', '')} {opt.get('displayValue', '')}".strip())
         if pieces:
             # title first when there is one, then the content
-            return _shorten(" — ".join(p for p in pieces if p)[:400])
-    sentence = " ".join(str(narration or "").split())
-    for sep in (". ", "? ", "! "):
-        if sep in sentence:
-            sentence = sentence.split(sep, 1)[0]
-            break
-    return _shorten(sentence) or " "
+            joined = " — ".join(p for p in pieces if p)
+            if len(joined) <= _FALLBACK_MAX_CHARS:
+                return joined
+            from . import semantic
+
+            return semantic.display_phrase(pieces[0]) or semantic.display_phrase(joined) or " ".join(joined.split()[:6])
+    # Phrase courte COMPLÈTE (semantic.display_phrase), jamais un fragment tronqué avec « … ».
+    from . import semantic
+
+    phrase = semantic.display_phrase(narration)
+    if phrase:
+        return phrase
+    return " ".join(str(narration or "").split()[:6]) or " "

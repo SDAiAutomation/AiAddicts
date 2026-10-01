@@ -1,0 +1,158 @@
+{
+  "title": "What Happens If You Invest $5 a Day?",
+  "niche": "personal-finance",
+  "account": "PocketLogicMoney",
+  "platform": "youtube",
+  "organization": "GrowthOS Dogfooding",
+  "aspect_ratio": "9:16",
+  "language": "en",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#personalfinance",
+    "#moneytips",
+    "#shorts"
+  ],
+  "contentStrategy": {
+    "audiencePromise": "See what a tiny daily amount becomes with time.",
+    "coreQuestion": "What does $5 a day become in 20 years?",
+    "viewerProblem": "Small amounts feel pointless, so people never start.",
+    "payoff": "$36,500 contributed becomes about $74,800 at an assumed 7%, with about $38,300 from growth.",
+    "hookType": "specific_number",
+    "hookText": "$5 a day sounds small. Do it for 20 years.",
+    "curiosityMechanism": "A small number paired with a long horizon invites the viewer to guess the total.",
+    "emotionalDriver": "surprise",
+    "targetDurationSec": 30,
+    "ctaIntent": "question"
+  },
+  "openLoops": [
+    {
+      "question": "What does $5 a day become in 20 years?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 5
+    }
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "$5 a day sounds small. Do it for 20 years.",
+      "visual": "Big $5.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Every day",
+        "displayValue": "$5",
+        "value": 5
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Five dollars a day adds up to $1,825 a year.",
+      "visual": "Calendar card.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "calendar",
+        "displayText": "$1,825 a year"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "Invest it yearly at an assumed 7% return: about $10,500 after five years, $25,200 after ten.",
+      "visual": "Balance builds.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_example",
+      "motion_graphic": {
+        "sceneType": "compound_growth",
+        "title": "Assumed 7% a year",
+        "data": [
+          {
+            "label": "Year 5",
+            "displayValue": "$10,500"
+          },
+          {
+            "label": "Year 10",
+            "displayValue": "$25,200"
+          }
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "After twenty years: about $74,800.",
+      "visual": "Big total.",
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "After 20 years",
+        "displayValue": "$74,800",
+        "value": 74800,
+        "label": "Assumes 7% a year, not guaranteed"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "And you only put in $36,500. The rest is growth.",
+      "visual": "Before and after.",
+      "shotType": "close_up",
+      "visualPurpose": "reveal",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "before_after",
+        "title": "Where it came from",
+        "before": {
+          "label": "You put in",
+          "displayValue": "$36,500"
+        },
+        "after": {
+          "label": "You end with",
+          "displayValue": "$74,800"
+        }
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "Time did about $38,300 of the work over those 20 years, not you.",
+      "visual": "Formula.",
+      "shotType": "medium",
+      "visualPurpose": "payoff",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "formula",
+        "title": "20 years",
+        "terms": [
+          "$36,500 YOU",
+          "+ $38,300 GROWTH",
+          "= $74,800"
+        ]
+      }
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Where does your $5 a day go?",
+      "visual": "Minimal question card.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "wallet",
+        "displayText": "Where does your $5 go?"
+      }
+    }
+  ]
+}

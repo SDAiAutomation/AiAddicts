@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from . import quiz, shot_planning
+from . import quiz, retention, shot_planning
 
 ALLOWED_ROLES = {"hook", "point", "cta"}
 # `shotType`/`visualPurpose` (optional, per block) — voir engine/shot_planning.py.
@@ -160,6 +160,8 @@ def validate_script(data: dict) -> None:
         if motion_graphic is not None and not isinstance(motion_graphic, dict):
             raise ValueError(f"blocks[{i}] : 'motion_graphic' doit être un objet (ou absent)")
 
+        retention.validate_block_retention(block, i)
+
         shot_type = block.get("shotType")
         if shot_type is not None and shot_type not in ALLOWED_SHOT_TYPES:
             raise ValueError(
@@ -171,6 +173,10 @@ def validate_script(data: dict) -> None:
                 f"blocks[{i}] : 'visualPurpose' invalide : '{visual_purpose}' "
                 f"(attendu : {sorted(ALLOWED_VISUAL_PURPOSES)})"
             )
+
+    # Retention Engine (engine/retention.py) : contentStrategy / openLoops /
+    # series optionnels — jamais requis, rejetés seulement s'ils sont invalides.
+    retention.validate_retention_fields(data, len(blocks))
 
     motion_graphics_theme = data.get("motion_graphics_theme")
     if motion_graphics_theme is not None and not isinstance(motion_graphics_theme, dict):

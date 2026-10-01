@@ -1,0 +1,147 @@
+{
+  "title": "Epargne 3000 dollars (motion graphics)",
+  "niche": "finance-personnelle",
+  "account": "benchmark",
+  "platform": "tiktok",
+  "organization": "GrowthOS Dogfooding",
+  "language": "fr",
+  "visual_style": "motion_graphics",
+  "contentStrategy": {
+    "audiencePromise": "Comprendre pourquoi il ne reste rien et comment épargner en premier.",
+    "coreQuestion": "Pourquoi rien ne reste-t-il sur 3 000 dollars par mois ?",
+    "viewerProblem": "L'épargne vient en dernier, donc elle est avalée par les dépenses.",
+    "payoff": "Épargner 600 dollars en premier laisse 2 400 dollars de budget : revenu moins épargne égale budget.",
+    "hookType": "specific_number",
+    "hookText": "3 000 dollars par mois. Pourquoi rien ne reste ?",
+    "curiosityMechanism": "Un revenu concret associé à un résultat paradoxal.",
+    "emotionalDriver": "reconnaissance",
+    "targetDurationSec": 30,
+    "ctaIntent": "question"
+  },
+  "openLoops": [
+    {
+      "question": "Pourquoi rien ne reste-t-il sur 3 000 dollars par mois ?",
+      "openedAtBlock": 0,
+      "resolvedAtBlock": 5
+    }
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "retentionRole": "hook",
+      "text": "3 000 dollars par mois. Pourquoi rien ne reste ?",
+      "visual": "Numéro animé montrant le revenu mensuel.",
+      "shotType": "close_up",
+      "visualPurpose": "hook",
+      "informationGain": "new_question",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Revenu mensuel",
+        "displayValue": "$3,000",
+        "value": 3000
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "setup",
+      "text": "Parce que tu épargnes ce qu'il reste, et souvent il ne reste rien.",
+      "visual": "Icône d'un portefeuille.",
+      "shotType": "medium",
+      "visualPurpose": "establish",
+      "informationGain": "new_consequence",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "wallet",
+        "displayText": "Épargner en dernier"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "escalation",
+      "text": "Chaque mois, les dépenses montent jusqu'à avaler tout le revenu.",
+      "visual": "Barre qui se remplit jusqu'au revenu.",
+      "shotType": "insert",
+      "visualPurpose": "action",
+      "informationGain": "new_consequence",
+      "motion_graphic": {
+        "sceneType": "progress_bar",
+        "title": "Dépenses du mois",
+        "displayValue": "$3,000",
+        "targetRatio": 1.0
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "evidence",
+      "text": "Inverse l'ordre : mets 600 dollars de côté dès que l'argent arrive.",
+      "visual": "Numéro animé du montant épargné.",
+      "shotType": "wide",
+      "visualPurpose": "evidence",
+      "informationGain": "new_fact",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Épargne immédiate",
+        "displayValue": "$600",
+        "value": 600,
+        "icon": "piggy_bank"
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "reveal",
+      "text": "Il te reste alors 2 400 dollars pour vivre.",
+      "visual": "Répartition du revenu en deux parts.",
+      "shotType": "close_up",
+      "visualPurpose": "reveal",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "money_split",
+        "title": "Où va le revenu",
+        "data": [
+          {
+            "label": "Épargné",
+            "value": 600,
+            "displayValue": "$600"
+          },
+          {
+            "label": "Pour vivre",
+            "value": 2400,
+            "displayValue": "$2,400"
+          }
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "retentionRole": "payoff",
+      "text": "Revenu moins épargne égale budget : épargne d'abord, et il reste toujours quelque chose.",
+      "visual": "Formule animée.",
+      "shotType": "medium",
+      "visualPurpose": "payoff",
+      "informationGain": "answer",
+      "motion_graphic": {
+        "sceneType": "formula",
+        "title": "La règle",
+        "terms": [
+          "REVENU",
+          "- ÉPARGNE",
+          "= BUDGET"
+        ]
+      }
+    },
+    {
+      "role": "cta",
+      "retentionRole": "cta",
+      "text": "Tu épargnes en premier ou en dernier ?",
+      "visual": "Carte de question minimale.",
+      "shotType": "medium",
+      "visualPurpose": "cta",
+      "informationGain": "cta",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "icon": "target",
+        "displayText": "Premier ou dernier ?"
+      }
+    }
+  ]
+}

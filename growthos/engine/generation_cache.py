@@ -13,7 +13,7 @@ _GENERATION_MODULES = (
     "kinetic_typography.py",
     "motion_graphics/animations.py", "motion_graphics/canvas.py", "motion_graphics/layout.py",
     "motion_graphics/preflight.py", "motion_graphics/renderer.py", "motion_graphics/scenes.py",
-    "motion_graphics/schema.py", "motion_graphics/sync.py", "motion_graphics/theme.py", "video.py", "visuals.py",
+    "motion_graphics/schema.py", "motion_graphics/semantic.py", "motion_graphics/sync.py", "motion_graphics/theme.py", "video.py", "visuals.py",
 )
 
 _GENERATION_ENV = (
@@ -33,8 +33,15 @@ def _code_digest() -> str:
     return digest.hexdigest()
 
 
+# Champs DÉRIVÉS écrits par le moteur dans le script après un rendu
+# (engine/retention.py). Ils ne pilotent aucun rendu : les hasher invaliderait
+# le cache (images/voix payantes) à chaque régénération d'un script déjà rendu.
+_DERIVED_SCRIPT_KEYS = ("retentionDiagnostics", "generationMetadata")
+
+
 def fingerprint(script: dict, voice_id: str) -> str:
     """Empreinte stable du contenu et de tout ce qui influence le rendu."""
+    script = {k: v for k, v in script.items() if k not in _DERIVED_SCRIPT_KEYS}
     payload = {
         "script": script,
         "voice_id": voice_id,
