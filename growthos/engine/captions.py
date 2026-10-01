@@ -256,26 +256,43 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
             number = int(block.get("quiz_question_number") or 0)
             total = int(block.get("quiz_question_total") or 0)
             if number and total:
-                events.append(_quiz_panel(start, end, left, round(height * 0.125), card_width,
-                                          round(height * 0.043), card, scale))
-                label = f"{{\\an5\\pos({centre},{round(height * 0.146)})\\fs{round(34 * scale)}\\bord0\\shad0\\1c{_ass_rgb(accent)}}}QUESTION {number}/{total}"
+                badge_w = round(card_width * 0.12)
+                events.append(_quiz_panel(start, end, left, round(height * 0.105), badge_w,
+                                          round(height * 0.052), accent, scale))
+                badge = f"{{\\an5\\pos({left + badge_w // 2},{round(height * 0.131)})\\fs{round(40 * scale)}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(accent))}}}{number}"
+                events.append(_dialogue(start, end, badge, "QuizQuestion", 2))
+                progress_x = left + badge_w + round(16 * scale)
+                progress_w = right - progress_x
+                label = f"{{\\an5\\pos({progress_x + progress_w // 2},{round(height * 0.119)})\\fs{round(28 * scale)}\\bord0\\shad0\\1c{_ass_rgb(accent)}}}QUESTION {number}/{total}"
                 events.append(_dialogue(start, end, label, "QuizQuestion", 2))
-                progress_y, progress_h = round(height * 0.179), max(2, round(6 * scale))
-                events.append(_quiz_panel(start, end, left, progress_y, card_width, progress_h, card, scale))
-                events.append(_quiz_panel(start, end, left, progress_y,
-                                          round(card_width * min(number / total, 1)), progress_h, accent, scale))
+                progress_y, progress_h = round(height * 0.144), max(3, round(8 * scale))
+                events.append(_quiz_panel(start, end, progress_x, progress_y, progress_w, progress_h, card, scale))
+                events.append(_quiz_panel(start, end, progress_x, progress_y,
+                                          round(progress_w * min(number / total, 1)), progress_h, accent, scale))
 
             question_size, question = _quiz_fit_text(str(block.get("quiz_question") or ""),
                                                      card_width - round(64 * scale), round(72 * scale), 3)
-            events.append(_quiz_panel(start, end, left, round(height * 0.20), card_width,
-                                      round(height * 0.135), card, scale))
-            question_tags = f"{{\\an5\\pos({centre},{round(height * 0.2675)})\\fs{question_size}\\bord0\\shad0\\1c{_ass_rgb(foreground)}\\q2}}"
+            question_colour = accent
+            events.append(_quiz_panel(start, end, left, round(height * 0.165), card_width,
+                                      round(height * 0.105), question_colour, scale))
+            question_tags = f"{{\\an5\\pos({centre},{round(height * 0.2175)})\\fs{question_size}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(question_colour))}\\q2}}"
             events.append(_dialogue(start, end, question_tags + question, "QuizQuestion", 2))
+
+            # The generated visual remains visible through this window. Four
+            # thin panels form a frame without covering the underlying image.
+            frame_y, frame_h = round(height * 0.285), round(height * 0.19)
+            frame_t = max(3, round(7 * scale))
+            events.extend([
+                _quiz_panel(start, end, left, frame_y, card_width, frame_t, accent, scale),
+                _quiz_panel(start, end, left, frame_y + frame_h - frame_t, card_width, frame_t, accent, scale),
+                _quiz_panel(start, end, left, frame_y, frame_t, frame_h, accent, scale),
+                _quiz_panel(start, end, right - frame_t, frame_y, frame_t, frame_h, accent, scale),
+            ])
             choices = [str(choice) for choice in block.get("quiz_choices") or []]
             correct = int(block.get("quiz_correct_choice") or 0)
             for index, choice in enumerate(choices):
-                choice_y = round(height * (0.38 + index * 0.074))
-                row_h = round(height * 0.066)
+                choice_y = round(height * (0.515 + index * 0.058))
+                row_h = round(height * 0.050)
                 selected = phase == "reveal" and index == correct
                 events.append(_quiz_panel(start, end, left, choice_y - row_h // 2,
                                           card_width, row_h, correct_colour if selected else card, scale))
@@ -288,15 +305,13 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
             if phase == "question":
                 countdown = int(block.get("hold_after_seconds") or 0)
                 timer_start = max(start, end - countdown)
-                timer_y = round(height * 0.674)
+                timer_y = round(height * 0.748)
                 if countdown > 0 and timer_start < end:
-                    events.append(_quiz_panel(timer_start, end, left, round(height * 0.649),
-                                              card_width, round(height * 0.068), card, scale))
                     # Smooth draining bar, timed to the actual audio hold.
                     bar_width = card_width - round(40 * scale)
                     milliseconds = max(1, round((end - timer_start) * 1000))
                     events.append(_quiz_panel(timer_start, end, left + round(20 * scale),
-                                              round(height * 0.705), bar_width, max(2, round(7 * scale)),
+                                              round(height * 0.775), bar_width, max(2, round(7 * scale)),
                                               accent, scale, f"\\t(0,{milliseconds},\\fscx0)"))
                 for remaining in range(countdown, 0, -1):
                     seg_start = max(start, end - remaining)
@@ -306,6 +321,13 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                         events.append(_dialogue(seg_start, seg_end, timer, "QuizTimer", 2))
         cursor = end
     return events
+
+
+def _contrast_text(colour: str) -> str:
+    value = colour.lstrip("#")
+    red, green, blue = (int(value[i:i + 2], 16) for i in (0, 2, 4))
+    luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
+    return "#111827" if luminance > 0.62 else "#ffffff"
 
 
 def _quiz_fit_text(text: str, width: int, font_size: int, max_lines: int) -> tuple[int, str]:

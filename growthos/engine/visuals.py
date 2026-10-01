@@ -190,6 +190,12 @@ def fetch_kinetic_typography_clips(
     paths: list[str | None] = [None] * len(blocks)
     resolution = video.RESOLUTIONS.get(aspect_ratio, video.RESOLUTIONS["9:16"])
     for i, block in enumerate(blocks):
+        # Quiz cards already own every text layer. Kinetic typography would
+        # repeat the question or answer behind those cards, especially with
+        # the `flat_color` style, so quiz blocks deliberately keep the plain
+        # background fallback.
+        if block.get("quiz_phase"):
+            continue
         if i > 0 and block.get("reuse_visual_from_previous"):
             paths[i] = paths[i - 1]
             continue

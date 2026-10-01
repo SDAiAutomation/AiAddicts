@@ -280,7 +280,7 @@ class TestWriteAss(unittest.TestCase):
                 self.assertEqual(sum(",QuizCorrect," in event for event in after), 1)
                 positions = lambda events: [re.search(r"\\pos\((\d+),(\d+)\)", event).groups() for event in choices(events)]
                 self.assertEqual(positions(before), positions(after))
-                self.assertTrue(all(int(x) < width * 0.85 and int(y) < height * 0.64 for x, y in positions(after)))
+                self.assertTrue(all(int(x) < width * 0.85 and int(y) < height * 0.70 for x, y in positions(after)))
                 correct = next(event for event in after if ",QuizCorrect," in event)
                 self.assertIn("✓ C. Third", correct)
 

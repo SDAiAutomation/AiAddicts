@@ -123,6 +123,33 @@ def _question_lead(phrases: dict, number: int, total: int) -> str:
     return phrases["question"].format(n=number)
 
 
+def _quiz_visual_prompt(question: str) -> str:
+    """Describe the subject while keeping every glyph in the ASS overlay."""
+    return (
+        f"Editorial quiz illustration about: {question.strip()} "
+        "Show the subject, place, object, or historical setting clearly in one strong composition. "
+        "Leave calm negative space near the top and lower half for the quiz interface. "
+        "Do not show the answer, answer choices, text, letters, numbers, labels, logos, or watermarks."
+    )
+
+
+def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
+    """Upgrade web-authored quiz blocks to the current visual contract."""
+    result = deepcopy(script)
+    result["quiz"] = normalized_quiz
+    for block in result.get("blocks") or []:
+        if block.get("quiz_phase") not in {"question", "reveal"}:
+            continue
+        kind = str(block.get("quiz_kind") or normalized_quiz.get("kind") or "multiple_choice")
+        question = str(block.get("quiz_question") or "").strip()
+        # Logo and image quizzes depend on the creator-supplied asset. Other
+        # quiz kinds get a semantic illustration instead of branded filler or
+        # narration rendered as text inside the background.
+        if question and kind not in {"logo", "image"}:
+            block["visual"] = _quiz_visual_prompt(question)
+    return result
+
+
 def compile_quiz(script: dict) -> dict:
     """Retourne une copie avec des blocs narrables enrichis de métadonnées quiz."""
     if not is_quiz(script):
@@ -130,7 +157,7 @@ def compile_quiz(script: dict) -> dict:
     normalized_quiz = normalize_quiz(script.get("quiz"))
     validate_quiz(normalized_quiz)
     if script.get("blocks"):
-        return script
+        return _prepare_existing_quiz_blocks(script, normalized_quiz)
 
     result = deepcopy(script)
     result["quiz"] = normalized_quiz
@@ -149,7 +176,11 @@ def compile_quiz(script: dict) -> dict:
         blocks.append({
             "role": "point",
             "text": f"{_question_lead(phrases, number, len(quiz['questions']))} {str(item['question']).strip()} {spoken_choices}.",
-            "visual": str(item.get("visual") or item["question"]).strip(),
+            "visual": (
+                str(item.get("visual")).strip()
+                if quiz["kind"] in {"logo", "image"}
+                else _quiz_visual_prompt(str(item["question"]))
+            ),
             "quiz_phase": "question",
             "quiz_question_number": number,
             "quiz_question_total": len(quiz["questions"]),
@@ -169,7 +200,11 @@ def compile_quiz(script: dict) -> dict:
         blocks.append({
             "role": "point",
             "text": text,
-            "visual": str(item.get("visual") or item["question"]).strip(),
+            "visual": (
+                str(item.get("visual")).strip()
+                if quiz["kind"] in {"logo", "image"}
+                else _quiz_visual_prompt(str(item["question"]))
+            ),
             "quiz_phase": "reveal",
             "quiz_question_number": number,
             "quiz_question_total": len(quiz["questions"]),

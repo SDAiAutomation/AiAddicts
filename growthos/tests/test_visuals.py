@@ -64,6 +64,23 @@ class TestPrefersKineticTypography(unittest.TestCase):
 
 
 class TestFetchKineticTypographyClips(unittest.TestCase):
+    def test_quiz_blocks_keep_a_plain_background(self):
+        import tempfile
+        from unittest.mock import patch
+
+        blocks = [
+            {"text": "When did the Berlin Wall fall?", "quiz_phase": "question"},
+            {"text": "The answer is 1989.", "quiz_phase": "reveal", "reuse_visual_from_previous": True},
+            {"text": "How many did you get right?", "quiz_phase": "outro"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(visuals.motion_graphics, "render_scene_clip") as mock_render:
+                paths = visuals.fetch_kinetic_typography_clips(
+                    blocks, [5.0, 2.0, 2.0], "9:16", Path(tmp),
+                )
+        self.assertEqual(paths, [None, None, None])
+        mock_render.assert_not_called()
+
     def test_completely_empty_block_falls_back_to_flat_color(self):
         # Cas défensif : ne se produit pas avec un script valide
         # (engine.script exige un `text` non vide), mais la fonction ne doit

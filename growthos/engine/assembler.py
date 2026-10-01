@@ -133,11 +133,12 @@ def _generate(
         )
 
     openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
-    motion_graphics_style = visuals.prefers_motion_graphics(
+    quiz_format = data.get("content_format") == "quiz"
+    motion_graphics_style = not quiz_format and visuals.prefers_motion_graphics(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    kinetic_typography_style = not motion_graphics_style and visuals.prefers_kinetic_typography(
+    kinetic_typography_style = not quiz_format and not motion_graphics_style and visuals.prefers_kinetic_typography(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )

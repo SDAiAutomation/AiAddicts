@@ -33,7 +33,16 @@ class TestQuiz(unittest.TestCase):
         self.assertEqual(compiled["quiz"]["recipe"], "quick")
         self.assertEqual(compiled["blocks"][1]["quiz_sound_effects"], "automatic")
         self.assertTrue(compiled["blocks"][2]["reuse_visual_from_previous"])
+        self.assertIn("Editorial quiz illustration", compiled["blocks"][1]["visual"])
+        self.assertNotIn("Mercure", compiled["blocks"][1]["visual"])
         validate_script(compiled)
+
+    def test_existing_blocks_receive_semantic_visuals_without_mutating_source(self):
+        compiled = compile_quiz(QUIZ_SCRIPT)
+        compiled["blocks"][1]["visual"] = "BrainLoop premium emblem"
+        upgraded = compile_quiz(compiled)
+        self.assertIn("Quelle plan", upgraded["blocks"][1]["visual"])
+        self.assertEqual(compiled["blocks"][1]["visual"], "BrainLoop premium emblem")
 
     def test_narration_follows_script_language(self):
         english = {**QUIZ_SCRIPT, "language": "en"}
