@@ -285,7 +285,7 @@ class TestWriteAss(unittest.TestCase):
                 correct = next(event for event in after if ",QuizCorrect," in event)
                 self.assertTrue(correct.endswith("Third"))
 
-    def test_quiz_choices_use_separate_badges_and_left_aligned_labels(self):
+    def test_quiz_choices_use_separate_badges_and_centred_labels(self):
         from engine.captions import _quiz_events
 
         block = {"quiz_phase": "question", "quiz_question": "Which one?",
@@ -295,7 +295,7 @@ class TestWriteAss(unittest.TestCase):
         badges = [event for event in events if ",QuizQuestion," in event and event.endswith(("A", "B"))]
         self.assertEqual(len(labels), 2)
         self.assertEqual(len(badges), 2)
-        self.assertTrue(all("\\an4" in event for event in labels))
+        self.assertTrue(all("\\an5" in event and "\\pos(540," in event for event in labels))
         self.assertTrue(labels[0].endswith("First"))
 
     def test_quiz_timer_never_leaks_outside_the_question(self):

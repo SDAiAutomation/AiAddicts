@@ -248,10 +248,10 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                 str(block.get("quiz_theme")), _QUIZ_THEME_COLOURS["studio"]
             )
             scale = min(width / 1080, height / 1920)
-            # Leave room for the social action rail on the right. Stable rows
-            # let the viewer locate their choice again when the answer appears.
-            left, right = round(width * 0.08), round(width * 0.84)
-            centre = (left + right) // 2
+            # Symmetric margins keep every block centred on the screen. Stable
+            # rows let the viewer locate their choice again when the answer appears.
+            left, right = round(width * 0.08), round(width * 0.92)
+            centre = width // 2
             card_width = right - left
             number = int(block.get("quiz_question_number") or 0)
             total = int(block.get("quiz_question_total") or 0)
@@ -327,10 +327,12 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                 events.append(_dialogue(start, end, badge_text, "QuizQuestion", 3))
                 text_x = badge_x + badge_size + round(24 * scale)
                 right_reserve = round(72 * scale) if selected else round(28 * scale)
-                size, answer = _quiz_fit_text(choice, right - text_x - right_reserve,
-                                              round(52 * scale), 2)
+                # Centre the answer in the row: the usable half-width is bounded by
+                # the badge on the left and the check mark (when shown) on the right.
+                half = min(centre - text_x, right - right_reserve - centre)
+                size, answer = _quiz_fit_text(choice, 2 * half, round(52 * scale), 2)
                 colour = _ass_rgb("#ffffff" if selected else foreground)
-                tags = f"{{\\an4\\pos({text_x},{choice_y})\\fs{size}\\bord0\\shad0\\1c{colour}\\q2}}"
+                tags = f"{{\\an5\\pos({centre},{choice_y})\\fs{size}\\bord0\\shad0\\1c{colour}\\q2}}"
                 events.append(_dialogue(start, end, tags + answer, "QuizCorrect" if selected else "QuizChoice", 2))
                 if selected:
                     check = f"{{\\an5\\pos({right - round(38 * scale)},{choice_y})\\fs{round(42 * scale)}\\bord0\\shad0\\1c{_ass_rgb('#ffffff')}}}✓"
