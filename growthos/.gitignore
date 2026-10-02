@@ -2,3 +2,7 @@ output/
 .env
 __pycache__/
 *.pyc
+
+# Local tooling and scratch
+.claude/
+.autoedit-ui/
