@@ -187,6 +187,12 @@ La première étape de `/quiz/new` propose maintenant une catégorie en liste (`
 
 Le changement de catégorie préconfigure aussi la couverture : libellé, couleur de série et titre court en anglais (`SCIENCE QUIZ`, `ANIMAL QUIZ`, etc.). Ces réglages restent modifiables dans l'étape Apparence. L'action serveur `suggestQuizTitles` applique les contrôles de rôle et le quota `quiz`, respecte la langue choisie et transmet seulement catégorie, sujet, recette et langue à OpenAI. Elle ne transmet pas les briefs internes du compte. L'interface ne promet pas une viralité garantie; elle parle de titres optimisés pour attirer l'attention.
 
+### Aperçu du wizard aligné avec la vidéo (2026-10-01, `57438b5`)
+
+Le composant `QuizPreview` de `/quiz/new` reflète désormais le contrat du renderer : numéro et progression, bandeau de question, emplacement d'illustration, badges A/B/C/D séparés, libellés alignés à gauche, réponses stables pendant la révélation, bonne réponse verte avec coche, compteur et zone réservée à l'interface des plateformes. Les huit palettes restent alignées avec `engine/captions.py`, avec calcul automatique d'une couleur de texte contrastée sur l'accent.
+
+Le commit `57438b5 feat(quiz): align wizard preview with video cards` est poussé sur `growthos-web/origin/fix/motion-graphics-display-text-prompt`. ESLint ciblé et TypeScript passent. La suite frontend comptait 132 tests réussis sur 137 ; les cinq échecs observés concernent les changements Retention déjà présents dans le dépôt et pas l'aperçu Quiz. La route locale a été testée aux tailles desktop et mobile, mais le navigateur sans session redirige vers `/login`, donc l'écran Quiz authentifié n'a pas pu être capturé de bout en bout.
+
 Frontend poussé sur `growthos-web/master`, commit `ed21f2c`. Validation réussie : `npx tsc --noEmit`, `npm run lint`, 38 tests et `npm run build`.
 
 ### Landing Faceloop et sous-titres (2026-09-21)

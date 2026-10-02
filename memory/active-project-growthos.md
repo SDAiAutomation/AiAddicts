@@ -21,6 +21,14 @@ Le moteur Python accepte `content_format: "quiz"` avec recettes, questions, temp
 
 Le frontend quiz (`growthos-web/master`, `ed21f2c`) propose désormais catégorie, sujet facultatif et trois titres générés par IA. Le titre sélectionné reste éditable. La catégorie initialise aussi la couleur et le titre de couverture, sans modifier le pipeline des vidéos classiques. L'action de suggestion n'envoie à OpenAI que catégorie, sujet, recette et langue, avec contrôle du rôle et consommation du quota `quiz`.
 
+### Refonte du rendu Quiz (2026-10-01)
+
+Codex est responsable du périmètre Quiz de bout en bout. Le rendu 9:16 utilise maintenant une hiérarchie stable : progression et numéro, bandeau de question, illustration centrale, quatre réponses conservées dans les mêmes rangées, compteur, puis révélation verte. Les réponses ont un badge A/B/C/D séparé, un libellé aligné à gauche, une bordure, une ombre légère et une coche lors de la révélation.
+
+Les quiz ne passent plus par la typographie cinétique ou les Motion Graphics, même lorsque le frontend envoie `visual_style: "flat_color"`. Pour les quiz non visuels, `engine/quiz.py` construit un prompt d'illustration sémantique à partir de la question, sans choix ni bonne réponse et sans texte dans l'image. Les quiz `logo` et `image` conservent l'asset fourni. Si aucune image n'est réellement disponible, le renderer supprime le cadre vide et remonte automatiquement les réponses. Les vidéos déjà rendues doivent être régénérées.
+
+Commits moteur poussés sur `AiAddicts/origin/growthos/mvp` : `ad7dfaf` (cartes et rythme interactif), `7ea95bf` (illustrations et structure verticale), `f6fec74` (suppression du cadre vide), `9dd8393` (finition des cartes-réponses). Validation finale : 746 tests moteur réussis. Un aperçu local est générable avec `scripts/preview_quiz.py`.
+
 ### Faceloop doctrine et AutoEdit (2026-09-23)
 
 La doctrine produit est documentée dans `growthos/PRODUCT_DOCTRINE.md`; les instructions partagées sont dans `growthos/AGENTS.md` et `growthos/CLAUDE.md`. Le produit possède deux moteurs : Generate (idée vers Short) et AutoEdit (rushes utilisateur vers Short). Claude Code possède le backend/worker/IA/média; Codex possède le frontend `growthos-web` et l'expérience utilisateur.
