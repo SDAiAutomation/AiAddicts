@@ -53,6 +53,8 @@ def normalize_quiz(quiz: object) -> dict:
     if recipe_id not in QUIZ_RECIPES:
         raise ValueError(f"'quiz.recipe' invalide (attendu : {sorted(QUIZ_RECIPES)})")
     recipe = QUIZ_RECIPES[recipe_id]
+    if "illustrations" in result and not isinstance(result["illustrations"], bool):
+        raise ValueError("'quiz.illustrations' doit être un booléen")
     result.setdefault("recipe", recipe_id)
     result.setdefault("kind", recipe["kind"])
     result.setdefault("difficulty", recipe["difficulty"])
@@ -60,6 +62,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("theme", "studio")
     result.setdefault("sound_effects", "automatic")
     result.setdefault("cover", {"enabled": False})
+    result.setdefault("illustrations", True)
     for question in result.get("questions") or []:
         if isinstance(question, dict):
             question.setdefault("countdown_seconds", result["countdown_seconds"])
@@ -107,7 +110,7 @@ def validate_quiz(quiz: object) -> None:
             raise ValueError(f"{prefix}.choices doit contenir des réponses distinctes")
         if kind == "true_false" and len(choices) != 2:
             raise ValueError(f"{prefix}.choices doit contenir exactement 2 réponses pour un vrai/faux")
-        if kind in {"logo", "image"} and not str(question.get("visual") or "").strip():
+        if kind in {"logo", "image"} and quiz["illustrations"] and not str(question.get("visual") or "").strip():
             raise ValueError(f"{prefix}.visual est requis pour un quiz visuel")
         correct = question.get("correct_choice")
         if isinstance(correct, bool) or not isinstance(correct, int) or not (0 <= correct < len(choices)):
@@ -127,16 +130,30 @@ def _question_lead(phrases: dict, number: int, total: int) -> str:
 _GENERIC_VISUAL = re.compile(r"brainloop|emblem", re.IGNORECASE)
 
 
-def _quiz_visual_prompt(question: str) -> str:
-    """Describe the subject while keeping every glyph in the ASS overlay."""
+_QUIZ_PROMPT_PREFIX = "Editorial quiz illustration"
+_QUIZ_PROMPT_RULES = (
+    "Photorealistic editorial style in one strong composition. "
+    "Never draw abstract shapes, rings, gradients, 3D renders, or generic office objects. "
+    "Leave calm negative space near the top and lower half for the quiz interface. "
+    "Do not show the answer, answer choices, text, letters, numbers, labels, logos, or watermarks."
+)
+
+
+def _quiz_visual_prompt(question: str, scene: str = "") -> str:
+    """Describe the subject while keeping every glyph in the ASS overlay.
+
+    `scene` is the concrete shot the author (or the quiz generator) wrote for
+    this question; when usable it drives the picture, otherwise the question
+    itself does.
+    """
+    scene = scene.strip()
+    if scene and not scene.startswith(_QUIZ_PROMPT_PREFIX) and not _GENERIC_VISUAL.search(scene):
+        return f"{_QUIZ_PROMPT_PREFIX} showing this scene: {scene} {_QUIZ_PROMPT_RULES}"
     return (
-        f"Editorial quiz illustration about: {question.strip()} "
+        f"{_QUIZ_PROMPT_PREFIX} about: {question.strip()} "
         "Depict the concrete, recognisable subject of the question (the real place, event, person, "
         "object, or historical scene it refers to), even when the question asks for a date, a number or a name. "
-        "Photorealistic editorial style in one strong composition. "
-        "Never draw abstract shapes, rings, gradients, 3D renders, or generic office objects. "
-        "Leave calm negative space near the top and lower half for the quiz interface. "
-        "Do not show the answer, answer choices, text, letters, numbers, labels, logos, or watermarks."
+        f"{_QUIZ_PROMPT_RULES}"
     )
 
 
@@ -155,8 +172,9 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
         # A logo/image block still carrying the generic BrainLoop emblem has no
         # real creator asset: it would frame the same filler on every question.
         generic = bool(_GENERIC_VISUAL.search(str(block.get("visual") or "")))
-        if question and (kind not in {"logo", "image"} or generic):
-            block["visual"] = _quiz_visual_prompt(question)
+        current = str(block.get("visual") or "").strip()
+        if question and (kind not in {"logo", "image"} or generic) and not current.startswith(_QUIZ_PROMPT_PREFIX):
+            block["visual"] = _quiz_visual_prompt(question, current)
     return result
 
 
@@ -189,7 +207,7 @@ def compile_quiz(script: dict) -> dict:
             "visual": (
                 str(item.get("visual")).strip()
                 if quiz["kind"] in {"logo", "image"}
-                else _quiz_visual_prompt(str(item["question"]))
+                else _quiz_visual_prompt(str(item["question"]), str(item.get("visual") or ""))
             ),
             "quiz_phase": "question",
             "quiz_question_number": number,
@@ -213,7 +231,7 @@ def compile_quiz(script: dict) -> dict:
             "visual": (
                 str(item.get("visual")).strip()
                 if quiz["kind"] in {"logo", "image"}
-                else _quiz_visual_prompt(str(item["question"]))
+                else _quiz_visual_prompt(str(item["question"]), str(item.get("visual") or ""))
             ),
             "quiz_phase": "reveal",
             "quiz_question_number": number,

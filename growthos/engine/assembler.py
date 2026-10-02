@@ -150,6 +150,8 @@ def _generate(
         visuals_desc = "motion graphics (rendu local, sans appel API)"
     elif kinetic_typography_style:
         visuals_desc = "typographie cinétique (rendu local, sans appel API) + fond uni en repli"
+    elif quiz_format and (data.get("quiz") or {}).get("illustrations") is False:
+        visuals_desc = "quiz sans illustration (aucune image générée)"
     elif stock_footage:
         visuals_desc = "vidéos de stock Pexels par bloc" if pexels_key else "fond uni — pas de clé Pexels"
     elif openai_enabled:
@@ -181,6 +183,13 @@ def _generate(
         image_paths = visuals.fetch_kinetic_typography_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
         )
+        image_reports = []
+        visual_fallbacks = []
+        style_treatment_reports = []
+    elif quiz_format and (data.get("quiz") or {}).get("illustrations") is False:
+        # Quiz « sans illustration » : aucune image générée (ni appel API), la
+        # fenêtre d'image disparaît et les réponses remontent (voir captions.py).
+        image_paths = [None] * n_blocks
         image_reports = []
         visual_fallbacks = []
         style_treatment_reports = []

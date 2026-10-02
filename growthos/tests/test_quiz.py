@@ -1,3 +1,4 @@
+from copy import deepcopy
 import unittest
 
 from engine.quiz import compile_quiz, normalize_quiz, validate_quiz
@@ -43,6 +44,33 @@ class TestQuiz(unittest.TestCase):
         upgraded = compile_quiz(compiled)
         self.assertIn("Quelle plan", upgraded["blocks"][1]["visual"])
         self.assertEqual(compiled["blocks"][1]["visual"], "BrainLoop premium emblem")
+
+    def test_author_scene_drives_the_illustration_for_standard_quizzes(self):
+        script = deepcopy(QUIZ_SCRIPT)
+        script["quiz"]["questions"][0]["visual"] = "Close-up of a rusty telescope on a rooftop at dusk"
+        compiled = compile_quiz(script)
+        self.assertIn("rusty telescope", compiled["blocks"][1]["visual"])
+        self.assertTrue(compiled["blocks"][1]["visual"].startswith("Editorial quiz illustration"))
+        self.assertEqual(compile_quiz(compiled)["blocks"][1]["visual"], compiled["blocks"][1]["visual"])
+
+    def test_generic_brand_scene_falls_back_to_the_question(self):
+        script = deepcopy(QUIZ_SCRIPT)
+        script["quiz"]["questions"][0]["visual"] = "Flat circular BrainLoop logo over a photo"
+        visual = compile_quiz(script)["blocks"][1]["visual"]
+        self.assertNotIn("BrainLoop", visual)
+        self.assertIn("Quelle plan", visual)
+
+    def test_illustrations_default_on_and_must_be_boolean(self):
+        self.assertTrue(normalize_quiz(QUIZ_SCRIPT["quiz"])["illustrations"])
+        off = {**QUIZ_SCRIPT["quiz"], "illustrations": False}
+        self.assertFalse(normalize_quiz(off)["illustrations"])
+        with self.assertRaisesRegex(ValueError, "illustrations"):
+            normalize_quiz({**QUIZ_SCRIPT["quiz"], "illustrations": "no"})
+
+    def test_logo_quiz_without_illustrations_needs_no_visual(self):
+        quiz = {**QUIZ_SCRIPT["quiz"], "recipe": "logo", "kind": "logo", "illustrations": False,
+                "questions": [{k: v for k, v in q.items() if k != "visual"} for q in QUIZ_SCRIPT["quiz"]["questions"]]}
+        validate_quiz(quiz)
 
     def test_logo_quiz_replaces_generic_emblem_but_keeps_specific_visual(self):
         questions = [{**q, "visual": "placeholder"} for q in QUIZ_SCRIPT["quiz"]["questions"]]
