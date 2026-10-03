@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 # Un item resté en 'generating' plus longtemps qu'un run normal (mesuré :
 # 30-90s pour un script de quelques blocs) n'a plus de worker vivant derrière
 # — kill, crash, coupure réseau. 15 min laisse une marge large (le job
-# GitHub Actions a lui-même un timeout de 12 min) avant de le remettre en
+# GitHub Actions a lui-même un timeout de 45 min) avant de le remettre en
 # file, tout en le récupérant dans un délai raisonnable.
 _STALE_GENERATING_MINUTES = 15
 
