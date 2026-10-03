@@ -46,7 +46,7 @@ def upload_captions(client, content_item_id: str, version: int, local_path: str)
     """Sous-titres `.srt` d'une version, pour l'export (lot L2)."""
     return _upload(
         client, version_path(content_item_id, version, "srt"), local_path,
-        "application/x-subrip; charset=utf-8",
+        "text/plain",
     )
 
 
