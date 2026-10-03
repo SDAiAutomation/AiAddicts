@@ -82,7 +82,10 @@ def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:
         # de publication automatique.
         score -= 35
         issues = editorial.get("issues") or []
-        detail = f" {issues[0]}" if issues else ""
+        # Toutes les raisons, pas seulement la première : un score de 70 vient souvent
+        # de plusieurs règles (accroche, titre, CTA) et la première n'est pas la
+        # plus lourde (constaté au benchmark du 2026-10-04).
+        detail = " " + " ".join(issues) if issues else ""
         flags.append(f"Qualité éditoriale faible ({editorial_score}/100).{detail}")
 
     retention_report = metrics.get("retention") or {}

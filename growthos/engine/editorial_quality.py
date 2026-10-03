@@ -1,23 +1,123 @@
 """Contrôles éditoriaux simples orientés rétention short-form."""
 import re
+import unicodedata
 
 
-_GENERIC_HOOKS = (
-    "voici", "tu veux", "vous voulez", "dans cette vidéo", "aujourd'hui",
-    "saviez-vous", "le savais-tu", "bonjour",
-)
-_CURIOSITY_MARKERS = (
-    "erreur", "jamais", "pourquoi", "secret", "personne", "sans", "avant",
-    "sauf", "mais", "pourtant", "évite", "arrête", "contraire",
-)
+# Lexiques par langue (fr, en, es, de, it, pt : les langues de la génération).
+# Entrées comparées SANS accents ni casse. Un mot seul = mot entier exact ; un
+# mot terminé par « * » = début de mot (erreur* couvre erreur, erreurs) ; une
+# entrée avec espace = expression. Le détecteur reste une heuristique de mots-clés :
+# il signale un doute, il ne juge pas la qualité.
+_LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
+    "fr": {
+        "generic": ("voici", "tu veux", "vous voulez", "dans cette video", "aujourd'hui",
+                    "saviez-vous", "le savais-tu", "bonjour"),
+        "curiosity": ("erreur*", "jamais", "pourquoi", "secret*", "personne", "sans", "avant",
+                      "sauf", "mais", "pourtant", "evit*", "arret*", "contraire", "verite",
+                      "mensonge*", "faux", "piege*", "danger*", "interdit*", "cach*"),
+        "numbers": ("deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix",
+                    "douze", "vingt", "trente", "cent", "mille", "million*", "milliard*"),
+        "claims": ("premier", "premiere", "dernier", "derniere", "seul", "seule", "unique", "record"),
+    },
+    "en": {
+        "generic": ("here is", "here's", "here are", "in this video", "today", "did you know",
+                    "do you want", "hello", "hi guys", "welcome"),
+        "curiosity": ("mistake*", "never", "why", "secret*", "nobody", "no one", "without", "before",
+                      "except", "but", "yet", "stop", "avoid*", "wrong", "truth", "lie", "lies",
+                      "myth*", "hidden", "actually", "danger*", "warning", "banned", "forbidden"),
+        "numbers": ("two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                    "twelve", "twenty", "thirty", "hundred", "thousand", "million*", "billion*"),
+        "claims": ("first", "last", "only", "oldest", "largest", "smallest", "fastest", "worst", "best"),
+    },
+    "es": {
+        "generic": ("aqui tienes", "en este video", "hoy", "sabias que", "quieres", "hola", "bienvenido"),
+        "curiosity": ("error*", "nunca", "jamas", "por que", "secreto*", "nadie", "sin", "antes",
+                      "salvo", "pero", "sin embargo", "evita*", "contrario", "verdad", "mentira*",
+                      "trampa*", "peligro*", "prohibido*", "oculto*"),
+        "numbers": ("dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez",
+                    "veinte", "treinta", "cien", "mil", "millon*", "millones"),
+        "claims": ("primer", "primera", "primero", "ultimo", "ultima", "unico", "unica", "record"),
+    },
+    "de": {
+        "generic": ("hier ist", "in diesem video", "heute", "wusstest du", "willst du", "hallo", "willkommen"),
+        "curiosity": ("fehler*", "nie", "niemals", "warum", "geheim*", "niemand", "ohne", "bevor",
+                      "ausser", "aber", "doch", "trotzdem", "stopp", "vermeide*", "wahrheit", "luge*",
+                      "mythos", "versteckt*", "verboten*", "gefahr*"),
+        "numbers": ("zwei", "drei", "vier", "funf", "sechs", "sieben", "acht", "neun", "zehn",
+                    "zwanzig", "hundert", "tausend", "million*"),
+        "claims": ("erste*", "letzte*", "einzige*", "rekord"),
+    },
+    "it": {
+        "generic": ("ecco", "in questo video", "oggi", "sapevi che", "vuoi", "ciao", "benvenuto"),
+        "curiosity": ("error*", "mai", "perche", "segret*", "nessuno", "senza", "prima", "tranne",
+                      "ma", "eppure", "evita*", "smetti", "contrario", "verita", "bugia*", "trappola*",
+                      "pericol*", "vietat*", "nascost*"),
+        "numbers": ("due", "tre", "quattro", "cinque", "sette", "otto", "nove", "dieci", "venti",
+                    "trenta", "cento", "mille", "milion*"),
+        "claims": ("primo", "ultimo", "unico", "record"),
+    },
+    "pt": {
+        "generic": ("aqui esta", "neste video", "hoje", "voce sabia", "voce quer", "ola", "bem-vindo"),
+        "curiosity": ("erro*", "nunca", "jamais", "por que", "segredo*", "ninguem", "sem", "antes",
+                      "exceto", "mas", "porem", "no entanto", "evite*", "pare", "contrario", "verdade",
+                      "mentira*", "armadilha*", "perigo*", "proibid*", "escondid*"),
+        "numbers": ("dois", "tres", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez",
+                    "vinte", "trinta", "cem", "mil", "milh*"),
+        "claims": ("primeiro", "primeira", "ultimo", "ultima", "unico", "unica", "recorde"),
+    },
+}
 _WORD_RE = re.compile(r"\b[\wÀ-ÿ'’-]+\b", re.UNICODE)
+_LETTERS_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 # Les "visual" sont toujours en français (consigne au générateur d'images).
 _WIDE_SHOT_PREFIXES = ("plan large", "plan d'ensemble", "vue d'ensemble", "vue large", "panoramique")
 _MAX_TITLE_CHARS = 60  # le prompt demande 50 ; marge avant de pénaliser
+_NO_CAPITAL_NOUNS = {"de"}  # en allemand tous les noms prennent une majuscule : pas un indice
 
 
 def _words(text: str) -> list[str]:
     return _WORD_RE.findall(text.strip())
+
+
+def _fold(text: str) -> str:
+    """Minuscules, sans accents, apostrophes droites."""
+    decomposed = unicodedata.normalize("NFD", text.replace("’", "'").lower())
+    return "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+
+
+def _lexicon(language: str | None) -> dict[str, tuple[str, ...]]:
+    """Lexique de la langue du script ; langue inconnue = union de toutes (indulgent)."""
+    code = (language or "fr").strip().lower()[:2]
+    if code in _LEXICONS:
+        return _LEXICONS[code]
+    merged: dict[str, tuple[str, ...]] = {}
+    for lexicon in _LEXICONS.values():
+        for key, entries in lexicon.items():
+            merged[key] = merged.get(key, ()) + entries
+    return merged
+
+
+def _matches(entries: tuple[str, ...], folded_text: str, tokens: list[str]) -> bool:
+    for entry in entries:
+        if " " in entry:
+            if re.search(rf"\b{re.escape(entry)}\b", folded_text):
+                return True
+        elif entry.endswith("*"):
+            stem = entry[:-1]
+            if any(token.startswith(stem) for token in tokens):
+                return True
+        elif entry in tokens:
+            return True
+    return False
+
+
+def _has_proper_noun(hook: str) -> bool:
+    """Un nom propre (Terre, NASA, Einstein) ailleurs qu'en début de phrase :
+    l'accroche vise quelque chose de précis."""
+    tokens = _LETTERS_RE.findall(hook)
+    for token in tokens[1:]:
+        if len(token) > 1 and token[0].isupper():
+            return True
+    return False
 
 
 def analyze_script(script: dict) -> dict:
@@ -29,7 +129,7 @@ def analyze_script(script: dict) -> dict:
     ))
     hook_words = _words(hook)
     cta_words = _words(cta)
-    lowered = hook.lower()
+    language = str(script.get("language") or "fr")
     issues: list[str] = []
     score = 100
 
@@ -44,13 +144,19 @@ def analyze_script(script: dict) -> dict:
             score -= 20
             issues.append(f"Hook trop long ({len(hook_words)} mots, cible : 5–18).")
 
-        generic_start = next((p for p in _GENERIC_HOOKS if lowered.startswith(p)), None)
-        has_number = bool(re.search(r"\d", hook))
-        has_curiosity = any(marker in lowered for marker in _CURIOSITY_MARKERS)
+        lexicon = _lexicon(language)
+        folded = _fold(hook).strip()
+        tokens = _LETTERS_RE.findall(folded)
+        generic_start = next((p for p in lexicon["generic"] if folded.startswith(p)), None)
+        has_number = bool(re.search(r"\d", hook)) or _matches(lexicon["numbers"], folded, tokens)
+        has_curiosity = _matches(lexicon["curiosity"], folded, tokens)
+        has_claim = _matches(lexicon["claims"], folded, tokens)
+        has_name = language.strip().lower()[:2] not in _NO_CAPITAL_NOUNS and _has_proper_noun(hook)
+        has_question = "?" in hook or "¿" in hook
         if generic_start and not (has_number or has_curiosity):
             score -= 20
             issues.append(f"Ouverture générique (« {generic_start} ») sans tension ni curiosité.")
-        if not (has_number or has_curiosity or "?" in hook):
+        if not (has_number or has_curiosity or has_claim or has_name or has_question):
             score -= 10
             issues.append("Hook sans élément concret, question ou contraste identifiable.")
 

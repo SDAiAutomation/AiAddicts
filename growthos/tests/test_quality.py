@@ -52,6 +52,17 @@ class TestScoreGeneration(unittest.TestCase):
         self.assertEqual(score, 65)
         self.assertTrue(any("éditoriale" in f for f in flags))
 
+    def test_editorial_flag_lists_every_issue_not_only_the_first(self):
+        # Au benchmark du 2026-10-04 le drapeau n'affichait que la 1re raison
+        # alors que le score de 70 venait de trois règles (accroche, titre, CTA).
+        _, flags = quality.score_generation(
+            {**NOMINAL, "editorial": {"score": 70, "issues": ["Hook plat.", "Titre trop long.", "CTA trop long."]}},
+            _big_file(),
+        )
+        flag = next(f for f in flags if "éditoriale" in f)
+        for reason in ("Hook plat.", "Titre trop long.", "CTA trop long."):
+            self.assertIn(reason, flag)
+
     def test_generic_hook_score_is_not_accepted_as_publish_ready(self):
         score, _ = quality.score_generation(
             {**NOMINAL, "editorial": {"score": 80, "issues": ["Ouverture générique."]}},
