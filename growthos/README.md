@@ -187,6 +187,10 @@ Un cue trop large (mot très long, ou 3 mots longs) passe sur 2 lignes centrées
 
 À la fin de la génération, `engine/quality.score_generation` note la vidéo sur 100 à partir de signaux objectifs : voix off ≥ 60s, toutes les scènes ont un visuel, densité de sous-titres plausible, fichier final non vide. Score ≥ 70 → statut `video` (publication en un clic). Score < 70 → statut `quality_check` + `content_items.quality_flags` (liste des motifs), affichés sur `/content/[id]` côté growthos-web : l'opérateur regarde, puis publie quand même ou régénère.
 
+### Cache d'actifs réutilisables (`engine/asset_store.py`)
+
+Le worker tourne sur un runner éphémère : voix et images déjà payées étaient perdues entre deux passages. Chaque actif payant (voix d'un bloc + son timing mot à mot, image d'une scène) est rangé dans le bucket privé `content-assets` et référencé par `content_assets`, sous une clé = empreinte de toutes ses entrées (texte, voix, réglages de synthèse ; prompt final, format, modèle, qualité, QC). Une correction ne régénère que les actifs dont la clé change ; le rendu ffmpeg est refait en entier (gratuit). `generation_cost_report.assetReuse` indique ce qui a été réutilisé. Jamais bloquant : table ou bucket absents = comportement d'avant. Migration : `20261003140000_content_assets.sql`.
+
 ## Worker (file de génération depuis le front)
 
 `growthos-web` (repo séparé, Next.js) ne peut pas lancer ElevenLabs/ffmpeg

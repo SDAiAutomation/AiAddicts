@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import (
-    captions, db, editorial_quality, generation_cache, image_style_bible,
+    asset_store, captions, db, editorial_quality, generation_cache, image_style_bible,
     motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo, retention,
     script as script_module, shot_planning, storage, tts, video, visuals, voices,
 )
@@ -86,8 +86,17 @@ def _generate(
     def _synthesize_block(i: int, block: dict) -> tuple[str, float, list[dict]]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
         words_path = work_dir / "audio" / f"block-{i:02d}.words.json"
+        # Cache d'actifs (lot L1) : clé = texte + voix + réglages de synthèse.
+        # Un bloc dont ces entrées n'ont pas changé garde sa voix et son timing.
+        voice_key = asset_store.make_key(
+            kind="voice", text=block["text"], voice_id=voice_id,
+            model=tts.TTS_MODEL_ID, settings=tts.TTS_VOICE_SETTINGS,
+        )
         if _exists_nonempty(audio_path) and words_path.exists():
             print(f"[2/5] Voix off {i}/{n_blocks} — fichier existant réutilisé")
+            words = json.loads(words_path.read_text(encoding="utf-8"))
+        elif asset_store.restore_voice(voice_key, audio_path, words_path):
+            print(f"[2/5] Voix off {i}/{n_blocks} — réutilisée (entrées identiques)")
             words = json.loads(words_path.read_text(encoding="utf-8"))
         else:
             print(f"[2/5] Voix off {i}/{n_blocks} (voix {voice_id})…")
@@ -96,6 +105,11 @@ def _generate(
             words = tts.synthesize_with_timestamps(block["text"], voice_id, str(audio_path), api_key)
             synthesized_chars.append(len(block["text"]))
             words_path.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
+            rate = _voice_rate_per_1k_chars()
+            asset_store.save_voice(
+                voice_key, audio_path, words_path,
+                round(len(block["text"]) / 1000 * rate, 4) if rate is not None else None,
+            )
         rendered_audio = str(audio_path)
         hold_after = float(block.get("hold_after_seconds") or 0)
         if hold_after > 0:
@@ -774,11 +788,15 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         except Exception as exc:
             print(f"       (suivi d'avancement non mis à jour : {exc})")
 
+    # Cache d'actifs (lot L1) : après la réservation du crédit, avant les
+    # appels payants. Best-effort : s'il est indisponible, rien ne change.
+    asset_store.configure(client, content_item_id)
     try:
         final_video, work_dir, metrics = _generate(
             data, output_root, voice_override=None, on_progress=report_progress
         )
     except Exception:
+        asset_store.reset()
         try:
             repo.refund_generation_credit(client, content_item_id)
         except Exception as refund_exc:
@@ -786,6 +804,9 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
             # débitera pas une seconde fois le même item.
             print(f"       (remboursement du crédit non appliqué : {refund_exc})")
         raise
+    asset_reuse = asset_store.stats()
+    asset_store.finish()
+    asset_store.reset()
     print(f"       total génération : {time.monotonic() - t_start:.1f}s")
     if metrics is not None and originality.originality_enabled():
         report_progress("Vérification d'originalité")
@@ -816,6 +837,10 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         final_fields["poster_url"] = poster_url
     _apply_image_report(final_fields, metrics)
     _apply_cost_report(final_fields, metrics)
+    if asset_reuse and isinstance(final_fields.get("generation_cost_report"), dict):
+        # Ce qui a été réutilisé n'a rien coûté : le rapport de coût ne compte
+        # déjà que les actifs réellement (re)générés, ceci en donne la raison.
+        final_fields["generation_cost_report"]["assetReuse"] = asset_reuse
     repo.update_content_item(client, content_item_id, **final_fields)
     try:
         repo.mark_generation_completed(client, content_item_id)

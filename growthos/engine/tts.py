@@ -8,6 +8,11 @@ from pathlib import Path
 
 import requests
 
+# Entrées de synthèse qui changent le rendu de la voix : font partie de la clé
+# du cache d'actifs (engine/asset_store.py). Les modifier invalide la réutilisation.
+TTS_MODEL_ID = "eleven_multilingual_v2"
+TTS_VOICE_SETTINGS = {"stability": 0.5, "similarity_boost": 0.75}
+
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_TTS_TIMESTAMPS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
 _MAX_ATTEMPTS = 3
@@ -31,8 +36,8 @@ def synthesize(text: str, voice_id: str, out_path: str, api_key: str | None = No
     }
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
-        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        "model_id": TTS_MODEL_ID,
+        "voice_settings": dict(TTS_VOICE_SETTINGS),
     }
 
     last_error = "raison inconnue"
@@ -105,8 +110,8 @@ def synthesize_with_timestamps(
     }
     payload = {
         "text": text,
-        "model_id": "eleven_multilingual_v2",
-        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        "model_id": TTS_MODEL_ID,
+        "voice_settings": dict(TTS_VOICE_SETTINGS),
     }
 
     last_error = "raison inconnue"

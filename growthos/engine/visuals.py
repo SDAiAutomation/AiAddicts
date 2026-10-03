@@ -66,7 +66,7 @@ from pathlib import Path
 
 import requests
 
-from . import image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, stock_planner, style_treatments, video
+from . import asset_store, image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, stock_planner, style_treatments, video
 from .motion_graphics import semantic as motion_semantic
 
 # Les appels OpenAI /images sont indépendants par scène (I/O réseau) : quelques-uns
@@ -491,7 +491,7 @@ def fetch_block_images(
 
     # 1re passe (rapide, pas de réseau) : sert le cache disque et repère ce
     # qui reste vraiment à générer.
-    pending: list[tuple[list[int], Path, str]] = []
+    pending: list[tuple[list[int], Path, str, str]] = []
     for group in _group_blocks(n, _BLOCKS_PER_IMAGE):
         if len(group) == 1 and group[0] > 0 and blocks[group[0]].get("reuse_visual_from_previous"):
             continue
@@ -507,13 +507,32 @@ def fetch_block_images(
         prompt = image_prompt_builder.build_scene_prompt(
             texts, niche, character_prefix, aspect_ratio, style_bible, shot_type=shot_type
         )
-        pending.append((group, image_path, prompt))
+        # Cache d'actifs (lot L1) : une scène dont TOUTES les entrées sont
+        # identiques à une génération précédente est restaurée au lieu d'être
+        # repayée. La clé couvre le prompt final (style, personnages, cadrage
+        # inclus), le format et le modèle/qualité/QC.
+        selection = image_model_router.select_model("final")
+        image_key = asset_store.make_key(
+            kind="image", prompt=prompt, aspect_ratio=aspect_ratio,
+            model=selection.model, quality=selection.quality,
+            qc=image_quality_control.qc_enabled(),
+        )
+        if asset_store.restore_image(image_key, image_path):
+            print(f"       scène {group[0] + 1} : image réutilisée (entrées identiques)")
+            for i in group:
+                paths[i] = str(image_path)
+            continue
+        pending.append((group, image_path, prompt, image_key))
 
     scene_reports: list[dict] = []
     if pending:
-        def _generate(item: tuple[list[int], Path, str]) -> tuple[list[int], str | None, dict]:
-            group, image_path, prompt = item
+        def _generate(item: tuple[list[int], Path, str, str]) -> tuple[list[int], str | None, dict]:
+            group, image_path, prompt, image_key = item
             path, report = _generate_scene_with_qc(prompt, aspect_ratio, str(image_path), character_prefix)
+            # Une image gardée « à revoir » ne doit pas être réutilisée telle
+            # quelle : la réutilisation masquerait son drapeau de revue.
+            if path and not report.get("manualReview"):
+                asset_store.save_image(image_key, Path(path), report.get("estimatedCost"), report.get("model"))
             return group, path, report
 
         with ThreadPoolExecutor(max_workers=min(_MAX_IMAGE_WORKERS, len(pending))) as pool:
