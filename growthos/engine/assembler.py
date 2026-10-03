@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import (
-    asset_store, captions, db, editorial_quality, generation_cache, image_style_bible,
+    asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
     motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo, retention,
     script as script_module, shot_planning, storage, tts, versions, video, visuals, voices,
 )
@@ -779,6 +779,11 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     if not repo.reserve_generation_credit(client, content_item_id):
         raise RuntimeError("crédits épuisés pour ce mois-ci")
 
+    # Événement produit (lot L5) : un essai démarre, crédit réservé.
+    organization_id = events.organization_id_of(client, content_item_id)
+    events.record(client, "generation_started", content_item_id, organization_id,
+                  content_format=data.get("content_format", "standard"))
+
     def report_progress(step_label: str) -> None:
         # Best-effort : un blip réseau vers Supabase ici ne doit jamais faire
         # échouer une génération par ailleurs réussie — juste une ligne en
@@ -861,6 +866,15 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         if version_id:
             final_fields["current_version_id"] = version_id
     repo.update_content_item(client, content_item_id, **final_fields)
+    cost_report = final_fields.get("generation_cost_report")
+    events.record(
+        client, "generation_completed", content_item_id, organization_id,
+        cost_usd=(cost_report or {}).get("totalEstimatedCost") if isinstance(cost_report, dict) else None,
+        duration_s=round(time.monotonic() - t_start, 1),
+        version=version_number,
+        status=final_fields.get("status"),
+        assets_reused=asset_reuse or None,
+    )
     try:
         repo.mark_generation_completed(client, content_item_id)
     except Exception as exc:

@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from engine import assembler, autoedit, autoedit_repo, autoedit_run, db, repo, trim
+from engine import assembler, autoedit, autoedit_repo, autoedit_run, db, events, repo, trim
 
 if sys.platform == "win32":
     # La console Windows garde son ancien codepage (cp1252/cp850) par défaut,
@@ -109,6 +109,9 @@ def process_one(client) -> bool:
         print(f"=== ÉCHEC {content_item_id} : {exc} ===")
         traceback.print_exc()
         repo.mark_failed(client, content_item_id, str(exc))
+        # Échec = essai perdu : on le compte (le coût partiel n'est pas connu).
+        events.record(client, "generation_failed", content_item_id,
+                      events.organization_id_of(client, content_item_id), error=str(exc)[:300])
     return True
 
 
