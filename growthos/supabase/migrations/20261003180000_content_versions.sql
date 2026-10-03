@@ -30,7 +30,7 @@ create policy "content_versions_member_select" on public.content_versions for se
   using (exists (
     select 1 from public.content_items ci
     where ci.id = content_item_id
-      and public.account_organization_id(ci.account_id) in (select public.current_user_org_ids())
+      and internal.account_organization_id(ci.account_id) in (select internal.current_user_org_ids())
   ));
 
 revoke all on table public.content_versions from anon, authenticated;
@@ -60,7 +60,7 @@ begin
   if v_account is null then return false; end if;
 
   if auth.role() <> 'service_role'
-     and not has_org_role(account_organization_id(v_account), array['owner','strategist','editor']) then
+     and not internal.has_org_role(internal.account_organization_id(v_account), array['owner','strategist','editor']) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
