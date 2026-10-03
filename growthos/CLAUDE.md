@@ -4,4 +4,4 @@ Read and follow [AGENTS.md](AGENTS.md) and [PRODUCT_DOCTRINE.md](PRODUCT_DOCTRIN
 
 Use [README.md](README.md) for the current pipeline and [PRODUCT_ARCHITECTURE.md](PRODUCT_ARCHITECTURE.md) for the existing learning loop. Roadmap capabilities are targets, not shipped features.
 
-Claude Code owns backend implementation. Codex owns frontend implementation and product experience. Keep API and state contracts explicit between both sides.
+Claude Code owns backend implementation and, since 2026-10-03, the frontend implementation of the Faceloop bible lots; Codex reviews them once implemented and keeps Quiz. See the ownership section of [AGENTS.md](AGENTS.md). Keep API and state contracts explicit between backend and frontend.
