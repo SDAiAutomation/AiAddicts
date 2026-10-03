@@ -37,7 +37,13 @@ concurrency:
 jobs:
   process-queue:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # 45 min et non 12 : un passage traite la file EN SÉRIE (une vidéo = 5 à 9 min).
+    # Avec 12 min, la 2e vidéo d'un passage était tuée en plein rendu (benchmark
+    # du 2026-10-04 : BENCH-02 coupée, remise en file seulement après 15 min par
+    # repo.reclaim_stale_generating_items). Le plafond reste un filet de sécurité
+    # contre une génération réellement bloquée (updated_at est rafraîchi à chaque
+    # étape, donc un worker mort est repris au bout de 15 min, pas de 45).
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: growthos
