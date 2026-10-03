@@ -81,6 +81,6 @@ create policy "series_canon_facts_editor_write" on public.series_canon_facts for
       and internal.has_org_role(internal.account_organization_id(s.account_id), array['owner','strategist','editor'])
   ));
 
-revoke all on table public.series_characters, public.series_canon_facts from anon;
+revoke all on table public.series_characters, public.series_canon_facts from anon, authenticated;
 grant select, insert, update, delete on table public.series_characters, public.series_canon_facts to authenticated;
 grant all on table public.series_characters, public.series_canon_facts to service_role;
