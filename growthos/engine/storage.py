@@ -7,6 +7,7 @@ voir la migration `content_videos_bucket`) ; seul service_role peut y écrire
 (RLS par défaut = deny, service_role la contourne — même modèle que le reste
 du schéma, voir engine/db.py).
 """
+import re
 import time
 from pathlib import Path
 
@@ -18,12 +19,35 @@ BUCKET = "content-videos"
 _CACHE_SECONDS = "31536000"
 
 
-def upload_video(client, content_item_id: str, local_path: str) -> str:
-    """Upload `local_path` sous `<content_item_id>.mp4` (upsert : régénérer
-    écrase la version précédente au même chemin). Retourne l'URL publique.
-    Lève une exception si l'upload échoue — à l'appelant de décider s'il
-    retombe sur le chemin local plutôt que de faire échouer tout le run."""
-    return _upload(client, f"{content_item_id}.mp4", local_path, "video/mp4")
+def version_path(content_item_id: str, version: int, ext: str = "mp4") -> str:
+    """Chemin IMMUABLE d'une version (lot L2) : jamais réécrit après coup."""
+    return f"{content_item_id}/v{version}.{ext}"
+
+
+def is_versioned_url(url: str | None) -> bool:
+    """Vrai si l'URL pointe un fichier versionné immuable (`<id>/v<n>.<ext>`)."""
+    if not url:
+        return False
+    return re.search(r"/[0-9a-fA-F-]{36}/v\d+\.(mp4|srt)(\?|$)", url) is not None
+
+
+def upload_video(client, content_item_id: str, local_path: str, version: int | None = None) -> str:
+    """Upload `local_path`. Sans `version` : sous `<content_item_id>.mp4`
+    (upsert, écrase la précédente — comportement historique). Avec `version`
+    (lot L2) : sous un chemin immuable `<id>/v<n>.mp4`, jamais écrasé.
+    Retourne l'URL publique. Lève une exception si l'upload échoue — à
+    l'appelant de décider s'il retombe sur le chemin local plutôt que de
+    faire échouer tout le run."""
+    path = version_path(content_item_id, version) if version else f"{content_item_id}.mp4"
+    return _upload(client, path, local_path, "video/mp4")
+
+
+def upload_captions(client, content_item_id: str, version: int, local_path: str) -> str:
+    """Sous-titres `.srt` d'une version, pour l'export (lot L2)."""
+    return _upload(
+        client, version_path(content_item_id, version, "srt"), local_path,
+        "application/x-subrip; charset=utf-8",
+    )
 
 
 def upload_original(client, content_item_id: str, local_path: str) -> str:

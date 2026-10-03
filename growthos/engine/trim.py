@@ -16,7 +16,7 @@ from pathlib import Path
 
 import requests
 
-from . import poster, storage
+from . import poster, storage, versions
 from .video import _CRF, _run  # même remontée d'erreur ffmpeg lisible
 
 # Clip minimal : en dessous, `trim_end - trim_start` ne fait plus une vidéo.
@@ -93,31 +93,57 @@ def apply_trim(client, item: dict, output_root: str = "output") -> dict:
     src = work / "source.mp4"
     _download(source_url, src)
 
+    # Chaque résultat devient une version immuable (lot L2) : le fichier n'est
+    # plus écrasé, « rétablir » et « rogner » ajoutent à l'historique.
+    try:
+        version_number = versions.next_version_number(client, content_item_id)
+    except Exception as exc:
+        print(f"       (historique de versions indisponible : {exc})")
+        version_number = None
+
+    def _with_version(fields: dict, url: str, poster_url: str | None) -> dict:
+        if version_number:
+            version_id = versions.record_version(
+                client, content_item_id, version_number, "trim", url,
+                poster_url=poster_url,
+            )
+            if version_id:
+                fields["current_version_id"] = version_id
+        return fields
+
     # start <= 0 et pas de fin => « rétablir la version complète » : on
     # republie la source intacte telle quelle et on oublie l'archive.
     if start <= 0 and end is None:
-        restored_url = storage.upload_video(client, content_item_id, str(src))
-        return {
-            "video_url": _bust(restored_url),
+        if have_original and storage.is_versioned_url(source_url):
+            restored_url = source_url  # déjà immuable : rien à renvoyer
+        else:
+            restored_url = storage.upload_video(client, content_item_id, str(src), version=version_number)
+        poster_fields = _poster_fields(client, content_item_id, src)
+        return _with_version({
+            "video_url": restored_url if version_number else _bust(restored_url),
             "original_video_url": None,
             "trim_start": 0,
             "trim_end": None,
-            **_poster_fields(client, content_item_id, src),
-        }
+            **poster_fields,
+        }, restored_url, poster_fields.get("poster_url"))
 
     original_url = item.get("original_video_url")
     if not have_original:
-        # 1er rognage : archiver la source AVANT que upload_video l'écrase.
-        original_url = storage.upload_original(client, content_item_id, str(src))
+        if storage.is_versioned_url(item.get("video_url")):
+            original_url = item["video_url"]  # la version d'origine est déjà conservée
+        else:
+            # Historique : archiver la source AVANT que upload_video l'écrase.
+            original_url = storage.upload_original(client, content_item_id, str(src))
 
     out = work / "trimmed.mp4"
     _run(build_trim_args(str(src.resolve()), str(out.resolve()), start, end))
 
-    trimmed_url = storage.upload_video(client, content_item_id, str(out))
-    return {
-        "video_url": _bust(trimmed_url),
+    trimmed_url = storage.upload_video(client, content_item_id, str(out), version=version_number)
+    poster_fields = _poster_fields(client, content_item_id, out)
+    return _with_version({
+        "video_url": trimmed_url if version_number else _bust(trimmed_url),
         "original_video_url": original_url,
         "trim_start": start,
         "trim_end": end,
-        **_poster_fields(client, content_item_id, out),
-    }
+        **poster_fields,
+    }, trimmed_url, poster_fields.get("poster_url"))

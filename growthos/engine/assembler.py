@@ -14,7 +14,7 @@ from typing import Callable
 from . import (
     asset_store, captions, db, editorial_quality, generation_cache, image_style_bible,
     motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo, retention,
-    script as script_module, shot_planning, storage, tts, video, visuals, voices,
+    script as script_module, shot_planning, storage, tts, versions, video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -370,7 +370,7 @@ def _shrink_to_upload_limit(local_path: str) -> None:
 
 def _publish_video(
     client, content_item_id: str, local_path: str, on_progress: Callable[[str], None] | None = None,
-    require_remote: bool = False,
+    require_remote: bool = False, version: int | None = None,
 ) -> str:
     """Upload la vidéo rendue vers Supabase Storage (bucket `content-videos`,
     public) pour que `video_url` soit une vraie URL partageable plutôt qu'un
@@ -388,7 +388,7 @@ def _publish_video(
     last_exc: Exception | None = None
     for attempt in range(1, 4):
         try:
-            url = storage.upload_video(client, content_item_id, local_path)
+            url = storage.upload_video(client, content_item_id, local_path, version=version)
             print(f"       vidéo uploadée : {url}")
             return url
         except Exception as exc:
@@ -812,9 +812,17 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         report_progress("Vérification d'originalité")
         account_id = repo.get_content_account_id(client, content_item_id)
         _apply_originality_check(data, metrics, client, account_id, exclude_content_item_id=content_item_id)
+    # Version immuable (lot L2) : le fichier vit sous <id>/v<n>.mp4, jamais
+    # écrasé. Un échec de lecture du numéro retombe sur l'ancien chemin.
+    try:
+        version_number = versions.next_version_number(client, content_item_id)
+    except Exception as exc:
+        print(f"       (historique de versions indisponible : {exc})")
+        version_number = None
     try:
         video_url = _publish_video(
-            client, content_item_id, final_video, on_progress=report_progress, require_remote=True
+            client, content_item_id, final_video, on_progress=report_progress,
+            require_remote=True, version=version_number,
         )
     except Exception:
         try:
@@ -841,6 +849,17 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         # Ce qui a été réutilisé n'a rien coûté : le rapport de coût ne compte
         # déjà que les actifs réellement (re)générés, ceci en donne la raison.
         final_fields["generation_cost_report"]["assetReuse"] = asset_reuse
+    if version_number:
+        captions_url = versions.upload_captions_safe(
+            client, content_item_id, version_number, Path(work_dir) / "captions.srt"
+        )
+        version_id = versions.record_version(
+            client, content_item_id, version_number, "generation", video_url,
+            poster_url=poster_url, captions_url=captions_url, script=data,
+            duration_seconds=(metrics or {}).get("total_duration"),
+        )
+        if version_id:
+            final_fields["current_version_id"] = version_id
     repo.update_content_item(client, content_item_id, **final_fields)
     try:
         repo.mark_generation_completed(client, content_item_id)
