@@ -114,3 +114,21 @@ Efforts = intervalles à recalibrer. Le coût de la persistance Storage n'est pa
 1. Politique client pour une régénération : gratuite, payante, ou une retouche gratuite puis payante ?
 2. Confirmer l'ordre : bible (fiabilité d'abord) plutôt que l'ordre d'AGENTS.md.
 3. Autorisation de créer la table des actifs et d'appliquer la migration en production, quand le lot sera prêt.
+
+## Validation réelle des lots L0 et L1 (2026-10-03)
+
+Vidéo de test « L'enfant bénie » (3 blocs, Dogfooding, élément `8fb753ce`), créée et régénérée trois fois par l'utilisateur dans l'application. Relevé en base (ledger, `content_assets`, `generation_cost_report`).
+
+| Run | Ce qui a changé | Actifs régénérés | Crédit |
+|---|---|---|---|
+| A | première génération | 3 voix + 3 images | -1 (run 1) |
+| B | texte du bloc 2 | 1 voix + 1 image (le bloc n'a pas de champ `visual` : son image dérive du texte) ; 2 voix + 2 images réutilisées | 0 (retouche gratuite) |
+| C | visuel du bloc 3 | 3 images ; 3 voix réutilisées | -1 (run 3) |
+
+Constats :
+- **L0 validé en réel** : le run 2 est gratuit, le run 3 débite, `completed_generations` = 3.
+- **L1 validé en réel** : la persistance entre runs (runner éphémère) fonctionne ; au run B, seuls les actifs du bloc modifié sont repayés (≈ 0,017 $ contre ≈ 0,049 $ pour tout régénérer ; plancher mécanique de 1/3 sur une vidéo de 3 blocs, il baisse avec le nombre de blocs).
+- **Run C : les 3 images ont été régénérées**, pas seulement celle du bloc 3. Le coût par image est passé de ≈ 0,0123 à ≈ 0,0132 $ (≈ +190 tokens de prompt), ce qui correspond à une fiche personnage ajoutée à tous les prompts entre B et C. La clé couvre le prompt final : ce comportement est cohérent avec la règle (cohérence du personnage), mais il est invisible pour le créateur. À traiter en L3 : prévenir avant la génération du nombre d'actifs qui seront régénérés et pourquoi. Cause exacte du changement de fiche non établie (extraction automatique à la mise en file ou modification manuelle).
+- **Non mis en cache** : le contrôle d'originalité (appel LLM ≈ 0,008 $) est refait à chaque run, soit une part notable du coût d'une retouche sur une vidéo courte.
+- **Stockage** : ≈ 157 Ko par image, ≈ 27 Ko par voix, soit environ 2 Mo par vidéo de 12 scènes : négligeable.
+- Le rapport de coût ne conserve que le dernier run ; les runs A et B ont été reconstitués depuis les horodatages du manifeste.
