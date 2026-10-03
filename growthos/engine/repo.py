@@ -247,6 +247,17 @@ def refund_generation_credit(client, content_item_id: str) -> bool:
     return result.data is True
 
 
+def mark_generation_completed(client, content_item_id: str) -> None:
+    """Compte un run terminé avec succès (politique : 1 retouche gratuite).
+
+    À appeler une seule fois, après la livraison de la vidéo : c'est ce qui
+    fait passer le run suivant de « retouche gratuite » à « payant ».
+    """
+    client.rpc(
+        "mark_generation_completed", {"p_content_item_id": content_item_id}
+    ).execute()
+
+
 def mark_published(client, content_item_id: str) -> None:
     client.table("content_items").update({
         "status": "published",

@@ -817,6 +817,12 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     _apply_image_report(final_fields, metrics)
     _apply_cost_report(final_fields, metrics)
     repo.update_content_item(client, content_item_id, **final_fields)
+    try:
+        repo.mark_generation_completed(client, content_item_id)
+    except Exception as exc:
+        # La vidéo est livrée : ne pas la faire échouer. Conséquence : ce run
+        # n'est pas compté, la prochaine régénération sera à nouveau gratuite.
+        print(f"       (run non comptabilisé pour la politique de crédits : {exc})")
     pack = publish_pack.write_pack(
         data, final_video, str(work_dir / "publish"), content_item_id
     )

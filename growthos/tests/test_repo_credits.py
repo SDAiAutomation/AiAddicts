@@ -38,6 +38,15 @@ class TestGenerationCreditReservation(unittest.TestCase):
             "refund_generation_credit", {"p_content_item_id": "item-1"}
         )
 
+    def test_completed_generation_is_recorded_through_rpc(self):
+        client = self._client_returning(2)
+
+        repo.mark_generation_completed(client, "item-1")
+
+        client.rpc.assert_called_once_with(
+            "mark_generation_completed", {"p_content_item_id": "item-1"}
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
