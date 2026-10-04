@@ -66,7 +66,7 @@ from pathlib import Path
 
 import requests
 
-from . import asset_store, image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, stock_planner, style_treatments, video
+from . import asset_store, image_character_bible, image_model_router, image_prompt_builder, image_quality_control, image_style_bible, motion_graphics, openai_images, retry, stock_planner, style_treatments, video
 from .motion_graphics import semantic as motion_semantic
 
 # Les appels OpenAI /images sont indépendants par scène (I/O réseau) : quelques-uns
@@ -331,16 +331,29 @@ def _sync_and_preflight(
     return scene
 
 
+def _pexels_get(url: str, api_key: str, params: dict, attempts: int = 3):
+    """GET Pexels avec reprise sur 429/5xx. La clé est partagée entre organisations :
+    un 429 peut venir d'un autre run. Après le dernier essai on rend la réponse telle
+    quelle (l'appelant garde son repli) mais on le dit dans le journal : sans cela le
+    plan retomberait sur un visuel de repli sans que personne sache pourquoi."""
+    resp = None
+    for attempt in range(1, attempts + 1):
+        resp = requests.get(url, headers={"Authorization": api_key}, params=params, timeout=20)
+        if resp.status_code != 429 and resp.status_code < 500:
+            return resp
+        if attempt < attempts:
+            time.sleep(retry.retry_delay(attempt, resp, cap=10.0))
+    print(f"       (Pexels : HTTP {resp.status_code} après {attempts} essais, ce plan retombe sur le visuel de repli)")
+    return resp
+
+
 def search_image_url(query: str, api_key: str, orientation: str = "portrait") -> str | None:
     """Cherche une photo Pexels pour `query`. Retourne l'URL (taille
     "large") ou None si rien trouvé / erreur réseau — ne lève jamais,
     l'appelant doit pouvoir retomber sur le fond uni pour ce bloc."""
     try:
-        resp = requests.get(
-            PEXELS_SEARCH_URL,
-            headers={"Authorization": api_key},
-            params={"query": query, "per_page": 1, "orientation": orientation},
-            timeout=20,
+        resp = _pexels_get(
+            PEXELS_SEARCH_URL, api_key, {"query": query, "per_page": 1, "orientation": orientation},
         )
         resp.raise_for_status()
         photos = resp.json().get("photos") or []
@@ -354,11 +367,8 @@ def search_video_url(query: str, api_key: str, orientation: str = "portrait") ->
     la plus proche du plein cadre vertical). Retourne l'URL du fichier .mp4 ou
     None — ne lève jamais."""
     try:
-        resp = requests.get(
-            PEXELS_VIDEO_SEARCH_URL,
-            headers={"Authorization": api_key},
-            params={"query": query, "per_page": 8, "orientation": orientation},
-            timeout=20,
+        resp = _pexels_get(
+            PEXELS_VIDEO_SEARCH_URL, api_key, {"query": query, "per_page": 8, "orientation": orientation},
         )
         resp.raise_for_status()
         best_low = None  # repli si aucun clip n'a de fichier >= 1080 de haut
@@ -390,7 +400,7 @@ def search_video_candidates(query: str, api_key: str, orientation: str | None = 
     if orientation:
         params["orientation"] = orientation
     try:
-        resp = requests.get(PEXELS_VIDEO_SEARCH_URL, headers={"Authorization": api_key}, params=params, timeout=20)
+        resp = _pexels_get(PEXELS_VIDEO_SEARCH_URL, api_key, params)
         resp.raise_for_status()
         raw = resp.json().get("videos") or []
     except (requests.RequestException, ValueError):

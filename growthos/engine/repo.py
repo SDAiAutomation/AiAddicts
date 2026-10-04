@@ -76,28 +76,78 @@ def reclaim_stale_generating_items(client) -> int:
     return len(reclaimed.data)
 
 
+# Fenêtre d'examen de la file pour l'équité : assez large pour voir plusieurs
+# organisations, assez petite pour rester une requête légère.
+_FAIRNESS_WINDOW = 50
+
+
+def _queued_organization(row: dict) -> str | None:
+    return (row.get("accounts") or {}).get("organization_id")
+
+
+def pick_fair_item(queued: list[dict], recently_started: list[str | None]) -> dict:
+    """Tourniquet entre organisations. `queued` est trié du plus ancien au plus
+    récent ; `recently_started` liste les organisations des derniers démarrages,
+    le plus récent d'abord. On prend l'item le plus ancien de l'organisation
+    servie LE MOINS RÉCEMMENT (jamais servie = prioritaire) : une organisation
+    qui met 20 vidéos en file ne fait plus attendre les autres derrière elles.
+    Une seule organisation en file, ou égalité : ordre d'arrivée, comme avant."""
+    last_served: dict[str | None, int] = {}
+    for position, organization in enumerate(recently_started):
+        last_served.setdefault(organization, position)
+    never_served = len(recently_started) + 1
+    best, best_rank = queued[0], last_served.get(_queued_organization(queued[0]), never_served)
+    for row in queued[1:]:
+        rank = last_served.get(_queued_organization(row), never_served)
+        if rank > best_rank:  # strict : à égalité, le plus ancien garde la main
+            best, best_rank = row, rank
+    return best
+
+
+def _recently_started_organizations(client) -> list[str | None]:
+    events = (
+        client.table("product_events")
+        .select("organization_id")
+        .eq("event", "generation_started")
+        .order("created_at", desc=True)
+        .limit(_FAIRNESS_WINDOW)
+        .execute()
+    )
+    return [row.get("organization_id") for row in (events.data or [])]
+
+
 def claim_queued_item(client) -> dict | None:
-    """Réclame le plus ancien content_item en file (status='queued') pour un
-    worker : le fait passer à 'generating' avec un update conditionné au
-    statut encore 'queued', pour rester correct si deux workers tournent en
-    parallèle (le second, arrivé après, ne récupère aucune ligne). Retourne
-    la ligne réclamée ({id, script}) ou None si la file est vide."""
+    """Réclame un content_item en file (status='queued') pour un worker : le
+    fait passer à 'generating' avec un update conditionné au statut encore
+    'queued', pour rester correct si deux workers tournent en parallèle (le
+    second, arrivé après, ne récupère aucune ligne). Ordre : le plus ancien,
+    sauf si plusieurs organisations attendent, auquel cas tourniquet entre
+    organisations (`pick_fair_item`). Retourne la ligne réclamée ({id, script})
+    ou None si la file est vide."""
     reclaimed = reclaim_stale_generating_items(client)
     if reclaimed:
         print(f"       {reclaimed} item(s) 'generating' orphelin(s) remis en file")
 
     queued = (
         client.table("content_items")
-        .select("id, script")
+        .select("id, script, accounts(organization_id)")
         .eq("status", "queued")
         .order("created_at")
-        .limit(1)
+        .limit(_FAIRNESS_WINDOW)
         .execute()
     )
     if not queued.data:
         return None
 
-    item = queued.data[0]
+    chosen = queued.data[0]
+    # Un seul locataire en file (cas actuel) : aucune requête de plus.
+    if len({_queued_organization(row) for row in queued.data}) > 1:
+        try:
+            chosen = pick_fair_item(queued.data, _recently_started_organizations(client))
+        except Exception as exc:
+            # L'équité est un confort : jamais une raison de ne pas traiter la file.
+            print(f"       (équité entre organisations indisponible, ordre d'arrivée : {exc})")
+    item = {"id": chosen["id"], "script": chosen["script"]}
     claimed = (
         client.table("content_items")
         .update({"status": "generating", "updated_at": datetime.now(timezone.utc).isoformat()})

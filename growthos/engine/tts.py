@@ -8,6 +8,8 @@ from pathlib import Path
 
 import requests
 
+from . import retry
+
 # Entrées de synthèse qui changent le rendu de la voix : font partie de la clé
 # du cache d'actifs (engine/asset_store.py). Les modifier invalide la réutilisation.
 TTS_MODEL_ID = "eleven_multilingual_v2"
@@ -15,7 +17,7 @@ TTS_VOICE_SETTINGS = {"stability": 0.5, "similarity_boost": 0.75}
 
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_TTS_TIMESTAMPS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
-_MAX_ATTEMPTS = 3
+_MAX_ATTEMPTS = 5  # clé partagée : un 429 vient souvent d'une autre organisation, on patiente (~30 s en tout)
 
 
 def synthesize(text: str, voice_id: str, out_path: str, api_key: str | None = None) -> str:
@@ -42,6 +44,7 @@ def synthesize(text: str, voice_id: str, out_path: str, api_key: str | None = No
 
     last_error = "raison inconnue"
     for attempt in range(1, _MAX_ATTEMPTS + 1):
+        resp = None
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=60)
         except requests.RequestException as exc:
@@ -52,12 +55,14 @@ def synthesize(text: str, voice_id: str, out_path: str, api_key: str | None = No
                 Path(out_path).write_bytes(resp.content)
                 return out_path
             detail = f"HTTP {resp.status_code} : {resp.text[:300]}"
+            if resp.status_code == 429:
+                detail += " (limite de débit ElevenLabs sur la clé partagée : réessaie dans quelques minutes)"
             if resp.status_code != 429 and resp.status_code < 500:
                 raise RuntimeError(f"échec ElevenLabs, {detail}")
             last_error = detail
 
         if attempt < _MAX_ATTEMPTS:
-            time.sleep(2 ** attempt)
+            time.sleep(retry.retry_delay(attempt, resp))
 
     raise RuntimeError(f"échec ElevenLabs après {_MAX_ATTEMPTS} tentatives — {last_error}")
 
@@ -116,6 +121,7 @@ def synthesize_with_timestamps(
 
     last_error = "raison inconnue"
     for attempt in range(1, _MAX_ATTEMPTS + 1):
+        resp = None
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=60)
         except requests.RequestException as exc:
@@ -132,12 +138,14 @@ def synthesize_with_timestamps(
                     alignment["character_end_times_seconds"],
                 )
             detail = f"HTTP {resp.status_code} : {resp.text[:300]}"
+            if resp.status_code == 429:
+                detail += " (limite de débit ElevenLabs sur la clé partagée : réessaie dans quelques minutes)"
             if resp.status_code != 429 and resp.status_code < 500:
                 raise RuntimeError(f"échec ElevenLabs (timestamps), {detail}")
             last_error = detail
 
         if attempt < _MAX_ATTEMPTS:
-            time.sleep(2 ** attempt)
+            time.sleep(retry.retry_delay(attempt, resp))
 
     raise RuntimeError(f"échec ElevenLabs (timestamps) après {_MAX_ATTEMPTS} tentatives — {last_error}")
 
