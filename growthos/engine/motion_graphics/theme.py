@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
 
-THEME_VERSION = "1.0.0"
+THEME_VERSION = "1.1.0"
+
+# Font families a theme can select. Names must match the keys of
+# `canvas._FONT_SPECS` (a test keeps both in step). "poppins" is the historical
+# font: a theme that does not name a family renders exactly as before.
+FONT_FAMILIES = ("poppins", "ibm_plex_sans", "nunito")
+DEFAULT_FONT_FAMILY = "poppins"
 
 
 @dataclass(frozen=True)
@@ -24,6 +30,7 @@ class Theme:
     positive: str = "#22C55E"
     negative: str = "#F87171"
     border_radius: int = 28
+    font_family: str = DEFAULT_FONT_FAMILY
 
 
 DEFAULT_THEME = Theme()
@@ -46,10 +53,10 @@ _FIELD_NAMES = {f.name for f in fields(Theme)}
 # it explicitly instead of omitting `preset`.
 THEME_PRESETS: dict[str, Theme] = {
     "classic": DEFAULT_THEME,
-    "trust_blue": replace(DEFAULT_THEME, background="#0A1A2F", primary="#2E86DE", secondary="#6FA8DC", accent="#F5A623"),
-    "growth_green": replace(DEFAULT_THEME, background="#07241A", primary="#10B981", secondary="#6FCF97", accent="#FACC15"),
+    "trust_blue": replace(DEFAULT_THEME, background="#0A1A2F", primary="#2E86DE", secondary="#6FA8DC", accent="#F5A623", font_family="ibm_plex_sans"),
+    "growth_green": replace(DEFAULT_THEME, background="#07241A", primary="#10B981", secondary="#6FCF97", accent="#FACC15", font_family="nunito"),
     "risk_red": replace(DEFAULT_THEME, background="#2B0F12", primary="#F4511E", secondary="#FFAB91", accent="#DC2626"),
-    "premium_indigo": replace(DEFAULT_THEME, background="#13113A", primary="#5C6BC0", secondary="#9FA8DA", accent="#D4AF37"),
+    "premium_indigo": replace(DEFAULT_THEME, background="#13113A", primary="#5C6BC0", secondary="#9FA8DA", accent="#D4AF37", font_family="ibm_plex_sans"),
     "neutral": replace(DEFAULT_THEME, background="#1E1E1E", primary="#CBD5E1", secondary="#64748B", accent="#E2E8F0"),
 }
 
@@ -76,7 +83,11 @@ def resolve_theme(overrides: dict | None) -> Theme:
     }
     if not safe_overrides:
         return base
-    return replace(base, **safe_overrides)
+    resolved = replace(base, **safe_overrides)
+    if resolved.font_family not in FONT_FAMILIES:
+        # An unknown family never reaches the renderer: keep the preset's own.
+        resolved = replace(resolved, font_family=base.font_family)
+    return resolved
 
 
 def hex_to_rgb(color: str, alpha: int | None = None) -> tuple[int, ...]:

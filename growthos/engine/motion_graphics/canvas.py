@@ -9,6 +9,8 @@ captions (`SUBTITLE_FONT`), which this sidesteps entirely.
 from __future__ import annotations
 
 import unicodedata
+import contextlib
+import contextvars
 from functools import lru_cache
 from pathlib import Path
 
@@ -20,6 +22,40 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 _FONT_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 _FONT_FILES = {False: _FONT_DIR / "Poppins-Regular.ttf", True: _FONT_DIR / "Poppins-Bold.ttf"}
 _BUNDLED_FONTS = all(path.is_file() for path in _FONT_FILES.values())
+
+# One entry per theme `font_family` (see theme.FONT_FAMILIES): {bold: (file, variable weight or None)}.
+# "poppins" is the historical font and the fallback for everything else; a variable
+# font is pinned to its Regular (400) / Bold (700) weight.
+_FONT_SPECS = {
+    "poppins": {False: (_FONT_FILES[False], None), True: (_FONT_FILES[True], None)},
+    "ibm_plex_sans": {
+        False: (_FONT_DIR / "ibm-plex-sans" / "IBMPlexSans-Regular.ttf", None),
+        True: (_FONT_DIR / "ibm-plex-sans" / "IBMPlexSans-Bold.ttf", None),
+    },
+    "nunito": {
+        False: (_FONT_DIR / "nunito" / "Nunito-Variable.ttf", 400),
+        True: (_FONT_DIR / "nunito" / "Nunito-Variable.ttf", 700),
+    },
+}
+_DEFAULT_FAMILY = "poppins"
+
+# The family of the scene being rendered. A ContextVar rather than a global so
+# renderers running in different threads never see each other's theme; it is set
+# in ONE place (`scenes._viewer_only`, which every renderer goes through and
+# which already receives the theme) instead of threading a parameter through
+# every text-drawing call.
+_ACTIVE_FAMILY: contextvars.ContextVar[str] = contextvars.ContextVar("motion_graphics_font_family", default=_DEFAULT_FAMILY)
+
+
+@contextlib.contextmanager
+def use_font_family(name: str | None):
+    """Render everything inside the block with the theme's font family. An
+    unknown name or missing font files fall back to Poppins (see `font`)."""
+    token = _ACTIVE_FAMILY.set(name if name in _FONT_SPECS else _DEFAULT_FAMILY)
+    try:
+        yield
+    finally:
+        _ACTIVE_FAMILY.reset(token)
 
 # SAFE_TOP_RATIO mirrors the platform-UI band (profile/follow button) —
 # unaffected by Phase 2.7, unchanged from the original estimate.
@@ -74,11 +110,29 @@ def sanitize_text(text: str) -> str:
     return stripped.encode("ascii", "ignore").decode("ascii")
 
 
-@lru_cache(maxsize=None)
 def font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
+    """The font of the family being rendered (`use_font_family`), Poppins by default."""
+    return _font(size, bool(bold), _ACTIVE_FAMILY.get())
+
+
+@lru_cache(maxsize=None)
+def _font(size: int, bold: bool, family: str) -> ImageFont.FreeTypeFont:
     if _BUNDLED_FONTS:
-        return ImageFont.truetype(str(_FONT_FILES[bool(bold)]), max(1, size))
+        px = max(1, size)
+        if family != _DEFAULT_FAMILY:
+            path, weight = _FONT_SPECS[family][bold]
+            try:
+                loaded = ImageFont.truetype(str(path), px)
+                if weight is not None:
+                    loaded.set_variation_by_axes([weight])
+                return loaded
+            except (OSError, ValueError):
+                pass  # a missing or unusable file must never break a render: fall back to Poppins
+        return ImageFont.truetype(str(_FONT_FILES[bold]), px)
     return ImageFont.load_default(size=max(1, size))
+
+
+font.cache_clear = _font.cache_clear  # the historical cached function's API
 
 
 def faux_bold_stroke(font_px: int, bold: bool) -> int:

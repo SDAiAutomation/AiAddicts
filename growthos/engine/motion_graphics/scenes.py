@@ -616,7 +616,8 @@ def _viewer_only(render):
     metadata (animation, visual, ...) cannot reach a text-drawing call."""
     @functools.wraps(render)
     def wrapped(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-        return render(display_text.viewer_scene(data), t, theme, size)
+        with canvas.use_font_family(theme.font_family):
+            return render(display_text.viewer_scene(data), t, theme, size)
     return wrapped
 
 
