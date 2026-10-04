@@ -20,6 +20,11 @@ _WORDS_PER_CUE = 3
 
 DEFAULT_CAPTION_STYLE = "bold_stroke"
 
+# Pas de sous-titres incrustés : seule la narration disparaît. Les cartes d'un
+# quiz vivent dans le même .ass et restent dessinées. L'export .srt par version
+# est écrit à part et n'est pas touché.
+CAPTIONS_OFF = "off"
+
 # Zone de sécurité TikTok/Reels/Shorts : l'interface recouvre environ les
 # 320-500 px du bas d'un cadre 1920 (description, compte, musique) — bande
 # commune sûre = 12 % à 72 % de la hauteur. Les sous-titres se posent donc avec
@@ -65,7 +70,7 @@ _CAPTION_STYLES: dict[str, dict] = {
 
 
 def caption_style_or_default(name: str | None) -> str:
-    return name if name in _CAPTION_STYLES else DEFAULT_CAPTION_STYLE
+    return name if name in _CAPTION_STYLES or name == CAPTIONS_OFF else DEFAULT_CAPTION_STYLE
 
 
 def format_timestamp(seconds: float) -> str:
@@ -454,8 +459,12 @@ def write_ass(
     """Écrit un fichier `.ass` complet (style + événements) pour `style`. À
     passer tel quel au filtre `subtitles` d'ffmpeg (libass lit le style
     embarqué, pas besoin de `force_style`)."""
+    captions_off = style == CAPTIONS_OFF
     preset = _CAPTION_STYLES.get(style, _CAPTION_STYLES[DEFAULT_CAPTION_STYLE])
     is_quiz = any(b.get("quiz_phase") for b in (blocks or []))
+    # Les scènes Motion Graphics occupent le centre de l'écran et réservent la
+    # bande basse aux sous-titres (motion_graphics/canvas.py SAFE_BOTTOM_RATIO).
+    is_motion = any(b.get("motion_graphic") for b in (blocks or []))
     font = font or os.environ.get("SUBTITLE_FONT") or "Arial"
     try:
         width, height = (int(x) for x in resolution.lower().split("x"))
@@ -473,7 +482,9 @@ def write_ass(
 
     base_fs = preset["font_size"]
     events: list[str] = []
-    if blocks and block_durations:
+    if captions_off:
+        cues = []
+    elif blocks and block_durations:
         cues = _without_question_cues(cues, blocks, block_durations)
     for cue in cues:
         if preset.get("single_word"):
@@ -491,7 +502,12 @@ def write_ass(
                 size = max(1, round(base_fs * min(width / 1080, height / 1920)))
                 size = min(size, max(1, round(width * 0.8 / (max(len(text), 1) * 0.75))))
                 outline = max(1, round(5 * size / 90))
-                tags = f"{{\\an5\\pos({width // 2},{height // 2})\\fs{size}\\bord{outline}\\b1\\1c&HFFFFFF&}}"
+                if is_motion:
+                    # Bande basse, comme les autres styles : le centre est pris par la scène.
+                    anchor = f"\\an2\\pos({width // 2},{height - round(preset['margin_v'] * height / 1920)})"
+                else:
+                    anchor = f"\\an5\\pos({width // 2},{height // 2})"
+                tags = f"{{{anchor}\\fs{size}\\bord{outline}\\b1\\1c&HFFFFFF&}}"
                 events.append(_dialogue(start, end, tags + text))
             continue
         text = _ass_escape(cue["text"])

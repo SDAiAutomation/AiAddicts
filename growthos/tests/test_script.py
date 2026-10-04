@@ -63,6 +63,7 @@ class TestValidateScript(unittest.TestCase):
     def test_caption_style_optional_and_validated(self):
         validate_script(VALID)  # absent -> OK
         validate_script({**VALID, "caption_style": "word_pop"})  # connu -> OK
+        validate_script({**VALID, "caption_style": "off"})  # sans sous-titres -> OK
         with self.assertRaises(ValueError):
             validate_script({**VALID, "caption_style": "rainbow"})
 

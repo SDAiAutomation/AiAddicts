@@ -13,7 +13,7 @@ ALLOWED_SHOT_TYPES = shot_planning.ALLOWED_SHOT_TYPES
 ALLOWED_VISUAL_PURPOSES = shot_planning.ALLOWED_VISUAL_PURPOSES
 ALLOWED_PLATFORMS = {"tiktok", "instagram", "youtube"}  # matches the accounts table's check constraint
 ALLOWED_ASPECT_RATIOS = {"9:16", "1:1", "16:9"}  # matches engine.video.RESOLUTIONS
-ALLOWED_CAPTION_STYLES = {"bold_stroke", "sleek", "boxed", "neon", "word_pop"}  # engine.captions._CAPTION_STYLES
+ALLOWED_CAPTION_STYLES = {"bold_stroke", "sleek", "boxed", "neon", "word_pop", "off"}  # engine.captions._CAPTION_STYLES
 # ISO 639-1, doit rester aligné avec LANGUAGES de growthos-web (content/visual-styles.ts).
 # Informatif seulement : eleven_multilingual_v2 (engine/tts.py) détecte la langue
 # du texte lui-même, `language_code` n'est pas supporté par ce modèle côté API.

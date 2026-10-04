@@ -183,6 +183,33 @@ class TestWriteAss(unittest.TestCase):
         ass = Path(write_ass(cues, str(path), "sleek", "1080x1920")).read_text(encoding="utf-8")
         self.assertIn("un (evil) tag", ass)
 
+    def test_motion_graphics_captions_leave_the_centre_to_the_scene(self):
+        blocks = [{"role": "hook", "text": "Leo se reveille", "motion_graphic": {"sceneType": "icon_text", "text": "Leo"}}]
+        path = Path(tempfile.mkdtemp()) / "mg.ass"
+        ass = Path(write_ass(self._cues(), str(path), "bold_stroke", "1080x1920", blocks=blocks, block_durations=[1.2])).read_text(encoding="utf-8")
+        lines = [line for line in ass.splitlines() if line.startswith("Dialogue:")]
+        self.assertEqual(len(lines), 3)
+        for line in lines:
+            self.assertNotIn(r"\an5\pos(540,960)", line)
+            self.assertIn(r"\an2\pos(540,1380)", line)  # bord bas à 72 % : dans la bande sûre
+
+    def test_captions_off_drops_the_narration_but_keeps_the_quiz_cards(self):
+        self.assertEqual(self._write("off").count("Dialogue:"), 0)
+        blocks = [{
+            "role": "point", "text": "Question", "quiz_phase": "question", "quiz_question": "La capitale ?",
+            "quiz_question_number": 1, "quiz_question_total": 1, "quiz_choices": ["Paris", "Lyon"],
+            "quiz_correct_choice": 0, "hold_after_seconds": 3,
+        }]
+        path = Path(tempfile.mkdtemp()) / "quiz_off.ass"
+        ass = Path(write_ass(self._cues(), str(path), "off", "1080x1920", blocks=blocks, block_durations=[8.0])).read_text(encoding="utf-8")
+        self.assertIn("La capitale ?", ass.replace("\\N", " "))
+        self.assertNotIn("REVEILLE", ass)
+
+    def test_off_is_a_known_caption_style(self):
+        from engine.captions import caption_style_or_default
+        self.assertEqual(caption_style_or_default("off"), "off")
+        self.assertEqual(caption_style_or_default("rainbow"), "bold_stroke")
+
     def test_quiz_cards_and_countdown_are_written(self):
         cues = []
         blocks = [{
