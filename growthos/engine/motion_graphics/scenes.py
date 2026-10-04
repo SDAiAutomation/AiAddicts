@@ -11,6 +11,15 @@ Shared conventions:
   band and the top platform-UI band).
 - No scene ever computes or invents a number: `value`/`displayValue` come
   straight from the validated scene data (see schema.py).
+
+Each scene also passes its own `glow` to `canvas.new_frame` (tinting the
+backdrop's soft radial highlight, see canvas._backdrop) instead of letting
+it default to the flat background colour — chosen per scene type to match
+whichever theme color that scene already draws as its emphasis (e.g.
+`warning` glows `negative`, `checklist`/`compound_growth`/`before_after`
+glow `positive`). This is what makes two different scene types, or the same
+script rendered under a different `motion_graphics_theme` preset, actually
+look different from each other rather than sharing one identical backdrop.
 """
 from __future__ import annotations
 
@@ -99,7 +108,7 @@ def _icon(image: Image.Image, draw, theme: Theme, size: tuple[int, int], name: s
 
 
 def render_big_number(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     _icon(image, draw, theme, size, data.get("icon"), t, y_ratio=0.24)
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.36)
@@ -111,7 +120,7 @@ def render_big_number(data: dict, t: float, theme: Theme, size: tuple[int, int])
 
 
 def render_money_split(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     top, _, bottom_limit = canvas.safe_box(w, h)[1], 0, canvas.safe_box(w, h)[3]
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.14)
@@ -161,7 +170,7 @@ def render_money_split(data: dict, t: float, theme: Theme, size: tuple[int, int]
 
 
 def render_progress_bar(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.36)
     display_color = lerp_color(theme.background, theme.text, anim.fade_in(t, 0.1, 0.3))
@@ -187,7 +196,7 @@ def render_progress_bar(data: dict, t: float, theme: Theme, size: tuple[int, int
 
 
 def render_bar_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.14)
     rows = data.get("data") or []
@@ -232,7 +241,7 @@ def render_bar_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
 
 
 def render_donut_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.accent)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.13)
     rows = data.get("data") or []
@@ -302,7 +311,7 @@ def render_comparison(data: dict, t: float, theme: Theme, size: tuple[int, int])
     the frame (Phase 2.7 root cause). Both are now fit to the card's own
     width via `layout.draw_fitted` (shrink-then-wrap), never drawn past
     `card_max_width`."""
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.secondary)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.13)
     option_a, option_b = data.get("optionA") or {}, data.get("optionB") or {}
@@ -343,7 +352,7 @@ def render_before_after(data: dict, t: float, theme: Theme, size: tuple[int, int
     is compressed upward to fit the real content zone, and both labels/
     values are now width-fit (same collision family as the comparison bug:
     `displayValue` is free-form script text, not guaranteed to be short)."""
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.positive)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.13)
     before, after = data.get("before") or {}, data.get("after") or {}
@@ -374,7 +383,7 @@ def render_before_after(data: dict, t: float, theme: Theme, size: tuple[int, int
 
 
 def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.15)
     steps = data.get("steps") or []
@@ -430,7 +439,7 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
 
 
 def render_compound_growth(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.positive)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.14)
     rows = data.get("data") or []
@@ -467,7 +476,7 @@ def render_compound_growth(data: dict, t: float, theme: Theme, size: tuple[int, 
 
 
 def render_checklist(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.positive)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.14)
     items = data.get("items") or []
@@ -498,7 +507,7 @@ def render_checklist(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
 
 
 def render_warning(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.negative)
     w, h = size
     # Phase 2.7 fix: the panel's bottom edge (0.62h) sat slightly inside the
     # new, tighter caption-reserved zone (canvas.SAFE_BOTTOM_RATIO) — trimmed
@@ -524,7 +533,7 @@ def render_warning(data: dict, t: float, theme: Theme, size: tuple[int, int]) ->
 
 
 def render_formula(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.accent)
     w, h = size
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.16)
     terms = data.get("terms") or []
@@ -578,7 +587,7 @@ def render_icon_text(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     paragraph), LEVEL 2 = optional label; the icons are decoration. Receives
     a `display_text.viewer_scene`, so `data["text"]` is already the cleaned,
     budgeted viewer line."""
-    image, draw = canvas.new_frame(size, theme.background)
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     drawable = [n for n in (data.get("icons") or []) if n in icons.ICONS][:_MAX_ICON_ROW]
     if len(drawable) >= 2:

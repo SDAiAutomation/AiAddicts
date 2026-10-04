@@ -85,6 +85,47 @@ class TestThemeDefaults(unittest.TestCase):
         self.assertEqual(theme.lerp_color("#000000", "#FFFFFF", 1.0), (255, 255, 255))
 
 
+class TestThemePresets(unittest.TestCase):
+    """2026-10 feature: a script can select a named palette instead of
+    always rendering under DEFAULT_THEME (the original cause of every
+    Motion Graphics video looking visually identical regardless of
+    niche/account)."""
+
+    def test_classic_preset_is_default_theme(self):
+        self.assertIs(theme.THEME_PRESETS["classic"], theme.DEFAULT_THEME)
+
+    def test_named_preset_overrides_mood_colors(self):
+        resolved = theme.resolve_theme({"preset": "growth_green"})
+        self.assertEqual(resolved.background, "#07241A")
+        self.assertEqual(resolved.primary, "#10B981")
+        self.assertNotEqual(resolved.background, theme.DEFAULT_THEME.background)
+
+    def test_preset_name_is_case_insensitive(self):
+        self.assertEqual(theme.resolve_theme({"preset": "Trust_Blue"}), theme.resolve_theme({"preset": "trust_blue"}))
+
+    def test_unknown_preset_falls_back_to_default(self):
+        self.assertIs(theme.resolve_theme({"preset": "not_a_real_preset"}), theme.DEFAULT_THEME)
+
+    def test_every_preset_keeps_shared_semantics(self):
+        # positive/negative/text stay the same success/alert/legibility
+        # colors across every preset — only the mood palette should move.
+        for name, preset in theme.THEME_PRESETS.items():
+            with self.subTest(preset=name):
+                self.assertEqual(preset.positive, theme.DEFAULT_THEME.positive)
+                self.assertEqual(preset.negative, theme.DEFAULT_THEME.negative)
+                self.assertEqual(preset.text, theme.DEFAULT_THEME.text)
+
+    def test_preset_plus_explicit_override_combines(self):
+        resolved = theme.resolve_theme({"preset": "risk_red", "accent": "#00FFAA"})
+        self.assertEqual(resolved.background, "#2B0F12")  # from the preset
+        self.assertEqual(resolved.accent, "#00FFAA")       # explicit override wins
+
+    def test_every_preset_is_a_valid_theme_instance(self):
+        for name, preset in theme.THEME_PRESETS.items():
+            with self.subTest(preset=name):
+                self.assertIsInstance(preset, theme.Theme)
+
+
 class TestAnimationPrimitives(unittest.TestCase):
     def test_phase_is_held_outside_its_window(self):
         self.assertEqual(animations.phase(-1, 0.2, 0.5), 0.0)
@@ -183,6 +224,53 @@ class TestSceneRendering(unittest.TestCase):
     def test_renders_at_a_non_vertical_resolution(self):
         frame = RENDERERS["big_number"](_SAMPLE_SCENES["big_number"], 0.5, theme.DEFAULT_THEME, (1920, 1080))
         self.assertEqual(frame.size, (1920, 1080))
+
+
+class TestSceneGlowVariety(unittest.TestCase):
+    """Regression guard for the per-scene `glow` passed to `canvas.new_frame`
+    (2026-10): before this, every scene called
+    `canvas.new_frame(size, theme.background)` with no third argument, so
+    every scene's backdrop was the exact same flat gradient regardless of
+    scene type — a main cause of every rendered video looking identical."""
+
+    @staticmethod
+    def _captured_glow(scene_type: str) -> str | None:
+        from engine.motion_graphics import scenes as scenes_module
+
+        calls = []
+        original = scenes_module.canvas.new_frame
+
+        def spy(size, background, glow=None):
+            calls.append(glow)
+            return original(size, background, glow)
+
+        scenes_module.canvas.new_frame = spy
+        try:
+            RENDERERS[scene_type](_SAMPLE_SCENES[scene_type], 0.0, theme.DEFAULT_THEME, (1080, 1920))
+        finally:
+            scenes_module.canvas.new_frame = original
+        return calls[0] if calls else None
+
+    def test_warning_glows_negative_and_checklist_glows_positive(self):
+        self.assertEqual(self._captured_glow("warning"), theme.DEFAULT_THEME.negative)
+        self.assertEqual(self._captured_glow("checklist"), theme.DEFAULT_THEME.positive)
+
+    def test_not_every_scene_glows_the_flat_background(self):
+        # If every scene still only passed theme.background (or nothing),
+        # canvas.new_frame's glow parameter would be dead code in practice.
+        distinct = {t for t in RENDERERS if self._captured_glow(t) != theme.DEFAULT_THEME.background}
+        self.assertTrue(distinct, "no scene type passes a glow distinct from the flat background")
+
+    def test_the_backdrop_primitive_itself_responds_to_glow(self):
+        from engine.motion_graphics import canvas as canvas_module
+
+        w, h = 1080, 1920
+        flat = canvas_module.new_frame((w, h), theme.DEFAULT_THEME.background, theme.DEFAULT_THEME.background)[0]
+        tinted = canvas_module.new_frame((w, h), theme.DEFAULT_THEME.background, theme.DEFAULT_THEME.negative)[0]
+        # Sampled near the glow's own center (see canvas._backdrop), not a
+        # frame corner — the glow term never reaches the corners at all.
+        probe = (w // 2, round(h * 0.46))
+        self.assertNotEqual(flat.getpixel(probe), tinted.getpixel(probe))
 
 
 class TestResolveSceneFallback(unittest.TestCase):
