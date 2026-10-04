@@ -14,7 +14,8 @@ _LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
                     "saviez-vous", "le savais-tu", "bonjour"),
         "curiosity": ("erreur*", "jamais", "pourquoi", "secret*", "personne", "sans", "avant",
                       "sauf", "mais", "pourtant", "evit*", "arret*", "contraire", "verite",
-                      "mensonge*", "faux", "piege*", "danger*", "interdit*", "cach*"),
+                      "mensonge*", "faux", "piege*", "danger*", "interdit*", "cach*",
+                      "vide", "videe", "videes", "vides", "perdu*", "perdre", "vole*", "ruine*", "detruit*", "pirate*", "arnaque*"),
         "numbers": ("deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix",
                     "douze", "vingt", "trente", "cent", "mille", "million*", "milliard*"),
         "claims": ("premier", "premiere", "dernier", "derniere", "seul", "seule", "unique", "record"),
@@ -24,7 +25,8 @@ _LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
                     "do you want", "hello", "hi guys", "welcome"),
         "curiosity": ("mistake*", "never", "why", "secret*", "nobody", "no one", "without", "before",
                       "except", "but", "yet", "stop", "avoid*", "wrong", "truth", "lie", "lies",
-                      "myth*", "hidden", "actually", "danger*", "warning", "banned", "forbidden"),
+                      "myth*", "hidden", "actually", "danger*", "warning", "banned", "forbidden",
+                      "emptied", "drain*", "lost", "stole", "stolen", "ruined", "destroyed", "hacked", "scam*"),
         "numbers": ("two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
                     "twelve", "twenty", "thirty", "hundred", "thousand", "million*", "billion*"),
         "claims": ("first", "last", "only", "oldest", "largest", "smallest", "fastest", "worst", "best"),
@@ -33,7 +35,8 @@ _LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
         "generic": ("aqui tienes", "en este video", "hoy", "sabias que", "quieres", "hola", "bienvenido"),
         "curiosity": ("error*", "nunca", "jamas", "por que", "secreto*", "nadie", "sin", "antes",
                       "salvo", "pero", "sin embargo", "evita*", "contrario", "verdad", "mentira*",
-                      "trampa*", "peligro*", "prohibido*", "oculto*"),
+                      "trampa*", "peligro*", "prohibido*", "oculto*",
+                      "vacio", "vacia", "perdio", "perdi*", "robo", "robaron", "robado", "arruin*", "estaf*", "hackea*"),
         "numbers": ("dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez",
                     "veinte", "treinta", "cien", "mil", "millon*", "millones"),
         "claims": ("primer", "primera", "primero", "ultimo", "ultima", "unico", "unica", "record"),
@@ -42,7 +45,8 @@ _LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
         "generic": ("hier ist", "in diesem video", "heute", "wusstest du", "willst du", "hallo", "willkommen"),
         "curiosity": ("fehler*", "nie", "niemals", "warum", "geheim*", "niemand", "ohne", "bevor",
                       "ausser", "aber", "doch", "trotzdem", "stopp", "vermeide*", "wahrheit", "luge*",
-                      "mythos", "versteckt*", "verboten*", "gefahr*"),
+                      "mythos", "versteckt*", "verboten*", "gefahr*",
+                      "geleert", "verlor*", "gestohlen", "ruinier*", "betrug", "gehackt"),
         "numbers": ("zwei", "drei", "vier", "funf", "sechs", "sieben", "acht", "neun", "zehn",
                     "zwanzig", "hundert", "tausend", "million*"),
         "claims": ("erste*", "letzte*", "einzige*", "rekord"),
@@ -51,7 +55,8 @@ _LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
         "generic": ("ecco", "in questo video", "oggi", "sapevi che", "vuoi", "ciao", "benvenuto"),
         "curiosity": ("error*", "mai", "perche", "segret*", "nessuno", "senza", "prima", "tranne",
                       "ma", "eppure", "evita*", "smetti", "contrario", "verita", "bugia*", "trappola*",
-                      "pericol*", "vietat*", "nascost*"),
+                      "pericol*", "vietat*", "nascost*",
+                      "svuot*", "perso", "persa", "rubat*", "rovinat*", "truffa*", "hackerat*"),
         "numbers": ("due", "tre", "quattro", "cinque", "sette", "otto", "nove", "dieci", "venti",
                     "trenta", "cento", "mille", "milion*"),
         "claims": ("primo", "ultimo", "unico", "record"),
@@ -60,7 +65,8 @@ _LEXICONS: dict[str, dict[str, tuple[str, ...]]] = {
         "generic": ("aqui esta", "neste video", "hoje", "voce sabia", "voce quer", "ola", "bem-vindo"),
         "curiosity": ("erro*", "nunca", "jamais", "por que", "segredo*", "ninguem", "sem", "antes",
                       "exceto", "mas", "porem", "no entanto", "evite*", "pare", "contrario", "verdade",
-                      "mentira*", "armadilha*", "perigo*", "proibid*", "escondid*"),
+                      "mentira*", "armadilha*", "perigo*", "proibid*", "escondid*",
+                      "esvazi*", "perdeu", "perdi*", "roub*", "arruin*", "golpe*", "hackead*"),
         "numbers": ("dois", "tres", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez",
                     "vinte", "trinta", "cem", "mil", "milh*"),
         "claims": ("primeiro", "primeira", "ultimo", "ultima", "unico", "unica", "recorde"),
@@ -70,7 +76,11 @@ _WORD_RE = re.compile(r"\b[\wÀ-ÿ'’-]+\b", re.UNICODE)
 _LETTERS_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 # Les "visual" sont toujours en français (consigne au générateur d'images).
 _WIDE_SHOT_PREFIXES = ("plan large", "plan d'ensemble", "vue d'ensemble", "vue large", "panoramique")
-_MAX_TITLE_CHARS = 60  # le prompt demande 50 ; marge avant de pénaliser
+_MAX_TITLE_CHARS = 60  # le prompt demande 50 ; signalé au-delà, mais SANS retirer de points :
+# le titre est la phrase d'idée saisie par l'utilisateur (benchmark 2026-10-04 : 5 vidéos sur 6),
+# pas un défaut du script ; il passait quand même la vidéo en quality_check à lui seul avec le CTA.
+_CTA_TARGET_WORDS = 12  # cible du prompt, signalée au-delà
+_CTA_PENALTY_WORDS = 15  # pénalité seulement au-delà : le modèle écrit 13 mots quand on en demande 12
 _NO_CAPITAL_NOUNS = {"de"}  # en allemand tous les noms prennent une majuscule : pas un indice
 
 
@@ -170,12 +180,12 @@ def analyze_script(script: dict) -> dict:
 
     title = str(script.get("title") or "").strip()
     if len(title) > _MAX_TITLE_CHARS:
-        score -= 5
         issues.append(f"Titre de {len(title)} caractères (cible : {_MAX_TITLE_CHARS} maximum, lisible en entier sur mobile).")
 
-    if len(cta_words) > 12:
-        score -= 15
-        issues.append(f"CTA trop long ({len(cta_words)} mots, cible : 12 maximum).")
+    if len(cta_words) > _CTA_TARGET_WORDS:
+        if len(cta_words) > _CTA_PENALTY_WORDS:
+            score -= 15
+        issues.append(f"CTA trop long ({len(cta_words)} mots, cible : {_CTA_TARGET_WORDS} maximum).")
 
     return {
         "score": max(score, 0),

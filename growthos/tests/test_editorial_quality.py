@@ -119,8 +119,34 @@ class TestHookDetectorIsLanguageAware(unittest.TestCase):
     def test_every_penalty_is_reported_not_only_the_first(self):
         report = _report("fr", "Le ciel est bleu, le coucher s'enflamme de rouge.",
                          title="x" * 70, cta=" ".join(["mot"] * 20))
-        self.assertEqual(report["score"], 70)
+        self.assertEqual(report["score"], 75)  # accroche -10, CTA -15 ; le titre est signalé sans pénalité
         self.assertEqual(len(report["issues"]), 3)
+
+    def test_title_and_slightly_long_cta_are_reported_without_costing_points(self):
+        # Benchmark 2026-10-04 : le titre (phrase d'idée saisie) et un CTA de 13 mots suffisaient
+        # à faire tomber une vidéo en quality_check.
+        clean = _report("fr", "Trois habitudes qui transforment ta nuit dès ce soir.")
+        long_title = _report("fr", "Trois habitudes qui transforment ta nuit dès ce soir.", title="x" * 80)
+        self.assertEqual(long_title["score"], clean["score"])
+        self.assertTrue(any("Titre de" in issue for issue in long_title["issues"]))
+        for words in (13, 15):
+            report = _report("fr", "Trois habitudes qui transforment ta nuit dès ce soir.", cta=" ".join(["mot"] * words))
+            self.assertEqual(report["score"], clean["score"], words)
+            self.assertTrue(any("CTA trop long" in issue for issue in report["issues"]), words)
+        self.assertEqual(_report("fr", "Trois habitudes qui transforment ta nuit dès ce soir.", cta=" ".join(["mot"] * 16))["score"], clean["score"] - 15)
+
+    def test_loss_and_impact_verbs_count_as_a_concrete_hook(self):
+        for language, hook in (
+            ("en", "A banking text that emptied her account."),
+            ("fr", "Un SMS de ma banque a vidé son compte."),
+            ("es", "Un mensaje falso vació su cuenta."),
+            ("de", "Eine SMS hat ihr Konto geleert."),
+        ):
+            self.assertFalse(_has_concrete_issue(_report(language, hook)), hook)
+
+    def test_loss_stems_do_not_match_unrelated_words(self):
+        # « vide* » aurait attrapé « vidéo », « lost » ne doit pas attraper « lostness ».
+        self.assertTrue(_has_concrete_issue(_report("fr", "Cette vidéo montre le ciel et la mer calme.")))
 
 
 if __name__ == "__main__":
