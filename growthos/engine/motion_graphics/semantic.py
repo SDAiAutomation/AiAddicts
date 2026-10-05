@@ -50,7 +50,11 @@ def _viewer_strings(scene: dict) -> list[str]:
     out = [_s(scene.get(k)) for k in ("title", "label", "displayValue", "displayText", "text", "emphasis")]
     for key in ("steps", "items", "terms"):
         if isinstance(scene.get(key), list):
-            out.extend(_s(v) for v in scene[key])
+            for value in scene[key]:
+                if isinstance(value, dict):
+                    out.extend((_s(value.get("equation")), _s(value.get("explanation"))))
+                else:
+                    out.append(_s(value))
     for row in scene.get("data") or []:
         if isinstance(row, dict):
             out.extend((_s(row.get("label")), _s(row.get("displayValue"))))

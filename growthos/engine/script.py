@@ -159,6 +159,24 @@ def validate_script(data: dict) -> None:
         motion_graphic = block.get("motion_graphic")
         if motion_graphic is not None and not isinstance(motion_graphic, dict):
             raise ValueError(f"blocks[{i}] : 'motion_graphic' doit être un objet (ou absent)")
+        if isinstance(motion_graphic, dict) and motion_graphic.get("sceneType") == "equation_steps":
+            from .motion_graphics import schema
+            from .motion_graphics.math_validation import verify_steps
+
+            if schema.validate_scene(motion_graphic) is None:
+                raise ValueError(f"blocks[{i}] : scène equation_steps invalide")
+            math_check = verify_steps(motion_graphic["steps"])
+            if math_check["status"] != "verified":
+                raise ValueError(f"blocks[{i}] : résolution mathématique à vérifier ({math_check['reason']})")
+        if isinstance(motion_graphic, dict) and motion_graphic.get("sceneType") == "function_graph":
+            from .motion_graphics import schema
+            from .motion_graphics.math_validation import verify_graph
+
+            if schema.validate_scene(motion_graphic) is None:
+                raise ValueError(f"blocks[{i}] : scène function_graph invalide")
+            graph_check = verify_graph(motion_graphic)
+            if graph_check["status"] != "verified":
+                raise ValueError(f"blocks[{i}] : graphe mathématique à vérifier ({graph_check['reason']})")
 
         retention.validate_block_retention(block, i)
 

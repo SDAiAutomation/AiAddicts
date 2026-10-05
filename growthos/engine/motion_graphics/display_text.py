@@ -33,11 +33,11 @@ import re
 
 # Top-level scalar text fields drawn on screen.
 _TEXT_FIELDS = ("title", "label", "displayValue", "emphasis")
-_NUMBER_FIELDS = ("value", "targetRatio", "maxValue")
+_NUMBER_FIELDS = ("value", "targetRatio", "maxValue", "slope", "intercept", "xMin", "xMax", "yMin", "yMax", "highlightX")
 _LIST_FIELDS = ("steps", "items", "terms")
 _GROUP_FIELDS = ("optionA", "optionB", "before", "after")
 # Engine-internal, set by sync.attach_reveals — never script content.
-_INTERNAL_FIELDS = ("_reveals", "_duration")
+_INTERNAL_FIELDS = ("_reveals", "_duration", "_anchor", "_solutionKind")
 
 # --- Display-text budgets (characters, words) ---------------------------
 #
@@ -209,7 +209,15 @@ def viewer_scene(scene: object) -> dict:
         out["icons"] = [i for i in scene["icons"] if isinstance(i, str)]
     if kind == "icon_text" or "text" in scene or "displayText" in scene:
         out["text"] = display_text_of(scene)
+    if kind == "equation_steps" and isinstance(scene.get("steps"), list):
+        out["steps"] = [
+            {"equation": str(step["equation"]).strip(),
+             "explanation": _clean(step.get("explanation", ""), "label")}
+            for step in scene["steps"] if isinstance(step, dict) and isinstance(step.get("equation"), str)
+        ]
     for key in _LIST_FIELDS:
+        if kind == "equation_steps" and key == "steps":
+            continue
         if isinstance(scene.get(key), list):
             out[key] = [v for v in (_clean(v, "list_item") for v in scene[key]) if v]
     if isinstance(scene.get("data"), list):
@@ -236,7 +244,10 @@ def leaks_in_scene(scene: object) -> list[str]:
         check(scene.get(key))
     for key in _LIST_FIELDS:
         for v in scene.get(key) or []:
-            check(v)
+            if isinstance(v, dict):
+                check(v.get("equation")), check(v.get("explanation"))
+            else:
+                check(v)
     for row in scene.get("data") or []:
         if isinstance(row, dict):
             check(row.get("label")), check(row.get("displayValue"))

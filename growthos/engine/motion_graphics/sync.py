@@ -105,6 +105,31 @@ def compute_reveals(scene: dict, words: list[dict], duration: float) -> list[flo
 def attach_reveals(scene: dict, words: list[dict] | None, duration: float) -> dict:
     """A copy of `scene` carrying `_reveals`/`_duration` when syncable, else
     `scene` itself."""
+    if scene.get("sceneType") == "equation_steps" and duration > 0:
+        steps = scene.get("steps") or []
+        spoken = [(token, float(word.get("start") or 0.0)) for word in (words or [])
+                  for token in _tokens(str(word.get("text") or ""))]
+        if steps and all(isinstance(step, dict) and _tokens(str(step.get("spoken") or "")) for step in steps):
+            reveals, cursor = [], 0
+            for step in steps:
+                phrase = _tokens(str(step["spoken"]))
+                found = next((i for i in range(cursor, len(spoken) - len(phrase) + 1)
+                              if [token for token, _ in spoken[i:i + len(phrase)]] == phrase), None)
+                if found is None:
+                    break
+                reveals.append(round(min(max(0.0, spoken[found][1] - LEAD_SECONDS) / duration, MAX_REVEAL), 4))
+                cursor = found + len(phrase)
+            if len(reveals) == len(steps):
+                return {**scene, "_reveals": reveals, "_duration": float(duration)}
+    if scene.get("sceneType") == "big_number" and isinstance(scene.get("voiceAnchor"), str):
+        anchor = _tokens(scene["voiceAnchor"])
+        spoken = [(token, float(word.get("start") or 0.0)) for word in (words or [])
+                  for token in _tokens(str(word.get("text") or ""))]
+        if anchor and duration > 0:
+            for index in range(len(spoken) - len(anchor) + 1):
+                if [token for token, _ in spoken[index:index + len(anchor)]] == anchor:
+                    at = min(max(0.0, spoken[index][1] - LEAD_SECONDS) / duration, MAX_REVEAL)
+                    return {**scene, "_anchor": round(at, 4), "_duration": float(duration)}
     reveals = compute_reveals(scene, words or [], duration)
     if reveals is None:
         return scene

@@ -1,0 +1,42 @@
+{
+  "title": "Une équation sans solution",
+  "niche": "mathématiques",
+  "account": "math-demo",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "motion_graphics_theme": {"preset": "neutral", "primary": "#59D9F7", "accent": "#FFCC66"},
+  "hashtags": ["#maths", "#equations", "#algebre"],
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Peux-tu trouver x ici ? Deux x plus un égale deux x plus trois.",
+      "motion_graphic": {"sceneType": "icon_text", "displayText": "2x + 1 = 2x + 3", "label": "Cherche x"}
+    },
+    {
+      "role": "point",
+      "text": "On part de deux x plus un égale deux x plus trois. On retire deux x des deux côtés. Il reste un égale trois. C'est impossible, quelle que soit la valeur de x.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Que reste-t-il ?",
+        "steps": [
+          {"equation": "2x + 1 = 2x + 3", "explanation": "Départ", "spoken": "deux x plus un"},
+          {"equation": "1 = 3", "explanation": "On retire 2x", "spoken": "il reste un égale trois"}
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "text": "Aucune valeur de x ne peut rendre un égal à trois. Cette équation n'a donc pas de solution.",
+      "motion_graphic": {"sceneType": "icon_text", "displayText": "Aucune solution", "label": "1 ne vaut pas 3"}
+    },
+    {
+      "role": "cta",
+      "text": "Et si on avait deux x plus un des deux côtés ? Cette fois, combien de solutions y aurait-il ?",
+      "motion_graphic": {"sceneType": "icon_text", "displayText": "2x + 1 = 2x + 1", "label": "À toi de jouer"}
+    }
+  ]
+}

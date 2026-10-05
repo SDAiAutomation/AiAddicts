@@ -112,7 +112,9 @@ def render_big_number(data: dict, t: float, theme: Theme, size: tuple[int, int])
     w, h = size
     _icon(image, draw, theme, size, data.get("icon"), t, y_ratio=0.24)
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.36)
-    _big_value(image, draw, theme, size, data, t, y_ratio=0.48)
+    value_t = anim.phase(t, float(data.get("_anchor") or 0.0),
+                         min(1.0, float(data.get("_anchor") or 0.0) + 0.25)) if "_anchor" in data else t
+    _big_value(image, draw, theme, size, data, value_t, y_ratio=0.48)
     # Phase 2.7: was 0.58, exactly at the (now-tightened) caption-reserved
     # boundary — a couple of rows of margin against canvas.SAFE_BOTTOM_RATIO.
     _label(image, draw, theme, size, data.get("label") or "", t, y_ratio=0.55, start=0.35)
@@ -562,6 +564,97 @@ def render_formula(data: dict, t: float, theme: Theme, size: tuple[int, int]) ->
     return image
 
 
+def render_equation_steps(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
+    """A compact worked derivation, one verified equality per beat."""
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
+    w, h = size
+    _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.14)
+    steps = (data.get("steps") or [])[:4]
+    row_gap = h * 0.092
+    first_y = h * 0.255
+    for index, step in enumerate(steps):
+        p = _stag(data, t, index, len(steps), start=0.04, span=0.68, item_duration=0.24)
+        if p <= 0:
+            continue
+        cy = first_y + index * row_gap
+        color = (theme.negative if data.get("_solutionKind") == "empty" else theme.positive) if index == len(steps) - 1 else theme.text
+        draw.rounded_rectangle((w * 0.07, cy - h * 0.036, w * 0.93, cy + h * 0.061),
+                               radius=round(h * 0.012),
+                               fill=lerp_color(theme.background, theme.primary, 0.08 * p))
+        layout.draw_fitted(draw, (w * 0.5, cy), str(step.get("equation") or ""),
+                           round(h * 0.038), w * 0.78, lerp_color(theme.background, color, p),
+                           bold=True, max_height=h * 0.06)
+        explanation = str(step.get("explanation") or "")
+        if explanation:
+            layout.draw_fitted(draw, (w * 0.5, cy + h * 0.041), explanation,
+                               round(h * 0.017), w * 0.77,
+                               lerp_color(theme.background, theme.secondary, p), max_height=h * 0.024)
+    return image
+
+
+def render_function_graph(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
+    """Draw y = ax + b progressively, with a computed point on the line."""
+    image, draw = canvas.new_frame(size, theme.background, theme.primary)
+    w, h = size
+    _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.13)
+    slope, intercept = float(data["slope"]), float(data["intercept"])
+    x_min, x_max = float(data.get("xMin", -5)), float(data.get("xMax", 5))
+    y_min, y_max = float(data.get("yMin", -5)), float(data.get("yMax", 5))
+    x0, x1, y0, y1 = w * 0.16, w * 0.84, h * 0.29, h * 0.55
+    formula = f"y = {slope:g}x {'+' if intercept >= 0 else '−'} {abs(intercept):g}"
+    layout.draw_fitted(draw, (w / 2, h * 0.205), formula, round(h * 0.036), w * 0.78,
+                       lerp_color(theme.background, theme.text, anim.fade_in(t, 0, 0.2)), bold=True)
+
+    def xy(x: float, y: float) -> tuple[float, float]:
+        return x0 + (x - x_min) / (x_max - x_min) * (x1 - x0), y1 - (y - y_min) / (y_max - y_min) * (y1 - y0)
+
+    grid_color = lerp_color(theme.background, theme.secondary, 0.22)
+    for integer in range(int(x_min), int(x_max) + 1):
+        if x_min <= integer <= x_max:
+            px, _ = xy(integer, y_min)
+            draw.line((px, y0, px, y1), fill=grid_color, width=max(1, round(h * 0.001)))
+    for integer in range(int(y_min), int(y_max) + 1):
+        if y_min <= integer <= y_max:
+            _, py = xy(x_min, integer)
+            draw.line((x0, py, x1, py), fill=grid_color, width=max(1, round(h * 0.001)))
+    axis_color = lerp_color(theme.background, theme.secondary, 0.75)
+    if x_min <= 0 <= x_max:
+        px, _ = xy(0, y_min)
+        draw.line((px, y0, px, y1), fill=axis_color, width=max(2, round(h * 0.002)))
+    if y_min <= 0 <= y_max:
+        _, py = xy(x_min, 0)
+        draw.line((x0, py, x1, py), fill=axis_color, width=max(2, round(h * 0.002)))
+    draw.rectangle((x0, y0, x1, y1), outline=axis_color, width=max(1, round(h * 0.0015)))
+    tick_size = round(h * 0.021)
+    tick_color = lerp_color(theme.background, theme.secondary, 0.8)
+    layout.draw_fitted(draw, (x0, h * 0.565), f"{x_min:g}", tick_size, w * 0.1, tick_color)
+    layout.draw_fitted(draw, (x1, h * 0.565), f"{x_max:g}", tick_size, w * 0.1, tick_color)
+    layout.draw_fitted(draw, (x0 + w * 0.05, y0 + h * 0.018), f"{y_max:g}", tick_size, w * 0.1, tick_color)
+    layout.draw_fitted(draw, (x0 + w * 0.05, y1 - h * 0.018), f"{y_min:g}", tick_size, w * 0.1, tick_color)
+
+    progress = anim.ease_out_cubic(anim.phase(t, 0.10, 0.80))
+    count = max(1, round(160 * progress))
+    previous = None
+    for index in range(count + 1):
+        x = x_min + (x_max - x_min) * index / 160
+        y = slope * x + intercept
+        point = xy(x, y) if y_min <= y <= y_max else None
+        if previous is not None and point is not None:
+            draw.line((*previous, *point), fill=theme.primary, width=max(3, round(h * 0.005)))
+        previous = point
+    if "highlightX" in data:
+        hx = float(data["highlightX"])
+        hy = slope * hx + intercept
+        label = f"x = {hx:g}  →  y = {hy:g}"
+        layout.draw_fitted(draw, (w / 2, h * 0.255), label, round(h * 0.021), w * 0.78,
+                           lerp_color(theme.background, theme.accent, anim.fade_in(t, 0.72, 0.92)))
+        if progress >= (hx - x_min) / (x_max - x_min):
+            px, py = xy(hx, hy)
+            r = h * 0.009 * anim.scale_in(t, 0.70, 0.90, from_scale=0.5)
+            draw.ellipse((px - r, py - r, px + r, py + r), fill=theme.accent)
+    return image
+
+
 _MAX_ICON_ROW = 3
 
 
@@ -634,6 +727,8 @@ _RAW_RENDERERS = {
     "checklist": render_checklist,
     "warning": render_warning,
     "formula": render_formula,
+    "equation_steps": render_equation_steps,
+    "function_graph": render_function_graph,
     "icon_text": render_icon_text,
 }
 

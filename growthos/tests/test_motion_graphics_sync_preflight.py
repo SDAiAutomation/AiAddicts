@@ -1,5 +1,7 @@
 """Narration-synced reveals (sync.py) + layout preflight (preflight.py)."""
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -8,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from PIL import Image, ImageDraw
 
 from engine.motion_graphics import layout, preflight, sync
+from engine.motion_graphics.preview import render_preview
 from engine.motion_graphics.scenes import RENDERERS, _stag
 from engine.motion_graphics.theme import resolve_theme
 
@@ -25,6 +28,36 @@ NARRATION = words(("Keep", 0.2), ("nights", 1.0), ("booked", 1.4), ("and", 1.8),
 
 
 class TestComputeReveals(unittest.TestCase):
+    def test_big_number_anchor_uses_spoken_phrase(self):
+        scene = {"sceneType": "big_number", "displayValue": "$3,000", "voiceAnchor": "monthly income"}
+        timed = sync.attach_reveals(scene, words(("monthly", 2.0), ("income", 2.3)), 5.0)
+        self.assertAlmostEqual(timed["_anchor"], (2.0 - sync.LEAD_SECONDS) / 5.0, places=3)
+        self.assertNotIn("_anchor", scene)
+
+    def test_big_number_anchor_falls_back_when_phrase_is_not_spoken(self):
+        scene = {"sceneType": "big_number", "displayValue": "$3,000", "voiceAnchor": "monthly income"}
+        self.assertNotIn("_anchor", sync.attach_reveals(scene, words(("annual", 2.0)), 5.0))
+
+
+class TestPreview(unittest.TestCase):
+    def test_contact_sheet_uses_same_prepared_scene_as_video(self):
+        from engine import visuals
+
+        block = {"text": "Monthly income rises", "motion_graphic": {
+            "sceneType": "big_number", "title": "Monthly income",
+            "displayValue": "$3,000", "voiceAnchor": "monthly income",
+        }}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            words_path = root / "words.json"
+            words_path.write_text(json.dumps(words(("monthly", 2.0), ("income", 2.3))))
+            scene = visuals.prepare_motion_graphics_scene(block, 5.0, words_path, (270, 480))
+            self.assertIn("_anchor", scene)
+            out = render_preview(scene, [1.0, 3.0], 5.0, root / "sheet.png", "270x480")
+            with Image.open(out) as image:
+                self.assertEqual(image.format, "PNG")
+                self.assertGreater(image.width, image.height)
+
     def test_items_reveal_when_spoken(self):
         r = sync.compute_reveals(CHECKLIST, NARRATION, 7.0)
         self.assertEqual(len(r), 3)

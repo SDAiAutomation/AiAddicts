@@ -224,10 +224,10 @@ ROLE_SCENE_FIT: dict[str, tuple[str, ...]] = {
     "hook": ("big_number", "comparison", "before_after", "warning", "money_split"),
     "setup": ("icon_text", "timeline", "money_split", "progress_bar"),
     "escalation": ("progress_bar", "compound_growth", "bar_chart", "timeline", "donut_chart"),
-    "evidence": ("big_number", "bar_chart", "comparison", "donut_chart", "money_split"),
+    "evidence": ("big_number", "bar_chart", "comparison", "donut_chart", "money_split", "function_graph"),
     "pattern_interrupt": ("warning", "comparison", "before_after", "big_number"),
-    "reveal": ("before_after", "formula", "big_number", "compound_growth"),
-    "payoff": ("formula", "big_number", "before_after", "checklist"),
+    "reveal": ("before_after", "formula", "equation_steps", "function_graph", "big_number", "compound_growth"),
+    "payoff": ("formula", "equation_steps", "big_number", "before_after", "checklist"),
     "cta": ("icon_text", "checklist"),
 }
 ROLE_VISUAL_INTENT = {
@@ -418,7 +418,11 @@ def _viewer_strings(block: dict) -> list[str]:
                 out.append(mg[key])
         for key in _VIEWER_LIST_KEYS:
             if isinstance(mg.get(key), list):
-                out.extend(str(v) for v in mg[key])
+                for value in mg[key]:
+                    if isinstance(value, dict):
+                        out.extend(str(value.get(name) or "") for name in ("equation", "explanation"))
+                    else:
+                        out.append(str(value))
         for row in mg.get("data") or []:
             if isinstance(row, dict):
                 out.extend(str(row.get(k) or "") for k in ("label", "displayValue"))

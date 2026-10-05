@@ -202,6 +202,12 @@ _SAMPLE_SCENES = {
     "checklist": {"sceneType": "checklist", "items": ["Emergency fund", "Pay high-interest debt", "Start investing"]},
     "warning": {"sceneType": "warning", "title": "Don't do this", "label": "Money mistake #1"},
     "formula": {"sceneType": "formula", "terms": ["INCOME", "− SAVINGS", "= SPENDING BUDGET"]},
+    "equation_steps": {"sceneType": "equation_steps", "title": "Solve x", "steps": [
+        {"equation": "2*x + 3 = 11", "explanation": "Start"},
+        {"equation": "x = 4", "explanation": "Answer"},
+    ]},
+    "function_graph": {"sceneType": "function_graph", "title": "The line", "slope": 2, "intercept": 3,
+                       "xMin": 0, "xMax": 5, "yMin": 0, "yMax": 12, "highlightX": 4},
     "icon_text": {"sceneType": "icon_text", "text": "Move your savings first", "icon": "piggy_bank"},
 }
 

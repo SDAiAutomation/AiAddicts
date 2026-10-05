@@ -55,6 +55,19 @@ def render_frame(scene: dict, t: float, size: tuple[int, int], theme: Theme, sce
     return frame.resize((width, height), Image.LANCZOS)
 
 
+def render_still(scene: dict, at_seconds: float, duration: float, out_path: str,
+                 resolution: str = "1080x1920", theme_overrides: dict | None = None) -> str:
+    """Render one frame with the same scene function and theme as the video."""
+    if duration <= 0 or not 0 <= at_seconds <= duration:
+        raise ValueError("at_seconds must be between zero and duration")
+    width, height = (int(v) for v in resolution.split("x"))
+    frame = render_frame(scene, at_seconds / duration, (width, height), resolve_theme(theme_overrides))
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    frame.save(out)
+    return str(out)
+
+
 def _run(cmd: list[str]) -> None:
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)

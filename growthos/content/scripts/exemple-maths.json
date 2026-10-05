@@ -1,0 +1,76 @@
+{
+  "title": "Résoudre 2x + 3 = 11 en 30 secondes",
+  "niche": "mathématiques",
+  "account": "math-demo",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "motion_graphics_theme": {
+    "preset": "neutral",
+    "primary": "#59D9F7",
+    "accent": "#FFCC66"
+  },
+  "hashtags": ["#maths", "#equations", "#algebre"],
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Deux x plus trois égale onze. Tu peux trouver x avant la fin ?",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "2x + 3 = 11",
+        "label": "Trouve x avant la fin"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On part de deux x plus trois égale onze. On retire trois de chaque côté : deux x égale huit. Puis on divise par deux : x égale quatre.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Isoler x",
+        "steps": [
+          {"equation": "2x + 3 = 11", "explanation": "Départ", "spoken": "deux x plus trois"},
+          {"equation": "2x = 8", "explanation": "−3 des deux côtés", "spoken": "on retire trois"},
+          {"equation": "x = 4", "explanation": "÷2 des deux côtés", "spoken": "on divise par deux"}
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "text": "On peut aussi le voir sur le graphe de y égale deux x plus trois. À x égale quatre, la droite atteint onze.",
+      "motion_graphic": {
+        "sceneType": "function_graph",
+        "title": "La même réponse en image",
+        "slope": 2,
+        "intercept": 3,
+        "xMin": 0,
+        "xMax": 5,
+        "yMin": 0,
+        "yMax": 12,
+        "highlightX": 4
+      }
+    },
+    {
+      "role": "point",
+      "text": "Vérification : deux fois quatre plus trois égale onze. La solution est bien quatre.",
+      "motion_graphic": {
+        "sceneType": "big_number",
+        "title": "Vérification",
+        "displayValue": "2 × 4 + 3 = 11",
+        "label": "x = 4",
+        "voiceAnchor": "deux fois quatre"
+      }
+    },
+    {
+      "role": "cta",
+      "text": "À toi maintenant : trois x plus deux égale dix-sept. Quelle valeur pour x ?",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "3x + 2 = 17",
+        "label": "À toi de jouer"
+      }
+    }
+  ]
+}

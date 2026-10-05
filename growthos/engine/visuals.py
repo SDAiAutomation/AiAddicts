@@ -262,26 +262,10 @@ def fetch_motion_graphics_clips(
         if _exists_nonempty(clip_path):
             paths[i] = str(clip_path)
             continue
-        # Fallback text = the scene's own content, else the narration — never the
-        # `visual` shot description (see preflight.fallback_text).
-        from .motion_graphics import preflight as _preflight
-
-        narration = str(block.get("text") or "")
-        fallback_text = _preflight.fallback_text(block.get("motion_graphic"), narration)
-        schema_invalid = motion_graphics.validate_scene(block.get("motion_graphic")) is None
-        scene = motion_graphics.resolve_scene(block.get("motion_graphic"), fallback_text)
-        # Phase 5.2 : une scène dont les DONNÉES ne signifient rien (placeholder, graphique sans valeur,
-        # comparaison vide…) n'est jamais dessinée ; repli typographique sûr, RECORDÉ, aucune valeur inventée.
-        semantic = motion_semantic.semantic_issues(scene)
-        if semantic or schema_invalid:
-            replacement = motion_semantic.fallback_scene(block.get("motion_graphic") if schema_invalid else scene, narration)
-            scene = motion_graphics.resolve_scene(replacement, motion_semantic.fallback_text(replacement, narration))
-            reason = ", ".join(x["code"] for x in semantic) or "structure incomplète"
-            print(f"       bloc {i + 1} : scène inutilisable ({reason}) — repli {scene.get('sceneType')}")
         duration = durations[i] if i < len(durations) else 3.0
-        scene = _sync_and_preflight(
-            scene, fallback_text, duration, Path(work_dir) / "audio" / f"block-{i + 1:02d}.words.json",
-            (int(v) for v in resolution.split("x")), theme_overrides, i, preflight_report, semantic, schema_invalid,
+        scene = prepare_motion_graphics_scene(
+            block, duration, Path(work_dir) / "audio" / f"block-{i + 1:02d}.words.json",
+            tuple(int(v) for v in resolution.split("x")), theme_overrides, i, preflight_report,
         )
         try:
             motion_graphics.render_scene_clip(
@@ -294,9 +278,50 @@ def fetch_motion_graphics_clips(
     return _fill_missing_visuals(paths)
 
 
+def prepare_motion_graphics_scene(
+    block: dict, duration: float, words_path: Path, size: tuple[int, int],
+    theme_overrides: dict | None = None, block_index: int = 0, report: list | None = None,
+) -> dict:
+    """Prepare one scene for either a full clip or a fast still preview."""
+    from .motion_graphics import preflight
+
+    narration = str(block.get("text") or "")
+    raw = block.get("motion_graphic")
+    math_check = None
+    if isinstance(raw, dict) and raw.get("sceneType") == "equation_steps":
+        from .motion_graphics.math_validation import verify_steps
+
+        math_check = verify_steps(raw.get("steps"))
+    elif isinstance(raw, dict) and raw.get("sceneType") == "function_graph":
+        from .motion_graphics.math_validation import verify_graph
+
+        math_check = verify_graph(raw)
+    fallback_text = preflight.fallback_text(raw, narration)
+    schema_invalid = motion_graphics.validate_scene(raw) is None
+    scene = motion_graphics.resolve_scene(raw, fallback_text)
+    semantic = motion_semantic.semantic_issues(scene)
+    if semantic or schema_invalid:
+        replacement = motion_semantic.fallback_scene(raw if schema_invalid else scene, narration)
+        scene = motion_graphics.resolve_scene(replacement, motion_semantic.fallback_text(replacement, narration))
+        reason = ", ".join(x["code"] for x in semantic) or "structure incomplète"
+        print(f"       bloc {block_index + 1} : scène inutilisable ({reason}) — repli {scene.get('sceneType')}")
+    if math_check and math_check["status"] != "verified":
+        scene = motion_graphics.resolve_scene(
+            {"sceneType": "icon_text", "text": "Vérification mathématique nécessaire"},
+            "Vérification mathématique nécessaire",
+        )
+    elif math_check and scene.get("sceneType") == "equation_steps":
+        scene = {**scene, "_solutionKind": math_check["solutionKind"]}
+    return _sync_and_preflight(
+        scene, fallback_text, duration, words_path, size, theme_overrides,
+        block_index, report, semantic, schema_invalid, math_check,
+    )
+
+
 def _sync_and_preflight(
     scene: dict, fallback_text: str, duration: float, words_path: Path, size, theme_overrides: dict | None,
     block_index: int, report: list | None, semantic: list | None = None, schema_invalid: bool = False,
+    math_check: dict | None = None,
 ) -> dict:
     """1) révélations calées sur la voix (engine/motion_graphics/sync.py),
     2) contrôle de mise en page de l'image finale (preflight.py) — une erreur
@@ -307,6 +332,11 @@ def _sync_and_preflight(
     from .motion_graphics.theme import resolve_theme
 
     entry: dict = {"blockIndex": block_index, "sceneType": scene.get("sceneType"), "synced": False, "action": "none"}
+    if math_check:
+        entry["mathVerification"] = math_check
+        if math_check["status"] != "verified":
+            entry["manualReview"] = True
+            entry["action"] = "math_review"
     if schema_invalid:
         entry["action"] = "fallback_schema"  # structure incomplète : repli icon_text (comportement historique), désormais RECORDÉ
     if semantic:
@@ -316,7 +346,12 @@ def _sync_and_preflight(
         w, h = tuple(size)
         if words_path.exists():
             scene = sync.attach_reveals(scene, json.loads(words_path.read_text(encoding="utf-8")), duration)
-            entry["synced"] = "_reveals" in scene
+            entry["synced"] = "_reveals" in scene or "_anchor" in scene
+            if scene.get("sceneType") == "equation_steps" and all(
+                isinstance(step, dict) and step.get("spoken") for step in scene.get("steps") or []
+            ) and not entry["synced"]:
+                entry["manualReview"] = True
+                entry["action"] = "voice_sync_review"
         result = preflight.check_scene(scene, resolve_theme(theme_overrides), (w, h))
         entry.update({"minFontPx": result["minFontPx"], "errors": result["errors"], "warnings": result["warnings"]})
         if not result["ok"]:

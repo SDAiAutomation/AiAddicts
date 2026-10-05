@@ -488,6 +488,8 @@ def _quality_fields(metrics: dict | None, final_video: str) -> dict:
         return {}
     score, flags = quality.score_generation(metrics, final_video)
     fields: dict = {"quality_score": score, "quality_flags": flags}
+    if any(r.get("manualReview") for r in metrics.get("motion_preflight") or []):
+        fields["status"] = "quality_check"
     if score < quality.PASS_THRESHOLD:
         fields["status"] = "quality_check"
 

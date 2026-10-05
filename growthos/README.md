@@ -120,6 +120,8 @@ Deux champs optionnels par bloc, générés par `growthos-web` dans le MÊME app
 
 `visual_style: "motion_graphics"` bascule chaque bloc sur un **rendu local** (numéros animés, graphiques, checklists, formules...) au lieu d'une image IA ou d'un clip Pexels — voir `engine/motion_graphics/`. Aucun appel réseau : les frames sont dessinées avec Pillow (police intégrée `ImageFont.load_default`, pas de fichier de police à livrer) puis encodées en `.mp4` par ffmpeg, un clip par bloc, à la durée exacte de sa voix off — le même format que les autres visuels par bloc, donc `engine/video.py` n'a rien à connaître de plus.
 
+Pour une scène `big_number`, le champ optionnel `voiceAnchor` (ex. `"monthly income"`) fait apparaître la valeur quand cette expression est prononcée, si les timings mot à mot sont disponibles. Sans correspondance, l'animation habituelle s'applique. Pour inspecter une image sans encoder le clip : `python -m engine.motion_graphics.preview script.json --block 1 --at 2.0 --duration 5.0 --words output/<projet>/audio/block-01.words.json --out preview.png`. Plusieurs instants (`--at 0,1,2.5,5`) produisent une planche contact. L'aperçu passe par la même validation, le même calage vocal et les mêmes replis que le clip final. `--words` est facultatif ; `--at` et `--duration` sont relatifs au bloc.
+
 Chaque bloc porte un objet `motion_graphic` — c'est le contrat que **growthos-web** (`ai-actions.ts`) doit produire en plus de `text`/`visual` quand ce style est choisi :
 
 ```json
@@ -136,7 +138,15 @@ Chaque bloc porte un objet `motion_graphic` — c'est le contrat que **growthos-
 }
 ```
 
-13 types (`engine/motion_graphics/schema.py::SCENE_TYPES`) : `big_number`, `money_split`, `progress_bar`, `bar_chart`, `donut_chart`, `comparison`, `before_after`, `timeline`, `compound_growth`, `checklist`, `warning`, `formula`, `icon_text`. Le renderer **n'invente jamais un chiffre** : tout ce qui s'affiche vient de `value`/`displayValue`/`data` fournis par le script. Un `motion_graphic` absent, mal formé ou d'un type inconnu ne fait jamais échouer le rendu — repli automatique sur une scène `icon_text` construite à partir de `visual`/`text` du bloc (voir `resolve_scene`).
+15 types (`engine/motion_graphics/schema.py::SCENE_TYPES`) : `big_number`, `money_split`, `progress_bar`, `bar_chart`, `donut_chart`, `comparison`, `before_after`, `timeline`, `compound_growth`, `checklist`, `warning`, `formula`, `equation_steps`, `function_graph`, `icon_text`. Le renderer **n'invente jamais un chiffre** : tout ce qui s'affiche vient de `value`/`displayValue`/`data` fournis par le script ou de calculs déterministes sur ces valeurs. Un `motion_graphic` absent, mal formé ou d'un type inconnu ne fait jamais échouer le rendu — repli automatique sur une scène `icon_text` construite à partir de `visual`/`text` du bloc (voir `resolve_scene`).
+
+### Chaîne de maths : équations linéaires
+
+`equation_steps` affiche 2 à 4 égalités successives (`steps: [{"equation":"2x + 3 = 11","explanation":"Départ","spoken":"deux x plus trois"}, ...]`). `equation` et `explanation` sont visibles ; `spoken` est une expression exacte de la narration servant d'ancre temporelle quand les timings mot à mot existent. Sans timings ou sans correspondance complète, les étapes apparaissent à intervalles réguliers. Le visuel est vertical, garde la zone des sous-titres libre et se prévisualise avec la commande ci-dessus. Exemple complet : `content/scripts/exemple-maths.json`.
+
+Avant tout appel de génération payant, le validateur vérifie exactement que chaque égalité linéaire à une variable `x` conserve le même ensemble de solutions. Il accepte nombres rationnels/décimaux, parenthèses, `+`, `-`, `*`, `×`, `/`, `÷` et `2x`. Une étape fausse ou un domaine non pris en charge (puissances, fonctions, plusieurs variables, divisions par expression contenant `x`) exige une revue : le script est refusé avant synthèse vocale. Si une scène arrive directement au rendu malgré ce contrôle, le moteur masque la démonstration, inscrit `mathVerification` au rapport et force `quality_check`. Ce contrôle algébrique ne remplace pas la revue pédagogique du texte parlé.
+
+`function_graph` trace progressivement `y = slope × x + intercept` sur les bornes `xMin/xMax/yMin/yMax`. `highlightX` marque un point et sa coordonnée `y` est calculée, jamais fournie comme affirmation libre. Le vérificateur refuse les bornes incohérentes ou un point hors cadre. Le Short d'exemple combine résolution, graphe, vérification par substitution et exercice final.
 
 Thème optionnel : `motion_graphics_theme` au niveau du script (`{"primary": "#22C55E", ...}`, voir `engine/motion_graphics/theme.py::Theme`) surcharge le thème neutre par défaut — jamais spécifique à un compte dans le moteur lui-même. Voir `exemple-motion-graphics.json`.
 

@@ -29,7 +29,7 @@ from __future__ import annotations
 SCENE_TYPES = (
     "big_number", "money_split", "progress_bar", "bar_chart", "donut_chart",
     "comparison", "before_after", "timeline", "compound_growth", "checklist",
-    "warning", "formula", "icon_text",
+    "warning", "formula", "equation_steps", "function_graph", "icon_text",
 )
 
 # Used by the renderer when the requested scene type is unknown or its data
@@ -52,6 +52,8 @@ _REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "checklist": ("items",),
     "warning": ("title",),
     "formula": ("terms",),
+    "equation_steps": ("steps",),
+    "function_graph": ("slope", "intercept"),
     "icon_text": ("displayText|text",),
 }
 
@@ -95,11 +97,23 @@ def validate_scene(raw: object) -> dict | None:
         if field == "data":
             if not (isinstance(value, list) and value and all(_valid_data_item(v) for v in value)):
                 return None
+        elif field == "steps" and scene_type == "equation_steps":
+            if not (isinstance(value, list) and 2 <= len(value) <= 4 and all(
+                isinstance(step, dict) and isinstance(step.get("equation"), str)
+                and 0 < len(step["equation"]) <= 80
+                and ("explanation" not in step or isinstance(step["explanation"], str))
+                and ("spoken" not in step or isinstance(step["spoken"], str))
+                for step in value
+            )):
+                return None
         elif field in ("steps", "items", "terms"):
             if not _valid_string_list(value):
                 return None
         elif field in ("optionA", "optionB", "before", "after"):
             if not _valid_labelled_group(value):
+                return None
+        elif field in ("slope", "intercept"):
+            if not _is_number(value) or not -100 <= value <= 100:
                 return None
         elif field == "targetRatio":
             if not _is_number(value):

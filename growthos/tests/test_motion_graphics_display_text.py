@@ -150,7 +150,7 @@ class TestStructuredContract(unittest.TestCase):
 
 
 class TestAllSceneTypesIgnoreProductionFields(unittest.TestCase):
-    """Audit: all 13 scene types, each with production fields injected next to
+    """Audit: all scene types, each with production fields injected next to
     valid viewer content. None of them may reach a text-drawing call."""
 
     LEAK = "Animation: icons pop in sequentially with camera zoom"
@@ -167,12 +167,17 @@ class TestAllSceneTypesIgnoreProductionFields(unittest.TestCase):
         "checklist": {"title": "Do", "items": ["Automate", "Separate", "Review"]},
         "warning": {"title": "Careful", "label": "Fees"},
         "formula": {"title": "Rule", "terms": ["Income", "- Savings", "= Budget"]},
+        "equation_steps": {"title": "Solve", "steps": [
+            {"equation": "2x+3=11", "explanation": "Start", "spoken": "private timing"},
+            {"equation": "x=4", "explanation": "Answer", "spoken": "private timing"},
+        ]},
+        "function_graph": {"title": "Line", "slope": 2, "intercept": 3, "highlightX": 1},
         "icon_text": {"text": "Small purchases add up", "icon": "wallet"},
     }
 
-    def test_there_are_13_scene_types(self):
+    def test_every_scene_type_is_covered(self):
         self.assertEqual(set(self.SAMPLES), set(schema.SCENE_TYPES))
-        self.assertEqual(len(RENDERERS), 13)
+        self.assertEqual(len(RENDERERS), 15)
 
     def test_production_fields_never_reach_a_draw_call(self):
         for kind, base in self.SAMPLES.items():

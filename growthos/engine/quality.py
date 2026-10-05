@@ -135,6 +135,10 @@ def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:
     # (`styleIntegrityPreserved=True`). Purement déterministe, aucun appel IA
     # (engine/visuals.is_style_integrity_preserved).
     visual_fallbacks = metrics.get("visual_fallbacks") or []
+    math_reviews = [r for r in metrics.get("motion_preflight") or [] if r.get("manualReview")]
+    if math_reviews:
+        score -= min(30, 15 * len(math_reviews))
+        flags.append(f"{len(math_reviews)} démonstration(s) mathématique(s) à vérifier avant publication.")
     broken = [f for f in visual_fallbacks if not f.get("styleIntegrityPreserved", True)]
     if broken:
         score -= min(30, 15 * len(broken))

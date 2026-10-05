@@ -1,0 +1,43 @@
+{
+  "title": "Le signe oublié dans -2x = 8",
+  "niche": "mathématiques",
+  "account": "math-demo",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "motion_graphics_theme": {"preset": "neutral", "primary": "#59D9F7", "accent": "#FFCC66"},
+  "hashtags": ["#maths", "#equations", "#algebre"],
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Moins deux x égale huit. Est-ce que x vaut quatre, ou moins quatre ?",
+      "motion_graphic": {"sceneType": "icon_text", "displayText": "−2x = 8", "label": "4 ou −4 ?"}
+    },
+    {
+      "role": "point",
+      "text": "On part de moins deux x égale huit. On divise les deux côtés par moins deux. Huit divisé par moins deux égale moins quatre. Donc x égale moins quatre.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Le signe compte",
+        "steps": [
+          {"equation": "−2x = 8", "explanation": "Départ", "spoken": "moins deux x"},
+          {"equation": "x = 8 ÷ (−2)", "explanation": "Diviser les deux côtés", "spoken": "on divise les deux côtés"},
+          {"equation": "x = −4", "explanation": "Positif ÷ négatif = négatif", "spoken": "x égale moins quatre"}
+        ]
+      }
+    },
+    {
+      "role": "point",
+      "text": "Vérifions : moins deux fois moins quatre égale huit. Le signe négatif fait partie du calcul.",
+      "motion_graphic": {"sceneType": "icon_text", "displayText": "(−2) × (−4) = 8", "label": "Vérification"}
+    },
+    {
+      "role": "cta",
+      "text": "À toi : moins trois x égale douze. Quelle est la valeur de x ?",
+      "motion_graphic": {"sceneType": "icon_text", "displayText": "−3x = 12", "label": "À toi de jouer"}
+    }
+  ]
+}
