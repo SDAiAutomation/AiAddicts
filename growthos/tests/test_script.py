@@ -176,6 +176,24 @@ class TestValidateScript(unittest.TestCase):
                 "transformation_mode": "preserve",
             })
 
+    def test_preserve_rejects_changed_or_missing_words(self):
+        source = "Résoudre 3.14x = 6.28. Donc x = 2."
+        data = {
+            **VALID,
+            "source_type": "pasted_text",
+            "transformation_mode": "preserve",
+            "source_text": source,
+            "blocks": [
+                {"role": "hook", "text": "Résoudre 3.14x = 6.28."},
+                {"role": "cta", "text": "Donc x = 2."},
+            ],
+        }
+        validate_script(data)
+        with self.assertRaisesRegex(ValueError, "diffère du texte source"):
+            validate_script({**data, "blocks": [{"role": "hook", "text": "Donc x = 2."}]})
+        with self.assertRaisesRegex(ValueError, "diffère du texte source"):
+            validate_script({**data, "blocks": [{"role": "hook", "text": "Résoudre 3.14x = 6.28. Donc x = 3."}]})
+
     def test_pasted_text_requires_known_transformation(self):
         with self.assertRaisesRegex(ValueError, "transformation_mode"):
             validate_script({

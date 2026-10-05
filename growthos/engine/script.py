@@ -147,6 +147,16 @@ def validate_script(data: dict) -> None:
             "raccourcis le texte pour garder une vidéo dans le budget de génération"
         )
 
+    if source_type == "pasted_text" and transformation_mode == "preserve":
+        spoken_text = " ".join(
+            str(block.get("text", "")) for block in blocks if isinstance(block, dict)
+        )
+        if " ".join(spoken_text.split()) != " ".join(source_text.split()):
+            raise ValueError(
+                "le script en mode préserver diffère du texte source ; "
+                "restaure le texte ou choisis le mode adapter"
+            )
+
     for i, block in enumerate(blocks):
         text = block.get("text", "").strip()
         role = block.get("role")
