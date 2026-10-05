@@ -570,6 +570,12 @@ def _mix_hex(a: str, b: str, t: float) -> str:
     return "#%02x%02x%02x" % lerp_color(a, b, t)
 
 
+def _display_case(text: str) -> str:
+    """Display lines are upper-cased, except an equation: `3x - 5 = 10` must not become `3X - 5 = 10`
+    (the variable is lower-case in maths)."""
+    return text if "=" in text and any(ch.isdigit() for ch in text) else text.upper()
+
+
 def _equation_tokens(equation: str) -> list[str]:
     return str(equation or "").split()
 
@@ -755,7 +761,7 @@ def render_icon_text(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     color = lerp_color(theme.background, theme.text, anim.fade_in(t, 0.1, 0.35))
     offset = anim.slide_up(t, 0.05, 0.35, distance=16)
     box = layout.draw_fitted(
-        draw, (w / 2, h * 0.48 + offset), text.upper(), round(h * 0.046), w * 0.84, color,
+        draw, (w / 2, h * 0.48 + offset), _display_case(text), round(h * 0.046), w * 0.84, color,
         bold=True, wrap_first=True,
     )
     if data.get("label"):

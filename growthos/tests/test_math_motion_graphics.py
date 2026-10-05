@@ -240,5 +240,14 @@ class TestEquationTransformation(unittest.TestCase):
         self.assertTrue(any(b["text"].startswith("2x + 3 - 3") for b in boxes) or report["minFontPx"] is not None)
 
 
+class TestEquationCase(unittest.TestCase):
+    def test_an_equation_keeps_its_lowercase_variable_other_text_is_upper_cased(self):
+        from engine.motion_graphics.scenes import _display_case
+        self.assertEqual(_display_case("3x - 5 = 10"), "3x - 5 = 10")
+        self.assertEqual(_display_case("Solution: x = 5"), "Solution: x = 5")
+        self.assertEqual(_display_case("Trouve x"), "TROUVE X")
+        self.assertEqual(_display_case("deux points = deux"), "DEUX POINTS = DEUX")
+
+
 if __name__ == "__main__":
     unittest.main()
