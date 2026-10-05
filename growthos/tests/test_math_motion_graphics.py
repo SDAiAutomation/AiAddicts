@@ -6,6 +6,7 @@ from pathlib import Path
 
 from engine import assembler, script, visuals, voices
 from engine.motion_graphics import preflight, schema, sync
+from engine.motion_graphics.layout import record_boxes as layout_recorder
 from engine.motion_graphics.math_validation import UnsupportedMath, solution_set, verify_graph, verify_steps
 from engine.motion_graphics.preview import render_preview
 from engine.motion_graphics.theme import resolve_theme
@@ -142,6 +143,101 @@ class TestEquationScene(unittest.TestCase):
             }, str(video_path))
         self.assertEqual(fields["status"], "quality_check")
         self.assertTrue(any("mathématique" in flag for flag in fields["quality_flags"]))
+
+
+class TestMathLayoutReadability(unittest.TestCase):
+    """Phone readability of the two math scenes (benchmark 2026-10-05: the step captions rendered at
+    33 px and the graph labels at 40 px on a 1080x1920 frame, the equations pinned to the top)."""
+
+    SIZE = (1080, 1920)
+
+    def _report(self, scene):
+        report = preflight.check_scene(scene, resolve_theme(None), self.SIZE)
+        self.assertTrue(report["ok"], report["errors"])
+        return report
+
+    def test_equation_steps_stay_readable_from_two_to_four_steps(self):
+        pool = [
+            {"equation": "2x + 3 = 11", "explanation": "Départ"},
+            {"equation": "2x + 3 - 3 = 11 - 3", "explanation": "On retire 3 des deux côtés de l'égalité"},
+            {"equation": "2x = 8", "explanation": "On simplifie"},
+            {"equation": "x = 4", "explanation": "On divise les deux côtés par 2"},
+        ]
+        for count in (2, 3, 4):
+            with self.subTest(steps=count):
+                report = self._report({"sceneType": "equation_steps", "title": "Isoler x", "steps": pool[:count]})
+                self.assertGreaterEqual(report["minFontPx"], 40)
+
+    def test_equation_stack_is_centred_in_the_content_zone_and_independent_of_reveal_time(self):
+        from engine.motion_graphics import layout, scenes
+        scene = {"sceneType": "equation_steps", "title": "Isoler x", "steps": STEPS}
+        theme = resolve_theme(None)
+        early = scenes.render_equation_steps(dict(scene), 0.3, theme, self.SIZE)
+        late = scenes.render_equation_steps(dict(scene), 4.9, theme, self.SIZE)
+        _, _, _, bottom = layout.content_zone(*self.SIZE)
+        # nothing is drawn in the caption-reserved band, and the first row does not move when more appear
+        for image in (early, late):
+            band = image.crop((0, bottom + 4, self.SIZE[0], self.SIZE[1])).convert("L")
+            self.assertLess(band.getextrema()[1] - band.getextrema()[0], 40)
+        row = (80, round(self.SIZE[1] * 0.2), self.SIZE[0] - 80, round(self.SIZE[1] * 0.22))
+        self.assertEqual(early.crop(row).convert("L").getextrema()[0] > 0, late.crop(row).convert("L").getextrema()[0] > 0)
+
+    def test_function_graph_labels_stay_readable(self):
+        graph = {"sceneType": "function_graph", "title": "La même réponse en image", "slope": 2,
+                 "intercept": 3, "xMin": 0, "xMax": 5, "yMin": 0, "yMax": 12, "highlightX": 4}
+        self.assertGreaterEqual(self._report(graph)["minFontPx"], 45)
+
+
+class TestEquationTransformation(unittest.TestCase):
+    """The derivation reads as a transformation: changed tokens are picked out, a scene never opens on
+    an empty frame, and a new step does not move the ones already on screen."""
+
+    SIZE = (1080, 1920)
+
+    def test_changed_tokens_are_the_new_or_rewritten_parts(self):
+        from engine.motion_graphics.scenes import _changed_flags
+        # the operation applied to both sides shows up as the two new "- 3" pairs
+        self.assertEqual(_changed_flags("2x + 3 = 11", "2x + 3 - 3 = 11 - 3"),
+                         [False, False, False, True, True, False, False, True, True])
+        self.assertEqual(_changed_flags("3x - 5 = 10", "3x = 15"), [False, False, True])
+
+    def test_formatting_only_or_total_rewrites_highlight_nothing(self):
+        from engine.motion_graphics.scenes import _changed_flags
+        self.assertEqual(_changed_flags("2*x = 8", "2x = 8"), [False, False, False])
+        self.assertEqual(_changed_flags("2x = 8", "2x = 8"), [False, False, False])
+        self.assertEqual(_changed_flags("a b c", "d e f"), [False, False, False])
+        self.assertEqual(_changed_flags("", "x = 4"), [False, False, False])
+
+    def test_first_step_is_visible_on_the_very_first_frame(self):
+        from PIL import ImageChops
+        from engine.motion_graphics import scenes
+        theme = resolve_theme(None)
+        scene = {"sceneType": "equation_steps", "steps": STEPS}
+        first = scenes.render_equation_steps(dict(scene), 0.0, theme, self.SIZE)
+        empty = scenes.render_equation_steps({"sceneType": "equation_steps", "steps": []}, 0.0, theme, self.SIZE)
+        self.assertIsNotNone(ImageChops.difference(first, empty).getbbox(), "frame 1 must already show the first equation")
+
+    def test_unrevealed_steps_draw_nothing(self):
+        from PIL import ImageChops
+        from engine.motion_graphics import layout, scenes
+        theme = resolve_theme(None)
+        scene = {"sceneType": "equation_steps", "steps": STEPS, "_reveals": [0.0, 0.9, 0.95], "_duration": 10.0}
+        early = scenes.render_equation_steps(dict(scene), 0.3, theme, self.SIZE)
+        backdrop = scenes.render_equation_steps({"sceneType": "equation_steps", "steps": []}, 0.3, theme, self.SIZE)
+        w, h = self.SIZE
+        top, bottom = h * 0.185, layout.content_zone(w, h)[3] - h * 0.02
+        row_h = min((bottom - top) / len(STEPS), h * 0.17)
+        third = (80, round(top + 2 * row_h + 4), w - 80, round(top + 3 * row_h - 4))
+        self.assertIsNone(ImageChops.difference(early.crop(third), backdrop.crop(third)).getbbox(),
+                          "a step that has not appeared yet leaves no empty box")
+
+    def test_highlighted_equation_is_still_checked_by_preflight(self):
+        scene = {"sceneType": "equation_steps", "steps": [
+            {"equation": "2x + 3 = 11"}, {"equation": "2x + 3 - 3 = 11 - 3"}, {"equation": "2x = 8"}, {"equation": "x = 4"}]}
+        with layout_recorder() as boxes:
+            report = preflight.check_scene(scene, resolve_theme(None), self.SIZE)
+        self.assertTrue(report["ok"], report["errors"])
+        self.assertTrue(any(b["text"].startswith("2x + 3 - 3") for b in boxes) or report["minFontPx"] is not None)
 
 
 if __name__ == "__main__":

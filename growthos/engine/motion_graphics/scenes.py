@@ -23,6 +23,7 @@ look different from each other rather than sharing one identical backdrop.
 """
 from __future__ import annotations
 
+import difflib
 import functools
 
 from PIL import Image, ImageDraw
@@ -564,31 +565,90 @@ def render_formula(data: dict, t: float, theme: Theme, size: tuple[int, int]) ->
     return image
 
 
+def _mix_hex(a: str, b: str, t: float) -> str:
+    """`lerp_color` returns an RGB tuple but takes hex strings: this one stays hex so blends can be nested."""
+    return "#%02x%02x%02x" % lerp_color(a, b, t)
+
+
+def _equation_tokens(equation: str) -> list[str]:
+    return str(equation or "").split()
+
+
+def _changed_flags(previous: str, current: str) -> list[bool]:
+    """For each token of `current`, whether it differs from the previous step (the new or rewritten
+    parts of a derivation). Formatting-only differences (`2*x` vs `2x`, `−` vs `-`) do not count.
+    No highlight at all when nothing, or nearly everything, changed: it would carry no information."""
+    def norm(token: str) -> str:
+        return token.replace("*", "").replace("−", "-").replace("×", "*").replace("÷", "/")
+
+    before, after = [norm(t) for t in _equation_tokens(previous)], [norm(t) for t in _equation_tokens(current)]
+    flags = [True] * len(after)
+    for block in difflib.SequenceMatcher(None, before, after, autojunk=False).get_matching_blocks():
+        for k in range(block.b, block.b + block.size):
+            flags[k] = False
+    changed = sum(flags)
+    return flags if 0 < changed < len(flags) * 0.8 else [False] * len(flags)
+
+
 def render_equation_steps(data: dict, t: float, theme: Theme, size: tuple[int, int]) -> Image.Image:
-    """A compact worked derivation, one verified equality per beat."""
+    """A compact worked derivation, one verified equality per beat.
+
+    The stack fills the real content zone (between the title and the caption-reserved band) and is
+    centred in it: fewer steps get taller rows and a bigger equation, instead of a small block pinned
+    to the top with the rest of the screen empty. Row positions depend on the TOTAL step count, so a
+    step appearing never moves the ones already shown.
+
+    The derivation reads as a transformation, not as a list: a new step slides down out of the
+    previous one, the tokens that changed are picked out in the accent colour, and the previous
+    step dims so the eye follows the newest line. The first step is already on screen at frame 1
+    (a scene never opens on an empty frame)."""
     image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
     _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.14)
     steps = (data.get("steps") or [])[:4]
-    row_gap = h * 0.092
-    first_y = h * 0.255
+    if not steps:
+        return image
+    _, _, _, content_bottom = layout.content_zone(w, h)
+    top, bottom = h * 0.185, content_bottom - h * 0.02
+    row_h = min((bottom - top) / len(steps), h * 0.17)
+    gap = row_h * 0.12
+    start_y = top + ((bottom - top) - row_h * len(steps)) / 2
+    equation_px = round(min(row_h * 0.40, h * 0.07))
+    explanation_px = round(max(h * 0.026, row_h * 0.14))
+    progress = [_stag(data, t, i, len(steps), start=0.04, span=0.68, item_duration=0.24) for i in range(len(steps))]
+    progress[0] = max(progress[0], 0.5)
     for index, step in enumerate(steps):
-        p = _stag(data, t, index, len(steps), start=0.04, span=0.68, item_duration=0.24)
+        p = progress[index]
         if p <= 0:
             continue
-        cy = first_y + index * row_gap
-        color = (theme.negative if data.get("_solutionKind") == "empty" else theme.positive) if index == len(steps) - 1 else theme.text
-        draw.rounded_rectangle((w * 0.07, cy - h * 0.036, w * 0.93, cy + h * 0.061),
-                               radius=round(h * 0.012),
+        y0 = start_y + index * row_h - (1 - p) * row_h * 0.45 * (index > 0)
+        panel_h = row_h - gap
+        last = index == len(steps) - 1
+        base = (theme.negative if data.get("_solutionKind") == "empty" else theme.positive) if last else theme.text
+        # the previous line dims while the next one comes in
+        dim = 0.0 if last else 0.4 * progress[index + 1]
+        text_color = lerp_color(theme.background, _mix_hex(base, theme.secondary, dim), p)
+        draw.rounded_rectangle((w * 0.07, y0, w * 0.93, y0 + panel_h),
+                               radius=round(h * 0.014),
                                fill=lerp_color(theme.background, theme.primary, 0.08 * p))
-        layout.draw_fitted(draw, (w * 0.5, cy), str(step.get("equation") or ""),
-                           round(h * 0.038), w * 0.78, lerp_color(theme.background, color, p),
-                           bold=True, max_height=h * 0.06)
         explanation = str(step.get("explanation") or "")
+        equation_y = y0 + panel_h * (0.40 if explanation else 0.50)
+        equation = str(step.get("equation") or "")
+        flags = _changed_flags(steps[index - 1].get("equation") or "", equation) if index > 0 and not last else []
+        if any(flags):
+            tokens = _equation_tokens(equation)
+            accent = lerp_color(theme.background, _mix_hex(theme.accent, theme.secondary, dim), p)
+            segments = [(token + (" " if k < len(tokens) - 1 else ""), accent if flags[k] else text_color)
+                        for k, token in enumerate(tokens)]
+            layout.draw_fitted_segments(draw, (w * 0.5, equation_y), segments, equation_px, w * 0.80,
+                                        bold=True, max_height=panel_h * 0.5)
+        else:
+            layout.draw_fitted(draw, (w * 0.5, equation_y), equation, equation_px, w * 0.80, text_color,
+                               bold=True, max_height=panel_h * 0.5)
         if explanation:
-            layout.draw_fitted(draw, (w * 0.5, cy + h * 0.041), explanation,
-                               round(h * 0.017), w * 0.77,
-                               lerp_color(theme.background, theme.secondary, p), max_height=h * 0.024)
+            layout.draw_fitted(draw, (w * 0.5, y0 + panel_h * 0.78), explanation,
+                               explanation_px, w * 0.80,
+                               lerp_color(theme.background, theme.secondary, p), max_height=panel_h * 0.22)
     return image
 
 
@@ -600,9 +660,13 @@ def render_function_graph(data: dict, t: float, theme: Theme, size: tuple[int, i
     slope, intercept = float(data["slope"]), float(data["intercept"])
     x_min, x_max = float(data.get("xMin", -5)), float(data.get("xMax", 5))
     y_min, y_max = float(data.get("yMin", -5)), float(data.get("yMax", 5))
-    x0, x1, y0, y1 = w * 0.16, w * 0.84, h * 0.29, h * 0.55
+    # The box ends where the content zone does (the caption-reserved band starts there), leaving
+    # just enough room under it for the axis labels.
+    _, _, _, content_bottom = layout.content_zone(w, h)
+    tick_gap = h * 0.04
+    x0, x1, y0, y1 = w * 0.14, w * 0.86, h * 0.29, content_bottom - tick_gap
     formula = f"y = {slope:g}x {'+' if intercept >= 0 else '−'} {abs(intercept):g}"
-    layout.draw_fitted(draw, (w / 2, h * 0.205), formula, round(h * 0.036), w * 0.78,
+    layout.draw_fitted(draw, (w / 2, h * 0.205), formula, round(h * 0.044), w * 0.78,
                        lerp_color(theme.background, theme.text, anim.fade_in(t, 0, 0.2)), bold=True)
 
     def xy(x: float, y: float) -> tuple[float, float]:
@@ -625,10 +689,10 @@ def render_function_graph(data: dict, t: float, theme: Theme, size: tuple[int, i
         _, py = xy(x_min, 0)
         draw.line((x0, py, x1, py), fill=axis_color, width=max(2, round(h * 0.002)))
     draw.rectangle((x0, y0, x1, y1), outline=axis_color, width=max(1, round(h * 0.0015)))
-    tick_size = round(h * 0.021)
+    tick_size = round(h * 0.026)
     tick_color = lerp_color(theme.background, theme.secondary, 0.8)
-    layout.draw_fitted(draw, (x0, h * 0.565), f"{x_min:g}", tick_size, w * 0.1, tick_color)
-    layout.draw_fitted(draw, (x1, h * 0.565), f"{x_max:g}", tick_size, w * 0.1, tick_color)
+    layout.draw_fitted(draw, (x0, y1 + tick_gap * 0.5), f"{x_min:g}", tick_size, w * 0.1, tick_color)
+    layout.draw_fitted(draw, (x1, y1 + tick_gap * 0.5), f"{x_max:g}", tick_size, w * 0.1, tick_color)
     layout.draw_fitted(draw, (x0 + w * 0.05, y0 + h * 0.018), f"{y_max:g}", tick_size, w * 0.1, tick_color)
     layout.draw_fitted(draw, (x0 + w * 0.05, y1 - h * 0.018), f"{y_min:g}", tick_size, w * 0.1, tick_color)
 
@@ -646,11 +710,11 @@ def render_function_graph(data: dict, t: float, theme: Theme, size: tuple[int, i
         hx = float(data["highlightX"])
         hy = slope * hx + intercept
         label = f"x = {hx:g}  →  y = {hy:g}"
-        layout.draw_fitted(draw, (w / 2, h * 0.255), label, round(h * 0.021), w * 0.78,
+        layout.draw_fitted(draw, (w / 2, h * 0.267), label, round(h * 0.03), w * 0.78,
                            lerp_color(theme.background, theme.accent, anim.fade_in(t, 0.72, 0.92)))
         if progress >= (hx - x_min) / (x_max - x_min):
             px, py = xy(hx, hy)
-            r = h * 0.009 * anim.scale_in(t, 0.70, 0.90, from_scale=0.5)
+            r = h * 0.012 * anim.scale_in(t, 0.70, 0.90, from_scale=0.5)
             draw.ellipse((px - r, py - r, px + r, py + r), fill=theme.accent)
     return image
 

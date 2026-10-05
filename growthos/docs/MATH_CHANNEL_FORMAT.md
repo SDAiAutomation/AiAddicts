@@ -39,4 +39,25 @@ Pour caler les étapes sur une voix réellement générée, ajouter `--words <do
 
 ## Extensions après essai sur de vrais épisodes
 
-Ajouter les domaines un par un, avec un validateur et des exemples annotés pour chacun : fractions et pourcentages, fonctions quadratiques et factorisation, géométrie avec contraintes, puis statistiques. Pour les preuves plus ouvertes, conserver explicitement l'état « non vérifié » et une revue humaine. Mesurer la compréhension et la rétention des épisodes, pas seulement le nombre de vidéos rendues. Le frontend pourra choisir un format « maths » plus tard, en réutilisant ces scènes et le contrat Generate ; ce document n'ajoute pas de second moteur ni d'interface parallèle.
+Ajouter les domaines un par un, avec un validateur et des exemples annotés pour chacun : fractions et pourcentages, fonctions quadratiques et factorisation, géométrie avec contraintes, puis statistiques. Pour les preuves plus ouvertes, conserver explicitement l'état « non vérifié » et une revue humaine. Mesurer la compréhension et la rétention des épisodes, pas seulement le nombre de vidéos rendues. Ajouter les domaines un par un reste la règle : le web n'a pas de second moteur mathématique et ne présente jamais comme vérifié ce que `math_validation.py` ne sait pas contrôler.
+
+
+## Génération depuis Faceloop (web, depuis le 2026-10-05)
+
+Il n'y a pas d'interface parallèle : un épisode de maths passe par le flux de création de script habituel.
+
+1. Créer une niche dont le nom contient `math`, `algèbre` ou `équation` (par exemple « Mathématiques »), puis choisir le style **Motion Graphics**. C'est la seule détection : le web ajoute alors le contrat maths au prompt (`MATH_MOTION_PROMPT` dans `growthos-web/src/app/(app)/content/motion-graphics.ts`) et le gabarit narratif de la niche.
+2. Saisir le sujet (« Résoudre 3x − 5 = 10 », « Où la droite y = 2x + 1 atteint-elle 9 ? »). Le script sort en **profil court** avec l'objectif `reach` (un épisode dure 15 à 40 secondes) ; le prompt impose `equation_steps` pour la dérivation (blocs de 2 à 3 étapes), `function_graph` pour une droite, `big_number` pour la vérification par substitution et `icon_text` pour le problème et l'exercice voisin.
+3. Les ancres `spoken` sont cherchées dans la narration du bloc par le web (`alignSpokenAnchors`, même tokenisation que `sync.py`) : toutes les étapes sont donc synchronisées sur la voix et aucune vidéo ne part en `voice_sync_review` à cause d'une ancre introuvable.
+4. Le moteur refuse la dérivation avant ElevenLabs si elle n'est pas vérifiable ou si elle change l'ensemble des solutions. La relecture pédagogique (clarté, rythme, exercice final) reste celle du créateur.
+
+### Rendu : ce que le spectateur voit
+
+- **Les étapes se lisent comme une transformation** : le texte qui change d'une égalité à la suivante (`− 3` des deux côtés, puis `8`) est affiché en couleur d'accent, la nouvelle étape glisse hors de la précédente, la précédente s'atténue, la dernière est verte (rouge si la dérivation conclut à une contradiction). Une différence de pure écriture (`2*x` contre `2x`) n'est pas mise en évidence.
+- **La première étape est visible dès la première image** et une étape pas encore révélée ne dessine rien.
+- **Lisibilité sur téléphone** : la pile d'équations s'adapte au nombre d'étapes (2 à 4) et occupe la zone de contenu (9 % à 58 % de la hauteur ; la bande du bas est réservée aux sous-titres et à l'interface de la plateforme). Mesuré par `preflight` sur 1080×1920 : texte minimal de 45 à 50 px, 4 étapes et légendes longues comprises.
+- Tests : `tests/test_math_motion_graphics.py` (`TestMathLayoutReadability`, `TestEquationTransformation`).
+
+### Rendre un épisode en local sans toucher à la base
+
+`python main.py script.json` crée l'organisation, le compte et le contenu dans la base partagée et téléverse la vidéo : à éviter pour un essai. Pour un rendu local avec la vraie voix, appeler `engine.assembler._generate(data, output_root, None)` (aucune écriture en base) avec `venv/Scripts/python.exe`.

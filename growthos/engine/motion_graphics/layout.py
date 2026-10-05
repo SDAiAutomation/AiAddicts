@@ -210,6 +210,40 @@ def draw_fitted(
     return (round(x0), round(y0), round(x1), round(y1))
 
 
+def draw_fitted_segments(
+    draw, xy: tuple[float, float], segments: list[tuple[str, object]], base_font_px: int, max_width: float, *,
+    bold: bool = False, max_height: float | None = None,
+) -> tuple[int, int, int, int]:
+    """Like `draw_fitted`, for one line made of differently coloured segments (`[(text, fill), ...]`,
+    each segment carrying its own leading/trailing spaces). The line is fitted as a whole; if it
+    does not fit on a single line the whole text is drawn in the first segment's colour through
+    `draw_fitted`, so wrapping and the preflight record behave exactly as before."""
+    text = "".join(segment for segment, _ in segments)
+    result = fit_text(draw, text, base_font_px, max_width, bold=bold, max_height=max_height)
+    if len(result.lines) != 1 or len(segments) < 2:
+        return draw_fitted(draw, xy, text, base_font_px, max_width, segments[0][1] if segments else "#ffffff",
+                           bold=bold, max_height=max_height)
+    f = result.font
+    stroke = canvas.faux_bold_stroke(base_font_px, bold)
+    clean = canvas.sanitize_text(text)
+    total = draw.textlength(clean, font=f)
+    x, y = xy
+    left = x - total / 2
+    done = ""
+    for segment, fill in segments:
+        piece = canvas.sanitize_text(segment)
+        draw.text((left + draw.textlength(done, font=f), y), piece, font=f, fill=fill, anchor="lm",
+                  stroke_width=stroke, stroke_fill=fill)
+        done += piece
+    box = draw.textbbox((x, y), clean, font=f, anchor="mm", stroke_width=stroke)
+    if _RECORDER is not None:
+        _RECORDER.append({
+            "text": text[:40], "box": (round(box[0]), round(box[1]), round(box[2]), round(box[3])),
+            "font": getattr(f, "size", base_font_px), "base": base_font_px, "lines": 1,
+        })
+    return (round(box[0]), round(box[1]), round(box[2]), round(box[3]))
+
+
 def clamp_center_x(cx: float, half_width: float, frame_width: int, margin: float) -> float:
     """Shifts a horizontally-centred box's centre so the whole box stays inside
     [margin, frame_width - margin]. Used for labels centred on a point that
