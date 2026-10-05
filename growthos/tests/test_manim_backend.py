@@ -88,6 +88,39 @@ class TestFallbackToPillow(unittest.TestCase):
             self.assertTrue(out.is_file())
 
 
+class TestQueueDetection(unittest.TestCase):
+    """scripts/queue_needs_manim.py : le worker n'installe Manim + LaTeX que pour un épisode de maths en file."""
+
+    def setUp(self):
+        import runpy
+        self.module = runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts" / "queue_needs_manim.py"))
+
+    def test_only_math_scenes_trigger_the_install(self):
+        has = self.module["has_math_scene"]
+        self.assertTrue(has({"blocks": [{"text": "a"}, {"motion_graphic": {"sceneType": "equation_steps"}}]}))
+        self.assertTrue(has({"blocks": [{"motion_graphic": {"sceneType": "function_graph"}}]}))
+        self.assertFalse(has({"blocks": [{"motion_graphic": {"sceneType": "big_number"}}]}))
+        self.assertFalse(has({"blocks": [{"text": "pas de scène"}]}))
+
+    def test_malformed_scripts_never_raise(self):
+        has = self.module["has_math_scene"]
+        for script in (None, {}, {"blocks": None}, {"blocks": ["x", 3, None]}, {"blocks": [{"motion_graphic": "oops"}]}):
+            self.assertFalse(has(script), repr(script))
+
+    def test_a_database_error_means_pillow_not_a_failed_worker(self):
+        with mock.patch.dict(self.module["main"].__globals__, {"queue_needs_manim": mock.Mock(side_effect=RuntimeError("db down"))}):
+            with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": ""}):
+                self.assertEqual(self.module["main"](), 0)
+
+    def test_the_decision_is_written_to_github_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "out.txt"
+            with mock.patch.dict(self.module["main"].__globals__, {"queue_needs_manim": mock.Mock(return_value=True)}), \
+                    mock.patch.dict(os.environ, {"GITHUB_OUTPUT": str(target)}):
+                self.assertEqual(self.module["main"](), 0)
+            self.assertEqual(target.read_text(encoding="utf-8").strip(), "needs_manim=true")
+
+
 @unittest.skipUnless(mb.manim_installed(), "manim non installé")
 class TestRealManimRender(unittest.TestCase):
     def test_a_real_clip_has_the_exact_duration_and_size(self):

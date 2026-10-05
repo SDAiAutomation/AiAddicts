@@ -62,17 +62,6 @@ jobs:
       - name: Installer les dépendances Python
         run: pip install -r requirements.txt
 
-      # Rendu Manim des épisodes de maths (engine/motion_graphics/manim_backend.py). OPTIONNEL et éteint
-      # par défaut : il ajoute quelques minutes (LaTeX) à CHAQUE passage du worker. Pour l'activer, créer la
-      # variable de dépôt MATH_RENDERER = manim (Settings > Secrets and variables > Actions > Variables).
-      # Sans lui, ou si Manim échoue, le moteur rend ces scènes avec Pillow comme avant.
-      - name: Installer Manim et LaTeX (épisodes de maths)
-        if: ${{ vars.MATH_RENDERER == 'manim' }}
-        run: |
-          sudo apt-get install -y --no-install-recommends libcairo2-dev libpango1.0-dev pkg-config \
-            texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm
-          pip install -r requirements-manim.txt
-
       - name: Générer les épisodes de série dus (avant le worker vidéo)
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -100,6 +89,28 @@ jobs:
           if failures:
               raise SystemExit(1)
           PY
+
+      # Rendu Manim des épisodes de maths (engine/motion_graphics/manim_backend.py). OPTIONNEL, éteint par
+      # défaut. Pour l'activer : variable de dépôt MATH_RENDERER = manim (Settings > Secrets and variables >
+      # Actions > Variables). Même activé, Manim + LaTeX (environ 2 min) ne sont installés que si un épisode
+      # de maths est en file : les autres vidéos ne paient rien. Sans lui, ou si Manim échoue, le moteur rend
+      # ces scènes avec Pillow comme avant.
+      - name: Détecter les épisodes de maths en file
+        id: math_queue
+        if: ${{ always() && vars.MATH_RENDERER == 'manim' }}
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/queue_needs_manim.py
+
+      - name: Installer Manim et LaTeX (épisodes de maths)
+        if: ${{ always() && vars.MATH_RENDERER == 'manim' && steps.math_queue.outputs.needs_manim == 'true' }}
+        run: |
+          sudo apt-get install -y --no-install-recommends libcairo2-dev libpango1.0-dev pkg-config \
+            texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm
+          pip install -r requirements-manim.txt
 
       - name: Vider la file d'attente
         if: always()
