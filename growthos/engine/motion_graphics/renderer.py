@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import display_text, layout, schema
+from . import display_text, layout, manim_backend, schema
 from .scenes import RENDERERS
 from .theme import Theme, resolve_theme
 
@@ -120,6 +120,14 @@ def render_scene_clip(
     theme: Theme = resolve_theme(theme_overrides)
     scene_type = schema.normalized_scene_type(scene) or schema.FALLBACK_SCENE_TYPE
     render = RENDERERS.get(scene_type, RENDERERS[schema.FALLBACK_SCENE_TYPE])
+
+    # Scènes maths : rendu Manim (transformation d'équation, LaTeX) quand il est installé, sinon, ou à la
+    # moindre erreur, rendu Pillow ci-dessous. Voir manim_backend.py.
+    if manim_backend.wants(scene):
+        try:
+            return manim_backend.render_clip(scene, duration, out_path, resolution, fps, theme)
+        except Exception as exc:  # noqa: BLE001 — jamais bloquant : le rendu Pillow prend le relais
+            print(f"       Manim indisponible pour {scene_type} ({str(exc)[:220]}) — rendu Pillow")
 
     n_frames = max(1, round(max(duration, 0.1) * fps))
     out = Path(out_path)

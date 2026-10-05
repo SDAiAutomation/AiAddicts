@@ -1,0 +1,7 @@
+# Rendu Manim des épisodes de maths (engine/motion_graphics/manim_backend.py) : OPTIONNEL.
+# Sans lui, le moteur rend ces scènes avec Pillow, comme avant. Installation complète sous Ubuntu :
+#   sudo apt-get install -y libcairo2-dev libpango1.0-dev pkg-config ffmpeg \
+#        texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm
+#   pip install -r requirements-manim.txt
+# Sous Windows : winget install MiKTeX.MiKTeX puis pip install -r requirements-manim.txt.
+manim==0.21.0

@@ -61,3 +61,14 @@ Il n'y a pas d'interface parallèle : un épisode de maths passe par le flux de 
 ### Rendre un épisode en local sans toucher à la base
 
 `python main.py script.json` crée l'organisation, le compte et le contenu dans la base partagée et téléverse la vidéo : à éviter pour un essai. Pour un rendu local avec la vraie voix, appeler `engine.assembler._generate(data, output_root, None)` (aucune écriture en base) avec `venv/Scripts/python.exe`.
+
+### Rendu Manim (3Blue1Brown) des scènes maths
+
+`equation_steps` et `function_graph` peuvent être rendues par **Manim** (`engine/motion_graphics/manim_backend.py`) au lieu de Pillow : formules composées par LaTeX, et l'équation **se transforme** d'une étape à la suivante (les morceaux communs glissent, les nouveaux arrivent, le texte qui change est en couleur d'accent, l'étape précédente s'atténue). Même contrat que le rendu Pillow : clip muet à la durée exacte du bloc, révélations calées sur la voix, mêmes couleurs de thème, même zone de sécurité.
+
+- **Choix du moteur** : variable d'environnement `MATH_RENDERER` : `auto` (défaut : Manim s'il est installé), `manim` (le demande), `pillow` (jamais Manim).
+- **Jamais bloquant** : Manim tourne dans un sous-processus avec délai maximal (`MANIM_TIMEOUT_SECONDS`, 300 s) ; toute erreur (Manim absent, LaTeX absent, plantage, délai) retombe sur le rendu Pillow, avec une ligne dans le journal. Sans LaTeX, le texte natif de Manim remplace `MathTex`.
+- **Installation locale** : `pip install -r requirements-manim.txt` ; sous Windows `winget install MiKTeX.MiKTeX` ; sous Ubuntu `sudo apt-get install -y libcairo2-dev libpango1.0-dev pkg-config texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm`.
+- **Worker GitHub Actions** : l'étape d'installation est **optionnelle et éteinte par défaut** (elle ajoute quelques minutes, LaTeX compris, à chaque passage). Pour l'activer : variable de dépôt `MATH_RENDERER` = `manim` (Settings > Secrets and variables > Actions > Variables). Le workflow `growthos-manim-smoke.yml` (lancement manuel) valide l'installation et le rendu sous Ubuntu sans toucher au worker.
+- **Contrôle local** : `python scripts/manim_smoke.py sortie/` rend une équation et un graphe et mesure le temps (environ 30 s chacun, LaTeX compris, première exécution plus lente).
+- Tests : `tests/test_manim_backend.py` (le test de rendu réel est ignoré si Manim n'est pas installé). L'aperçu `python -m engine.motion_graphics.preview` reste en Pillow.

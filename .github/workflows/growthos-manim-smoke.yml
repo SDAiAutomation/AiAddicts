@@ -1,0 +1,45 @@
+name: GrowthOS Manim smoke test
+
+# Valide, à la demande, l'installation de Manim + LaTeX sous Ubuntu et le rendu des deux scènes maths
+# (équations et graphe), SANS toucher au worker ni à la base. Le résultat est téléversé en artefact.
+# Lancer depuis l'onglet Actions (workflow_dispatch).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  manim-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: growthos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            growthos/requirements.txt
+            growthos/requirements-manim.txt
+
+      - name: Installer ffmpeg, Cairo, Pango et LaTeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libcairo2-dev libpango1.0-dev pkg-config \
+            texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm
+
+      - name: Installer les dépendances Python
+        run: pip install -r requirements.txt -r requirements-manim.txt
+
+      - name: Rendre une équation et un graphe avec Manim
+        env:
+          MATH_RENDERER: manim
+        run: python scripts/manim_smoke.py smoke-output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manim-smoke
+          path: growthos/smoke-output/*.mp4

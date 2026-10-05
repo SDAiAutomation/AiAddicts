@@ -62,6 +62,17 @@ jobs:
       - name: Installer les dépendances Python
         run: pip install -r requirements.txt
 
+      # Rendu Manim des épisodes de maths (engine/motion_graphics/manim_backend.py). OPTIONNEL et éteint
+      # par défaut : il ajoute quelques minutes (LaTeX) à CHAQUE passage du worker. Pour l'activer, créer la
+      # variable de dépôt MATH_RENDERER = manim (Settings > Secrets and variables > Actions > Variables).
+      # Sans lui, ou si Manim échoue, le moteur rend ces scènes avec Pillow comme avant.
+      - name: Installer Manim et LaTeX (épisodes de maths)
+        if: ${{ vars.MATH_RENDERER == 'manim' }}
+        run: |
+          sudo apt-get install -y --no-install-recommends libcairo2-dev libpango1.0-dev pkg-config \
+            texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm
+          pip install -r requirements-manim.txt
+
       - name: Générer les épisodes de série dus (avant le worker vidéo)
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
