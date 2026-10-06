@@ -46,6 +46,8 @@ Résolue à la génération, premier élément renseigné l'emporte :
 
 Pas de sélecteur interactif : le pipeline reste scriptable/batchable. Renseigne au moins la clé `default` (ou une entrée par niche) dans `config/voices.json` avec un ID copié depuis ElevenLabs → My Voices. La ligne `content_items` enregistre la voix réellement utilisée.
 
+Le catalogue des voix accessibles au compte est dans [`config/voice_catalog.json`](config/voice_catalog.json). Il contient les voix françaises et anglaises ainsi que les autres langues disponibles, leur `voice_id`, leurs étiquettes et leur `preview_url` ElevenLabs. Mettre à jour ce snapshot en lecture seule avec `python scripts/refresh_voice_catalog.py` ; cela ne génère pas d'audio. L'interface peut présenter les voix par langue, permettre l'écoute du `preview_url` et transmettre uniquement le `voice_id` choisi dans le script existant. Les étiquettes sont des métadonnées du fournisseur, pas une validation de la qualité dans chaque langue. Une voix peut devenir indisponible ou voir son aperçu changer : rafraîchir le catalogue et gérer une erreur ElevenLabs à la génération. `config/voices.json` conserve les valeurs par défaut ; le catalogue n'en modifie aucune.
+
 Produit, dans `output/<compte>-<titre>/` :
 
 1. `audio/` — un mp3 par bloc + `full.wav` (voix off complète, assemblée sans blancs entre blocs)
