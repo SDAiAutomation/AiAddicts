@@ -292,6 +292,10 @@ def prepare_motion_graphics_scene(
         from .motion_graphics.math_validation import verify_steps
 
         math_check = verify_steps(raw.get("steps"))
+        if math_check["status"] == "verified" and raw.get("_domainExclusions"):
+            inherited = raw["_domainExclusions"]
+            if isinstance(inherited, list) and all(isinstance(value, str) for value in inherited):
+                math_check = {**math_check, "excludedValues": sorted(set(math_check["excludedValues"]) | set(inherited))}
     elif isinstance(raw, dict) and raw.get("sceneType") == "function_graph":
         from .motion_graphics.math_validation import verify_graph
 
@@ -312,6 +316,9 @@ def prepare_motion_graphics_scene(
         )
     elif math_check and scene.get("sceneType") == "equation_steps":
         scene = {**scene, "_solutionKind": math_check["solutionKind"]}
+        if math_check.get("excludedValues"):
+            restrictions = ", ".join(f"x ≠ {value}" for value in math_check["excludedValues"])
+            scene = {**scene, "title": restrictions}
     return _sync_and_preflight(
         scene, fallback_text, duration, words_path, size, theme_overrides,
         block_index, report, semantic, schema_invalid, math_check,
@@ -337,6 +344,9 @@ def _sync_and_preflight(
         if math_check["status"] != "verified":
             entry["manualReview"] = True
             entry["action"] = "math_review"
+        elif math_check.get("excludedValues"):
+            entry["manualReview"] = True
+            entry["action"] = "domain_review"
     if schema_invalid:
         entry["action"] = "fallback_schema"  # structure incomplète : repli icon_text (comportement historique), désormais RECORDÉ
     if semantic:

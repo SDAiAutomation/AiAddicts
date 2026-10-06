@@ -157,6 +157,8 @@ def validate_script(data: dict) -> None:
                 "restaure le texte ou choisis le mode adapter"
             )
 
+    previous_equation = None
+    previous_exclusions: list[str] = []
     for i, block in enumerate(blocks):
         text = block.get("text", "").strip()
         role = block.get("role")
@@ -171,13 +173,29 @@ def validate_script(data: dict) -> None:
             raise ValueError(f"blocks[{i}] : 'motion_graphic' doit être un objet (ou absent)")
         if isinstance(motion_graphic, dict) and motion_graphic.get("sceneType") == "equation_steps":
             from .motion_graphics import schema
-            from .motion_graphics.math_validation import verify_steps
+            from .motion_graphics.math_validation import same_equation, verify_steps
 
             if schema.validate_scene(motion_graphic) is None:
                 raise ValueError(f"blocks[{i}] : scène equation_steps invalide")
             math_check = verify_steps(motion_graphic["steps"])
             if math_check["status"] != "verified":
                 raise ValueError(f"blocks[{i}] : résolution mathématique à vérifier ({math_check['reason']})")
+            first_equation = motion_graphic["steps"][0]["equation"]
+            if previous_equation is not None and not same_equation(previous_equation, first_equation):
+                raise ValueError(
+                    f"blocks[{i}] : la première équation doit reprendre la dernière équation "
+                    "du bloc précédent"
+                )
+            exclusions = sorted(set(previous_exclusions) | set(math_check.get("excludedValues") or []))
+            if exclusions:
+                motion_graphic["_domainExclusions"] = exclusions
+            else:
+                motion_graphic.pop("_domainExclusions", None)
+            previous_exclusions = exclusions
+            previous_equation = motion_graphic["steps"][-1]["equation"]
+        else:
+            previous_equation = None
+            previous_exclusions = []
         if isinstance(motion_graphic, dict) and motion_graphic.get("sceneType") == "function_graph":
             from .motion_graphics import schema
             from .motion_graphics.math_validation import verify_graph

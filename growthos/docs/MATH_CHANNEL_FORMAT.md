@@ -32,10 +32,28 @@ Pour caler les étapes sur une voix réellement générée, ajouter `--words <do
 
 ## Contrôles avant publication
 
-1. Le script est refusé avant synthèse vocale si la résolution linéaire change l'ensemble des solutions ou si le calcul sort du domaine vérifiable. Le vérificateur traite les égalités en une variable `x` avec opérations rationnelles. Il ne certifie ni quadratiques, ni trigonométrie, ni preuves générales.
+1. Le script est refusé avant réservation de crédit et synthèse vocale si la résolution change l'ensemble des solutions, saute plusieurs opérations en une seule étape ou sort du domaine vérifiable. Le vérificateur traite exactement les égalités en une variable `x` avec nombres rationnels et écritures usuelles comme `2x`, `(1/2)x`, `2(x+3)` et `0,5x`. Il accepte une réécriture algébrique, l'ajout d'une même expression linéaire aux deux membres ou leur multiplication par un même rationnel non nul. Deux scènes `equation_steps` consécutives doivent reprendre la même équation à leur jonction. Il couvre aussi un sous-ensemble précis des quadratiques factorisables ; il ne certifie ni racines irrationnelles, ni trigonométrie, ni preuves générales.
 2. Un graphe dont les bornes ou le point mis en avant sont incohérents est refusé. Les valeurs visibles du point sont dérivées de la fonction.
 3. Le rendu vérifie débordements, chevauchements et zone des sous-titres. Un problème mathématique arrivé directement au rendu masque la démonstration et force `quality_check`.
-4. Le créateur vérifie la justesse pédagogique de la narration, la lisibilité sur téléphone, les pauses utiles et l'exercice final. Le contrôle algébrique ne valide pas une explication trompeuse ou incomplète.
+4. Le créateur vérifie la justesse pédagogique de la narration, la lisibilité sur téléphone, les pauses utiles et l'exercice final. Un libellé symbolique explicite (`−3`, `÷2`, `×6`) est comparé à la transformation réelle ; le contrôle ne certifie pas qu'une justification en prose ou la voix décrit correctement l'opération. Une revue humaine reste nécessaire. Le guide de l'Institute of Education Sciences recommande d'analyser les étapes des exemples résolus et d'employer un langage mathématique précis : [guide algèbre](https://ies.ed.gov/ncee/wwc/practiceguide/20), [résumé des recommandations](https://ies.ed.gov/ncee/wwc/Docs/practiceguide/wwc_algebra_summary_072115.pdf).
+
+### Fractions à dénominateur constant
+
+Le vérificateur accepte les coefficients rationnels, les fractions imbriquées à dénominateur numérique, les nombres mixtes (`1 1/2x`), les décimales françaises (`0,5x`), le trait de fraction `⁄`, les glyphes usuels comme `½`, `:` pour la division et les crochets de regroupement. Exemple exact : `(x+1)/2 + (x-2)/3 = 4` → `3(x+1)+2(x-2)=24` → `5x-1=24` → `5x=25` → `x=5`. Pour l'enseignement, chaque flèche doit correspondre à une opération justifiée et l'étape de suppression des dénominateurs doit être expliquée à voix haute.
+
+Écrire `(1/2)x` pour « un demi de x » et `1/(2x)` pour « un sur deux x ». Les formes `1/2x`, `1/2(x+1)` et `x/2/3` sont refusées car leur regroupement est ambigu.
+
+### Inconnue au dénominateur
+
+Le vérificateur accepte désormais un quotient de deux expressions linéaires, avec au plus une telle fraction par membre et des opérations simples avec une constante. Il suit exactement les valeurs interdites. Par exemple `1/(x-1)=2` donne `x=3/2` avec `x ≠ 1` ; `(x-1)/(x-1)=0` n'a aucune solution. La restriction apparaît dans le titre de la scène, reste visible dans les scènes de résolution consécutives et force `domain_review` avant publication pour vérifier aussi l'explication orale. Une identité avec trou dans le domaine, une réduction quadratique ou des fractions rationnelles imbriquées restent non vérifiées. Les transformations qui effacent une valeur interdite doivent conserver le même ensemble de solutions.
+
+### Équations du second degré factorisables
+
+Le moteur reconnaît `x^2`, `x²`, `(x-2)(x-3)` et `(x-2)^2`. Il calcule le discriminant exactement et certifie les racines rationnelles, y compris une racine double ou l'absence de racines réelles. Pour afficher deux racines, la dernière étape peut écrire `x=2 ou x=3`, uniquement après une forme factorisée égale à zéro. Exemple : `x²-5x+6=0` → `(x-2)(x-3)=0` → `x=2 ou x=3`. Une branche manquante ou fausse est rejetée ; un discriminant positif non carré reste à revoir. La règle du produit nul et la vérification par substitution sont décrites dans [OpenStax, Algebra 1](https://openstax.org/books/algebra-1/pages/8-9-2-using-factored-form-and-the-zero-product-property).
+
+### État du moteur au 6 octobre 2026
+
+Le vérificateur exact couvre les équations linéaires, certaines équations rationnelles à dénominateur linéaire et les quadratiques factorisables à racines rationnelles. Il suit les valeurs interdites dans les scènes consécutives. La narration et la pédagogie demandent encore une revue humaine ; les équations rationnelles déclenchent explicitement `domain_review`. Prochaine validation produit : tester une petite série d'épisodes avec des apprenants et des enseignants, observer les incompréhensions et ajuster les explications avant d'ajouter un autre domaine.
 
 ## Extensions après essai sur de vrais épisodes
 

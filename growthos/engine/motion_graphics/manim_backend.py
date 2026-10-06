@@ -131,8 +131,9 @@ def render_clip(scene: dict, duration: float, out_path: str, resolution: str, fp
 
 def tex_tokens(equation: str) -> list[str]:
     """Une égalité découpée comme `scenes._equation_tokens` (espaces), chaque jeton prêt pour LaTeX."""
-    s = str(equation or "").replace("−", "-").replace("×", r"\times").replace("÷", r"\div")
+    s = str(equation or "").replace("−", "-").replace("×", r"\times").replace("÷", r"\div").replace("²", "^2")
     s = re.sub(r"(?<=\d)\*(?=x)", "", s).replace("*", r"\cdot")
+    s = re.sub(r"\bou\b", r"\\text{ou}", s, flags=re.I)
     return s.split()
 
 

@@ -1,7 +1,9 @@
 """Mathematical correctness and visual integration for worked equations."""
 import json
+import random
 import tempfile
 import unittest
+from fractions import Fraction
 from pathlib import Path
 
 from engine import assembler, script, visuals, voices
@@ -32,22 +34,200 @@ class TestMathVerification(unittest.TestCase):
         self.assertEqual(solution_set("x/2 = 0.5"), ("root", 1))
         self.assertEqual(verify_steps(STEPS)["status"], "verified")
 
+    def test_fraction_equation_from_failed_generation(self):
+        steps = [
+            {"equation": "(1/2)x + 1/3 = 5/6"},
+            {"equation": "3x + 2 = 5"},
+            {"equation": "3x = 3"},
+            {"equation": "x = 1"},
+        ]
+        self.assertEqual(solution_set("(1/2)x + 1/3 = 5/6"), ("root", 1))
+        self.assertEqual(verify_steps(steps)["operations"], [
+            "scale_both_sides", "add_to_both_sides", "scale_both_sides",
+        ])
+
+    def test_nested_numeric_fractions_and_french_notation(self):
+        self.assertEqual(solution_set("(x+1)/2 + (x-2)/3 = 4"), ("root", 5))
+        self.assertEqual(verify_steps([
+            {"equation": "(x+1)/2 + (x-2)/3 = 4"},
+            {"equation": "3(x+1)+2(x-2)=24", "explanation": "×6 des deux côtés"},
+            {"equation": "5x-1=24", "explanation": "On développe"},
+            {"equation": "5x=25", "explanation": "+1 des deux côtés"},
+        ])["status"], "verified")
+        self.assertEqual(solution_set("[x+1] : (2/3) = 9"), ("root", 5))
+        self.assertEqual(solution_set("(x+1) ⁄ 2 = 3"), ("root", 5))
+        self.assertEqual(solution_set("1 1/2x = 3"), ("root", 2))
+        self.assertEqual(solution_set("1½x = 3"), ("root", 2))
+        self.assertEqual(solution_set("1 ½x = 3"), ("root", 2))
+        self.assertEqual(solution_set("½x = 3"), ("root", 6))
+
+    def test_ambiguous_fraction_notation_is_not_silently_approved(self):
+        for equation in ("1/2x=3", "1/2(x+1)=3", "x/2/3=1"):
+            with self.subTest(equation=equation), self.assertRaisesRegex(UnsupportedMath, "fraction ambiguë"):
+                solution_set(equation)
+
+    def test_rational_coefficients_have_exact_roots(self):
+        rng = random.Random(20261006)
+        for _ in range(60):
+            a, b = rng.choice([n for n in range(-9, 10) if n]), rng.randint(1, 9)
+            c, d = rng.randint(-9, 9), rng.randint(1, 9)
+            e, f = rng.randint(-9, 9), rng.randint(1, 9)
+            equation = f"({a}/{b})x+({c}/{d})={e}/{f}"
+            expected = (Fraction(e, f) - Fraction(c, d)) / Fraction(a, b)
+            with self.subTest(equation=equation):
+                self.assertEqual(solution_set(equation), ("root", expected))
+
+    def test_school_notation_and_exact_arithmetic(self):
+        self.assertEqual(solution_set("2(x + 3) = 10"), ("root", 2))
+        self.assertEqual(solution_set("(x + 1)(2) = 6"), ("root", 2))
+        self.assertEqual(solution_set("0.1x + 0.2 = 0.3"), ("root", 1))
+        self.assertEqual(solution_set("0,5x + 0,25 = 0,75"), ("root", 1))
+        self.assertEqual(solution_set("−x = −2"), ("root", 2))
+
+    def test_skipped_operation_requires_review(self):
+        report = verify_steps([{"equation": "2x + 3 = 11"}, {"equation": "x = 4"}])
+        self.assertEqual(report["status"], "unverified")
+        self.assertIn("étape 2", report["reason"])
+
+    def test_explicit_operation_label_must_match_visible_change(self):
+        report = verify_steps([
+            {"equation": "2x + 3 = 11"},
+            {"equation": "2x = 8", "explanation": "−2 des deux côtés"},
+        ])
+        self.assertEqual(report["status"], "invalid")
+        self.assertIn("libellé", report["reason"])
+        self.assertEqual(verify_steps([
+            {"equation": "(1/2)x + 1/3 = 5/6"},
+            {"equation": "3x + 2 = 5", "explanation": "×6 des deux côtés"},
+        ])["status"], "verified")
+
+    def test_rewrite_and_equation_symmetry(self):
+        self.assertEqual(verify_steps([
+            {"equation": "2(x + 3) = 10"}, {"equation": "2x + 6 = 10"},
+            {"equation": "10 = 2x + 6"},
+        ])["operations"], ["rewrite", "rewrite"])
+
     def test_wrong_step_requires_review(self):
         wrong = [*STEPS[:2], {"equation": "x = 5"}]
         self.assertEqual(verify_steps(wrong)["status"], "invalid")
 
     def test_nonlinear_and_unsupported_are_not_approved(self):
-        for equation in ("x^2=4", "x*x=4", "sin(x)=0", "1/(x-1)=2"):
+        for equation in ("x^3=4", "sin(x)=0", "1/(x-1)=x"):
             with self.assertRaises(UnsupportedMath):
                 solution_set(equation)
+        with self.assertRaisesRegex(UnsupportedMath, "division par zéro"):
+            solution_set("x/0=1")
         self.assertEqual(verify_steps([{"equation": "x^2=4"}, {"equation": "x=2"}])["status"], "unverified")
 
     def test_identity_and_no_solution(self):
         self.assertEqual(solution_set("x+1=x+1"), ("identity", None))
         self.assertEqual(solution_set("x+1=x+2"), ("empty", None))
 
+    def test_rational_equations_track_excluded_values(self):
+        self.assertEqual(solution_set("1/(x-1)=2"), ("root", Fraction(3, 2)))
+        self.assertEqual(solution_set("x/(x-1)=2"), ("root", Fraction(2)))
+        self.assertEqual(solution_set("(x-1)/(x-1)=0"), ("empty", None))
+        with self.assertRaises(UnsupportedMath):
+            solution_set("(x-1)/(x-1)=1")
+        result = verify_steps([
+            {"equation": "1/(x-1)=2"},
+            {"equation": "1=2(x-1)"},
+            {"equation": "1=2x-2"},
+            {"equation": "3=2x"},
+        ])
+        self.assertEqual(result["status"], "verified")
+        self.assertEqual(result["excludedValues"], ["1"])
+        self.assertEqual(verify_steps([
+            {"equation": "(x-1)/(x-1)=0"},
+            {"equation": "1=0"},
+        ])["status"], "verified")
+        self.assertEqual(verify_steps([
+            {"equation": "(x-1)/(x-1)=0"},
+            {"equation": "x-1=0"},
+        ])["status"], "invalid")
+        self.assertEqual(verify_steps([
+            {"equation": "1/(x-1)=2"},
+            {"equation": "1/(x-2)=-2"},
+        ])["status"], "unverified")
+
+    def test_quadratic_factorization_and_zero_product(self):
+        self.assertEqual(solution_set("x^2-5x+6=0"), ("roots", (Fraction(2), Fraction(3))))
+        self.assertEqual(solution_set("x²-5x+6=0"), ("roots", (Fraction(2), Fraction(3))))
+        self.assertEqual(solution_set("2(x-2)(x-3)=0"), ("roots", (Fraction(2), Fraction(3))))
+        self.assertEqual(solution_set("(x-2)^2=0"), ("root", Fraction(2)))
+        self.assertEqual(solution_set("x^2+1=0"), ("empty", None))
+        good = verify_steps([
+            {"equation": "x^2-5x+6=0"},
+            {"equation": "(x-2)(x-3)=0"},
+            {"equation": "x=2 ou x=3"},
+        ])
+        self.assertEqual(good["status"], "verified")
+        self.assertEqual(good["solution"], ["2", "3"])
+        self.assertEqual(verify_steps([
+            {"equation": "x^2-5x+6=0"},
+            {"equation": "(x-2)(x-3)=0"},
+            {"equation": "x=2 ou x=4"},
+        ])["status"], "invalid")
+        self.assertEqual(verify_steps([
+            {"equation": "x^2-5x+6=0"},
+            {"equation": "x=2 ou x=3"},
+        ])["status"], "unverified")
+        with self.assertRaises(UnsupportedMath):
+            solution_set("x^2-2=0")
+
 
 class TestEquationScene(unittest.TestCase):
+    def test_quadratic_scene_passes_script_validation_and_renders_as_two_roots(self):
+        data = {"title": "Deux racines", "niche": "mathématiques", "account": "demo", "blocks": [
+            {"role": "point", "text": "On factorise puis on trouve deux valeurs.", "motion_graphic": {
+                "sceneType": "equation_steps", "steps": [
+                    {"equation": "x²-5x+6=0"},
+                    {"equation": "(x-2)(x-3)=0"},
+                    {"equation": "x=2 ou x=3"},
+                ],
+            }},
+        ]}
+        script.validate_script(data)
+        with tempfile.TemporaryDirectory() as tmp:
+            scene = visuals.prepare_motion_graphics_scene(data["blocks"][0], 5.0,
+                Path(tmp) / "absent.words.json", (1080, 1920))
+        self.assertEqual(scene["_solutionKind"], "roots")
+        self.assertEqual(scene["steps"][-1]["equation"], "x=2 ou x=3")
+
+    def test_domain_is_carried_to_continuation_scene(self):
+        data = {"title": "Restriction", "niche": "mathématiques", "account": "demo", "blocks": [
+            {"role": "point", "text": "On exclut un.", "motion_graphic": {
+                "sceneType": "equation_steps", "steps": [
+                    {"equation": "1/(x-1)=2"}, {"equation": "1=2(x-1)"},
+                ],
+            }},
+            {"role": "point", "text": "On termine.", "motion_graphic": {
+                "sceneType": "equation_steps", "steps": [
+                    {"equation": "1=2(x-1)"}, {"equation": "3=2x"},
+                ],
+            }},
+        ]}
+        script.validate_script(data)
+        self.assertEqual(data["blocks"][1]["motion_graphic"]["_domainExclusions"], ["1"])
+        with tempfile.TemporaryDirectory() as tmp:
+            report = []
+            scene = visuals.prepare_motion_graphics_scene(data["blocks"][1], 4.0,
+                Path(tmp) / "absent.words.json", (1080, 1920), block_index=1, report=report)
+        self.assertEqual(scene["title"], "x ≠ 1")
+        self.assertEqual(report[0]["action"], "domain_review")
+
+    def test_rational_scene_displays_domain_and_requires_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = []
+            scene = visuals.prepare_motion_graphics_scene({
+                "text": "On exclut un.", "motion_graphic": {"sceneType": "equation_steps", "steps": [
+                    {"equation": "1/(x-1)=2"}, {"equation": "1=2(x-1)"},
+                ]},
+            }, 4.0, Path(tmp) / "absent.words.json", (1080, 1920), report=report)
+        self.assertEqual(scene["title"], "x ≠ 1")
+        self.assertTrue(report[0]["manualReview"])
+        self.assertEqual(report[0]["action"], "domain_review")
+
     def test_math_scripts_use_existing_elevenlabs_voice_resolution(self):
         example = json.loads(Path("content/scripts/exemple-maths.json").read_text(encoding="utf-8"))
         self.assertNotIn("voice_id", example)
@@ -62,6 +242,40 @@ class TestEquationScene(unittest.TestCase):
         example["blocks"][1]["motion_graphic"]["steps"][-1]["equation"] = "x=5"
         with self.assertRaisesRegex(ValueError, "résolution mathématique"):
             script.validate_script(example)
+
+    def test_consecutive_equation_blocks_must_continue_the_same_derivation(self):
+        example = json.loads(Path("content/scripts/exemple-maths.json").read_text(encoding="utf-8"))
+        first = example["blocks"][1]
+        continuation = {"role": "point", "text": "On vérifie la suite.", "motion_graphic": {
+            "sceneType": "equation_steps", "steps": [
+                {"equation": "2x + 3 = 11"}, {"equation": "2x = 8"},
+            ],
+        }}
+        example["blocks"].insert(2, continuation)
+        with self.assertRaisesRegex(ValueError, "reprendre la dernière équation"):
+            script.validate_script(example)
+        continuation["motion_graphic"]["steps"] = [
+            {"equation": "x = 4"}, {"equation": "2x = 8"},
+        ]
+        script.validate_script(example)
+
+    def test_fraction_derivation_across_two_blocks_validates_before_generation(self):
+        data = {"title": "Fractions", "niche": "mathématiques", "account": "demo", "blocks": [
+            {"role": "hook", "text": "Résolvons cette équation."},
+            {"role": "point", "text": "On supprime les dénominateurs puis on développe.",
+             "motion_graphic": {"sceneType": "equation_steps", "steps": [
+                 {"equation": "(x+1)/2 + (x-2)/3 = 4"},
+                 {"equation": "3(x+1)+2(x-2)=24", "explanation": "×6 des deux côtés"},
+                 {"equation": "5x-1=24", "explanation": "Développer et réduire"},
+             ]}},
+            {"role": "point", "text": "On ajoute un puis on divise par cinq.",
+             "motion_graphic": {"sceneType": "equation_steps", "steps": [
+                 {"equation": "5x-1=24"},
+                 {"equation": "5x=25", "explanation": "+1 des deux côtés"},
+                 {"equation": "x=5", "explanation": "÷5 des deux côtés"},
+             ]}},
+        ]}
+        script.validate_script(data)
 
     def test_invalid_graph_stops_before_paid_generation(self):
         example = json.loads(Path("content/scripts/exemple-maths.json").read_text(encoding="utf-8"))
