@@ -405,7 +405,23 @@ def _verify_quadratic_steps(steps: list[dict]) -> dict:
         expected = _quadratic_roots(parsed[0])
         operations = []
         for index, current in enumerate(parsed[1:], start=1):
-            if _quadratic_roots(current) != expected:
+            try:
+                current_roots = _quadratic_roots(current)
+            except UnsupportedMath as exc:
+                if "non quadratique" not in str(exc):
+                    raise
+                # Étape du premier degré après un second degré : on compare les solutions au lieu de
+                # refuser sans explication. Diviser x(x − 2) = 0 par x fait disparaître x = 0.
+                c0, b0, a0 = (u - w for u, w in zip(current[0], current[1]))
+                if a0 == 0 and b0 != 0:
+                    kept = (-c0 / b0,)
+                    lost = [value for value in expected if value not in kept]
+                    if lost:
+                        shown = ", ".join(f"x = {value}" for value in lost)
+                        return {"status": "invalid",
+                                "reason": f"étape {index + 1} : l'ensemble des solutions change (solution perdue : {shown})"}
+                raise
+            if current_roots != expected:
                 return {"status": "invalid", "reason": f"étape {index + 1} : l'ensemble des solutions change"}
             previous = parsed[index - 1]
             if current == previous or current == previous[::-1]:
@@ -514,3 +530,86 @@ def verify_graph(scene: dict) -> dict:
     except (TypeError, ValueError, OverflowError) as exc:
         return {"status": "unverified", "reason": str(exc)}
     return {"status": "verified", "highlightY": None}
+
+
+# ---------------------------------------------------------------------------
+# Description structurée d'une étape (consommée par math_steps / l'animation)
+# ---------------------------------------------------------------------------
+
+def _fraction_tex(value: Fraction) -> str:
+    value = Fraction(value)
+    if value.denominator == 1:
+        return str(value.numerator)
+    return rf"\frac{{{value.numerator}}}{{{value.denominator}}}"
+
+
+def _fraction_text(value: Fraction) -> str:
+    value = Fraction(value)
+    return str(value.numerator) if value.denominator == 1 else f"{value.numerator}/{value.denominator}"
+
+
+def describe_operation(before: str, after: str) -> dict:
+    """Opération appliquée aux DEUX membres entre deux égalités du premier degré.
+
+    Renvoie `{"kind": "add"|"mul"|"div"|"rewrite"|"unknown", ...}`. Seule la forme « une même
+    opération sur les deux membres » est décrite ; `rewrite` (simple réécriture) et `unknown`
+    (non décrit : rationnelles, quadratiques, plusieurs opérations) n'ont pas d'étape intermédiaire
+    animée. Le calcul s'appuie sur les mêmes coefficients exacts que `verify_steps`."""
+    try:
+        parsed_before, parsed_after = _parse_equation(before), _parse_equation(after)
+    except UnsupportedMath:
+        return {"kind": "unknown"}
+    operation = _single_operation(parsed_before, parsed_after)
+    if operation is None:
+        return {"kind": "unknown"}
+    kind, value = operation
+    if kind == "rewrite":
+        return {"kind": "rewrite"}
+    if kind == "add_to_both_sides":
+        delta_x, delta_c = value
+        if bool(delta_x) == bool(delta_c):  # les deux non nuls : plusieurs termes, non décrit
+            return {"kind": "unknown"}
+        amount = delta_x or delta_c
+        sign = "+" if amount > 0 else "-"
+        magnitude = abs(Fraction(amount))
+        suffix_tex, suffix_text = ("x", "x") if delta_x else ("", "")
+        shown = "" if (delta_x and magnitude == 1) else None
+        return {
+            "kind": "add", "sign": sign, "amount": str(magnitude), "withX": bool(delta_x),
+            "tex": f"{sign} {'' if shown == '' else _fraction_tex(magnitude)}{suffix_tex}".replace("+ ", "+").replace("- ", "-"),
+            "display": f"{'+' if sign == '+' else '−'}{'' if shown == '' else _fraction_text(magnitude)}{suffix_text}",
+        }
+    factor = Fraction(value)
+    if factor.numerator in (1, -1) and factor.denominator != 1:
+        divisor = factor.denominator * factor.numerator
+        return {"kind": "div", "amount": str(divisor), "tex": rf"\div {divisor}" if divisor > 0 else rf"\div ({divisor})",
+                "display": f"÷{divisor}" if divisor > 0 else f"÷({divisor})".replace("-", "−")}
+    return {"kind": "mul", "amount": str(factor), "tex": rf"\times {_fraction_tex(factor)}" if factor > 0
+            else rf"\times ({_fraction_tex(factor)})",
+            "display": f"×{_fraction_text(factor)}" if factor > 0 else f"×({_fraction_text(factor)})".replace("-", "−")}
+
+
+def substitution_check(equation: str, value: Fraction) -> dict | None:
+    """Substitue `value` à x dans l'équation d'origine : textes d'affichage + égalité exacte.
+
+    Renvoie None hors du premier degré (non vérifié ici, jamais inventé)."""
+    try:
+        (a, b), (c, d) = _parse_equation(equation)
+    except UnsupportedMath:
+        return None
+    value = Fraction(value)
+    left_value, right_value = a * value + b, c * value + d
+
+    def substitute(side: str) -> str:
+        shown = _fraction_tex(value) if value >= 0 else rf"({_fraction_tex(value)})"
+        side = side.replace("−", "-").replace("×", r"\times")
+        side = re.sub(r"(?<=[0-9)])\s*x", lambda _m: r" \times " + shown, side)
+        side = re.sub(r"x", lambda _m: shown, side)
+        return side.strip()
+
+    left, right = (part.strip() for part in equation.split("="))
+    return {
+        "left": substitute(left), "right": substitute(right),
+        "leftValue": _fraction_tex(left_value), "rightValue": _fraction_tex(right_value),
+        "ok": left_value == right_value,
+    }

@@ -117,7 +117,10 @@ class TestMathVerification(unittest.TestCase):
                 solution_set(equation)
         with self.assertRaisesRegex(UnsupportedMath, "division par zéro"):
             solution_set("x/0=1")
-        self.assertEqual(verify_steps([{"equation": "x^2=4"}, {"equation": "x=2"}])["status"], "unverified")
+        # x² = 4 → x = 2 perd la racine −2 : refusé comme INVALIDE (et plus seulement « non vérifié »).
+        lost = verify_steps([{"equation": "x^2=4"}, {"equation": "x=2"}])
+        self.assertEqual(lost["status"], "invalid")
+        self.assertIn("x = -2", lost["reason"])
 
     def test_identity_and_no_solution(self):
         self.assertEqual(solution_set("x+1=x+1"), ("identity", None))

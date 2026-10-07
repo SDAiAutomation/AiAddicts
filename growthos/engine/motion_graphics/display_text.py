@@ -37,7 +37,10 @@ _NUMBER_FIELDS = ("value", "targetRatio", "maxValue", "slope", "intercept", "xMi
 _LIST_FIELDS = ("steps", "items", "terms")
 _GROUP_FIELDS = ("optionA", "optionB", "before", "after")
 # Engine-internal, set by sync.attach_reveals — never script content.
-_INTERNAL_FIELDS = ("_reveals", "_duration", "_anchor", "_solutionKind")
+_INTERNAL_FIELDS = ("_reveals", "_duration", "_anchor", "_solutionKind", "_plan", "_domainExclusions")
+# Non affichés : repères vocaux et réglages de la scène equation_steps (math_steps.py).
+_STEP_ANCHOR_FIELDS = ("spoken", "sidesSpoken", "resultSpoken")
+_EQUATION_SCENE_FIELDS = ("verify", "verifySpoken", "rhythm")
 
 # --- Display-text budgets (characters, words) ---------------------------
 #
@@ -212,9 +215,11 @@ def viewer_scene(scene: object) -> dict:
     if kind == "equation_steps" and isinstance(scene.get("steps"), list):
         out["steps"] = [
             {"equation": str(step["equation"]).strip(),
-             "explanation": _clean(step.get("explanation", ""), "label")}
+             "explanation": _clean(step.get("explanation", ""), "label"),
+             **{key: step[key] for key in _STEP_ANCHOR_FIELDS if isinstance(step.get(key), str)}}
             for step in scene["steps"] if isinstance(step, dict) and isinstance(step.get("equation"), str)
         ]
+        out.update({key: scene[key] for key in _EQUATION_SCENE_FIELDS if key in scene})
     for key in _LIST_FIELDS:
         if kind == "equation_steps" and key == "steps":
             continue
@@ -256,3 +261,17 @@ def leaks_in_scene(scene: object) -> list[str]:
         if isinstance(row, dict):
             check(row.get("label")), check(row.get("displayValue"))
     return found
+
+
+_MATH_TOKEN = re.compile(r"[a-z][\u00b2\u00b3^0-9]*[.,:;!?]?")
+_MATH_SYMBOLS = set("=\u2260<>\u2264\u2265+\u2212\u00d7\u00f7^\u00b2\u00b3/()0123456789")
+
+
+def display_title(title: str) -> str:
+    """Titre en majuscules SAUF les variables et les expressions mathématiques : « Isoler x » devient
+    « ISOLER x », « x ≠ 1 » reste « x ≠ 1 » (mettre la variable en capitale en ferait un autre objet)."""
+    out = []
+    for token in str(title or "").split(" "):
+        keep = _MATH_TOKEN.fullmatch(token) is not None or any(char in _MATH_SYMBOLS for char in token)
+        out.append(token if keep else token.upper())
+    return " ".join(out)
