@@ -14,6 +14,8 @@ Sources pour les métriques YouTube : [Analytics Shorts](https://support.google.
 
 ## Contrat de production actuel
 
+> Rendu des vidéos d'équations (plan d'étapes, repères vocaux, modes `MATH_RENDERER`, rapport de rendu, commandes de reproduction) : voir [MATH_STEP_CONTRACT.md](MATH_STEP_CONTRACT.md). Le mode `manim` est la qualité finale (échec explicite, jamais de repli silencieux) ; `auto` retombe sur Pillow en le déclarant ; `pillow` est un aperçu simplifié.
+
 Utiliser le pipeline Generate existant avec `visual_style: "motion_graphics"`, le format vertical `9:16` et des blocs courts. Voir [`content/scripts/exemple-maths.json`](../content/scripts/exemple-maths.json). Deux scènes structurées sont disponibles :
 
 La voix est choisie par le circuit ElevenLabs actuel de Generate : voix explicitement fournie, `voice_id` du script, voix associée à la niche, puis voix par défaut (`engine/voices.py`). Les exemples maths utilisent actuellement la voix par défaut configurée ; ils n'introduisent ni fournisseur vocal ni réglage séparé. `engine/assembler.py` synthétise chaque bloc avec ses timings mot à mot ; `engine/visuals.py` transmet ces timings aux animations. Changer la voix suit donc le même parcours que pour les autres vidéos Faceloop.

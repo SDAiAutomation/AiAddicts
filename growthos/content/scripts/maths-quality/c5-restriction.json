@@ -1,0 +1,54 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Résoudre 1/(x − 1) = 2",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Un sur x moins un égale deux. Trouve x.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "1/(x − 1) = 2",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On exclut d'abord x égale un. On multiplie les deux côtés par x moins un : un égale deux fois x moins un. On divise les deux côtés par deux : un demi égale x moins un. On ajoute un des deux côtés : trois demis égale x. Trois demis est différent de un : la solution est acceptée.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "x ≠ 1",
+        "steps": [
+          {
+            "equation": "1/(x-1)=2",
+            "explanation": "Valeur interdite : x ≠ 1"
+          },
+          {
+            "equation": "1=2(x-1)",
+            "explanation": "×(x − 1) des deux côtés",
+            "spoken": "on multiplie"
+          },
+          {
+            "equation": "1/2=x-1",
+            "explanation": "÷2 des deux côtés",
+            "spoken": "on divise"
+          },
+          {
+            "equation": "3/2=x",
+            "explanation": "+1 des deux côtés",
+            "spoken": "on ajoute"
+          }
+        ]
+      }
+    }
+  ]
+}

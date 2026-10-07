@@ -1,0 +1,49 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Résoudre x² − 5x + 6 = 0",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "X au carré moins cinq x plus six égale zéro. Trouve x.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "x² − 5x + 6 = 0",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On factorise : x moins deux, fois x moins trois, égale zéro. Un produit est nul si l'un des facteurs est nul : x égale deux ou x égale trois.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Second degré",
+        "steps": [
+          {
+            "equation": "x^2 - 5x + 6 = 0",
+            "explanation": "Objectif : trouver x"
+          },
+          {
+            "equation": "(x - 2)(x - 3) = 0",
+            "explanation": "On factorise",
+            "spoken": "on factorise"
+          },
+          {
+            "equation": "x = 2 ou x = 3",
+            "explanation": "Un produit est nul",
+            "spoken": "un produit est nul"
+          }
+        ]
+      }
+    }
+  ]
+}

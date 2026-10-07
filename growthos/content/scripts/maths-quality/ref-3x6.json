@@ -1,0 +1,53 @@
+{
+  "title": "Résoudre 3x + 6 = 18",
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths",
+    "#equations"
+  ],
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Trois x plus six égale dix-huit. Trouve x en trois étapes.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "3x + 6 = 18",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On veut isoler x. On retire six des deux côtés : trois x égale douze. Puis on divise les deux côtés par trois : x égale quatre. Vérifions : trois fois quatre plus six égale dix-huit.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Isoler x",
+        "verify": true,
+        "verifySpoken": "vérifions",
+        "steps": [
+          {
+            "equation": "3x + 6 = 18",
+            "explanation": "Objectif : isoler x",
+            "spoken": "on veut isoler x"
+          },
+          {
+            "equation": "3x = 12",
+            "explanation": "−6 des deux côtés",
+            "spoken": "on retire six"
+          },
+          {
+            "equation": "x = 4",
+            "explanation": "÷3 des deux côtés",
+            "spoken": "puis on divise"
+          }
+        ]
+      }
+    }
+  ]
+}

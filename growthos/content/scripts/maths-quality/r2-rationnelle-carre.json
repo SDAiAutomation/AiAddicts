@@ -1,0 +1,45 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Refus : rationnelle non prise en charge",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Fausse solution ?",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "(x² − 1)/(x − 1) = 2",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On simplifie : x plus un égale deux, donc x égale un.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "steps": [
+          {
+            "equation": "(x^2 - 1)/(x - 1) = 2"
+          },
+          {
+            "equation": "x + 1 = 2",
+            "spoken": "on simplifie"
+          },
+          {
+            "equation": "x = 1",
+            "spoken": "donc"
+          }
+        ]
+      }
+    }
+  ]
+}

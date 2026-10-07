@@ -1,0 +1,56 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Résoudre 2(x + 3) = 14",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Deux fois x plus trois égale quatorze. Trouve x.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "2(x + 3) = 14",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On développe : deux x plus six égale quatorze. On retire six des deux côtés : deux x égale huit. Puis on divise les deux côtés par deux : x égale quatre. Vérifions : deux fois sept égale quatorze.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Distribution",
+        "verify": true,
+        "verifySpoken": "vérifions",
+        "steps": [
+          {
+            "equation": "2(x + 3) = 14",
+            "explanation": "Objectif : isoler x"
+          },
+          {
+            "equation": "2x + 6 = 14",
+            "explanation": "On distribue le 2",
+            "spoken": "on développe"
+          },
+          {
+            "equation": "2x = 8",
+            "explanation": "−6 des deux côtés",
+            "spoken": "on retire six"
+          },
+          {
+            "equation": "x = 4",
+            "explanation": "÷2 des deux côtés",
+            "spoken": "puis on divise"
+          }
+        ]
+      }
+    }
+  ]
+}

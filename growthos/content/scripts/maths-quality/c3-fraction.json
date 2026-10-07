@@ -1,0 +1,52 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Résoudre x/2 + 1 = 3",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "X sur deux plus un égale trois. Trouve x.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "x/2 + 1 = 3",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On veut isoler x. On retire un des deux côtés : x sur deux égale deux. Puis on multiplie les deux côtés par deux : x égale quatre. Vérifions : quatre sur deux plus un égale trois.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Une fraction",
+        "verify": true,
+        "verifySpoken": "vérifions",
+        "steps": [
+          {
+            "equation": "x/2 + 1 = 3",
+            "explanation": "Objectif : isoler x",
+            "spoken": "on veut isoler x"
+          },
+          {
+            "equation": "x/2 = 2",
+            "explanation": "−1 des deux côtés",
+            "spoken": "on retire"
+          },
+          {
+            "equation": "x = 4",
+            "explanation": "×2 des deux côtés",
+            "spoken": "puis on multiplie"
+          }
+        ]
+      }
+    }
+  ]
+}

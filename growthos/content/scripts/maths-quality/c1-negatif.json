@@ -1,0 +1,52 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Résoudre moins 2x + 4 = 10",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Moins deux x plus quatre égale dix. Trouve x.",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "−2x + 4 = 10",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On veut isoler x. On retire quatre des deux côtés : moins deux x égale six. Puis on divise les deux côtés par moins deux : x égale moins trois. Vérifions : moins deux fois moins trois plus quatre égale dix.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "title": "Coefficient négatif",
+        "verify": true,
+        "verifySpoken": "vérifions",
+        "steps": [
+          {
+            "equation": "-2x + 4 = 10",
+            "explanation": "Objectif : isoler x",
+            "spoken": "on veut isoler x"
+          },
+          {
+            "equation": "-2x = 6",
+            "explanation": "−4 des deux côtés",
+            "spoken": "on retire quatre"
+          },
+          {
+            "equation": "x = -3",
+            "explanation": "÷(−2) des deux côtés",
+            "spoken": "puis on divise"
+          }
+        ]
+      }
+    }
+  ]
+}

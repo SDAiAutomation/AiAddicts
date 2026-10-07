@@ -1,0 +1,45 @@
+{
+  "niche": "mathématiques",
+  "account": "math-quality",
+  "platform": "youtube",
+  "organization": "Faceloop Demo",
+  "aspect_ratio": "9:16",
+  "language": "fr",
+  "content_goal": "reach",
+  "visual_style": "motion_graphics",
+  "hashtags": [
+    "#maths"
+  ],
+  "title": "Refus : racine perdue",
+  "blocks": [
+    {
+      "role": "hook",
+      "text": "Deux solutions ?",
+      "motion_graphic": {
+        "sceneType": "icon_text",
+        "displayText": "x(x − 2) = 0",
+        "label": "Trouve x"
+      }
+    },
+    {
+      "role": "point",
+      "text": "On divise par x. Il reste x moins deux égale zéro, donc x égale deux.",
+      "motion_graphic": {
+        "sceneType": "equation_steps",
+        "steps": [
+          {
+            "equation": "x(x - 2) = 0"
+          },
+          {
+            "equation": "x - 2 = 0",
+            "spoken": "on divise"
+          },
+          {
+            "equation": "x = 2",
+            "spoken": "donc"
+          }
+        ]
+      }
+    }
+  ]
+}
