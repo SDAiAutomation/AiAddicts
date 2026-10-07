@@ -121,13 +121,25 @@ def render_scene_clip(
     scene_type = schema.normalized_scene_type(scene) or schema.FALLBACK_SCENE_TYPE
     render = RENDERERS.get(scene_type, RENDERERS[schema.FALLBACK_SCENE_TYPE])
 
-    # Scènes maths : rendu Manim (transformation d'équation, LaTeX) quand il est installé, sinon, ou à la
-    # moindre erreur, rendu Pillow ci-dessous. Voir manim_backend.py.
+    # Scènes maths : rendu Manim (transformation d'équation, LaTeX). Trois modes explicites, voir
+    # manim_backend.py : manim = qualité finale (échec = MathRenderError, jamais de repli silencieux),
+    # auto = repli Pillow AVEC la raison au rapport, pillow = aperçu simplifié.
+    fallback_reason = None
     if manim_backend.wants(scene):
         try:
             return manim_backend.render_clip(scene, duration, out_path, resolution, fps, theme)
-        except Exception as exc:  # noqa: BLE001 — jamais bloquant : le rendu Pillow prend le relais
-            print(f"       Manim indisponible pour {scene_type} ({str(exc)[:220]}) — rendu Pillow")
+        except manim_backend.MathRenderError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            if manim_backend.renderer_mode() == "manim":
+                raise manim_backend.MathRenderError(f"rendu Manim échoué pour {scene_type} : {str(exc)[:400]}") from exc
+            fallback_reason = str(exc)[:300]
+            print(f"       Manim indisponible pour {scene_type} ({fallback_reason[:220]}) — rendu Pillow")
+    elif scene_type in manim_backend.MANIM_SCENES:
+        fallback_reason = (
+            "MATH_RENDERER=pillow" if manim_backend.renderer_mode() == "pillow"
+            else "Manim ou LaTeX non installé (mode auto)"
+        )
 
     n_frames = max(1, round(max(duration, 0.1) * fps))
     out = Path(out_path)
@@ -160,4 +172,10 @@ def render_scene_clip(
         tmp_out.replace(out)
     finally:
         shutil.rmtree(frames_dir, ignore_errors=True)
+    if scene_type in manim_backend.MANIM_SCENES:
+        manim_backend.write_render_report(out_path, {
+            "requestedEngine": manim_backend.renderer_mode(), "engine": "pillow", "simplified": True,
+            "fallbackReason": fallback_reason, "sceneType": scene_type, "durationSeconds": round(float(duration), 3),
+            "fps": int(fps),
+        })
     return out_path

@@ -10,9 +10,15 @@ formules sont composées par LaTeX.
 Garde-fous (jamais bloquant, comme tout le reste de `motion_graphics`) :
 - le rendu tourne dans un SOUS-PROCESSUS avec délai maximal : un blocage ou un plantage de Manim
   ne touche pas le worker ;
-- toute erreur remonte en exception et `render_scene_clip` retombe sur le rendu Pillow ;
-- `MATH_RENDERER=pillow` désactive Manim ; `auto` (défaut) l'utilise s'il est installé ;
-  `manim` le demande explicitement. Sans LaTeX, le texte natif de Manim (Pango) remplace `MathTex`.
+- trois modes EXPLICITES (MATH_RENDERER) :
+    manim  = qualité finale : Manim + LaTeX exigés ; une dépendance manquante ou un échec lève
+             MathRenderError (message exploitable, reprise possible), JAMAIS de repli silencieux ;
+    auto   (défaut) : Manim s'il est installé (et LaTeX pour les équations), sinon repli Pillow,
+             avec la raison enregistrée dans le rapport de rendu ;
+    pillow : aperçu / rendu simplifié, jamais Manim.
+- chaque clip écrit <clip>.render.json : moteur demandé / utilisé, versions, raison du repli,
+  avertissements de mise en page, durées. Sans LaTeX, le texte natif de Manim (Pango) remplace
+  MathTex pour les graphes seulement (les équations exigent LaTeX).
 
 Aucune vérification mathématique ici : le contrôle reste `math_validation.py`, avant ce rendu.
 """
@@ -27,12 +33,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 MANIM_SCENES = ("equation_steps", "function_graph")
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _FONT_DIR = _PROJECT_ROOT / "assets" / "fonts"
-_TIMEOUT_SECONDS = int(os.environ.get("MANIM_TIMEOUT_SECONDS", "300") or 300)
+# Mesuré : ~60-80 s (3 étapes) à ~250 s (4 étapes + vérification) avec MiKTeX sous Windows, la composition
+# LaTeX domine. 300 s était trop juste pour un poste ou un runner plus lent.
+# Alertes de mise en page du rapport Manim qui font échouer le mode qualité finale.
+BLOCKING_LAYOUT_NOTES = ("out_of_frame_x", "out_of_content_zone_y", "history_overlap", "history_overlaps_equation")
+_TIMEOUT_SECONDS = int(os.environ.get("MANIM_TIMEOUT_SECONDS", "900") or 900)
 _CRF = "19"
 _DIM_OPACITY = 0.55  # une étape déjà lue s'efface un peu quand la suivante arrive
 
@@ -50,6 +61,83 @@ _CONTENT_BOTTOM = 0.58  # 1 - layout.CAPTION_RESERVED_RATIO (canvas.SAFE_BOTTOM_
 # Côté worker : choix du moteur et lancement du sous-processus
 # ---------------------------------------------------------------------------
 
+class MathRenderError(Exception):
+    """Échec du rendu de qualité finale (mode manim). Volontairement PAS un RuntimeError : les
+    appelants qui tolèrent un visuel manquant ne doivent pas l'avaler et le remplacer par un rendu
+    simplifié sans que personne ne le sache."""
+
+
+_VERSION_CACHE: dict[str, str] = {}
+
+
+def _first_line(cmd: list[str]) -> str:
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        text_out = (out.stdout or out.stderr or "").strip()
+        return text_out.splitlines()[0][:120] if text_out else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def versions() -> dict:
+    """Versions utiles au diagnostic (mises en cache : un sous-processus par outil, une seule fois)."""
+    if not _VERSION_CACHE:
+        try:
+            from importlib import metadata
+
+            _VERSION_CACHE["manim"] = metadata.version("manim")
+        except Exception:  # noqa: BLE001
+            _VERSION_CACHE["manim"] = ""
+        _VERSION_CACHE["latex"] = _first_line(["latex", "--version"]) if shutil.which("latex") else ""
+        _VERSION_CACHE["ffmpeg"] = _first_line(["ffmpeg", "-version"]) if shutil.which("ffmpeg") else ""
+    return dict(_VERSION_CACHE)
+
+
+def dependency_report() -> dict:
+    """Ce que le rendu de qualité exige, et ce qui manque (liste vide = prêt)."""
+    missing = []
+    if not manim_installed():
+        missing.append("manim (pip install -r requirements-manim.txt)")
+    if shutil.which("latex") is None:
+        missing.append("latex (TeX Live / MiKTeX)")
+    if shutil.which("dvisvgm") is None:
+        missing.append("dvisvgm (fourni avec TeX Live / MiKTeX)")
+    if shutil.which("ffmpeg") is None:
+        missing.append("ffmpeg")
+    return {"ok": not missing, "missing": missing, "versions": versions() if not missing else {}}
+
+
+def assert_ready_for_final(scenes: list) -> None:
+    """Contrôle préalable (mode manim) : échoue AVANT tout rendu si une dépendance manque."""
+    if renderer_mode() != "manim" or not any(
+        isinstance(s, dict) and str(s.get("sceneType") or "") in MANIM_SCENES for s in scenes
+    ):
+        return
+    report = dependency_report()
+    if not report["ok"]:
+        raise MathRenderError(
+            "Rendu maths de qualité finale impossible, dépendances manquantes : " + "; ".join(report["missing"])
+            + ". Installer ces outils puis relancer le job (ou MATH_RENDERER=auto pour accepter le rendu simplifié)."
+        )
+
+
+def assert_layout_ok(layout: dict) -> None:
+    """Mode manim : une alerte de mise en page bloquante (dépassement, chevauchement) lève MathRenderError.
+    Les autres modes la laissent au rapport de rendu."""
+    blocking = [note for note in (layout or {}).get("notes", []) if note in BLOCKING_LAYOUT_NOTES]
+    if renderer_mode() == "manim" and blocking:
+        raise MathRenderError("mise en page invalide dans le rendu Manim : " + ", ".join(blocking)
+                              + " (raccourcir l'équation ou l'annotation, ou scinder l'étape)")
+
+
+def write_render_report(out_path: str, report: dict) -> None:
+    """<clip>.render.json : jamais bloquant (un rapport manquant ne doit pas perdre une vidéo)."""
+    try:
+        Path(str(out_path) + ".render.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def renderer_mode() -> str:
     mode = os.environ.get("MATH_RENDERER", "auto").strip().lower()
     return mode if mode in ("auto", "manim", "pillow") else "auto"
@@ -64,12 +152,18 @@ def latex_available() -> bool:
 
 
 def wants(scene: dict) -> bool:
-    """True si cette scène doit être rendue par Manim (sinon rendu Pillow habituel)."""
-    return (
-        renderer_mode() != "pillow"
-        and str(scene.get("sceneType") or "") in MANIM_SCENES
-        and manim_installed()
-    )
+    """True si cette scène doit être rendue par Manim (sinon rendu Pillow habituel).
+
+    Mode manim : toujours (les dépendances manquantes sont signalées par render_clip, pas
+    ignorées). Mode auto : seulement si Manim est installé, et LaTeX pour une équation, dont la
+    qualité repose sur la composition LaTeX."""
+    kind = str(scene.get("sceneType") or "")
+    mode = renderer_mode()
+    if mode == "pillow" or kind not in MANIM_SCENES:
+        return False
+    if mode == "manim":
+        return True
+    return manim_installed() and (kind != "equation_steps" or latex_available())
 
 
 def _fit_to_duration(raw: Path, duration: float, fps: int, out_path: Path) -> None:
@@ -91,7 +185,13 @@ def _fit_to_duration(raw: Path, duration: float, fps: int, out_path: Path) -> No
 
 def render_clip(scene: dict, duration: float, out_path: str, resolution: str, fps: int, theme) -> str:
     """Rend `scene` avec Manim vers `out_path` (durée exacte). Lève RuntimeError au moindre échec."""
+    started = time.monotonic()
+    if renderer_mode() == "manim":
+        deps = dependency_report()
+        if not deps["ok"]:
+            raise MathRenderError("dépendances manquantes : " + "; ".join(deps["missing"]))
     width, height = (int(v) for v in resolution.split("x"))
+    plan = scene.get("_plan") if isinstance(scene.get("_plan"), dict) else None
     job = {
         "scene": {k: v for k, v in scene.items() if not str(k).startswith("__")},
         "duration": float(duration),
@@ -121,7 +221,22 @@ def render_clip(scene: dict, duration: float, out_path: str, resolution: str, fp
         )
         if not produced:
             raise RuntimeError("Manim n'a produit aucun fichier vidéo")
+        layout = {}
+        layout_file = Path(tmp) / "layout.json"
+        if layout_file.is_file():
+            try:
+                layout = json.loads(layout_file.read_text(encoding="utf-8"))
+            except ValueError:
+                layout = {}
+        assert_layout_ok(layout)  # qualité finale : un dépassement réel échoue AVANT d'écrire le clip
         _fit_to_duration(produced[0], duration, fps, out)
+    write_render_report(out_path, {
+        "requestedEngine": renderer_mode(), "engine": "manim", "versions": versions(), "fallbackReason": None,
+        "sceneType": scene.get("sceneType"), "durationSeconds": round(float(duration), 3), "fps": int(fps),
+        "renderSeconds": round(time.monotonic() - started, 1), "layout": layout,
+        "plan": ({"timing": plan.get("timing"), "neededDuration": plan.get("neededDuration"),
+                  "warnings": plan.get("warnings", [])} if plan else None),
+    })
     return out_path
 
 
@@ -160,6 +275,15 @@ def reveal_times(scene: dict, count: int, duration: float) -> list[float]:
     return times
 
 
+def typographic_minus(content: str) -> str:
+    """Poppins dessine le signe moins U+2212 comme un trait d'union court : on lui substitue le tiret
+    demi-cadratin (U+2013), qui se lit comme un moins. Un trait d'union collé à un chiffre ou à une
+    parenthèse (« -4 », « (-2) ») est un signe négatif ; entre deux lettres (« dix-huit ») il reste
+    un trait d'union."""
+    s = str(content or "").replace("\u2212", "\u2013")
+    return re.sub(r"(?<![\w\u2013])-(?=[\d(])", "\u2013", s)
+
+
 def coefficient_text(value: float) -> str:
     if value == 1:
         return ""
@@ -191,8 +315,8 @@ def _register_fonts() -> str:
 
 def _build(job: dict):
     from manim import (
-        BOLD, DOWN, ORIGIN, Create, Dot, FadeIn, Line, MathTex, RoundedRectangle, Scene, Text, TransformMatchingShapes,
-        TransformMatchingTex, VGroup, config,
+        BOLD, DOWN, ORIGIN, RIGHT, UP, Create, Dot, FadeIn, FadeOut, Line, MathTex, ReplacementTransform,
+        AnimationGroup, RoundedRectangle, Scene, Succession, SurroundingRectangle, Text, VGroup, Wait, Write, config, linear,
     )
     import numpy as np
 
@@ -205,9 +329,11 @@ def _build(job: dict):
     frame_h = 16.0
     frame_w = frame_h * width_px / height_px
 
+    from engine.motion_graphics.display_text import display_title
+
     def text(s: str, color: str, bold: bool = False) -> "Text":
         kwargs = {"font": font} if font else {}
-        return Text(s, color=color, weight=BOLD if bold else "NORMAL", **kwargs)
+        return Text(typographic_minus(s), color=color, weight=BOLD if bold else "NORMAL", **kwargs)
 
     def fit(mobject, max_width: float, max_height: float):
         mobject.scale_to_fit_height(max_height)
@@ -221,77 +347,340 @@ def _build(job: dict):
     content_bottom = _CONTENT_BOTTOM
 
     class EquationSteps(Scene):
+        """Équation centrale à signe « = » FIXE : l'opération apparaît, est écrite des deux côtés,
+        annule ses termes, puis le résultat remplace la ligne. Tout est piloté par `_plan`
+        (engine/motion_graphics/math_steps.py) ; ce code ne calcule aucun résultat mathématique."""
+
         def construct(self):
-            from engine.motion_graphics.scenes import _changed_flags
+            from engine.motion_graphics.math_steps import build_plan, term_parts
 
-            steps = (scene_data.get("steps") or [])[:4]
+            plan = scene_data.get("_plan") or build_plan(scene_data, None, duration)
+            steps = plan["steps"]
             n = len(steps)
-            title = str(scene_data.get("title") or "")
+            rhythm = plan["rhythm"]
+            tol = 1 / config.frame_rate
+            eq_color, accent = theme["text"], theme["accent"]
+            secondary, positive, negative = theme["secondary"], theme["positive"], theme["negative"]
+            final_color = negative if plan.get("solutionKind") == "empty" else positive
+            layout_notes: list[str] = []
+            layout_info: list[str] = []  # informations, pas des alertes
+            tracked: list = []
+
+            def track(mobject):
+                tracked.append(mobject)
+                return mobject
+
+            title = str(plan.get("title") or "")
             if title:
-                head = fit(text(title.upper(), theme["secondary"], True), frame_w * 0.88, 0.5)
+                head = fit(text(display_title(title), secondary, True), frame_w * 0.88, 0.5)
                 head.move_to([0, y_at(_TITLE_Y), 0])
-                self.add(head)
-            top = y_at(_STACK_TOP)
-            bottom = y_at(content_bottom - 0.02)
-            avail = top - bottom
-            row_h = min(avail / n, frame_h * 0.17)
-            gap = row_h * 0.12
-            panel_h = row_h - gap
-            start = top - (avail - row_h * n) / 2
-            solution_kind = scene_data.get("_solutionKind")
-            final_color = theme["negative"] if solution_kind == "empty" else theme["positive"]
-            times = reveal_times(scene_data, n, duration)
+                self.add(track(head))
 
-            panels, equations, captions = [], [], []
-            for i, step in enumerate(steps):
-                panel_top = start - i * row_h
-                cy = panel_top - panel_h / 2
-                panel = RoundedRectangle(
-                    width=frame_w * 0.86, height=panel_h, corner_radius=0.22,
-                    fill_color=theme["primary"], fill_opacity=0.09, stroke_width=0,
-                ).move_to([0, cy, 0])
-                last = i == n - 1
-                color = final_color if last else theme["text"]
-                equation = str(step.get("equation") or "")
-                explanation = str(step.get("explanation") or "")
-                if use_tex:
-                    tokens = tex_tokens(equation)
-                    mob = MathTex(*tokens, color=color)
-                    if i > 0 and not last:
-                        flags = _changed_flags(str(steps[i - 1].get("equation") or ""), equation)
-                        if len(flags) == len(mob) and any(flags):
-                            for k, flagged in enumerate(flags):
-                                if flagged:
-                                    mob[k].set_color(theme["accent"])
-                else:
-                    mob = text(equation, color, True)
-                fit(mob, frame_w * 0.78, panel_h * 0.38)
-                mob.move_to([0, panel_top - panel_h * (0.40 if explanation else 0.50), 0])
-                caption = None
-                if explanation:
-                    caption = fit(text(explanation, theme["secondary"]), frame_w * 0.78, 0.42)
-                    caption.move_to([0, panel_top - panel_h * 0.80, 0])
-                panels.append(panel)
-                equations.append(mob)
-                captions.append(caption)
+            def tex(strings, color):
+                strings = [strings] if isinstance(strings, str) else list(strings)
+                return MathTex(*strings, color=color)
 
-            # frame 1 : la première étape est déjà à l'écran
-            self.add(panels[0], equations[0])
-            if captions[0] is not None:
-                self.add(captions[0])
-            for i in range(1, n):
-                gap_s = times[i] - self.renderer.time
-                if gap_s > 1 / config.frame_rate:
+            # Une seule échelle pour toute la scène : pas de changement de taille non justifié.
+            candidates: list = []
+            candidate_keys: list = []
+            for step in steps:
+                for key in ("left", "right"):
+                    if step.get(key):
+                        candidates.append(tex(term_parts(step[key]), eq_color))
+                        candidate_keys.append(key)
+                inter = step.get("intermediate")
+                if inter:
+                    candidates += [tex(term_parts(inter["left"]), eq_color), tex(term_parts(inter["right"]), eq_color)]
+                    candidate_keys += ["left", "right"]
+                if step.get("line"):
+                    candidates.append(tex(step["line"], eq_color).scale(0.5))
+                    candidate_keys.append("line")
+            widest = max((m.width for m in candidates), default=1.0)
+            tallest = max((m.height for m in candidates), default=0.5)
+            # le plus large des membres + l'espace du signe « = » doit tenir dans une demi-largeur utile
+            scale = min(2.2, frame_w * 0.42 / (max(widest, 1e-6) + 0.32), 1.9 / max(tallest, 1e-6))
+            if scale < 1.2:
+                layout_notes.append(f"small_equation_scale:{scale:.2f}")
+            # Équation très asymétrique ((x − 2)(x − 3) = 0 : 2,96 à gauche, 0,21 à droite) : centrer le « = »
+            # gaspille la moitié droite et force une petite échelle. Le « = » reste FIXE d'une étape à
+            # l'autre mais est décalé pour équilibrer ; seulement si l'échelle serait sinon trop petite
+            # (les scènes déjà validées gardent exactement leur disposition).
+            eq_x = 0.0
+            if scale < 1.2:
+                half = frame_w * 0.42
+                lefts = [m.width for m, key in zip(candidates, candidate_keys) if key == "left"]
+                rights = [m.width for m, key in zip(candidates, candidate_keys) if key == "right"]
+                lines = [m.width * 2 for m, key in zip(candidates, candidate_keys) if key == "line"]
+                if lefts and rights:
+                    balanced = min(2.2, 2 * half / (max(lefts) + max(rights) + 0.64), 1.9 / max(tallest, 1e-6),
+                                   *(2 * half / w for w in lines))
+                    if balanced > scale * 1.15:
+                        scale = balanced
+                        gap_b = 0.32 * scale
+                        low = -half + max(lefts) * scale + gap_b
+                        high = half - gap_b - max(rights) * scale
+                        eq_x = (low + high) / 2
+                        layout_info.append(f"balanced_equation:{scale:.2f}")
+                        layout_notes[:] = [note_ for note_ in layout_notes if not note_.startswith("small_equation_scale")]
+            gap = 0.32 * scale
+
+            # Hauteurs : historique en haut, équation centrale, puis opération + annotation. Les lignes de
+            # l'historique sont plafonnées à 0,8 unité (0,62 à quatre étapes) et espacées selon la hauteur RÉELLE de la plus haute
+            # (une fraction est deux fois plus haute qu'une ligne simple : un pas fixe les faisait se chevaucher).
+            def history_text(step):
+                return f"{step['left']} = {step['right']}" if step.get("left") is not None else step["line"]
+
+            history_mobs = [MathTex(history_text(step), color=secondary) for step in steps[:-1]]
+            # Une seule taille pour tout l'historique (la plus contrainte : une ligne avec fraction), sinon
+            # une ligne simple paraîtrait plus grosse que ses voisines.
+            history_factor = min(
+                (min(scale * (0.7 if n <= 3 else 0.6), (0.8 if n <= 3 else 0.62) / max(mob.height, 1e-6))
+                 for mob in history_mobs), default=1.0)
+            for mob in history_mobs:
+                mob.scale(history_factor)
+            row_units = max((m.height for m in history_mobs), default=0.0) + 0.16
+            pitch = row_units / frame_h
+            hist_top = 0.215 if n <= 3 else 0.205
+            legacy_focal = hist_top + (0.04 if n <= 3 else 0.031) * (n - 1) + (0.085 if n <= 3 else 0.075)
+            box_margin = 0.3 * scale  # le cadre du résultat final dépasse l'équation de cette marge
+            # Géométrie exacte : bas de la dernière ligne d'historique + haut du cadre du résultat (équation + marge)
+            last_half = (history_mobs[-1].height / 2 / frame_h) if history_mobs else 0.0
+            fitted_focal = hist_top + pitch * max(n - 2, 0) + last_half + (tallest * scale / 2 + box_margin) / frame_h + 0.006
+            focal = max(legacy_focal, fitted_focal)  # les scènes sans fraction gardent leur disposition d'origine
+            y_focal, y_chip, y_ann = y_at(focal), y_at(focal + 0.08), y_at(focal + 0.128)
+            hist_y = [y_at(hist_top + pitch * i) for i in range(len(history_mobs))]
+            for mob, y in zip(history_mobs, hist_y):
+                mob.move_to([0, y, 0])
+            for upper, lower in zip(history_mobs, history_mobs[1:]):
+                if upper.get_bottom()[1] < lower.get_top()[1]:
+                    layout_notes.append("history_overlap")
+            if history_mobs and history_mobs[-1].get_bottom()[1] < y_focal + tallest * scale / 2 + box_margin:
+                layout_notes.append("history_overlaps_equation")
+
+            def put_line(left, eq, right, y):
+                eq.move_to([eq_x, y, 0])
+                left.move_to([eq_x - (gap + left.width / 2), y, 0])
+                right.move_to([eq_x + gap + right.width / 2, y, 0])
+
+            def make_line(step, color, y, parts=True):
+                """{"L","E","R","all"} ; ligne unique centrée si l'étape n'est pas une égalité simple."""
+                if step.get("left") is None:
+                    whole = tex(step["line"], color).scale(scale).move_to([0, y, 0])
+                    return {"L": None, "E": None, "R": None, "all": whole, "line": True}
+                left = tex(term_parts(step["left"]) if parts else step["left"], color).scale(scale)
+                right = tex(term_parts(step["right"]) if parts else step["right"], color).scale(scale)
+                eq = MathTex("=", color=color).scale(scale)
+                put_line(left, eq, right, y)
+                return {"L": left, "E": eq, "R": right, "all": VGroup(left, eq, right), "line": False}
+
+            def annotation(content: str):
+                if not content:
+                    return None
+                note_mob = fit(text(content, secondary), frame_w * 0.8, 0.42)
+                return note_mob.move_to([0, y_ann, 0])
+
+            def swap(old_mob, new_mob, total: float):
+                """L'ancien état s'efface, puis le nouveau apparaît : jamais deux états superposés
+                (un fondu enchaîné laisse des glyphes fantômes au milieu de la transformation)."""
+                # Recouvrement de moitié : au croisement chaque état reste à ~25 % d'opacité, donc la ligne
+                # n'est jamais vide (mesuré : un recouvrement de 25 % laissait 3 à 5 images sans rien).
+                part = total / 1.5
+                # courbe LINÉAIRE : la somme des opacités reste à 50 % pendant le recouvrement (la courbe
+                # de lissage par défaut les rend toutes deux quasi invisibles au croisement)
+                return AnimationGroup(FadeOut(old_mob, run_time=part, rate_func=linear),
+                                      FadeIn(new_mob, run_time=part, rate_func=linear), lag_ratio=0.5)
+
+            def wait_until(t: float):
+                gap_s = t - self.renderer.time
+                if gap_s > tol:
                     self.wait(gap_s)
-                budget = (times[i + 1] - times[i]) if i + 1 < n else max(duration - times[i], 0.3)
-                run = min(0.9, max(0.3, budget * 0.6))
-                morph = (TransformMatchingTex if use_tex else TransformMatchingShapes)(equations[i - 1].copy(), equations[i])
-                animations = [FadeIn(panels[i]), morph, equations[i - 1].animate.set_opacity(_DIM_OPACITY)]
-                if captions[i] is not None:
-                    animations.append(FadeIn(captions[i], shift=DOWN * 0.15))
-                self.play(*animations, run_time=run)
+
+            # --- image 1 : la première étape est déjà là ---------------------------------------
+            cur = make_line(steps[0], eq_color, y_focal)
+            note = annotation(steps[0].get("annotation", ""))
+            self.add(track(cur["all"]))
+            if note is not None:
+                self.add(track(note))
+
+            for k in range(1, n):
+                step, ev = steps[k], steps[k]["events"]
+                prev = steps[k - 1]
+                op = step.get("operation") or {}
+                kind = op.get("kind")
+                inter = step.get("intermediate")
+                writable = bool(inter) and kind in ("add", "mul", "div") and not cur["line"]
+
+                # 1. l'opération est nommée : étiquette + annotation courte
+                wait_until(ev["showOp"])
+                new_note = annotation(step.get("annotation", ""))
+                label = None
+                anims = []
+                if writable:
+                    label = track(MathTex(op["tex"], color=accent).scale(scale * 0.85).move_to([eq_x, y_chip, 0]))
+                    anims.append(FadeIn(label, scale=0.8))
+                if new_note is not None:
+                    track(new_note)
+                    anims.append(swap(note, new_note, max(rhythm["op_in"], 0.2)) if note is not None
+                                 else FadeIn(new_note, shift=DOWN * 0.12))
+                elif note is not None:
+                    anims.append(FadeOut(note))
+                if anims:
+                    self.play(*anims, run_time=max(rhythm["op_in"], 0.2))
+                note = new_note if new_note is not None else note
+
+                # 2. « aux deux membres » : l'opération est écrite de chaque côté
+                chips = None
+                if writable:
+                    wait_until(ev["sides"])
+                    sides_time = max(rhythm["sides_move"], 0.25)
+                    if kind == "add":
+                        m = len(term_parts(prev["left"]))
+                        mr = len(term_parts(prev["right"]))
+                        left_i = tex(term_parts(inter["left"])[:m] + ["{}" + op["tex"]], eq_color).scale(scale)
+                        right_i = tex(term_parts(inter["right"])[:mr] + ["{}" + op["tex"]], eq_color).scale(scale)
+                        left_i.move_to([eq_x - (gap + left_i.width / 2), y_focal, 0])
+                        right_i.move_to([eq_x + gap + right_i.width / 2, y_focal, 0])
+                        track(left_i), track(right_i)
+                        chip_l, chip_r = label.copy(), label.copy()
+                        self.add(chip_l, chip_r)
+                        # Translation pure (même glyphes, même échelle) : aucune forme intermédiaire déformée.
+                        grow = scale / (scale * 0.85)
+                        def chip_motion(chip, target_group, base_index, base_tex):
+                            """Le terme s'aligne sur la ligne de base des chiffres voisins ; derrière une fraction,
+                            sur sa barre (le bas de la fraction est le bas du dénominateur, pas la ligne)."""
+                            end = target_group[len(target_group) - 1].get_center()
+                            motion = chip.animate.scale(grow)
+                            if r"\frac" in base_tex:
+                                return motion.move_to([end[0], target_group[base_index].get_center()[1], 0])
+                            return motion.move_to(end).align_to(target_group[base_index], DOWN)
+
+                        self.play(
+                            cur["L"].animate.move_to(VGroup(*[left_i[i] for i in range(m)]).get_center()),
+                            cur["R"].animate.move_to(VGroup(*[right_i[i] for i in range(mr)]).get_center()),
+                            chip_motion(chip_l, left_i, m - 1, term_parts(prev["left"])[m - 1]),
+                            chip_motion(chip_r, right_i, mr - 1, term_parts(prev["right"])[mr - 1]),
+                            FadeOut(label), run_time=sides_time,
+                        )
+                        chips = (chip_l, chip_r)
+                    else:
+                        left_i = tex(inter["left"], eq_color).scale(scale)
+                        right_i = tex(inter["right"], eq_color).scale(scale)
+                        left_i.move_to([eq_x - (gap + left_i.width / 2), y_focal, 0])
+                        right_i.move_to([eq_x + gap + right_i.width / 2, y_focal, 0])
+                        track(left_i), track(right_i)
+                        self.play(swap(VGroup(cur["L"], cur["R"], label), VGroup(left_i, right_i), sides_time), run_time=sides_time)
+                        cur["L"], cur["R"] = left_i, right_i
+
+                # 3. le résultat : annulation, simplification, trace dans l'historique
+                wait_until(ev["apply"])
+                last = k == n - 1
+                result_color = final_color if last else eq_color
+                # Termes séparés même après une réécriture : l'étape suivante peut annuler un terme par son rang
+                after = make_line(step, result_color, y_focal, parts=True)
+                track(after["all"])
+                history = history_mobs[k - 1] if k - 1 < len(history_mobs) else None
+                if history is not None:
+                    track(history)
+                # Tout ce qui suit tient dans apply_anim : le plan (math_steps) compte exactement ce budget.
+                apply_total = max(rhythm["apply_anim"], 0.4)
+                box = None
+                if last and not after["line"]:
+                    box = track(SurroundingRectangle(after["all"], color=final_color, buff=0.3 * scale,
+                                                     corner_radius=0.2, stroke_width=5))
+                anims = []
+                if cur["line"] or after["line"]:
+                    anims.append(swap(cur["all"], after["all"], apply_total))
+                else:
+                    if chips is not None:  # addition/soustraction : les termes opposés s'annulent
+                        cancel = step.get("cancel") or {}
+                        tint = []
+                        for side_key, side_mob, chip in (("left", cur["L"], chips[0]), ("right", cur["R"], chips[1])):
+                            index = cancel.get(side_key)
+                            if index is not None:
+                                tint += [side_mob[index].animate.set_color(negative), chip.animate.set_color(negative)]
+                        if tint:
+                            pre = min(0.25, apply_total * 0.3)
+                            self.play(*tint, run_time=pre)
+                            apply_total = max(apply_total - pre, 0.3)
+                        for side_key, side_mob, chip, target in (
+                            ("left", cur["L"], chips[0], after["L"]), ("right", cur["R"], chips[1], after["R"]),
+                        ):
+                            index = cancel.get(side_key)
+                            if index is not None:
+                                keep = VGroup(*[side_mob[i] for i in range(len(side_mob)) if i != index])
+                                anims += [FadeOut(VGroup(side_mob[index], chip), scale=0.6, run_time=apply_total),
+                                          ReplacementTransform(keep, target, run_time=apply_total)]
+                            else:
+                                anims.append(swap(VGroup(side_mob, chip), target, apply_total))
+                    else:
+                        anims.append(swap(VGroup(cur["L"], cur["R"]), VGroup(after["L"], after["R"]), apply_total))
+                    # le signe « = » reste en place (même objet) : seuls les membres changent. Le groupe `all`
+                    # doit le contenir, sinon une transition suivante (vers une ligne « x = 2 ou x = 3 »)
+                    # laisserait ce « = » à l'écran sous la nouvelle ligne.
+                    after["E"] = cur["E"]
+                    after["all"] = VGroup(after["L"], after["E"], after["R"])
+                    if last:
+                        anims.append(cur["E"].animate.set_color(final_color))
+                if history is not None:
+                    anims.append(FadeIn(history, shift=UP * 0.12, run_time=apply_total))
+                if box is not None:
+                    anims.append(Succession(Wait(apply_total * 0.55), Create(box, run_time=apply_total * 0.45)))
+                self.play(*anims, run_time=apply_total)
+                cur = after
+
+            # --- vérification par substitution (si le plan en contient une) ---------------------
+            verification = plan.get("verification")
+            if verification:
+                wait_until(verification["at"])
+                sub = verification["substitution"]
+                label_v = fit(text(verification["label"], secondary, True), frame_w * 0.5, 0.42)
+                has_frac = r"\frac" in (sub["left"] + sub["right"] + sub["leftValue"] + sub["rightValue"])
+                label_v.move_to([0, y_at(focal + (0.105 if has_frac else 0.115)), 0])
+                bare = re.fullmatch(r"-?\d+", sub["right"].replace(" ", "")) is not None
+                tick = MathTex(r"\checkmark", color=positive)
+                if bare:
+                    first = VGroup(MathTex(sub["left"], "=", sub["leftValue"], color=eq_color), tick).arrange(RIGHT, buff=0.35)
+                    second = None
+                else:
+                    first = MathTex(sub["left"], "=", sub["right"], color=eq_color)
+                    second = VGroup(MathTex(sub["leftValue"], "=", sub["rightValue"], color=eq_color), tick).arrange(RIGHT, buff=0.35)
+                row_cap = 0.95 if has_frac else (0.8 if bare else 0.6)
+                fit(first, frame_w * 0.84, row_cap).move_to(
+                    [0, y_at(focal + ((0.17 if has_frac else 0.168) if bare else 0.158)), 0])
+                track(label_v), track(first)
+                reveal = [FadeIn(label_v, shift=DOWN * 0.1), Write(first[0] if bare else first)]
+                if note is not None:
+                    self.play(FadeOut(note), run_time=0.2)
+                self.play(*reveal, run_time=max(rhythm["verify_anim"] * 0.6, 0.4))
+                if bare:
+                    self.play(FadeIn(tick, scale=0.5), run_time=max(rhythm["verify_anim"] * 0.3, 0.3))
+                else:
+                    fit(second, frame_w * 0.84, 0.6).move_to([0, y_at(focal + 0.2), 0])
+                    track(second)
+                    self.play(FadeIn(second, shift=DOWN * 0.1), run_time=max(rhythm["verify_anim"] * 0.4, 0.3))
+
+            # --- garde-fous de mise en page (rapport, pas de correction silencieuse) ------------
+            top_limit, bottom_limit = y_at(0.12), y_at(content_bottom + 0.005)
+            for mobject in tracked:
+                try:
+                    if mobject.get_left()[0] < -frame_w / 2 * 0.97 or mobject.get_right()[0] > frame_w / 2 * 0.97:
+                        layout_notes.append("out_of_frame_x")
+                    if mobject.get_top()[1] > top_limit + 1e-6 or mobject.get_bottom()[1] < bottom_limit - 1e-6:
+                        layout_notes.append("out_of_content_zone_y")
+                except Exception:  # noqa: BLE001 — la mesure est un contrôle, jamais bloquante
+                    pass
+            self.layout_report = {
+                "equationScale": round(scale, 3),
+                "equationHeightPx": round(tallest * scale * height_px / frame_h, 1),
+                "notes": sorted(set(layout_notes)),
+                "info": layout_info,
+                # Objets VISIBLES restant à l'écran en fin de scène (les fondus laissent des conteneurs vides,
+                # ignorés ici) : un reste oublié d'une étape précédente, par exemple un « = » sous la ligne
+                # « x = 2 ou x = 3 », augmente ce nombre.
+                "visibleOnScreen": sum(1 for m in self.mobjects if any(sm.has_points() for sm in m.get_family())),
+            }
             remaining = duration - self.renderer.time
-            if remaining > 1 / config.frame_rate:
+            if remaining > tol:
                 self.wait(remaining)
 
     class FunctionGraph(Scene):
@@ -301,7 +690,7 @@ def _build(job: dict):
             y_min, y_max = float(scene_data.get("yMin", -5)), float(scene_data.get("yMax", 5))
             title = str(scene_data.get("title") or "")
             if title:
-                head = fit(text(title.upper(), theme["secondary"], True), frame_w * 0.88, 0.5)
+                head = fit(text(display_title(title), theme["secondary"], True), frame_w * 0.88, 0.5)
                 head.move_to([0, y_at(_TITLE_Y), 0])
                 self.add(head)
             formula_str = graph_formula(slope, intercept)
@@ -376,7 +765,11 @@ def _main(job_path: str, media_dir: str) -> None:
     }
     with tempconfig(settings):
         scene_class = _build(job)
-        scene_class().render()
+        scene = scene_class()
+        scene.render()
+        report = getattr(scene, "layout_report", None)
+        if report is not None:
+            (Path(media_dir) / "layout.json").write_text(json.dumps(report), encoding="utf-8")
 
 
 if __name__ == "__main__":

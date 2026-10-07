@@ -254,6 +254,8 @@ def fetch_motion_graphics_clips(
     images_dir = Path(work_dir) / "images"
     paths: list[str | None] = [None] * len(blocks)
     resolution = video.RESOLUTIONS.get(aspect_ratio, video.RESOLUTIONS["9:16"])
+    # Mode manim (qualité finale) : une dépendance manquante échoue ICI, avant tout rendu.
+    motion_graphics.manim_backend.assert_ready_for_final([b.get("motion_graphic") for b in blocks if isinstance(b, dict)])
     for i, block in enumerate(blocks):
         if i > 0 and block.get("reuse_visual_from_previous"):
             paths[i] = paths[i - 1]
@@ -354,17 +356,43 @@ def _sync_and_preflight(
         entry["semanticIssues"] = [x["code"] for x in semantic]
     try:
         w, h = tuple(size)
+        words = json.loads(words_path.read_text(encoding="utf-8")) if words_path.exists() else None
         if words_path.exists():
-            scene = sync.attach_reveals(scene, json.loads(words_path.read_text(encoding="utf-8")), duration)
+            scene = sync.attach_reveals(scene, words, duration)
             entry["synced"] = "_reveals" in scene or "_anchor" in scene
             if scene.get("sceneType") == "equation_steps" and all(
                 isinstance(step, dict) and step.get("spoken") for step in scene.get("steps") or []
             ) and not entry["synced"]:
                 entry["manualReview"] = True
                 entry["action"] = "voice_sync_review"
+        if scene.get("sceneType") == "equation_steps":
+            # Plan structuré (étapes, opérations, événements sur les mots RÉELS de la voix) : la même
+            # timeline sert au rendu Manim ; le rapport garde ce qui est serré ou manque.
+            from .motion_graphics import math_steps
+
+            plan = math_steps.build_plan(scene, words, duration)
+            scene = {**scene, "_plan": plan}
+            entry["plan"] = {"timing": plan["timing"], "neededDuration": plan["neededDuration"],
+                             "warnings": plan["warnings"]}
+            if plan["timing"] == "voice":
+                entry["synced"] = True
+            if entry["action"] == "none" and any(
+                w_.startswith(("rhythm_tight", "voice_anchor_missing")) for w_ in plan["warnings"]
+            ):
+                entry["manualReview"] = True
+                entry["action"] = "rhythm_review"
         result = preflight.check_scene(scene, resolve_theme(theme_overrides), (w, h))
         entry.update({"minFontPx": result["minFontPx"], "errors": result["errors"], "warnings": result["warnings"]})
-        if not result["ok"]:
+        # Qualité finale (MATH_RENDERER=manim) : ce contrôle mesure la géométrie du rendu PILLOW, pas celle de
+        # Manim, qui a sa propre mise en page et son propre contrôle (rapport de rendu, échec explicite en cas
+        # de dépassement). Il ne doit pas remplacer silencieusement une scène Manim par un simple texte.
+        from .motion_graphics import manim_backend
+
+        manim_final = scene.get("sceneType") in manim_backend.MANIM_SCENES and manim_backend.renderer_mode() == "manim"
+        if not result["ok"] and manim_final:
+            entry["pillowPreflightIgnored"] = [e["kind"] for e in result["errors"]]
+            entry["errors"] = []
+        elif not result["ok"]:
             scene = motion_graphics.resolve_scene(None, preflight.fallback_text(scene, fallback_text))
             entry["action"] = "fallback_icon_text"
             print(f"       bloc {block_index + 1} : mise en page {entry['sceneType']} invalide "

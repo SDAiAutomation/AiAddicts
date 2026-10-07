@@ -52,7 +52,8 @@ def _stag(data: dict, t: float, index: int, count: int, start: float = 0.05, spa
     return anim.stagger(t, index, count, start, span, item_duration)
 
 
-def _title(image: Image.Image, draw, theme: Theme, size: tuple[int, int], text: str, t: float, y_ratio: float = 0.15) -> None:
+def _title(image: Image.Image, draw, theme: Theme, size: tuple[int, int], text: str, t: float, y_ratio: float = 0.15,
+           math: bool = False) -> None:
     """Phase 2.7 fix: width-fit via `layout.draw_fitted` — every scene calls
     this for its title, so this one change protects all of them from a
     long/translated title overflowing the frame edges."""
@@ -62,7 +63,8 @@ def _title(image: Image.Image, draw, theme: Theme, size: tuple[int, int], text: 
     base_px = round(h * 0.03)
     color = lerp_color(theme.background, theme.secondary, anim.fade_in(t, 0.0, 0.2))
     offset = anim.slide_up(t, 0.0, 0.25, distance=18)
-    layout.draw_fitted(draw, (w / 2, h * y_ratio + offset), text.upper(), base_px, w * 0.88, color, bold=True)
+    shown = display_text.display_title(text) if math else text.upper()  # maths : la variable x reste en minuscule
+    layout.draw_fitted(draw, (w / 2, h * y_ratio + offset), shown, base_px, w * 0.88, color, bold=True)
 
 
 def _label(image: Image.Image, draw, theme: Theme, size: tuple[int, int], text: str, t: float, y_ratio: float, start: float = 0.15) -> None:
@@ -610,7 +612,7 @@ def render_equation_steps(data: dict, t: float, theme: Theme, size: tuple[int, i
     (a scene never opens on an empty frame)."""
     image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
-    _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.14)
+    _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.14, math=True)
     steps = (data.get("steps") or [])[:4]
     if not steps:
         return image
@@ -662,7 +664,7 @@ def render_function_graph(data: dict, t: float, theme: Theme, size: tuple[int, i
     """Draw y = ax + b progressively, with a computed point on the line."""
     image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
-    _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.13)
+    _title(image, draw, theme, size, str(data.get("title") or ""), t, y_ratio=0.13, math=True)
     slope, intercept = float(data["slope"]), float(data["intercept"])
     x_min, x_max = float(data.get("xMin", -5)), float(data.get("xMax", 5))
     y_min, y_max = float(data.get("yMin", -5)), float(data.get("yMax", 5))

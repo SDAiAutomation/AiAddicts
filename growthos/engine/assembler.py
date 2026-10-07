@@ -112,6 +112,20 @@ def _generate(
             )
         rendered_audio = str(audio_path)
         hold_after = float(block.get("hold_after_seconds") or 0)
+        motion_graphic = block.get("motion_graphic")
+        if isinstance(motion_graphic, dict) and motion_graphic.get("sceneType") == "equation_steps" and hold_after <= 0:
+            # Temps de lecture du résultat : la voix s'arrête sur « x égale quatre », l'écran doit
+            # rester le temps de le lire. Le silence est ajouté À L'AUDIO (donc à la durée du bloc,
+            # des sous-titres et de la timeline), jamais en compressant l'animation.
+            from .motion_graphics import math_steps
+
+            extra = math_steps.extra_hold_seconds(motion_graphic, words, tts.get_duration_seconds(str(audio_path)))
+            if extra > 0:
+                held_path = work_dir / "audio" / f"block-{i:02d}-hold-{int(extra * 100)}.mp3"
+                if not _exists_nonempty(held_path):
+                    video.pad_audio(str(audio_path), extra, str(held_path))
+                rendered_audio = str(held_path)
+        hold_after = float(block.get("hold_after_seconds") or 0)
         if hold_after > 0:
             padded_path = work_dir / "audio" / f"block-{i:02d}-padded.mp3"
             if not _exists_nonempty(padded_path):
