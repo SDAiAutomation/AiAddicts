@@ -45,3 +45,17 @@ Sources : admove.ai/blog/how-to-create-ugc-ads, prizmad.com/guides/how-to-make-a
 ## 6. Limites de cette recherche
 
 Témoignages non reproduits ; une page (pasqualepillitteri.it) illisible ; aucune source UGC propre à Opus ; aucun essai sur nos vidéos.
+
+## 7. Résultat de la validation (2026-10-10)
+
+Outils : `scripts/video_critique.py` (juge LLM sur planche contact, ≈ 0,003 $/vidéo estimé, bruit ±1-2 points par critère) et `scripts/motion_metrics.py` (mesures par le code). Croisement avec `content_performance` : 33 vidéos publiées, ≥ 100 vues, dernière valeur de `watch_time_pct`.
+
+| Mesure | rho avec `watch_time_pct` | IC 95 % |
+|---|---|---|
+| activité moyenne | −0,17 | −0,49 ; +0,18 |
+| part d'images figées | −0,23 | −0,54 ; +0,13 |
+| plus longue pause | −0,24 | −0,56 ; +0,09 |
+| activité des 3 premières secondes | +0,36 | 0,00 ; +0,64 |
+| durée | +0,57 | +0,24 ; +0,80 |
+
+Aucun lien démontré entre mouvement et rétention. Échantillon mal adapté : 20 vidéos `gta_loading`, 3 `motion_graphics`, durées 43-156 s (nos vidéos récentes : 20-27 s). La durée corrèle surtout entre comptes (rho par compte : +0,68 sur 16 vidéos, +0,10 sur 9) : confusion probable, non interprétable. Décision : pas de critique automatique branchée au pipeline ; refaire le test avec 30-50 vidéos courtes / motion graphics avec métriques.
