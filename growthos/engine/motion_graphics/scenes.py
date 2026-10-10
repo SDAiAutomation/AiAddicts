@@ -117,7 +117,9 @@ def render_big_number(data: dict, t: float, theme: Theme, size: tuple[int, int])
     _title(image, draw, theme, size, data.get("title") or "", t, y_ratio=0.36)
     value_t = anim.phase(t, float(data.get("_anchor") or 0.0),
                          min(1.0, float(data.get("_anchor") or 0.0) + 0.25)) if "_anchor" in data else t
-    _big_value(image, draw, theme, size, data, value_t, y_ratio=0.48)
+    if "_anchor" not in data or t >= float(data.get("_anchor") or 0.0):
+        # Ancre sur la voix : rien avant le mot (un fondu parti de la couleur du fond laisserait une ombre du chiffre).
+        _big_value(image, draw, theme, size, data, value_t, y_ratio=0.48)
     # Phase 2.7: was 0.58, exactly at the (now-tightened) caption-reserved
     # boundary — a couple of rows of margin against canvas.SAFE_BOTTOM_RATIO.
     _label(image, draw, theme, size, data.get("label") or "", t, y_ratio=0.55, start=0.35)
@@ -145,6 +147,8 @@ def render_money_split(data: dict, t: float, theme: Theme, size: tuple[int, int]
     value_base_px = round(h * 0.032)
     for i, row in enumerate(rows):
         p = _stag(data, t, i, n, start=0.1, span=0.6, item_duration=0.4)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         offset = anim.slide_up(t, 0, 1, distance=24) * (1 - p) if p < 1 else 0
         cy = h * rows_start_ratio + row_h * i + row_h / 2 + offset
         is_emphasis = str(row.get("label", "")).strip().lower() == emphasis
@@ -226,6 +230,8 @@ def render_bar_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     value_max_width = w - value_x - w * 0.03
     for i, row in enumerate(rows):
         p = _stag(data, t, i, n, start=0.08, span=0.65, item_duration=0.4)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         cy = top_ratio * h + row_h * i + row_h / 2
         label_color = lerp_color(theme.background, theme.text, min(p * 2, 1))
         row_max_height = row_h * 0.85
@@ -289,6 +295,8 @@ def render_donut_chart(data: dict, t: float, theme: Theme, size: tuple[int, int]
     n = len(rows)
     for i, row in enumerate(rows):
         p = _stag(data, t, i, n, start=0.5, span=0.4, item_duration=0.3)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         color = lerp_color(theme.background, palette[i % len(palette)], p)
         swatch = h * 0.014
         y = legend_y + i * row_span
@@ -325,6 +333,8 @@ def render_comparison(data: dict, t: float, theme: Theme, size: tuple[int, int])
 
     def _option(box, option, index, accent):
         p = _stag(data, t, index, 2, start=0.1, span=0.5, item_duration=0.4)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            return image
         img, dr = _card(image, draw, box, theme, p)
         color = lerp_color(theme.background, theme.text, p)
         cx = (box[0] + box[2]) / 2
@@ -415,6 +425,8 @@ def render_timeline(data: dict, t: float, theme: Theme, size: tuple[int, int]) -
     edge_margin = w * 0.03
     for i, step in enumerate(steps):
         p = _stag(data, t, i, n, start=0.05, span=0.7, item_duration=0.35)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         cx = x0 if n <= 1 else x0 + (x1 - x0) * i / (n - 1)
         r = h * 0.014 * anim.scale_in(t, 0, 1, from_scale=0.3) if p > 0 else 0
         dot_color = lerp_color(theme.background, theme.primary, p)
@@ -459,6 +471,8 @@ def render_compound_growth(data: dict, t: float, theme: Theme, size: tuple[int, 
     value_max_width = w - w * 0.62 - w * 0.05
     for i, row in enumerate(rows):
         p = _stag(data, t, i, n, start=0.05, span=0.75, item_duration=0.45)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         cy = top_ratio * h + step_h * i + step_h / 2
         is_last = i == n - 1
         color = theme.accent if is_last else theme.primary
@@ -498,6 +512,8 @@ def render_checklist(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     item_max_width = w - (w * 0.12 + icon_span * 1.6) - w * 0.05
     for i, item in enumerate(items):
         p = _stag(data, t, i, n, start=0.05, span=0.75, item_duration=0.4)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         cy = top_ratio * h + row_h * i + row_h / 2
         offset = (1 - p) * h * 0.02
         check_color = lerp_color(theme.background, theme.positive, p)
@@ -554,6 +570,8 @@ def render_formula(data: dict, t: float, theme: Theme, size: tuple[int, int]) ->
     term_max_width = w * 0.86
     for i, term in enumerate(terms):
         p = _stag(data, t, i, n, start=0.1, span=0.7, item_duration=0.4)
+        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+            continue
         cy = top_ratio * h + row_h * i + row_h / 2
         offset = anim.slide_up(t, 0, 1, distance=20) * (1 - p) if p < 1 else 0
         is_result = str(term).strip().startswith("=")
