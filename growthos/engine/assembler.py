@@ -279,6 +279,7 @@ def _generate(
     ass_file = captions.write_ass(
         cues, str(work_dir / "captions.ass"), caption_style, resolution,
         blocks=caption_blocks, block_durations=render_durations,
+        centre_reserved=kinetic_typography_style,
     )
     print(f"       sous-titres : style « {caption_style} »")
 

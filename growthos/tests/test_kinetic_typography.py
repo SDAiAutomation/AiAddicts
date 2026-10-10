@@ -38,25 +38,53 @@ class TestExtractEmphasisNumber(unittest.TestCase):
         self.assertIsNone(kinetic_typography.extract_emphasis_number(None))
 
 
-class TestDeriveTypographyPhrase(unittest.TestCase):
-    def test_short_visual_phrase_is_used_after_stripping_camera_direction(self):
-        phrase = kinetic_typography.derive_typography_phrase("Gros plan sur economiser d'abord.", "")
-        self.assertEqual(phrase, "ECONOMISER D'ABORD")
+class TestDeriveEmphasisPhrase(unittest.TestCase):
+    def test_takes_the_last_clause_french(self):
+        text = "Nour trouva une boite a musique cassee, oubliee depuis des annees."
+        self.assertEqual(kinetic_typography.derive_emphasis_phrase(text), "OUBLIEE DEPUIS DES ANNEES")
 
-    def test_long_visual_falls_back_to_narration_excerpt(self):
-        visual = "Plan large sur un bureau avec une calculatrice, des factures et un ordinateur portable ouvert."
-        text = "La regle est simple : revenu moins epargne egale budget de depense."
-        phrase = kinetic_typography.derive_typography_phrase(visual, text)
-        self.assertEqual(phrase, "LA REGLE EST SIMPLE")
+    def test_takes_the_last_clause_english(self):
+        text = "Your raise didn't vanish, your spending grew to meet it."
+        self.assertEqual(kinetic_typography.derive_emphasis_phrase(text), "GREW TO MEET IT")
 
-    def test_empty_visual_and_text_returns_none(self):
-        self.assertIsNone(kinetic_typography.derive_typography_phrase("", ""))
-        self.assertIsNone(kinetic_typography.derive_typography_phrase(None, None))
+    def test_leading_link_word_is_dropped(self):
+        text = "Aurais-tu ouvert la boite tout de suite, ou attendu le bon moment ?"
+        self.assertEqual(kinetic_typography.derive_emphasis_phrase(text), "ATTENDU LE BON MOMENT")
 
-    def test_never_produces_a_giant_phrase(self):
-        text = " ".join(f"mot{i}" for i in range(50))
-        phrase = kinetic_typography.derive_typography_phrase("", text)
-        self.assertLessEqual(len(phrase.split()), 5)
+    def test_never_starts_on_a_function_word(self):
+        text = "Le grenier abandonne ou elle vivait etait rempli de vieux souvenirs silencieux."
+        self.assertEqual(kinetic_typography.derive_emphasis_phrase(text), "VIEUX SOUVENIRS SILENCIEUX")
+
+    def test_elided_function_word_is_not_a_content_word(self):
+        # "qu'elle n'avait" sont des mots vides ; "l'interieur" garde son nom.
+        text = "A l'interieur, une petite photo montrait une famille de renards qu'elle n'avait jamais vue."
+        self.assertEqual(kinetic_typography.derive_emphasis_phrase(text), "JAMAIS VUE")
+
+    def test_a_whole_short_sentence_is_not_repeated_as_kinetic_text(self):
+        self.assertIsNone(kinetic_typography.derive_emphasis_phrase("Rule #3 is next."))
+        self.assertIsNone(kinetic_typography.derive_emphasis_phrase("Save first."))
+
+    def test_phrase_is_a_strict_sub_span_of_the_narration(self):
+        text = "Une manivelle rouillee refusait de tourner, bloquee depuis trop longtemps."
+        phrase = kinetic_typography.derive_emphasis_phrase(text)
+        self.assertIn(phrase.lower(), text.lower())
+        self.assertLess(len(phrase), len(text.rstrip(".")))
+
+    def test_no_mid_word_truncation_and_bounded_length(self):
+        text = " ".join(f"mot{i}" for i in range(50)) + "."
+        phrase = kinetic_typography.derive_emphasis_phrase(text)
+        self.assertLessEqual(len(phrase.split()), 4)
+        for word in phrase.lower().split():
+            self.assertIn(word, text.split() + [w.rstrip(".") for w in text.split()])
+
+    def test_empty_text_returns_none(self):
+        self.assertIsNone(kinetic_typography.derive_emphasis_phrase(""))
+        self.assertIsNone(kinetic_typography.derive_emphasis_phrase(None))
+
+    def test_image_direction_is_never_shown_to_the_viewer(self):
+        # `visual` est une consigne d'image : il ne devient jamais du texte à l'écran.
+        scene = kinetic_typography.build_emphasis_scene({"visual": "Gros plan sur economiser d'abord.", "text": ""})
+        self.assertIsNone(scene)
 
 
 class TestBuildEmphasisScene(unittest.TestCase):
@@ -90,10 +118,10 @@ class TestBuildEmphasisScene(unittest.TestCase):
     def test_no_number_falls_back_to_a_derived_phrase_instead_of_blank(self):
         # Correctif Phase 2.6 (section 3) : un bloc sans chiffre n'est plus
         # nécessairement vide — il reçoit une courte phrase déterministe.
-        block = {"visual": "", "text": "Economiser devrait se faire avant de depenser."}
+        block = {"visual": "", "text": "Economiser devrait se faire avant tout, pas apres avoir depense."}
         scene = kinetic_typography.build_emphasis_scene(block)
         self.assertEqual(scene["sceneType"], "icon_text")
-        self.assertTrue(scene["text"])
+        self.assertEqual(scene["text"], "APRES AVOIR DEPENSE")
 
     def test_scene_never_invents_a_label(self):
         scene = kinetic_typography.build_emphasis_scene({"visual": "45% de reussite.", "text": ""})

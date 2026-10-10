@@ -193,6 +193,25 @@ class TestWriteAss(unittest.TestCase):
             self.assertNotIn(r"\an5\pos(540,960)", line)
             self.assertIn(r"\an2\pos(540,1380)", line)  # bord bas à 72 % : dans la bande sûre
 
+    def test_kinetic_typography_reserves_the_centre_without_motion_graphic_keys(self):
+        # La typographie cinétique construit ses scènes au rendu : les blocs n'ont
+        # pas de `motion_graphic`, le style passe donc `centre_reserved`.
+        blocks = [{"role": "hook", "text": "Leo se reveille"}]
+        path = Path(tempfile.mkdtemp()) / "kin.ass"
+        ass = Path(write_ass(self._cues(), str(path), "bold_stroke", "1080x1920", blocks=blocks, block_durations=[1.2], centre_reserved=True)).read_text(encoding="utf-8")
+        lines = [line for line in ass.splitlines() if line.startswith("Dialogue:")]
+        self.assertEqual(len(lines), 3)
+        for line in lines:
+            self.assertNotIn(r"\an5\pos(540,960)", line)
+            self.assertIn(r"\an2\pos(540,1380)", line)
+
+    def test_other_styles_keep_the_centred_word_pop_captions(self):
+        blocks = [{"role": "hook", "text": "Leo se reveille"}]
+        path = Path(tempfile.mkdtemp()) / "plain.ass"
+        ass = Path(write_ass(self._cues(), str(path), "bold_stroke", "1080x1920", blocks=blocks, block_durations=[1.2])).read_text(encoding="utf-8")
+        for line in (l for l in ass.splitlines() if l.startswith("Dialogue:")):
+            self.assertIn(r"\an5\pos(540,960)", line)
+
     def test_captions_off_drops_the_narration_but_keeps_the_quiz_cards(self):
         self.assertEqual(self._write("off").count("Dialogue:"), 0)
         blocks = [{

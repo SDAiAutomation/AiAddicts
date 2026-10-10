@@ -455,6 +455,7 @@ def write_ass(
     font: str | None = None,
     blocks: list[dict] | None = None,
     block_durations: list[float] | None = None,
+    centre_reserved: bool = False,
 ) -> str:
     """Écrit un fichier `.ass` complet (style + événements) pour `style`. À
     passer tel quel au filtre `subtitles` d'ffmpeg (libass lit le style
@@ -464,7 +465,9 @@ def write_ass(
     is_quiz = any(b.get("quiz_phase") for b in (blocks or []))
     # Les scènes Motion Graphics occupent le centre de l'écran et réservent la
     # bande basse aux sous-titres (motion_graphics/canvas.py SAFE_BOTTOM_RATIO).
-    is_motion = any(b.get("motion_graphic") for b in (blocks or []))
+    # `centre_reserved` : le style (typographie cinétique) dessine ses scènes au
+    # rendu, donc les blocs n'ont pas de clé `motion_graphic` pour le signaler.
+    is_motion = centre_reserved or any(b.get("motion_graphic") for b in (blocks or []))
     font = font or os.environ.get("SUBTITLE_FONT") or "Arial"
     try:
         width, height = (int(x) for x in resolution.lower().split("x"))

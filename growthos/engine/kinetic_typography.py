@@ -13,12 +13,12 @@ Deliberately narrow, in priority order — see `build_emphasis_scene`:
    hides a number that's only in the spoken narration (Phase 2's bug, caught
    by the visual benchmark: `visual` took exclusive priority over `text`,
    which is correct for IMAGE prompts but wrong for number extraction).
-3. a short, deterministically derived display phrase (2-6 words) so a block
-   with no number still gets SOME intentional on-screen typography instead
-   of staying blank — never a semantic rewrite ("SAVE FIRST" from "saving
-   should happen before spending" would require real language understanding
-   this module doesn't have); just a cleaned-up excerpt of what's already
-   written.
+3. a short emphasis phrase (2-4 words) taken from the END of the narration
+   (`derive_emphasis_phrase`): the last clause, never starting on a
+   function word, never the whole sentence. Narration only: `visual` is an
+   image/camera direction and is never shown to the viewer. Nothing is
+   invented or rewritten; when no phrase adds anything beyond the captions the
+   block gets no kinetic text.
 
 When none of the three apply (empty block), this returns `None` — the
 caller falls back to today's flat solid-color clip, unchanged.
@@ -32,6 +32,7 @@ with real extraction, not attempted here.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from .motion_graphics import schema as motion_graphics_schema
 
@@ -77,18 +78,62 @@ def _strip_camera_prefix(phrase: str) -> str:
     return stripped
 
 
-def derive_typography_phrase(visual: str, text: str, max_words: int = 6, narration_words: int = 5) -> str | None:
-    """A short (`max_words` or fewer), high-signal, ALL-CAPS phrase for
-    on-screen typography — never a semantic rewrite, only a cleaned-up
-    excerpt of `visual` or, failing that, the first few words of `text`.
-    `None` if both are empty."""
-    candidate = _strip_camera_prefix(visual or "")
-    if candidate and len(candidate.split()) <= max_words:
-        return candidate.rstrip(" .,!?;:").upper()
-    words = (text or "").split()[:narration_words]
-    if not words:
+# Mots-outils fr + en (sans accents : les scripts les omettent souvent). Servent
+# uniquement à ne jamais ouvrir ni fermer une phrase d'accroche sur un mot vide
+# ("de vieux souvenirs" -> "vieux souvenirs"). Aucune analyse grammaticale.
+_FUNCTION_WORDS = frozenset(
+    "le la les l un une des du de d au aux a en dans sur sous avec sans pour par vers chez "
+    "et ou mais donc or ni car que qui quoi dont ce cet cette ces se me te lui y il elle ils elles "
+    "je tu nous vous on mon ma mes ton ta tes son sa ses leur leurs ne n pas qu s j c m t jusqu lorsqu "
+    "est etait sont etaient ete avait avaient ai as ont fait fasse "
+    "the an of to in on at for with by from and or but so that which who whom it its is are was were "
+    "be been being has have had this these those as then than if".split()
+)
+# Mots de liaison à retirer en tête de clause ("ou attendu le bon moment").
+_LEADING_LINKS = frozenset("et ou mais donc alors puis and but or so then".split())
+_ELISION = re.compile(r"^(?:[a-z]+)['’]")
+
+
+def _plain(word: str) -> str:
+    folded = unicodedata.normalize("NFKD", word.lower())
+    return "".join(c for c in folded if not unicodedata.combining(c)).strip(".,;:!?…\"()[]«»")
+
+
+def _is_function_word(word: str) -> bool:
+    plain = _plain(word)
+    if plain in _FUNCTION_WORDS:
+        return True
+    elided = _ELISION.match(plain)
+    # "qu'elle", "n'avait", "jusqu'a" : mot vide si ce qui suit l'apostrophe l'est ;
+    # "l'interieur" garde son nom.
+    return bool(elided) and plain[elided.end():] in _FUNCTION_WORDS
+
+
+def derive_emphasis_phrase(text: str, max_words: int = 4, min_words: int = 2) -> str | None:
+    """A short ALL-CAPS phrase to hit hard on screen, taken from the END of the
+    narration (where spoken stress falls): the last clause, trimmed to its last
+    `max_words` words, never starting on a function word (it already ends where the clause ends).
+
+    Deterministic, no LLM, nothing invented. Returns `None` when no phrase would add anything:
+    fewer than `min_words` words remain, or the phrase is the WHOLE sentence (the
+    captions already show it, so repeating it full-screen is a pure duplicate).
+    Source is the narration only: `visual` is an image/camera direction, never
+    viewer text."""
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?…])\s+", (text or "").strip()) if part.strip()]
+    if not sentences:
         return None
-    phrase = " ".join(words).rstrip(" .,!?;:")
+    sentence = sentences[-1]
+    whole = [w for w in sentence.split() if _plain(w)]
+    clauses = [c.strip() for c in re.split(r"[,;:—–]|\s-\s", sentence) if c.strip()]
+    words = [w for w in clauses[-1].split() if _plain(w)]
+    while words and _plain(words[0]) in _LEADING_LINKS:
+        words = words[1:]
+    words = words[-max_words:]
+    while words and _is_function_word(words[0]):
+        words = words[1:]
+    if len(words) < min_words or len(words) >= len(whole):
+        return None
+    phrase = " ".join(words).strip(" .,!?;:…\"()«»")
     return phrase.upper() or None
 
 
@@ -107,7 +152,7 @@ def build_emphasis_scene(block: dict) -> dict | None:
     if number:
         return {"sceneType": "big_number", "displayValue": number}
 
-    phrase = derive_typography_phrase(visual, text)
+    phrase = derive_emphasis_phrase(text)
     if phrase:
         return {"sceneType": "icon_text", "text": phrase}
     return None
