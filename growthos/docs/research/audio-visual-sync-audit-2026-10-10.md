@@ -126,7 +126,7 @@ Publié sur `origin/growthos/mvp` : `f5e86aa` (D5) et `a8e1019` (D1 à D4). Aucu
 | D2 fausse correspondance « Year 5 » / « yearly » | un élément qui porte un montant est calé sur ce montant | −2,26 s | −0,05 s |
 | D3 montants groupés non reconnus | `digit_keys`, `item_numbers`, `number_index` : comparaison sur les chiffres, jetons « 3 » + « 000 » concaténés | +1,12 s (« $38,300 »), +2,26 s (« $150 ») | −0,05 s, −0,02 s |
 | D4 valeur en avance sur son libellé | même règle : la valeur gouverne | −0,72 à −0,93 s | −0,07 à −0,09 s |
-| D7 point et « y = 11 » du graphe en avance | non corrigé | −1,4 s | inchangé |
+| D7 point et « y = 11 » du graphe en avance | `sync.py` : le point et « y = … » attendent le mot de la valeur (commit `6fa225d`) | −1,4 s | non remesuré sur rendu réel |
 
 **Changements de comportement assumés.**
 - Un chiffre n'est jamais affiché avant d'être dit. Les libellés d'une ligne qui porte un montant apparaissent donc avec le montant : libellés de barres jusqu'à 0,77 s après leur mot, « = $500 TO SPEND » 0,5 s après « $500 ».
