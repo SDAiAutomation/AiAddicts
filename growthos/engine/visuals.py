@@ -200,7 +200,14 @@ def fetch_kinetic_typography_clips(
         if i > 0 and block.get("reuse_visual_from_previous"):
             paths[i] = paths[i - 1]
             continue
-        scene = kinetic_typography.build_emphasis_scene(block)
+        duration = durations[i] if i < len(durations) else 3.0
+        words = None
+        try:  # mots de la voix : le texte apparait quand il est dit (jamais bloquant)
+            words_path = Path(work_dir) / "audio" / f"block-{i + 1:02d}.words.json"
+            words = json.loads(words_path.read_text(encoding="utf-8")) if words_path.exists() else None
+        except (OSError, ValueError):
+            words = None
+        scene = kinetic_typography.build_anchored_emphasis_scene(block, words, duration)
         if not scene:
             continue  # rien d'exploitable -> fond uni (comportement d'avant cette phase)
         clip_path = images_dir / f"kinetic-{i + 1:02d}.mp4"
@@ -209,7 +216,7 @@ def fetch_kinetic_typography_clips(
             continue
         try:
             motion_graphics.render_scene_clip(
-                scene, durations[i] if i < len(durations) else 3.0, str(clip_path),
+                scene, duration, str(clip_path),
                 resolution=resolution, theme_overrides=theme_overrides,
             )
             paths[i] = str(clip_path)

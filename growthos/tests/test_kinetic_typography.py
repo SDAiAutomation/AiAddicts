@@ -133,5 +133,90 @@ class TestBuildEmphasisScene(unittest.TestCase):
         self.assertIsNone(kinetic_typography.build_emphasis_scene({}))
 
 
+def _words(*pairs):
+    return [{"text": text, "start": start, "end": start + 0.3} for text, start in pairs]
+
+
+class TestAnchorOnSpeech(unittest.TestCase):
+    """D5 : le texte cinetique apparait quand la voix le dit, pas au debut du bloc."""
+
+    TEXT = "Nour trouva une boite a musique cassee, oubliee depuis des annees."
+    WORDS = _words(("Nour", 0.0), ("trouva", 0.3), ("une", 0.6), ("boite", 0.8), ("a", 1.1), ("musique", 1.2),
+                   ("cassee,", 1.7), ("oubliee", 1.79), ("depuis", 2.2), ("des", 2.5), ("annees.", 2.7))
+
+    def test_phrase_appears_when_its_first_word_is_spoken(self):
+        scene = kinetic_typography.build_anchored_emphasis_scene({"text": self.TEXT}, self.WORDS, 3.065)
+        self.assertEqual(scene["text"], "OUBLIEE DEPUIS DES ANNEES")
+        self.assertAlmostEqual(scene["_anchor"], (1.79 - kinetic_typography.LEAD_SECONDS) / 3.065, places=3)
+
+    def test_last_occurrence_wins_when_the_words_are_repeated_earlier(self):
+        text = "Il parlait de vieux souvenirs, de vieux souvenirs silencieux."
+        words = _words(("Il", 0.0), ("parlait", 0.2), ("de", 0.5), ("vieux", 0.6), ("souvenirs,", 0.9),
+                       ("de", 1.4), ("vieux", 1.5), ("souvenirs", 1.8), ("silencieux.", 2.2))
+        scene = kinetic_typography.build_anchored_emphasis_scene({"text": text}, words, 3.0)
+        self.assertEqual(scene["text"], "VIEUX SOUVENIRS SILENCIEUX")
+        self.assertAlmostEqual(scene["_anchor"], (1.5 - kinetic_typography.LEAD_SECONDS) / 3.0, places=3)
+
+    def test_english_phrase_is_anchored_too(self):
+        text = "Your raise didn't vanish, your spending grew to meet it."
+        words = _words(("Your", 0.0), ("raise", 0.3), ("didn't", 0.6), ("vanish,", 0.9), ("your", 1.3),
+                       ("spending", 1.5), ("grew", 1.9), ("to", 2.1), ("meet", 2.2), ("it.", 2.5))
+        scene = kinetic_typography.build_anchored_emphasis_scene({"text": text}, words, 3.0)
+        self.assertEqual(scene["text"], "GREW TO MEET IT")
+        self.assertAlmostEqual(scene["_anchor"], (1.9 - kinetic_typography.LEAD_SECONDS) / 3.0, places=3)
+
+    def test_number_split_across_tokens_is_found(self):
+        words = _words(("Si", 0.0), ("tu", 0.2), ("gagnes", 0.4), ("3", 0.61), ("000", 0.77), ("dollars", 0.95))
+        scene = kinetic_typography.build_anchored_emphasis_scene({"text": "Si tu gagnes $3,000 dollars."}, words, 3.0)
+        self.assertEqual(scene["sceneType"], "big_number")
+        self.assertAlmostEqual(scene["_anchor"], (0.61 - kinetic_typography.LEAD_SECONDS) / 3.0, places=3)
+
+    def test_anchor_never_leaves_the_end_of_the_block_blank(self):
+        words = _words(("a", 0.0), ("bb", 0.5), ("cc", 0.9), ("dd", 1.2), ("ee", 1.4), ("ff", 1.55), ("gg", 1.6))
+        scene = kinetic_typography.build_anchored_emphasis_scene({"text": "aa bb cc dd, ee ff gg"}, words, 1.7)
+        self.assertLessEqual(scene["_anchor"], kinetic_typography.MAX_ANCHOR)
+
+    def test_no_words_or_no_match_keeps_the_previous_behaviour(self):
+        block = {"text": self.TEXT}
+        for words in (None, [], _words(("completely", 0.0), ("different", 0.5))):
+            with self.subTest(words=words):
+                scene = kinetic_typography.build_anchored_emphasis_scene(block, words, 3.0)
+                self.assertNotIn("_anchor", scene)
+                self.assertEqual(scene, kinetic_typography.build_emphasis_scene(block))
+
+    def test_authored_scene_is_returned_untouched(self):
+        motion = {"sceneType": "icon_text", "text": "Oubliee depuis des annees"}
+        scene = kinetic_typography.build_anchored_emphasis_scene({"text": self.TEXT, "motion_graphic": motion}, self.WORDS, 3.0)
+        self.assertIs(scene, motion)
+        self.assertNotIn("_anchor", motion)
+
+    def test_empty_block_still_returns_none(self):
+        self.assertIsNone(kinetic_typography.build_anchored_emphasis_scene({"text": ""}, self.WORDS, 3.0))
+
+
+class TestIconTextHonoursTheAnchor(unittest.TestCase):
+    SIZE = (270, 480)
+
+    def _frame(self, scene, t):
+        from engine.motion_graphics.scenes import RENDERERS
+        from engine.motion_graphics.theme import resolve_theme
+        return RENDERERS["icon_text"](scene, t, resolve_theme(None), self.SIZE).tobytes()
+
+    def test_blank_until_the_anchor_then_identical_to_the_unanchored_end_state(self):
+        plain = {"sceneType": "icon_text", "text": "OUBLIEE DEPUIS DES ANNEES"}
+        anchored = {**plain, "_anchor": 0.5, "_duration": 3.0}
+        blank = self._frame({"sceneType": "icon_text", "text": " "}, 1.0)
+        self.assertEqual(self._frame(anchored, 0.0), blank)                         # rien avant la voix
+        self.assertEqual(self._frame(anchored, 0.3), blank)                         # pas d'ombre du texte non plus
+        self.assertNotEqual(self._frame(plain, 0.0), blank)                         # (le texte sans ancre, lui, laisse une ombre)
+        self.assertNotEqual(self._frame(anchored, 0.6), self._frame(plain, 0.0))   # apparu apres
+        self.assertEqual(self._frame(anchored, 1.0), self._frame(plain, 1.0))      # etat final identique
+
+    def test_scene_without_anchor_is_unchanged(self):
+        plain = {"sceneType": "icon_text", "text": "Where does your $5 go?"}
+        self.assertEqual(self._frame(plain, 0.4), self._frame({**plain}, 0.4))
+        self.assertNotEqual(self._frame(plain, 0.4), self._frame(plain, 0.0))
+
+
 if __name__ == "__main__":
     unittest.main()

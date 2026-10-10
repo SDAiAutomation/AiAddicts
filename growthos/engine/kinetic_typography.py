@@ -137,6 +137,67 @@ def derive_emphasis_phrase(text: str, max_words: int = 4, min_words: int = 2) ->
     return phrase.upper() or None
 
 
+LEAD_SECONDS = 0.12   # le texte apparait juste avant le mot (comme motion_graphics/sync.py)
+MAX_ANCHOR = 0.92     # ...mais toujours visible avant la fin du bloc
+
+
+def _spoken_keys(words: list[dict]) -> list[tuple[str, float]]:
+    keys = [(_plain(str(w.get("text") or "")), float(w.get("start") or 0.0)) for w in words if isinstance(w, dict)]
+    return [(key, start) for key, start in keys if key]
+
+
+def spoken_start(scene: dict, words: list[dict]) -> float | None:
+    """Instant (s, depuis le debut du bloc) ou la voix commence a dire ce que la scene affiche, ou `None`.
+
+    - nombre (`big_number`) : memes chiffres, jetons numeriques consecutifs concatenes (« 3 », « 000 » = 3000),
+      premiere occurrence ;
+    - phrase d'accroche (`icon_text`) : la suite exacte de mots, DERNIERE occurrence (la phrase vient de la
+      fin de la narration : un mot repete plus tot ne doit pas l'avancer)."""
+    keys = _spoken_keys(words)
+    if scene.get("sceneType") == "big_number":
+        digits = re.sub(r"\D", "", str(scene.get("displayValue") or ""))
+        if not digits:
+            return None
+        nums = [(re.sub(r"\D", "", key), start) for key, start in keys]
+        for i in range(len(nums)):
+            acc = ""
+            for j in range(i, min(i + 4, len(nums))):
+                if not nums[j][0]:
+                    break
+                acc += nums[j][0]
+                if acc == digits:
+                    return nums[i][1]
+                if len(acc) > len(digits):
+                    break
+        return None
+    if scene.get("sceneType") == "icon_text":
+        target = [_plain(w) for w in str(scene.get("text") or "").split() if _plain(w)]
+        if not target:
+            return None
+        found = None
+        for i in range(len(keys) - len(target) + 1):
+            if [key for key, _ in keys[i:i + len(target)]] == target:
+                found = keys[i][1]
+        return found
+    return None
+
+
+def build_anchored_emphasis_scene(block: dict, words: list[dict] | None, duration: float) -> dict | None:
+    """`build_emphasis_scene` + `_anchor` : la typographie apparait quand la voix la dit, pas au debut du bloc
+    (une phrase tiree de la fin de la narration s'affichait 1 a 3 s avant d'etre prononcee).
+
+    Une scene deja ecrite dans le script (`motion_graphic`) est rendue telle quelle. Sans mots (timestamps
+    absents) ou sans correspondance sure : aucune ancre, comportement d'avant (apparition au debut du bloc)."""
+    scene = build_emphasis_scene(block)
+    if scene is None or scene is block.get("motion_graphic") or not words or duration <= 0:
+        return scene
+    start = spoken_start(scene, words)
+    if start is None:
+        return scene
+    anchor = min(max(0.0, start - LEAD_SECONDS) / duration, MAX_ANCHOR)
+    return {**scene, "_anchor": round(anchor, 4), "_duration": float(duration)}
+
+
 def build_emphasis_scene(block: dict) -> dict | None:
     """A `motion_graphics` scene dict for this block's kinetic-typography
     overlay, or `None` if nothing usable exists — see the module docstring

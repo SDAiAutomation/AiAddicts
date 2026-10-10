@@ -754,6 +754,12 @@ def render_icon_text(data: dict, t: float, theme: Theme, size: tuple[int, int]) 
     budgeted viewer line."""
     image, draw = canvas.new_frame(size, theme.background, theme.primary)
     w, h = size
+    if "_anchor" in data:
+        # Apparition calee sur la voix (typographie cinetique, engine/kinetic_typography.py), comme big_number.
+        anchor = float(data.get("_anchor") or 0.0)
+        if t < anchor:
+            return image  # rien avant la voix : le fondu part de la couleur du fond, qui laisserait une ombre du texte
+        t = anim.phase(t, anchor, min(1.0, anchor + 0.25))
     drawable = [n for n in (data.get("icons") or []) if n in icons.ICONS][:_MAX_ICON_ROW]
     if len(drawable) >= 2:
         _icon_row(image, draw, theme, size, drawable, t, 0.32)
