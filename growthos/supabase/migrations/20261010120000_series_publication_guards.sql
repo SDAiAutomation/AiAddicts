@@ -7,6 +7,14 @@ security definer
 set search_path = public
 as $$
 begin
+  -- The renderer persists its finalized script and video in one update.
+  -- This is a completed render, not an editorial edit to invalidate.
+  if old.status = 'generating'
+     and new.status in ('video', 'quality_check')
+     and new.video_url ~ '^https?://' then
+    return new;
+  end if;
+
   if old.series_id is null or old.script is not distinct from new.script then
     return new;
   end if;
