@@ -275,6 +275,19 @@ def reveal_times(scene: dict, count: int, duration: float) -> list[float]:
     return times
 
 
+def graph_timeline(scene: dict, duration: float, line_end: float) -> tuple[float, float]:
+    """Instants (s) ou le point d'un graphe et son « y = … » apparaissent. Sans ancres de voix (`_graphX`, `_graphY`
+    posees par sync.graph_anchors) : juste apres le trace de la droite, ensemble (rythme historique). Avec ancres :
+    le point quand x est dit (jamais avant la fin du trace), « y = … » quand y est dit ; tout reste dans le bloc."""
+    latest = max(duration - 0.35, 0.0)
+    gx, gy = scene.get("_graphX"), scene.get("_graphY")
+    dot = line_end if gx is None else max(line_end, float(gx) * duration)
+    dot = min(dot, latest)
+    if gy is None:
+        return dot, dot
+    return dot, min(max(dot, float(gy) * duration), latest)
+
+
 def typographic_minus(content: str) -> str:
     """Poppins dessine le signe moins U+2212 comme un trait d'union court : on lui substitue le tiret
     demi-cadratin (U+2013), qui se lit comme un moins. Un trait d'union collé à un chiffre ou à une
@@ -741,9 +754,27 @@ def _build(job: dict):
                 hx = float(scene_data["highlightX"])
                 hy = slope * hx + intercept
                 dot = Dot(P(hx, hy), radius=0.2, color=theme["accent"])
-                caption = fit(text(f"x = {hx:g}   y = {hy:g}", theme["accent"]), frame_w * 0.78, 0.5)
-                caption.move_to([0, y_at(_LABEL_Y - 0.004), 0])
-                self.play(FadeIn(dot, scale=0.4), FadeIn(caption), run_time=min(0.6, max(0.3, duration * 0.12)))
+                fade_time = min(0.6, max(0.3, duration * 0.12))
+                if scene_data.get("_graphX") is None and scene_data.get("_graphY") is None:
+                    caption = fit(text(f"x = {hx:g}   y = {hy:g}", theme["accent"]), frame_w * 0.78, 0.5)
+                    caption.move_to([0, y_at(_LABEL_Y - 0.004), 0])
+                    self.play(FadeIn(dot, scale=0.4), FadeIn(caption), run_time=fade_time)
+                else:
+                    # Calé sur la voix : le point et « x = … » quand x est dit, « y = … » quand y est dit.
+                    t_dot, t_y = graph_timeline(scene_data, duration, self.renderer.time)
+                    x_part = text(f"x = {hx:g}", theme["accent"])
+                    y_part = text(f"y = {hy:g}", theme["accent"])
+                    both = fit(VGroup(x_part, y_part).arrange(RIGHT, buff=0.7), frame_w * 0.78, 0.5)
+                    both.move_to([0, y_at(_LABEL_Y - 0.004), 0])
+                    if t_dot - self.renderer.time > 1 / config.frame_rate:
+                        self.wait(t_dot - self.renderer.time)
+                    if t_y > t_dot + 1 / config.frame_rate:
+                        self.play(FadeIn(dot, scale=0.4), FadeIn(x_part), run_time=min(fade_time, t_y - t_dot))
+                        if t_y - self.renderer.time > 1 / config.frame_rate:
+                            self.wait(t_y - self.renderer.time)
+                        self.play(FadeIn(y_part), run_time=min(fade_time, max(duration - self.renderer.time, 0.05)))
+                    else:
+                        self.play(FadeIn(dot, scale=0.4), FadeIn(x_part), FadeIn(y_part), run_time=fade_time)
             remaining = duration - self.renderer.time
             if remaining > 1 / config.frame_rate:
                 self.wait(remaining)

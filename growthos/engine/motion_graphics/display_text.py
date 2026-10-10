@@ -37,7 +37,7 @@ _NUMBER_FIELDS = ("value", "targetRatio", "maxValue", "slope", "intercept", "xMi
 _LIST_FIELDS = ("steps", "items", "terms")
 _GROUP_FIELDS = ("optionA", "optionB", "before", "after")
 # Engine-internal, set by sync.attach_reveals — never script content.
-_INTERNAL_FIELDS = ("_reveals", "_duration", "_anchor", "_solutionKind", "_plan", "_domainExclusions")
+_INTERNAL_FIELDS = ("_reveals", "_duration", "_anchor", "_graphX", "_graphY", "_solutionKind", "_plan", "_domainExclusions")
 # Non affichés : repères vocaux et réglages de la scène equation_steps (math_steps.py).
 _STEP_ANCHOR_FIELDS = ("spoken", "sidesSpoken", "resultSpoken")
 _EQUATION_SCENE_FIELDS = ("verify", "verifySpoken", "rhythm")

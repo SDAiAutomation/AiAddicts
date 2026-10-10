@@ -16,6 +16,7 @@ Contract (mirrors the rest of the module: never block the render):
 from __future__ import annotations
 
 import re
+import unicodedata
 
 _TOKEN_RE = re.compile(r"[a-zà-ÿ0-9]+", re.IGNORECASE)
 _STOP = {
@@ -92,6 +93,91 @@ def number_index(words: list[dict], digits: str, start: int = 0) -> int | None:
             if len(acc) > len(digits):
                 break
     return None
+
+
+_UNITS = {
+    # fr (« un », « une », « one » exclus : articles ou pronoms trop frequents pour ancrer un nombre)
+    "zero": 0, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "six": 6, "sept": 7, "huit": 8, "neuf": 9,
+    "dix": 10, "onze": 11, "douze": 12, "treize": 13, "quatorze": 14, "quinze": 15, "seize": 16,
+    "vingt": 20, "trente": 30, "quarante": 40, "cinquante": 50, "soixante": 60, "cent": 100,
+    # en
+    "two": 2, "three": 3, "four": 4, "five": 5, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+    "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100,
+}
+
+
+def _fold(text: str) -> str:
+    folded = unicodedata.normalize("NFKD", (text or "").lower())
+    return "".join(c for c in folded if not unicodedata.combining(c)).strip(".,;:!?…\"()[]«» ")
+
+
+def word_value(text: str) -> int | None:
+    """Valeur entiere (0 a 100) qu'un mot de la narration exprime : chiffres (« 11 »), nombre en toutes lettres
+    francais ou anglais (« onze », « dix-sept », « twenty-three »). `None` pour tout le reste."""
+    digits = re.sub(r"\D", "", text or "")
+    if digits:
+        return int(digits) if len(digits) <= 3 else None
+    word = _fold(text)
+    if word in _UNITS:
+        return _UNITS[word]
+    parts = [p for p in word.split("-") if p and p != "et"]
+    if len(parts) < 2:
+        return None
+    base = 0
+    if parts[:2] in (["quatre", "vingt"], ["quatre", "vingts"]):  # quatre-vingt(s)(-x)
+        base, parts = 80, parts[2:]
+    values = [_UNITS.get(p) for p in parts]
+    if any(v is None for v in values):
+        return None
+    total = base + sum(values)
+    return total if total <= 100 else None
+
+
+def graph_anchors(scene: dict, words: list[dict], duration: float) -> dict[str, float]:
+    """Instants (fraction du bloc) ou la voix dit la valeur de x puis celle de y du point mis en avant d'un graphe :
+    `_graphX` (le point et « x = … ») et `_graphY` (« y = … »). Les nombres sont reconnus en chiffres ou en lettres
+    (fr/en). Entre plusieurs occurrences de x, on retient la derniere suivie d'un y (une valeur de x deja citee dans
+    la formule ne compte pas). Rien de sur (valeur non entiere, non dite, mots absents) : dictionnaire vide, la scene
+    garde son rythme."""
+    if scene.get("sceneType") != "function_graph" or "highlightX" not in scene or not words or duration <= 0:
+        return {}
+    try:
+        slope, intercept, hx = float(scene["slope"]), float(scene["intercept"]), float(scene["highlightX"])
+    except (KeyError, TypeError, ValueError):
+        return {}
+    hy = slope * hx + intercept
+
+    def whole(value: float) -> int | None:
+        nearest = round(value)
+        return nearest if abs(value - nearest) < 1e-9 and 0 <= nearest <= 100 else None
+
+    ix, iy = whole(hx), whole(hy)
+    values = [word_value(str(w.get("text") or "")) for w in words]
+    xs = [i for i, v in enumerate(values) if ix is not None and v == ix]
+    ys = [i for i, v in enumerate(values) if iy is not None and v == iy]
+    x_idx = y_idx = None
+    for xi in reversed(xs):
+        following = next((yi for yi in ys if yi > xi), None)
+        if following is not None:
+            x_idx, y_idx = xi, following
+            break
+    if x_idx is None:
+        if ys:
+            y_idx = ys[-1]
+        elif xs:
+            x_idx = xs[-1]
+
+    def at(index: int) -> float:
+        return round(min(max(0.0, float(words[index].get("start") or 0.0) - LEAD_SECONDS) / duration, MAX_REVEAL), 4)
+
+    out: dict[str, float] = {}
+    if x_idx is not None:
+        out["_graphX"] = at(x_idx)
+    if y_idx is not None:
+        out["_graphY"] = at(y_idx)
+    return out
 
 
 def compute_reveals(scene: dict, words: list[dict], duration: float) -> list[float] | None:
@@ -179,6 +265,10 @@ def attach_reveals(scene: dict, words: list[dict] | None, duration: float) -> di
                 if [token for token, _ in spoken[index:index + len(anchor)]] == anchor:
                     at = min(max(0.0, spoken[index][1] - LEAD_SECONDS) / duration, MAX_REVEAL)
                     return {**scene, "_anchor": round(at, 4), "_duration": float(duration)}
+    if scene.get("sceneType") == "function_graph":
+        anchors = graph_anchors(scene, words or [], duration)
+        if anchors:
+            return {**scene, **anchors, "_duration": float(duration)}
     if scene.get("sceneType") == "big_number" and not isinstance(scene.get("voiceAnchor"), str) and words and duration > 0:
         # Sans `voiceAnchor` ecrit dans le script : le chiffre apparait et se compte quand la voix le dit.
         for digits in digit_keys(str(scene.get("displayValue") or ""))[:1]:

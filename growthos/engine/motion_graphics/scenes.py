@@ -736,11 +736,31 @@ def render_function_graph(data: dict, t: float, theme: Theme, size: tuple[int, i
         hx = float(data["highlightX"])
         hy = slope * hx + intercept
         label = f"x = {hx:g}  →  y = {hy:g}"
-        layout.draw_fitted(draw, (w / 2, h * 0.267), label, round(h * 0.03), w * 0.78,
-                           lerp_color(theme.background, theme.accent, anim.fade_in(t, 0.72, 0.92)))
-        if progress >= (hx - x_min) / (x_max - x_min):
+        staged = data.get("_graphX") is not None or data.get("_graphY") is not None
+        if not staged:
+            layout.draw_fitted(draw, (w / 2, h * 0.267), label, round(h * 0.03), w * 0.78,
+                               lerp_color(theme.background, theme.accent, anim.fade_in(t, 0.72, 0.92)))
+            point_start = 0.70
+        else:
+            # Calé sur la voix (sync.graph_anchors) : le point et « x = … » quand x est dit, « y = … » quand y est dit.
+            point_start = float(data["_graphX"]) if data.get("_graphX") is not None else 0.70
+            y_start = float(data["_graphY"]) if data.get("_graphY") is not None else (
+                float(data["_graphX"]) if data.get("_graphX") is not None else 0.72)
+            y_start = max(y_start, point_start)
+            x_part = f"x = {hx:g}"
+            visible_x = t >= point_start
+            visible_y = t >= y_start
+            if visible_x or visible_y:
+                layout.draw_fitted_segments(
+                    draw, (w / 2, h * 0.267),
+                    [(x_part, lerp_color(theme.background, theme.accent, anim.fade_in(t, point_start, point_start + 0.04))
+                      if visible_x else None),
+                     (label[len(x_part):], lerp_color(theme.background, theme.accent, anim.fade_in(t, y_start, y_start + 0.04))
+                      if visible_y else None)],
+                    round(h * 0.03), w * 0.78)
+        if progress >= (hx - x_min) / (x_max - x_min) and (not staged or t >= point_start):
             px, py = xy(hx, hy)
-            r = h * 0.012 * anim.scale_in(t, 0.70, 0.90, from_scale=0.5)
+            r = h * 0.012 * anim.scale_in(t, point_start, point_start + 0.20, from_scale=0.5)
             draw.ellipse((px - r, py - r, px + r, py + r), fill=theme.accent)
     return image
 

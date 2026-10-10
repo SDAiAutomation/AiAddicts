@@ -14,6 +14,7 @@ AI calls, zero new providers, pure Pillow measurement.
 """
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
 
 from . import canvas
@@ -221,6 +222,11 @@ def draw_fitted_segments(
     text = "".join(segment for segment, _ in segments)
     result = fit_text(draw, text, base_font_px, max_width, bold=bold, max_height=max_height)
     if len(result.lines) != 1 or len(segments) < 2:
+        if any(fill is None for _, fill in segments):
+            # un segment masque (None) ne doit jamais fuiter : on ne dessine que le debut deja visible
+            visible = "".join(piece for piece, fill in itertools.takewhile(lambda item: item[1] is not None, segments))
+            return draw_fitted(draw, xy, visible, base_font_px, max_width, segments[0][1] or "#ffffff",
+                               bold=bold, max_height=max_height)
         return draw_fitted(draw, xy, text, base_font_px, max_width, segments[0][1] if segments else "#ffffff",
                            bold=bold, max_height=max_height)
     f = result.font
@@ -232,8 +238,9 @@ def draw_fitted_segments(
     done = ""
     for segment, fill in segments:
         piece = canvas.sanitize_text(segment)
-        draw.text((left + draw.textlength(done, font=f), y), piece, font=f, fill=fill, anchor="lm",
-                  stroke_width=stroke, stroke_fill=fill)
+        if fill is not None:  # None : espace reserve, rien de dessine (revelation plus tard)
+            draw.text((left + draw.textlength(done, font=f), y), piece, font=f, fill=fill, anchor="lm",
+                      stroke_width=stroke, stroke_fill=fill)
         done += piece
     box = draw.textbbox((x, y), clean, font=f, anchor="mm", stroke_width=stroke)
     if _RECORDER is not None:
