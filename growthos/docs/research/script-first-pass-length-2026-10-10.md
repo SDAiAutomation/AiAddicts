@@ -67,7 +67,7 @@ Relecture (échantillon dans `review.md` du banc) : en C, l'histoire du chien pa
 
 ## 6. Hors périmètre mais important
 
-- **Bug d'élision (production)** : `fixFrenchElisions` utilise `\b` sans drapeau Unicode ; après un mot qui finit par une lettre accentuée (é, è, à) suivie de s, t, c, d, l, m, n ou j, il insère une apostrophe : « torsadés'et », « après'une », « liés'à », « habitués'ont ». Observé dans 19/42, 25/47 et 27/54 scripts français (≈ 45 %), donc commun à toutes les variantes. La voix off le lit mal. Correctif très petit (lookbehind sur les lettres Unicode) à traiter à part.
+- **Bug d'élision (production)** : `fixFrenchElisions` utilise `\b` sans drapeau Unicode ; après un mot qui finit par une lettre accentuée (é, è, à) suivie de s, t, c, d, l, m, n ou j, il insère une apostrophe : « torsadés'et », « après'une », « liés'à », « habitués'ont ». Mesure corrigée après vérification (le comptage initial, ≈ 45 %, incluait à tort « quelqu'un ») : 24 % des sorties brutes du banc (201 scripts sur 823, 230 blocs sur 9 278) et 13 % des scripts français en base (5 sur 38). Corrigé dans la PR #61 du dépôt web (brouillon).
 - **Levier non testé** : `reasoning_effort: low`. Le modèle écrit court par défaut quelles que soient les consignes de longueur ; passer à `medium` coûte des jetons et doit être mesuré.
 - **Deux appels par génération** : 98 % des générations en font deux (la première tentative est presque toujours rejetée).
 
