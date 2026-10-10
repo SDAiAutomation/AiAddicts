@@ -128,13 +128,66 @@ def has_direction_leak(text: object) -> bool:
     return _split_leak(str(text or ""))[1]
 
 
-def strip_directions(text: object) -> str:
+MINUS = "−"
+# Spaced hyphen / en dash between two operands: "2000 - 300", "REVENU - EPARGNE".
+_SPACED_MINUS = re.compile(r"(?<=\S) [-–] (?=\S)")
+# A hyphen glued to what it negates, at the start or after an operator: "-5", "-$20", "-x".
+_SIGN_MINUS = re.compile(r"(?:^|(?<=[\s(=<>≤≥≠+×÷*/]))-(?=[\d$€£.]|[a-z]\b)", re.IGNORECASE)
+_RELATION = re.compile(r"[=≠<>≤≥≈]")
+_BEFORE_OPERAND = re.compile(r"[\d)%]$|^[a-z]$", re.IGNORECASE)
+_AFTER_OPERAND = re.compile(r"^[\d$€£(]|^[a-z]$", re.IGNORECASE)
+
+
+def normalize_operators(text: str) -> str:
+    """Typographic minus (U+2212) where a hyphen is arithmetic, and ONLY there.
+
+    Arithmetic means: a spaced hyphen/en dash in a string that states a relation
+    ("REVENU - EPARGNE = BUDGET") or sits between two numeric operands
+    ("2000 - 300"); a hyphen glued to a number or variable at the start or after an
+    operator ("-5 + 2 = -3"). Hyphens inside words ("aurais-tu"), ranges
+    ("2000-3000") and prose dashes ("Wants - needs") are left alone."""
+    if not text or ("-" not in text and "–" not in text):
+        return text
+    relational = bool(_RELATION.search(text))
+
+    def spaced(match: re.Match) -> str:
+        if relational:
+            return f" {MINUS} "
+        before = text[: match.start()].rsplit(" ", 1)[-1]
+        after = text[match.end():].split(" ", 1)[0]
+        return f" {MINUS} " if _BEFORE_OPERAND.search(before) and _AFTER_OPERAND.search(after) else match.group(0)
+
+    out = _SPACED_MINUS.sub(spaced, text)
+    if relational or re.match(r"^-[\d$€£]", out):
+        out = _SIGN_MINUS.sub(MINUS, out)
+    return out
+
+
+def _strip_edges(text: str, operators: bool = False) -> str:
+    """Trim stray punctuation left around a viewer string. A leading hyphen is
+    kept when it is a sign glued to its operand ("-5") or, with `operators`
+    (formula terms), a spaced minus ("- EPARGNE"); a bare list-bullet hyphen
+    ("- Save first") is dropped as before."""
+    text = text.strip(" \t—–:;,")
+    if text.startswith("-"):
+        glued = len(text) > 1 and not text[1].isspace()
+        if not (glued or operators):
+            text = text.lstrip("- ")
+    return re.sub(r"\s+-+$", "", text).rstrip(" \t:;,")
+
+
+def strip_directions(text: object, operators: bool = False) -> str:
     """Removes production-direction clauses from a viewer string. Last-resort
-    guard — the contract is that directions never get here; this only catches
+    guard: the contract is that directions never get here; this only catches
     legacy / model slips. Conservative by design: label markers need their
-    colon, so ordinary words ("show", "scene", "pan") are never touched."""
+    colon, so ordinary words ("show", "scene", "pan") are never touched.
+    Arithmetic operators survive (see `normalize_operators`); `operators=True`
+    marks a field made of formula terms, where a leading spaced "-" is a minus."""
     clean, _ = _split_leak(str(text or ""))
-    return " ".join(clean.split()).strip(" \t—–-:;,")
+    out = _strip_edges(" ".join(clean.split()), operators)
+    if operators and out.startswith("- "):
+        out = f"{MINUS} {out[2:]}"
+    return normalize_operators(out)
 
 
 # --- Budgets ------------------------------------------------------------
@@ -161,8 +214,8 @@ def fit_budget(text: str, kind: str) -> str:
     return cut.rstrip(" ,;:—–-.") + "…"
 
 
-def _clean(text: object, kind: str) -> str:
-    return fit_budget(strip_directions(text), kind)
+def _clean(text: object, kind: str, operators: bool = False) -> str:
+    return fit_budget(strip_directions(text, operators), kind)
 
 
 def display_text_of(scene: dict) -> str:
@@ -224,7 +277,7 @@ def viewer_scene(scene: object) -> dict:
         if kind == "equation_steps" and key == "steps":
             continue
         if isinstance(scene.get(key), list):
-            out[key] = [v for v in (_clean(v, "list_item") for v in scene[key]) if v]
+            out[key] = [v for v in (_clean(v, "list_item", operators=key == "terms") for v in scene[key]) if v]
     if isinstance(scene.get("data"), list):
         out["data"] = [d for d in (_clean_datum(r) for r in scene["data"]) if d is not None]
     for key in _GROUP_FIELDS:
