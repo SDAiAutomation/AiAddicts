@@ -29,6 +29,7 @@ from fractions import Fraction
 
 from . import math_validation as mv
 from .sync import LEAD_SECONDS, _tokens
+from .. import math_narration
 
 PLAN_VERSION = 1
 
@@ -176,12 +177,12 @@ def _spoken_tokens(words: list[dict] | None) -> list[tuple[str, float, float, bo
 
 
 def _find_phrase(spoken: list, phrase: object, cursor: int = 0) -> tuple[int, int] | None:
-    wanted = _tokens(str(phrase or ""))
-    if not wanted:
-        return None
-    for i in range(max(cursor, 0), len(spoken) - len(wanted) + 1):
-        if [item[0] for item in spoken[i:i + len(wanted)]] == wanted:
-            return i, i + len(wanted)
+    for wanted in (_tokens(str(phrase or "")), _tokens(math_narration.for_voice(str(phrase or "")))):
+        if not wanted:
+            continue
+        for i in range(max(cursor, 0), len(spoken) - len(wanted) + 1):
+            if [item[0] for item in spoken[i:i + len(wanted)]] == wanted:
+                return i, i + len(wanted)
     return None
 
 
