@@ -8,7 +8,7 @@ import argparse
 import json
 from pathlib import Path
 
-from engine.creative_quality import analyze
+from engine.creative_quality import analyze, combine
 from engine.render_preflight import inspect_video
 
 
@@ -24,6 +24,7 @@ def main() -> None:
     report = {"script": analyze(script)}
     if args.video is not None:
         report["render"] = inspect_video(args.video)
+    report["combined"] = combine(report["script"], report.get("render"))
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output is not None:
         args.output.write_text(payload + "\n", encoding="utf-8")
