@@ -19,6 +19,12 @@ _ACTIONS = {
     "cta_too_long": "Raccourcir le CTA sans changer son intention.",
 }
 
+# Pure length limits of editorial_quality (title, CTA) are informational: blind test of 30 real
+# rewrites (2026-10-11) preferred the original title 7 times out of 8, and no performance data
+# supports the 60-character cap. shortcut: matches the French messages of editorial_quality by
+# prefix; test_length_messages_still_match_editorial_quality fails if they drift.
+_LENGTH_ONLY_PREFIXES = ("Titre de ", "CTA trop long")
+
 
 def _issue(item: dict, blocks: list[dict]) -> dict:
     code = str(item.get("code") or "unknown")
@@ -51,14 +57,17 @@ def analyze(script: dict, *, retention_report: dict | None = None,
     editorial = editorial_report if editorial_report is not None else editorial_quality.analyze_script(script)
     issues = [_issue(i, blocks) for i in retained.get("issues", []) if isinstance(i, dict)]
     for reason in editorial.get("issues", []):
+        reason = str(reason)
+        length_only = reason.startswith(_LENGTH_ONLY_PREFIXES)
         issues.append({
-            "code": "editorial_heuristic",
-            "severity": "warning",
+            "code": "editorial_length" if length_only else "editorial_heuristic",
+            "severity": "info" if length_only else "warning",
             "source": "editorial",
             "block_index": None,
             "evidence": "",
-            "reason": str(reason),
-            "suggested_action": "Vérifier le diagnostic éditorial et modifier uniquement si pertinent.",
+            "reason": reason,
+            "suggested_action": "Optionnel : à raccourcir seulement si le texte y gagne."
+            if length_only else "Vérifier le diagnostic éditorial et modifier uniquement si pertinent.",
             "confidence": "heuristic",
         })
     decision = "block" if any(i["severity"] == "blocking" for i in issues) else (
