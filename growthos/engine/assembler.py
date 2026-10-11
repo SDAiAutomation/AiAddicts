@@ -774,6 +774,43 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     return {"video": final_video, "video_url": video_url, "content_item_id": content_item_id, **pack}
 
 
+
+
+def _store_creative_quality_shadow(client, content_item_id: str, data: dict,
+                                   metrics: dict | None, final_video: str,
+                                   expected_version_id: str | None) -> None:
+    """Best-effort, explicitly opt-in diagnostics; never affects publishing."""
+    if (os.environ.get("CREATIVE_QUALITY_PERSIST_ENABLED") != "true"
+            or metrics is None or expected_version_id is None):
+        return
+    try:
+        from . import creative_quality, creative_quality_writer, render_preflight
+
+        existing = client.table("content_items").select(
+            "script_version, video_script_version, current_version_id"
+        ).eq("id", content_item_id).single().execute().data
+        if (not existing or existing.get("current_version_id") != expected_version_id
+                or existing.get("video_script_version") is None):
+            print("       creative quality: version not ready, report skipped")
+            return
+        script_report = creative_quality.analyze(
+            data,
+            retention_report=metrics.get("retention"),
+            editorial_report=metrics.get("editorial"),
+        )
+        render_report = render_preflight.inspect_video(final_video)
+        report = creative_quality.combine(script_report, render_report)
+        saved = creative_quality_writer.store_report(
+            client, content_item_id, report,
+            script_version=existing["script_version"],
+            video_script_version=existing["video_script_version"],
+            current_version_id=existing["current_version_id"],
+        )
+        print("       creative quality: " + ("saved" if saved else "stale, skipped"))
+    except Exception as exc:
+        # Never change a successful generation into a failure due to shadow diagnostics.
+        print(f"       creative quality unavailable ({type(exc).__name__}): {exc}")
+
 def run_for_content_item(content_item_id: str, output_root: str = "output") -> dict:
     """Point d'entrée worker.py : génère la vidéo d'un content_item déjà en
     base (créé par le front en status='queued', script déjà construit —
@@ -885,6 +922,10 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         if version_id:
             final_fields["current_version_id"] = version_id
     repo.update_content_item(client, content_item_id, **final_fields)
+    _store_creative_quality_shadow(
+        client, content_item_id, data, metrics, final_video,
+        final_fields.get("current_version_id"),
+    )
     cost_report = final_fields.get("generation_cost_report")
     events.record(
         client, "generation_completed", content_item_id, organization_id,
