@@ -28,6 +28,20 @@ begin
              then jsonb_array_length(p_report->'issues') > 50
              else true end
      or octet_length(p_report::text) > 40000
+     or exists (
+       select 1 from jsonb_array_elements(
+         case when jsonb_typeof(p_report->'issues') = 'array'
+              then p_report->'issues' else '[]'::jsonb end
+       ) as entry(issue)
+       where jsonb_typeof(entry.issue) is distinct from 'object'
+          or coalesce(entry.issue->>'severity','') not in ('info','warning','blocking')
+          or coalesce(entry.issue->>'source','') not in ('retention','editorial','render','integrity')
+          or coalesce(entry.issue->>'confidence','') not in ('deterministic','heuristic','unverified')
+          or length(coalesce(entry.issue->>'code','')) > 100
+          or length(coalesce(entry.issue->>'reason','')) > 500
+          or length(coalesce(entry.issue->>'evidence','')) > 500
+          or length(coalesce(entry.issue->>'suggested_action','')) > 500
+     )
      or coalesce(p_report->>'stage','') not in ('script','render','combined')
      or p_report->>'script_version' is distinct from p_script_version::text
      or p_report->>'video_script_version' is distinct from p_video_script_version::text
