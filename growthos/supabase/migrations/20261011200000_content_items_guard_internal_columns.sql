@@ -106,7 +106,7 @@ $$;
 
 revoke all on function public.guard_content_items_internal_columns() from public, anon, authenticated;
 
-drop trigger if exists a0_guard_content_items_internal_columns on public.content_items;
-create trigger a0_guard_content_items_internal_columns
+-- create or replace trigger (PostgreSQL 14+) : idempotent sans instruction DROP.
+create or replace trigger a0_guard_content_items_internal_columns
   before insert or update on public.content_items
   for each row execute function public.guard_content_items_internal_columns();
