@@ -74,3 +74,23 @@ def analyze(script: dict, *, retention_report: dict | None = None,
         "editorial_score_existing": editorial.get("score"),
         "retention_engine_version": retained.get("version"),
     }
+
+
+def combine(script_report: dict, render_report: dict | None = None) -> dict:
+    """Aggregate independent stage decisions without changing enforcement."""
+    reports = [script_report] + ([render_report] if render_report is not None else [])
+    if any(r.get("decision") == "block" for r in reports):
+        decision = "block"
+    elif any(r.get("decision") == "review" for r in reports):
+        decision = "review"
+    else:
+        decision = "pass"
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "stage": "combined",
+        "decision": decision,
+        "issues": [issue for report in reports for issue in report.get("issues", [])],
+        "automatic_edits_applied": False,
+        "enforcement_enabled": False,
+        "stages_checked": [report.get("stage") for report in reports],
+    }
