@@ -2,7 +2,7 @@
 
 ## Shipped in draft PR
 - `engine/creative_quality.py`: read-only adapter over existing retention and editorial diagnostics. Structured issues, actionable suggestions, decision pass/review/block, no enforcement.
-- `engine/render_preflight.py`: optional ffprobe media container/stream inspection, read-only. No silence detection, caption OCR or visual overlap claim.
+- `engine/render_preflight.py`: optional ffprobe media container/stream inspection, read-only. Second ffmpeg pass (~10 % of the video length): long silence (>= 2.5 s), frozen image (>= 4 s), very quiet audio (mean < -38 dB), all advisory warnings. Thresholds measured on 36 real renders with 0 false positives; black frames are deliberately not checked (dark Motion Graphics themes stay black up to 7 s). No caption OCR or overlap claim.
 - `creative_quality_cli.py`: standalone preview from an existing script and optional video.
 - Unit tests and GitHub Actions workflow for these modules.
 
@@ -37,4 +37,4 @@ Include tests for missing hook, real arithmetic error, innocent numbers, unsuppo
 - Product owner separately approves any new enforcement, Supabase migration, or production deployment.
 
 ## Known limitations
-The quality adapter does not verify facts, predict virality, or fix a script. `ffprobe` detects container-level streams only, not inaudible speech, subtitle clipping or frame-level issues. An existing low editorial score is advisory in the new report and retains its separate legacy semantics. Tests are committed but their execution must be confirmed from CI or a local checkout.
+The quality adapter does not verify facts, predict virality, or fix a script. Render checks catch silence, frozen image and quiet audio, not subtitle clipping, text legibility or desync. A silence under background music is not detected (music masks it). Sensitivity is only verified on a synthetic clip: no real defective render was available. An existing low editorial score is advisory in the new report and retains its separate legacy semantics. Tests are committed but their execution must be confirmed from CI or a local checkout.
