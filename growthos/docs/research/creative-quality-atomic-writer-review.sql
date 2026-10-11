@@ -5,6 +5,7 @@ create or replace function public.store_creative_quality_report(
   p_content_item_id uuid,
   p_script_version integer,
   p_video_script_version integer,
+  p_current_version_id uuid,
   p_report jsonb
 )
 returns boolean
@@ -25,6 +26,7 @@ begin
      or octet_length(p_report::text) > 40000
      or (p_report->>'script_version')::integer is distinct from p_script_version
      or (p_report->>'video_script_version')::integer is distinct from p_video_script_version
+     or (p_report->>'current_version_id')::uuid is distinct from p_current_version_id
   then
     raise exception 'Invalid creative quality report';
   end if;
@@ -37,6 +39,7 @@ begin
   if v_item.script_version is distinct from p_script_version
      or (p_video_script_version is not null and
          v_item.video_script_version is distinct from p_video_script_version)
+     or (p_current_version_id is not null and v_item.current_version_id is distinct from p_current_version_id)
   then return false; end if;
 
   update public.content_items
@@ -49,7 +52,7 @@ $$;
 
 -- Permission must be restricted to service_role: this function is not
 -- callable by user sessions, even if a user knows another content item UUID.
-revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from public;
+revoke all on function public.store_creative_quality_report(uuid,integer,integer,uuid,jsonb) from public;
 revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from anon;
 revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from authenticated;
 grant execute on function public.store_creative_quality_report(uuid,integer,integer,jsonb) to service_role;
