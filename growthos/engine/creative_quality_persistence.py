@@ -11,7 +11,8 @@ MAX_ISSUES = 50
 MAX_TEXT = 500
 
 
-def prepare_report(report: dict, *, script_version: int, video_script_version: int | None = None) -> dict:
+def prepare_report(report: dict, *, script_version: int, video_script_version: int | None = None,
+                   current_version_id: str | None = None) -> dict:
     if report.get("schema_version") != "creative_quality:v1":
         raise ValueError("Unsupported report version")
     if report.get("enforcement_enabled") is not False or report.get("automatic_edits_applied") is not False:
@@ -59,6 +60,7 @@ def prepare_report(report: dict, *, script_version: int, video_script_version: i
         "enforcement_enabled": False,
         "script_version": script_version,
         "video_script_version": video_script_version,
+        "current_version_id": current_version_id,
         "issues_truncated": len(raw_issues) > MAX_ISSUES,
     }
 
