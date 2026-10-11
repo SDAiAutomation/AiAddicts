@@ -19,16 +19,20 @@ from engine.quiz import QUIZ_THEMES, compile_quiz
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--theme", choices=sorted(QUIZ_THEMES), default="studio")
+    parser.add_argument("--presentation", choices=["classic", "motion"], default="classic")
+    parser.add_argument("--full", action="store_true", help="Include the intro and outro (still no voiceover)")
     parser.add_argument("--resolution", choices=["1080x1920", "720x1280", "1080x1080", "1920x1080"], default="1080x1920")
     args = parser.parse_args()
-    output = ROOT / "output" / "quiz-preview" / f"{args.theme}-{args.resolution}"
+    output = ROOT / "output" / "quiz-preview" / f"{args.theme}-{args.resolution}-{args.presentation}"
     output.mkdir(parents=True, exist_ok=True)
     script = json.loads((ROOT / "content/scripts/exemple-quiz.json").read_text(encoding="utf-8"))
     script["quiz"]["theme"] = args.theme
+    script["quiz"]["presentation"] = args.presentation
     # Four choices exercise the most crowded supported layout.
     script["quiz"]["questions"][0]["choices"].append("La Terre")
     blocks = compile_quiz(script)["blocks"]
-    blocks = [block for block in blocks if block["quiz_phase"] in {"question", "reveal"}]
+    if not args.full:
+        blocks = [block for block in blocks if block["quiz_phase"] in {"question", "reveal"}]
     for block in blocks:
         block["quiz_visual_available"] = False
     durations = [7.0 if block["quiz_phase"] == "question" else 3.0 for block in blocks]
@@ -49,9 +53,10 @@ def main() -> None:
         "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
         "-movflags", "+faststart", "preview.mp4",
     ], cwd=output, check=True)
+    question_offset = durations[0] if args.full else 0
     for label, seconds in (("question", 2), ("countdown", 5), ("answer", 8)):
         subprocess.run([
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(seconds),
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(question_offset + seconds),
             "-i", "preview.mp4", "-frames:v", "1", f"{label}.png",
         ], cwd=output, check=True)
     print(output / "preview.mp4")

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 _GENERATION_MODULES = (
-    "assembler.py", "captions.py", "editorial_quality.py", "generation_cache.py", "quiz.py", "quiz_cover.py",
+    "assembler.py", "captions.py", "editorial_quality.py", "generation_cache.py", "quiz.py", "quiz_cover.py", "quiz_motion.py",
     "image_character_bible.py",
     "image_model_router.py", "image_prompt_builder.py", "image_style_bible.py",
     "openai_images.py", "quality.py", "stock_planner.py", "tts.py", "math_narration.py",
