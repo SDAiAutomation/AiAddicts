@@ -1,0 +1,55 @@
+-- REVIEW ONLY. Do not apply to production without explicit approval.
+-- Atomically update only the creative_quality key of score_details, with
+-- a row lock and generation/version guards. Requires trusted service-role caller.
+create or replace function public.store_creative_quality_report(
+  p_content_item_id uuid,
+  p_script_version integer,
+  p_video_script_version integer,
+  p_report jsonb
+)
+returns boolean
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_item public.content_items%rowtype;
+begin
+  if p_report is null or jsonb_typeof(p_report) <> 'object'
+     or p_report->>'schema_version' <> 'creative_quality:v1'
+     or p_report->>'enforcement_enabled' <> 'false'
+     or p_report->>'automatic_edits_applied' <> 'false'
+     or p_report->>'decision' not in ('pass','review','block')
+     or jsonb_typeof(p_report->'issues') <> 'array'
+     or jsonb_array_length(p_report->'issues') > 50
+     or octet_length(p_report::text) > 40000
+     or (p_report->>'script_version')::integer is distinct from p_script_version
+     or (p_report->>'video_script_version')::integer is distinct from p_video_script_version
+  then
+    raise exception 'Invalid creative quality report';
+  end if;
+
+  select * into v_item
+  from public.content_items
+  where id = p_content_item_id
+  for update;
+  if not found then return false; end if;
+  if v_item.script_version is distinct from p_script_version
+     or (p_video_script_version is not null and
+         v_item.video_script_version is distinct from p_video_script_version)
+  then return false; end if;
+
+  update public.content_items
+  set score_details = coalesce(v_item.score_details, '{}'::jsonb)
+                      || jsonb_build_object('creative_quality', p_report)
+  where id = p_content_item_id;
+  return true;
+end;
+$$;
+
+-- Permission must be restricted to service_role: this function is not
+-- callable by user sessions, even if a user knows another content item UUID.
+revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from public;
+revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from anon;
+revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from authenticated;
+grant execute on function public.store_creative_quality_report(uuid,integer,integer,jsonb) to service_role;
