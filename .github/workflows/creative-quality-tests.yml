@@ -6,6 +6,8 @@ on:
       - 'growthos/engine/creative_quality.py'
       - 'growthos/engine/render_preflight.py'
       - 'growthos/creative_quality_cli.py'
+      - 'growthos/engine/creative_quality_persistence.py'
+      - 'growthos/tests/test_creative_quality_persistence.py'
       - 'growthos/tests/test_creative_quality.py'
       - 'growthos/tests/test_render_preflight.py'
       - '.github/workflows/creative-quality-tests.yml'
@@ -21,7 +23,7 @@ jobs:
           python-version: '3.12'
       - name: Run offline quality tests
         working-directory: growthos
-        run: python -m unittest discover -s tests -p 'test_creative_quality.py' -v && python -m unittest discover -s tests -p 'test_render_preflight.py' -v
+        run: python -m unittest discover -s tests -p 'test_creative_quality.py' -v && python -m unittest discover -s tests -p 'test_render_preflight.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_persistence.py' -v
       - name: Compile changed Python modules
         working-directory: growthos
-        run: python -m py_compile engine/creative_quality.py engine/render_preflight.py creative_quality_cli.py
+        run: python -m py_compile engine/creative_quality.py engine/render_preflight.py engine/creative_quality_persistence.py creative_quality_cli.py
