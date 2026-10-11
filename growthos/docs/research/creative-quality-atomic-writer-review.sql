@@ -17,17 +17,18 @@ declare
   v_item public.content_items%rowtype;
 begin
   if p_current_version_id is null or p_video_script_version is null
+     or p_script_version is null
      or p_report is null or jsonb_typeof(p_report) <> 'object'
-     or p_report->>'schema_version' <> 'creative_quality:v1'
-     or p_report->>'enforcement_enabled' <> 'false'
-     or p_report->>'automatic_edits_applied' <> 'false'
-     or p_report->>'decision' not in ('pass','review','block')
-     or jsonb_typeof(p_report->'issues') <> 'array'
+     or p_report->>'schema_version' is distinct from 'creative_quality:v1'
+     or p_report->'enforcement_enabled' is distinct from 'false'::jsonb
+     or p_report->'automatic_edits_applied' is distinct from 'false'::jsonb
+     or coalesce(p_report->>'decision', '') not in ('pass','review','block')
+     or jsonb_typeof(p_report->'issues') is distinct from 'array'
      or jsonb_array_length(p_report->'issues') > 50
      or octet_length(p_report::text) > 40000
-     or (p_report->>'script_version')::integer is distinct from p_script_version
-     or (p_report->>'video_script_version')::integer is distinct from p_video_script_version
-     or (p_report->>'current_version_id')::uuid is distinct from p_current_version_id
+     or p_report->>'script_version' is distinct from p_script_version::text
+     or p_report->>'video_script_version' is distinct from p_video_script_version::text
+     or p_report->>'current_version_id' is distinct from p_current_version_id::text
   then
     raise exception 'Invalid creative quality report';
   end if;
