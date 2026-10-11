@@ -16,7 +16,8 @@ as $$
 declare
   v_item public.content_items%rowtype;
 begin
-  if p_report is null or jsonb_typeof(p_report) <> 'object'
+  if p_current_version_id is null or p_video_script_version is null
+     or p_report is null or jsonb_typeof(p_report) <> 'object'
      or p_report->>'schema_version' <> 'creative_quality:v1'
      or p_report->>'enforcement_enabled' <> 'false'
      or p_report->>'automatic_edits_applied' <> 'false'
@@ -39,7 +40,7 @@ begin
   if v_item.script_version is distinct from p_script_version
      or (p_video_script_version is not null and
          v_item.video_script_version is distinct from p_video_script_version)
-     or (p_current_version_id is not null and v_item.current_version_id is distinct from p_current_version_id)
+     or v_item.current_version_id is distinct from p_current_version_id
   then return false; end if;
 
   update public.content_items
@@ -53,6 +54,6 @@ $$;
 -- Permission must be restricted to service_role: this function is not
 -- callable by user sessions, even if a user knows another content item UUID.
 revoke all on function public.store_creative_quality_report(uuid,integer,integer,uuid,jsonb) from public;
-revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from anon;
-revoke all on function public.store_creative_quality_report(uuid,integer,integer,jsonb) from authenticated;
-grant execute on function public.store_creative_quality_report(uuid,integer,integer,jsonb) to service_role;
+revoke all on function public.store_creative_quality_report(uuid,integer,integer,uuid,jsonb) from anon;
+revoke all on function public.store_creative_quality_report(uuid,integer,integer,uuid,jsonb) from authenticated;
+grant execute on function public.store_creative_quality_report(uuid,integer,integer,uuid,jsonb) to service_role;
