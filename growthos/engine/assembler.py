@@ -777,9 +777,11 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
 
 
 def _store_creative_quality_shadow(client, content_item_id: str, data: dict,
-                                   metrics: dict | None, final_video: str) -> None:
+                                   metrics: dict | None, final_video: str,
+                                   expected_version_id: str | None) -> None:
     """Best-effort, explicitly opt-in diagnostics; never affects publishing."""
-    if os.environ.get("CREATIVE_QUALITY_PERSIST_ENABLED") != "true" or metrics is None:
+    if (os.environ.get("CREATIVE_QUALITY_PERSIST_ENABLED") != "true"
+            or metrics is None or expected_version_id is None):
         return
     try:
         from . import creative_quality, creative_quality_writer, render_preflight
@@ -787,7 +789,8 @@ def _store_creative_quality_shadow(client, content_item_id: str, data: dict,
         existing = client.table("content_items").select(
             "script_version, video_script_version, current_version_id"
         ).eq("id", content_item_id).single().execute().data
-        if not existing or not existing.get("current_version_id") or existing.get("video_script_version") is None:
+        if (not existing or existing.get("current_version_id") != expected_version_id
+                or existing.get("video_script_version") is None):
             print("       creative quality: version not ready, report skipped")
             return
         script_report = creative_quality.analyze(
@@ -919,7 +922,10 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         if version_id:
             final_fields["current_version_id"] = version_id
     repo.update_content_item(client, content_item_id, **final_fields)
-    _store_creative_quality_shadow(client, content_item_id, data, metrics, final_video)
+    _store_creative_quality_shadow(
+        client, content_item_id, data, metrics, final_video,
+        final_fields.get("current_version_id"),
+    )
     cost_report = final_fields.get("generation_cost_report")
     events.record(
         client, "generation_completed", content_item_id, organization_id,
