@@ -20,6 +20,14 @@ class CreativeQualityTests(unittest.TestCase):
         r = creative_quality.analyze({"blocks":[]}, retention_report={"issues":[{"code":"viewer_placeholder","blocks":[99],"message":"missing"}]}, editorial_report={"score":100,"issues":[]})
         self.assertIsNone(r["issues"][0]["block_index"])
 
+    def test_combine_keeps_enforcement_disabled(self):
+        script = {"stage":"script","decision":"pass","issues":[]}
+        render = {"stage":"render","decision":"block","issues":[{"code":"audio_stream_missing"}]}
+        combined = creative_quality.combine(script, render)
+        self.assertEqual(combined["decision"], "block")
+        self.assertFalse(combined["enforcement_enabled"])
+        self.assertEqual(combined["stages_checked"], ["script", "render"])
+
     def test_review(self):
         r = creative_quality.analyze({"blocks":[]}, retention_report={"issues":[]}, editorial_report={"score":80,"issues":["Weak hook"]})
         self.assertEqual(r["decision"],"review")
