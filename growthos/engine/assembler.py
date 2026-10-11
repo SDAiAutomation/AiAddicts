@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
-    math_narration, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, repo, retention,
+    math_narration, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
     script as script_module, shot_planning, storage, tts, versions, video, visuals, voices,
 )
 
@@ -69,6 +69,7 @@ def _generate(
 
     final_path = work_dir / "final" / f"{slug}.mp4"
     srt_path = work_dir / "captions.srt"
+    quiz_report_path = work_dir / "quiz-presentation.json"
 
     if _exists_nonempty(final_path) and _exists_nonempty(srt_path):
         # Chemin de re-run le moins cher : la vidéo finale et ses sous-titres
@@ -76,6 +77,19 @@ def _generate(
         # output/<slug>/ pour forcer une reconstruction (script modifié).
         print("[2-5/5] Vidéo finale + sous-titres déjà présents — réutilisés")
         step("Finalisation (vidéo déjà rendue)")
+        presentation = quiz_motion.presentation_info(data)
+        if presentation:
+            cached_report = {**presentation, "timingSource": "unavailable",
+                             "renderSeconds": None, "renderCostUsd": None}
+            try:
+                stored_report = json.loads(quiz_report_path.read_text(encoding="utf-8"))
+                if isinstance(stored_report, dict) and all(stored_report.get(k) == v for k, v in presentation.items()):
+                    cached_report = stored_report
+            except (OSError, ValueError):
+                # A missing diagnostic does not invalidate a completed video.
+                # Missing measurements stay unknown, never zero.
+                pass
+            quiz_motion.attach_report(data, {**cached_report, "reusedFinalVideo": True})
         return str(final_path), work_dir, None
 
     # Caractères réellement facturés par ElevenLabs cette fois (les blocs dont
@@ -153,6 +167,7 @@ def _generate(
     audio_paths = [path for path, _duration, _words in results]
     durations = [duration for _path, duration, _words in results]
     block_words = [(words, duration) for _path, duration, words in results]
+    quiz_report = quiz_motion.build_timeline(data, durations)
 
     total_duration = sum(durations)
     if data.get("content_goal") == "monetization" and total_duration < MIN_MONETIZABLE_DURATION_S:
@@ -298,14 +313,16 @@ def _generate(
     print(f"       mouvement : profil « {motion_profile} », transition « {transition} »")
 
     print(f"[5/5] Rendu vidéo finale ({n_blocks} clip(s))…")
-    step(f"Rendu vidéo final ({n_blocks} clip(s))")
+    mode_label = " — Motion design" if quiz_report and quiz_report["mode"] == "motion" else ""
+    step(f"Rendu vidéo final{mode_label} ({n_blocks} clip(s))")
     t0 = time.monotonic()
     final_video = video.render_final(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
         moves=resolved_moves, fade_duration=fade_duration,
     )
-    print(f"       vidéo finale rendue en {time.monotonic() - t0:.1f}s")
+    render_seconds = time.monotonic() - t0
+    print(f"       vidéo finale rendue en {render_seconds:.1f}s")
 
     shots = video.plan_shots(durations, image_paths)
     hook_duration = next(
@@ -318,6 +335,10 @@ def _generate(
     retention_report = retention.analyze(data, durations=durations, scene_reports=motion_preflight)
     data["retentionDiagnostics"] = retention_report
     data["generationMetadata"] = retention.build_generation_metadata(data, retention_report)
+    if quiz_report:
+        quiz_report["renderSeconds"] = round(render_seconds, 4)
+        quiz_motion.attach_report(data, quiz_report)
+        quiz_report_path.write_text(json.dumps(quiz_report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     metrics = {
         "total_duration": total_duration,
@@ -348,6 +369,7 @@ def _generate(
         "stock_selection": stock_selection or None,
         # Motion Graphics : synchro voix + contrôle de mise en page par bloc (liste vide sinon).
         "motion_preflight": motion_preflight,
+        "quiz_presentation": quiz_report,
     }
     return final_video, work_dir, metrics
 
@@ -838,7 +860,8 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     # Événement produit (lot L5) : un essai démarre, crédit réservé.
     organization_id = events.organization_id_of(client, content_item_id)
     events.record(client, "generation_started", content_item_id, organization_id,
-                  content_format=data.get("content_format", "standard"))
+                  content_format=data.get("content_format", "standard"),
+                  quiz_presentation=quiz_motion.presentation_info(data))
 
     def report_progress(step_label: str) -> None:
         # Best-effort : un blip réseau vers Supabase ici ne doit jamais faire
@@ -934,6 +957,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
         version=version_number,
         status=final_fields.get("status"),
         assets_reused=asset_reuse or None,
+        quiz_presentation=quiz_motion.presentation_info(data),
     )
     try:
         repo.mark_generation_completed(client, content_item_id)

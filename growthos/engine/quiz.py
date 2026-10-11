@@ -25,6 +25,7 @@ QUIZ_RECIPES = {
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
 QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
 SOUND_EFFECT_MODES = {"automatic", "subtle", "off"}
+PRESENTATION_MODES = {"classic", "motion"}
 
 
 # Phrases fixes lues par la voix off, par langue du script (défaut : français).
@@ -61,6 +62,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("countdown_seconds", recipe["countdown_seconds"])
     result.setdefault("theme", "studio")
     result.setdefault("sound_effects", "automatic")
+    result.setdefault("presentation", "classic")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
     for question in result.get("questions") or []:
@@ -80,6 +82,8 @@ def validate_quiz(quiz: object) -> None:
         raise ValueError(f"'quiz.theme' invalide (attendu : {sorted(QUIZ_THEMES)})")
     if quiz.get("sound_effects") not in SOUND_EFFECT_MODES:
         raise ValueError(f"'quiz.sound_effects' invalide (attendu : {sorted(SOUND_EFFECT_MODES)})")
+    if not isinstance(quiz.get("presentation"), str) or quiz["presentation"] not in PRESENTATION_MODES:
+        raise ValueError(f"'quiz.presentation' invalide (attendu : {sorted(PRESENTATION_MODES)})")
     cover = quiz.get("cover")
     if not isinstance(cover, dict) or not isinstance(cover.get("enabled"), bool):
         raise ValueError("'quiz.cover.enabled' doit être un booléen")
@@ -162,6 +166,15 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
     result = deepcopy(script)
     result["quiz"] = normalized_quiz
     for block in result.get("blocks") or []:
+        if block.get("quiz_phase"):
+            block["quiz_presentation"] = normalized_quiz["presentation"]
+            block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
+            if normalized_quiz["presentation"] == "motion":
+                from .quiz_motion import VERSION
+                block["quiz_motion_version"] = VERSION
+                block["quiz_theme"] = normalized_quiz["theme"]
+            else:
+                block.pop("quiz_motion_version", None)
         if block.get("quiz_phase") not in {"question", "reveal"}:
             continue
         kind = str(block.get("quiz_kind") or normalized_quiz.get("kind") or "multiple_choice")
@@ -185,7 +198,9 @@ def compile_quiz(script: dict) -> dict:
     normalized_quiz = normalize_quiz(script.get("quiz"))
     validate_quiz(normalized_quiz)
     if script.get("blocks"):
-        return _prepare_existing_quiz_blocks(script, normalized_quiz)
+        result = _prepare_existing_quiz_blocks(script, normalized_quiz)
+        validate_motion_blocks(result)
+        return result
 
     result = deepcopy(script)
     result["quiz"] = normalized_quiz
@@ -247,4 +262,34 @@ def compile_quiz(script: dict) -> dict:
     cta = str(quiz.get("outro") or result.get("cta") or phrases["outro"]).strip()
     blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro"})
     result["blocks"] = blocks
-    return result
+    return _prepare_existing_quiz_blocks(result, normalized_quiz)
+
+
+def validate_motion_blocks(script: dict) -> None:
+    """Reject inconsistent saved Motion blocks before any paid generation."""
+    quiz = script.get("quiz") or {}
+    if not is_quiz(script) or quiz.get("presentation") != "motion":
+        return
+    blocks = script.get("blocks") or []
+    questions = quiz.get("questions") or []
+    expected = ["intro", *[p for _ in questions for p in ("question", "reveal")], "outro"]
+    if [b.get("quiz_phase") for b in blocks] != expected:
+        raise ValueError("Quiz Motion : blocs incomplets ou hors ordre ; recompiler les questions.")
+    for number, item in enumerate(questions, 1):
+        for offset in (number * 2 - 1, number * 2):
+            block = blocks[offset]
+            expected_fields = {
+                "quiz_question": str(item["question"]).strip(),
+                "quiz_choices": [str(c).strip() for c in item["choices"]],
+                "quiz_correct_choice": item["correct_choice"],
+                "quiz_question_number": number,
+                "quiz_question_total": len(questions),
+            }
+            if any(block.get(key) != value for key, value in expected_fields.items()):
+                raise ValueError(f"Quiz Motion : la question {number} et ses blocs ne correspondent plus ; recompiler le Quiz.")
+            if block["quiz_phase"] == "question" and block.get("hold_after_seconds") != item["countdown_seconds"]:
+                raise ValueError(f"Quiz Motion : temps de réflexion incohérent pour la question {number}.")
+            if block["quiz_phase"] == "reveal" and block.get("hold_after_seconds", 0) != 0:
+                raise ValueError(f"Quiz Motion : pause inattendue dans la révélation {number}.")
+    if any(b.get("hold_after_seconds", 0) != 0 for b in (blocks[0], blocks[-1])):
+        raise ValueError("Quiz Motion : pause inattendue dans l'ouverture ou la conclusion.")

@@ -241,6 +241,11 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
     for block, duration in zip(blocks, durations):
         start, end = cursor, cursor + max(float(duration), 0.0)
         phase = block.get("quiz_phase")
+        if block.get("quiz_presentation") == "motion" and phase in {"intro", "question", "reveal", "outro"}:
+            from .quiz_motion import scene_events
+            events.extend(scene_events(block, start, end, width, height))
+            cursor = end
+            continue
         if phase == "cover":
             title = _ass_escape(str(block.get("quiz_cover_title") or "QUIZ"))
             brand = _ass_escape(str(block.get("quiz_cover_brand") or "BrainLoop"))
