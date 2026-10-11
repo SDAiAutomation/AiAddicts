@@ -5,10 +5,14 @@ The caller must enforce tenant authorization and atomic optimistic concurrency.
 """
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 
 MAX_ISSUES = 50
 MAX_TEXT = 500
+# Below the 40000-byte cap of the SQL function (jsonb::text adds spaces, so keep a margin).
+MAX_BYTES = 36000
+_SEVERITY_RANK = {"blocking": 0, "warning": 1, "info": 2}
 
 
 def prepare_report(report: dict, *, script_version: int, video_script_version: int | None = None,
@@ -30,7 +34,10 @@ def prepare_report(report: dict, *, script_version: int, video_script_version: i
     if not isinstance(raw_issues, list):
         raise ValueError("Invalid issues")
     issues = []
-    for raw in raw_issues[:MAX_ISSUES]:
+    # Most severe first so truncation never drops a blocking issue.
+    ordered = sorted((r for r in raw_issues if isinstance(r, dict)),
+                     key=lambda r: _SEVERITY_RANK.get(r.get("severity"), 3))
+    for raw in ordered[:MAX_ISSUES]:
         if not isinstance(raw, dict):
             continue
         if raw.get("severity") not in ("info", "warning", "blocking"):
@@ -51,7 +58,7 @@ def prepare_report(report: dict, *, script_version: int, video_script_version: i
             "confidence": raw.get("confidence") if raw.get("confidence") in
                           ("deterministic", "heuristic", "unverified") else "unverified",
         })
-    return {
+    envelope = {
         "schema_version": "creative_quality:v1",
         "stage": report.get("stage") if report.get("stage") in ("script", "render", "combined") else "combined",
         "decision": report["decision"],
@@ -63,6 +70,10 @@ def prepare_report(report: dict, *, script_version: int, video_script_version: i
         "current_version_id": current_version_id,
         "issues_truncated": len(raw_issues) > MAX_ISSUES,
     }
+    while issues and len(json.dumps(envelope, ensure_ascii=False).encode("utf-8")) > MAX_BYTES:
+        issues.pop()
+        envelope["issues_truncated"] = True
+    return envelope
 
 
 def merge_score_details(score_details: dict, envelope: dict, *, current_script_version: int,
