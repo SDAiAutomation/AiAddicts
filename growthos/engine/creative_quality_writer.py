@@ -9,14 +9,17 @@ from .creative_quality_persistence import prepare_report
 
 
 def store_report(client, content_item_id: str, report: dict, *,
-                 script_version: int, video_script_version: int | None = None) -> bool:
+                 script_version: int, video_script_version: int | None = None,
+                 current_version_id: str | None = None) -> bool:
     """Return False for a stale/missing content item; raise on RPC errors."""
     payload = prepare_report(report, script_version=script_version,
-                             video_script_version=video_script_version)
+                             video_script_version=video_script_version,
+                             current_version_id=current_version_id)
     response = client.rpc("store_creative_quality_report", {
         "p_content_item_id": content_item_id,
         "p_script_version": script_version,
         "p_video_script_version": video_script_version,
+        "p_current_version_id": current_version_id,
         "p_report": payload,
     }).execute()
     if response.data is True:
