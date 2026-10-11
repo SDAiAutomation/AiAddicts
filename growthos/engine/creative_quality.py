@@ -24,7 +24,9 @@ def _issue(item: dict, blocks: list[dict]) -> dict:
     code = str(item.get("code") or "unknown")
     indices = item.get("blocks") or []
     # Existing retention reports use 0-based block indices.
-    index = indices[0] if isinstance(indices, list) and indices and isinstance(indices[0], int) else None
+    index = indices[0] if isinstance(indices, list) and indices and type(indices[0]) is int else None
+    if index is not None and not (0 <= index < len(blocks)):
+        index = None
     evidence = ""
     if index is not None and 0 <= index < len(blocks):
         evidence = str(blocks[index].get("text") or "")[:180]
@@ -44,10 +46,10 @@ def _issue(item: dict, blocks: list[dict]) -> dict:
 def analyze(script: dict, *, retention_report: dict | None = None,
             editorial_report: dict | None = None) -> dict:
     """Build a shadow-only report; a 'block' decision is informational here."""
-    blocks = script.get("blocks") if isinstance(script.get("blocks"), list) else []
+    blocks = [b for b in (script.get("blocks") or []) if isinstance(b, dict)]
     retained = retention_report if retention_report is not None else retention.analyze(script)
     editorial = editorial_report if editorial_report is not None else editorial_quality.analyze_script(script)
-    issues = [_issue(i, blocks) for i in retained.get("issues", [])]
+    issues = [_issue(i, blocks) for i in retained.get("issues", []) if isinstance(i, dict)]
     for reason in editorial.get("issues", []):
         issues.append({
             "code": "editorial_heuristic",
@@ -70,4 +72,5 @@ def analyze(script: dict, *, retention_report: dict | None = None,
         "automatic_edits_applied": False,
         "enforcement_enabled": False,
         "editorial_score_existing": editorial.get("score"),
+        "retention_engine_version": retained.get("version"),
     }
