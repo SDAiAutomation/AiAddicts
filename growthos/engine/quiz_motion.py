@@ -159,8 +159,6 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
                  extra=f"\\org({round(cx)},{round(height * .30)})\\frz{angle - 35}\\t(0,{settle},0.4,\\frz{angle})")
         text(start, end, title, cx, height * .545, 98, ink, lines=3, max_height=height * .15,
              origin=(cx, height * .585), delay=100, travel=settle)
-        text(start, end, "?" if phase == "intro" else "✓", cx, height * .69, 55, accent, lines=1,
-             extra=f"\\fscx40\\fscy40\\t(0,{settle},0.4,\\fscx100\\fscy100)")
         return events
 
     choices = [str(c) for c in block.get("quiz_choices") or []]
