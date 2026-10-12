@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-VERSION = "quiz-motion:v1"
+VERSION = "quiz-motion:v2"
 
 
 def presentation_info(script: dict) -> dict | None:
@@ -95,13 +95,13 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         tags = f"\\an7{position(x,y,origin,delay,travel)}\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{extra}"
         emit(a, b, tags, f"m 0 0 l {w} 0 {w} {h} 0 {h}{{\\p0}}", layer)
 
-    def text(a, b, value, x, y, size, colour, *, max_width=span, max_height=None, lines=2, origin=None, delay=0, travel=420, extra="", style="QuizQuestion"):
+    def text(a, b, value, x, y, size, colour, *, max_width=span, max_height=None, lines=2, origin=None, delay=0, travel=420, extra="", style="QuizQuestion", layer=3):
         fs, content = _quiz_fit_text(str(value), round(max_width), max(1, round(size * scale)), lines)
         if max_height is not None:
             fitted = min(fs, max(1, int(max_height / ((content.count(r"\N") + 1) * 1.25))))
             fs, content = _quiz_fit_text(str(value), round(max_width), fitted, lines)
         tags = f"\\an5{position(x,y,origin,delay,travel)}\\fs{fs}\\bord0\\shad0\\b1\\q2\\1c{_ass_rgb(colour)}{extra}"
-        emit(a, b, tags, content, 3, style)
+        emit(a, b, tags, content, layer, style)
 
     def ring(a, b, x, y, radius, colour, extra="", portion=1.0):
         # Filled polygonal annulus: deterministic vectors, no font dependency.
@@ -126,64 +126,128 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     else:
         rect(start, end, 0, 0, width, height, background, layer=0)
 
-    # Vertical spine persists across acts, giving the viewer a spatial anchor.
-    rect(start, end, left, height * .12, max(2, 3 * scale), height * .53, rail)
+    # A typographic broadcast identity. The motion belongs to entrances and
+    # reveals; nothing animates the answer cards during the reflection window.
+    def contrast(colour):
+        rgb = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in rgb]
+        return "#080e1c" if sum(c * w for c, w in zip(linear, (.2126, .7152, .0722))) > .179 else "#ffffff"
+
+    accent_ink = contrast(accent)
+    # Corner crop marks create a stage without a generic box around everything.
+    for x, direction in ((left, 1), (right, -1)):
+        rect(start, end, x - (20 * scale if direction < 0 else 0), height * .105,
+             20 * scale, 3 * scale, accent)
+        rect(start, end, x, height * .105, 3 * scale, 20 * scale, accent)
     if phase in {"intro", "outro"}:
-        title = block.get("quiz_topic") or "QUIZ"
-        number = "?" if phase == "intro" else "✓"
-        settle = min(700, round(duration * 350))
-        ring(start, end, cx, height * .31, 115 * scale, accent,
-             f"\\fscx45\\fscy45\\t(0,{settle},\\fscx100\\fscy100)")
-        text(start, end, number, cx, height * .31, 124, ink,
-             extra=f"\\fscx65\\fscy65\\t(0,{settle},\\fscx100\\fscy100)")
-        text(start, end, title, cx, height * .49, 98, ink, lines=3,
-             origin=(cx, height * .54), travel=settle)
-        rect(start, end, cx - span * .15, height * .605, span * .30, max(3, 7 * scale), accent,
-             extra=f"\\fscx0\\t(0,{settle},\\fscx100)")
+        title = str(block.get("quiz_topic") or "QUIZ").upper()
+        settle = min(650, round(duration * 250))
+        # Oversize outlined type and a moving cut strip are a single authored
+        # entrance, not perpetual motion behind readable content.
+        text(start, end, "QUIZ", cx, height * .29, 255, ink, lines=1,
+             extra=f"\\1a&HFF&\\bord{2 * scale:.1f}\\3c{_ass_rgb(rail)}", layer=1)
+        text(start, end, "QUIZ" if phase == "intro" else "✓", cx, height * .30, 216, ink,
+             lines=1, origin=(cx - span * .12, height * .30), travel=settle,
+             extra=f"\\fscx112\\t(0,{settle},0.4,\\fscx100)")
+        rect(start, end, left, height * .415, span, height * .038, accent,
+             extra=f"\\fscx0\\t(0,{settle},0.4,\\fscx100)")
+        # Abstract orbit marks, never a fabricated scientific diagram or score.
+        for i in range(8):
+            angle = i * 45
+            rect(start, end, cx - 3 * scale, height * .30 - 172 * scale,
+                 6 * scale, 16 * scale, accent,
+                 extra=f"\\org({round(cx)},{round(height * .30)})\\frz{angle - 35}\\t(0,{settle},0.4,\\frz{angle})")
+        text(start, end, title, cx, height * .545, 98, ink, lines=3, max_height=height * .15,
+             origin=(cx, height * .585), delay=100, travel=settle)
+        text(start, end, "?" if phase == "intro" else "✓", cx, height * .69, 55, accent, lines=1,
+             extra=f"\\fscx40\\fscy40\\t(0,{settle},0.4,\\fscx100\\fscy100)")
         return events
 
     choices = [str(c) for c in block.get("quiz_choices") or []]
     number = int(block.get("quiz_question_number") or 1)
     total = max(number, int(block.get("quiz_question_total") or number))
-    text(start, end, f"{number:02d} / {total:02d}", cx, height * .135, 34, accent, lines=1)
-    rect(start, end, left, height * .164, span, max(2, 3 * scale), rail)
-    rect(start, end, left, height * .164, span * number / total, max(2, 3 * scale), accent)
-    text(start, end, block.get("quiz_question", ""), cx, height * .223, 64, ink, lines=3, max_height=height * .105)
-
-    # Four visual-answer rows must end above the two-line caption band.
-    row_h = height * (.040 if visual else .046)
-    row_step = height * (.048 if visual else .054)
-    rows_y = height * (.455 if visual else .345)
     hold = max(0.0, float(block.get("hold_after_seconds") or 0))
-    # Reserve 200 ms fully settled before the measured reflection window.
     animate = phase == "question" and duration - hold >= 1.0
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
+    text(start, end, f"{number:02d}", left + span * .09, height * .145, 74, ink, lines=1, max_width=span * .18)
+    text(start, end, f"/ {total:02d}", left + span * .17, height * .15, 30, accent, lines=1, max_width=span * .13)
+    gap = 7 * scale
+    segment = (span * .46 - (total - 1) * gap) / total
+    for i in range(total):
+        rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
+             segment, 7 * scale, accent if i < number else rail)
+
+    # Four choices get an editorial 2x2 composition; long answers and image
+    # questions keep full-width rails. Both share the same stable card language.
+    question_grid = not visual and len(choices) in {2, 4} and max((len(c) for c in choices), default=0) <= 52
+    focus_reveal = phase == "reveal" and not visual
+    grid = question_grid and not focus_reveal
+    row_h = height * (.040 if visual else .090 if grid else .055 if len(choices) == 4 else .063)
+    row_step = height * (.048 if visual else .103 if grid else .066 if len(choices) == 4 else .076)
+    rows_y = height * (.455 if visual else .415 if grid else .375)
+    card_w = (span - 16 * scale) / 2 if grid else span
+    if focus_reveal:
+        # The grid folds into a compact answer key. This frees the centre for
+        # the payoff instead of adding yet another label under the same slide.
+        rows_y, row_h, row_step = height * .505, height * .034, height * .043
+    question_y = height * (.224 if visual else .225 if focus_reveal else .277)
+    text(start, end, block.get("quiz_question", ""), cx, question_y, 64 if visual else 46 if focus_reveal else 76,
+         ink, lines=3, max_height=height * (.09 if focus_reveal else .105 if visual else .17),
+         origin=(cx, height * .277) if focus_reveal else (cx, question_y + height * .025) if animate else None,
+         travel=350,
+         extra="\\fscx135\\fscy135\\t(0,350,0.4,\\fscx100\\fscy100)" if focus_reveal else
+               "\\fscx96\\fscy96\\t(0,350,0.5,\\fscx100\\fscy100)" if animate else "")
+
+    # Preserve the submitted order and never use the answer index before reveal.
     for i, choice in enumerate(choices):
-        y = rows_y + i * row_step
+        y = rows_y + (i // 2 if grid else i) * row_step
+        x = left + (i % 2) * (card_w + 16 * scale) if grid else left
         selected = i == correct_index
-        delay, travel = i * 75, 440
-        origin = (cx - span * .5, height * .37) if animate else None
-        # The answer rails expand out of a shared visual anchor into their
-        # final rows; the text travels with its card, then remains motionless.
-        x = left + 14 * scale
+        delay, travel = i * 65, 380
+        origin = (x, y + height * .055) if animate else None
+        old_card_w = (span - 16 * scale) / 2 if question_grid else span
+        old_row_h = height * (.090 if question_grid else .055 if len(choices) == 4 else .063)
+        old_step = height * (.103 if question_grid else .066 if len(choices) == 4 else .076)
+        old_x = left + (i % 2) * (old_card_w + 16 * scale) if question_grid else left
+        old_y = height * (.415 if question_grid else .375) + (i // 2 if question_grid else i) * old_step
+        fold = ""
+        if focus_reveal:
+            delay = 0
+            origin = (old_x, old_y)
+            fold = (f"\\fscx{old_card_w / card_w * 100:.1f}\\fscy{old_row_h / row_h * 100:.1f}"
+                    f"\\t(0,{travel},0.4,\\fscx100\\fscy100)")
         fill = correct if selected else card
-        rect(start, end, x, y, span - 14 * scale, row_h, fill, origin=origin, delay=delay, travel=travel)
-        rect(start, end, x, y, max(3, 5 * scale), row_h, accent if not selected else ink,
+        # A shallow offset shadow gives each answer physical presence.
+        rect(start, end, x + 5 * scale, y + 6 * scale, card_w, row_h, rail,
+             origin=(origin[0] + 5 * scale, origin[1] + 6 * scale) if origin else None,
+             delay=delay, travel=travel, extra=fold)
+        rect(start, end, x, y, card_w, row_h, fill, origin=origin, delay=delay, travel=travel, extra=fold)
+        rect(start, end, x, y, max(3, 5 * scale), row_h, accent if not selected else selected_ink,
              origin=origin, delay=delay, travel=travel)
-        label_origin = (origin[0] + 32 * scale, origin[1] + row_h / 2) if origin else None
-        text(start, end, "✓" if selected else "ABCD"[i], x + 32 * scale, y + row_h / 2, 34,
-             selected_ink if selected else accent, max_width=64 * scale, lines=1,
+        label_x, label_y = x + (30 if grid else 35) * scale, y + row_h * (.23 if grid else .5)
+        label_origin = (label_x, label_y + height * .055) if origin else None
+        if focus_reveal:
+            label_origin = (old_x + (30 if question_grid else 35) * scale,
+                            old_y + old_row_h * (.23 if question_grid else .5))
+        text(start, end, "✓" if selected else "ABCD"[i], label_x, label_y, 26 if grid else 34,
+             selected_ink if selected else accent, max_width=52 * scale, lines=1,
              origin=label_origin, delay=delay, travel=travel)
-        answer_origin = (cx + 22 * scale, origin[1] + row_h / 2) if origin else None
-        text(start, end, choice, cx + 22 * scale, y + row_h / 2, 44,
-             selected_ink if selected else ink, max_width=span - 150 * scale, max_height=row_h * .86,
+        answer_x = x + card_w / 2 + (0 if grid else 22 * scale)
+        answer_y = y + row_h * (.61 if grid else .5)
+        answer_origin = (answer_x, answer_y + height * .055) if origin else None
+        if focus_reveal:
+            answer_origin = (old_x + old_card_w / 2 + (0 if question_grid else 22 * scale),
+                             old_y + old_row_h * (.61 if question_grid else .5))
+        text(start, end, choice, answer_x, answer_y, 43 if grid else 44,
+             selected_ink if selected else ink, max_width=card_w - (44 if grid else 150) * scale,
+             max_height=row_h * (.52 if grid else .86),
              origin=answer_origin, delay=delay, travel=travel,
              style="QuizCorrect" if selected else "QuizChoice")
 
     if phase == "question":
         timer_start = max(start, end - hold)
-        timer_y = height * (.71 if visual else .615)
-        radius = 35 * scale
+        timer_y = height * .69
+        radius = 57 * scale
         if hold > 0:
             # Each arc consumes exactly its share of the existing audio hold.
             # 24 steps/second is enough for the small timer and bounds ASS size.
@@ -194,17 +258,36 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
                 ring(a, b, cx, timer_y, radius, accent, portion=max(.001, 1 - j / steps))
             for remaining in range(math.ceil(min(hold, duration)), 0, -1):
                 a, b = max(timer_start, end - remaining), min(end, end - remaining + 1)
-                text(a, b, remaining, cx, timer_y, 35, ink, max_width=radius * 1.5, lines=1, style="QuizTimer")
+                text(a, b, remaining, cx, timer_y, 62, ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
+                     extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+            # The full-width time strip provides peripheral timing without
+            # shaking, flickering or moving the answers being read.
+            rect(timer_start, end, left, height * .765, span, 5 * scale, rail)
+            rect(timer_start, end, left, height * .765, span, 5 * scale, accent,
+                 extra=f"\\fscx100\\t(0,{round((end - timer_start) * 1000)},\\fscx0)")
     else:
-        # Reveal grows from the selected row into a distinct answer headline.
-        # Keep the original rows visible so viewers can still locate their pick.
-        hero_y = height * (.36 if visual else .62)
+        # A high-contrast answer strip opens below the cards. A brief geometric
+        # burst marks the result, then settles while the explanation is spoken.
+        hero_y = height * .36
+        hero_h = height * (.105 if visual else .135)
         if visual:
             rect(start, end, left, height * .305, span, height * .115, background, layer=2)
-        source_y = rows_y + correct_index * row_step + row_h / 2
+        rect(start, end, left, hero_y - hero_h / 2, span, hero_h, accent, layer=2,
+             extra="\\fscx0\\t(0,300,0.4,\\fscx100)")
+        source_y = (height * (.415 if question_grid else .375) +
+                    (correct_index // 2 if question_grid else correct_index) *
+                    height * (.103 if question_grid else .076) + height * .045) if focus_reveal else (
+                    rows_y + correct_index * row_step + row_h / 2)
         answer = choices[correct_index] if 0 <= correct_index < len(choices) else ""
-        text(start, end, answer, cx, hero_y, 64, accent, max_width=span - 70 * scale,
-             max_height=height * .075,
-             origin=(cx, source_y), travel=min(550, round(duration * 300)),
-             extra="\\fscx70\\fscy70\\t(0,450,\\fscx100\\fscy100)")
+        text(start, end, answer, cx, hero_y, 78 if visual else 114, accent_ink, max_width=span - 60 * scale,
+             max_height=hero_h * .80, origin=(cx, source_y), travel=min(380, round(duration * 250)),
+             extra="\\fscx78\\fscy78\\t(0,380,0.4,\\fscx100\\fscy100)")
+        burst_end = min(end, start + .48)
+        for direction in (-1, 1):
+            for j in range(3):
+                x = cx + direction * (span / 2 - 12 * scale)
+                y = hero_y + (j - 1) * 18 * scale
+                rect(start, burst_end, x, y, 5 * scale, 5 * scale, accent,
+                     origin=(cx + direction * span * .3, hero_y), travel=350, layer=3,
+                     extra="\\fad(0,160)")
     return events
