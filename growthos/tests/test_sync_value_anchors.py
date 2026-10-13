@@ -166,6 +166,15 @@ class TestNoGhostBeforeTheVoice(unittest.TestCase):
         for scene in scenes:
             with self.subTest(scene=scene["sceneType"]):
                 synced = {**scene, "_reveals": [0.6, 0.9], "_duration": 6.0}
+                if scene["sceneType"] == "money_split":
+                    # Exception voulue : contour + libelle (texte du script) poses des le debut, le MONTANT attend la voix.
+                    early = self._drawn_texts(synced, 0.1)
+                    self.assertNotIn("$11", early)
+                    self.assertNotIn("$22", early)
+                    self.assertIn("A", early.upper())
+                    self.assertIn("$11", self._drawn_texts(synced, 0.7))
+                    self.assertNotIn("$22", self._drawn_texts(synced, 0.7))
+                    continue
                 self.assertEqual(self._drawn_texts(synced, 0.1).count("|"), self._drawn_texts(synced, 0.0).count("|"))
                 self.assertLess(len(self._drawn_texts(synced, 0.1)), len(self._drawn_texts(synced, 1.0)))
 

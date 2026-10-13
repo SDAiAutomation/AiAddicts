@@ -40,6 +40,11 @@ from .theme import Theme, lerp_color
 _REVEAL_FADE_SECONDS = 0.35
 
 
+# Intensité (0..1) du contour et du libellé « en attente » d'une ligne calée sur la voix, avant la révélation.
+_GHOST_OUTLINE = 0.35
+_GHOST_LABEL = 0.55
+
+
 def _stag(data: dict, t: float, index: int, count: int, start: float = 0.05, span: float = 0.55, item_duration: float = 0.35) -> float:
     """Item entrance progress. When `engine.motion_graphics.sync` attached
     narration-derived reveal times (`_reveals`, normalised 0..1), the item
@@ -148,19 +153,25 @@ def render_money_split(data: dict, t: float, theme: Theme, size: tuple[int, int]
     emphasis = str(data.get("emphasis") or "").strip().lower()
     label_base_px = round(h * 0.028)
     value_base_px = round(h * 0.032)
+    synced = bool(data.get("_reveals"))
+    # Calé sur la voix : les contours et libellés (texte du script, jamais un nombre) sont posés dès le début, en
+    # retrait, pour que l'écran ne reste pas vide en attendant la voix. Le MONTANT, lui, n'apparaît qu'au mot
+    # (« un chiffre ne s'affiche jamais avant d'être dit ») : pas d'ombre du montant avant la révélation.
+    ghost = anim.fade_in(t, 0.02, 0.15) if synced else 0.0
     for i, row in enumerate(rows):
         p = _stag(data, t, i, n, start=0.1, span=0.6, item_duration=0.4)
-        if p <= 0 and data.get("_reveals"):  # calé sur la voix : rien avant le mot (pas d'ombre du montant)
+        if p <= 0 and synced and not ghost:
             continue
-        offset = anim.slide_up(t, 0, 1, distance=24) * (1 - p) if p < 1 else 0
+        offset = anim.slide_up(t, 0, 1, distance=24) * (1 - p) if p < 1 and not synced else 0
         cy = h * rows_start_ratio + row_h * i + row_h / 2 + offset
         is_emphasis = str(row.get("label", "")).strip().lower() == emphasis
         accent = theme.accent if is_emphasis else theme.primary
         color = lerp_color(theme.background, accent, p)
+        outline_color = lerp_color(theme.background, accent, max(p, ghost * _GHOST_OUTLINE))
         bar_x0 = w * 0.12
         bar_x1 = w * 0.88
-        canvas.rounded_rect(draw, (bar_x0, cy - row_h * 0.22, bar_x1, cy + row_h * 0.22), row_h * 0.18, outline=color, width=max(2, round(h * 0.004)))
-        label_color = lerp_color(theme.background, theme.text, p)
+        canvas.rounded_rect(draw, (bar_x0, cy - row_h * 0.22, bar_x1, cy + row_h * 0.22), row_h * 0.18, outline=outline_color, width=max(2, round(h * 0.004)))
+        label_color = lerp_color(theme.background, theme.text, max(p, ghost * _GHOST_LABEL))
         # Label (left) and value (right) share one row — each is fit to ~44%
         # of the bar width so a long one can never grow into the other
         # (same collision family as the comparison-card bug).
@@ -173,6 +184,8 @@ def render_money_split(data: dict, t: float, theme: Theme, size: tuple[int, int]
             draw, (bar_x0 + w * 0.03, cy), str(row.get("label", "")).upper(), label_base_px, half_width,
             label_color, bold=is_emphasis, anchor="lm", max_height=pill_height,
         )
+        if p <= 0 and synced:  # contour + libellé seulement : le montant attend la voix
+            continue
         value_text = str(row.get("displayValue") or row.get("value") or "")
         layout.draw_fitted(
             draw, (bar_x1 - w * 0.03, cy), value_text, value_base_px, half_width, color, bold=True, anchor="rm",
