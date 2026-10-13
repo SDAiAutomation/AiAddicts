@@ -135,15 +135,18 @@ def validate_script(data: dict) -> None:
         blocks = quiz.compile_quiz(data)["blocks"]
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("'blocks' doit être une liste non vide")
-    if len(blocks) > MAX_BLOCKS:
+    long_quiz = content_format == quiz.QUIZ_FORMAT and (data.get("quiz") or {}).get("recipe") == "long"
+    block_limit = max(MAX_BLOCKS, 2 * quiz.MAX_LONG_QUESTIONS + 2) if long_quiz else MAX_BLOCKS
+    char_limit = max(MAX_SCRIPT_CHARS, 12000) if long_quiz else MAX_SCRIPT_CHARS
+    if len(blocks) > block_limit:
         raise ValueError(
-            f"script trop long : {len(blocks)} blocs (maximum {MAX_BLOCKS}) — "
+            f"script trop long : {len(blocks)} blocs (maximum {block_limit}) — "
             "raccourcis le script pour garder une vidéo dans le budget de génération"
         )
     total_chars = sum(len(str(b.get("text", "")).strip()) for b in blocks if isinstance(b, dict))
-    if total_chars > MAX_SCRIPT_CHARS:
+    if total_chars > char_limit:
         raise ValueError(
-            f"script trop long : {total_chars} caractères (maximum {MAX_SCRIPT_CHARS}) — "
+            f"script trop long : {total_chars} caractères (maximum {char_limit}) — "
             "raccourcis le texte pour garder une vidéo dans le budget de génération"
         )
 

@@ -1,6 +1,8 @@
 """Validation et compilation du format quiz vers les blocs du pipeline vidéo."""
 
 import re
+import unicodedata
+from difflib import SequenceMatcher
 from copy import deepcopy
 
 
@@ -8,6 +10,7 @@ QUIZ_FORMAT = "quiz"
 QUIZ_KINDS = {"multiple_choice", "true_false", "riddle", "logo", "image"}
 MIN_QUESTIONS = 1
 MAX_QUESTIONS = 7
+MAX_LONG_QUESTIONS = 30
 MIN_CHOICES = 2
 MAX_CHOICES = 4
 DEFAULT_COUNTDOWN_SECONDS = 5
@@ -21,6 +24,7 @@ QUIZ_RECIPES = {
     "riddle": {"kind": "riddle", "question_count": 3, "countdown_seconds": 8, "difficulty": "medium"},
     "logo": {"kind": "logo", "question_count": 5, "countdown_seconds": 5, "difficulty": "medium"},
     "impossible": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "hard"},
+    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 5, "difficulty": "progressive"},
 }
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
 QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
@@ -65,6 +69,8 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("presentation", "classic")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
+    if recipe_id == "long" and "illustrations" not in quiz:
+        result["illustrations"] = False
     for question in result.get("questions") or []:
         if isinstance(question, dict):
             question.setdefault("countdown_seconds", result["countdown_seconds"])
@@ -95,8 +101,30 @@ def validate_quiz(quiz: object) -> None:
         if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not (0.5 <= duration <= 1.0):
             raise ValueError("'quiz.cover.duration_seconds' doit être compris entre 0.5 et 1.0")
     questions = quiz.get("questions")
-    if not isinstance(questions, list) or not (MIN_QUESTIONS <= len(questions) <= MAX_QUESTIONS):
-        raise ValueError(f"'quiz.questions' doit contenir entre {MIN_QUESTIONS} et {MAX_QUESTIONS} questions")
+    maximum = MAX_LONG_QUESTIONS if quiz["recipe"] == "long" else MAX_QUESTIONS
+    minimum = 10 if quiz["recipe"] == "long" else MIN_QUESTIONS
+    if not isinstance(questions, list) or not (minimum <= len(questions) <= maximum):
+        raise ValueError(f"'quiz.questions' doit contenir entre {minimum} et {maximum} questions")
+
+    previous = quiz.get("previous_questions", [])
+    if not isinstance(previous, list) or len(previous) > 500 or any(
+        not isinstance(item, dict) or not isinstance(item.get("question"), str)
+        or not isinstance(item.get("answer"), str) for item in previous
+    ):
+        raise ValueError("'quiz.previous_questions' doit contenir au plus 500 questions et réponses")
+    seen = list(previous)
+    for index, item in enumerate(questions):
+        if not isinstance(item, dict):
+            continue
+        choices = item.get("choices")
+        correct = item.get("correct_choice")
+        if not isinstance(choices, list) or isinstance(correct, bool) or not isinstance(correct, int) or not 0 <= correct < len(choices):
+            continue
+        current = {"question": str(item.get("question") or ""), "answer": str(choices[correct]),
+                   "fact": str(item.get("fact") or "")}
+        if any(same_quiz_fact(current, earlier) for earlier in seen):
+            raise ValueError(f"quiz.questions[{index}] répète un fait déjà testé ; remplace cette question")
+        seen.append(current)
 
     for i, question in enumerate(questions):
         prefix = f"quiz.questions[{i}]"
@@ -129,6 +157,27 @@ def _question_lead(phrases: dict, number: int, total: int) -> str:
     if total >= 3 and number == total:
         return phrases["last"]
     return phrases["question"].format(n=number)
+
+
+def _canonical(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value.casefold())
+    value = "".join(c for c in value if not unicodedata.combining(c))
+    return " ".join(re.findall(r"[a-z0-9]+", value))
+
+
+def same_quiz_fact(first: dict, second: dict) -> bool:
+    """Conservative duplicate check; fact IDs catch paraphrases reliably."""
+    left, right = _canonical(str(first.get("question") or "")), _canonical(str(second.get("question") or ""))
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    fact_left, fact_right = _canonical(str(first.get("fact") or "")), _canonical(str(second.get("fact") or ""))
+    if fact_left and fact_right and fact_left == fact_right:
+        return True
+    answer_left, answer_right = _canonical(str(first.get("answer") or "")), _canonical(str(second.get("answer") or ""))
+    return bool(answer_left and answer_left == answer_right and
+                SequenceMatcher(None, left, right).ratio() >= .96)
 
 
 _GENERIC_VISUAL = re.compile(r"brainloop|emblem", re.IGNORECASE)

@@ -92,7 +92,8 @@ class TestQuiz(unittest.TestCase):
 
     def test_last_question_does_not_claim_unverified_difficulty(self):
         question = QUIZ_SCRIPT["quiz"]["questions"][0]
-        script = {**QUIZ_SCRIPT, "language": "en", "quiz": {**QUIZ_SCRIPT["quiz"], "questions": [question] * 3}}
+        questions = [{**question, "question": f"Question unique {i} ?"} for i in range(3)]
+        script = {**QUIZ_SCRIPT, "language": "en", "quiz": {**QUIZ_SCRIPT["quiz"], "questions": questions}}
         questions = [b for b in compile_quiz(script)["blocks"] if b["quiz_phase"] == "question"]
         self.assertTrue(questions[0]["text"].startswith("Question 1."))
         self.assertTrue(questions[1]["text"].startswith("Question 2."))
@@ -121,6 +122,24 @@ class TestQuiz(unittest.TestCase):
         item = {"question": "Question ?", "choices": ["A", "B"], "correct_choice": 0}
         with self.assertRaisesRegex(ValueError, "entre 1 et 7"):
             validate_quiz({"questions": [dict(item) for _ in range(8)]})
+
+    def test_long_quiz_compiles_without_standard_script_limits(self):
+        questions = [{"question": f"What does biology concept {i} describe?", "choices": [f"Fact {i}", "Other"],
+                      "correct_choice": 0, "explanation": f"This is explanation {i}."} for i in range(25)]
+        source = {**QUIZ_SCRIPT, "quiz": {"recipe": "long", "topic": "biology", "questions": questions}}
+        validate_script(source)
+        compiled = compile_quiz(source)
+        self.assertEqual(len(compiled["blocks"]), 52)
+        self.assertFalse(compiled["quiz"]["illustrations"])
+        validate_script(compiled)
+
+    def test_rejects_previous_fact_and_reworded_question(self):
+        source = {"questions": [{"question": "Which organelle makes ATP?", "choices": ["Mitochondrion", "Nucleus"],
+                                 "correct_choice": 0, "fact": "mitochondria ATP"}],
+                  "previous_questions": [{"question": "What is the cell powerhouse?", "answer": "Mitochondrion",
+                                          "fact": "mitochondria ATP"}]}
+        with self.assertRaisesRegex(ValueError, "répète"):
+            validate_quiz(source)
 
     def test_recipe_expands_defaults_without_mutating_input(self):
         source = {"recipe": "riddle", "questions": [{

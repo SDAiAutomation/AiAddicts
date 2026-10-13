@@ -154,6 +154,22 @@ Thème optionnel : `motion_graphics_theme` au niveau du script (`{"primary": "#2
 
 ### Format quiz vidéo
 
+Le contrat Quiz accepte aussi `"recipe": "long"` pour un pilote de 10 à 30 questions
+(25 par défaut, difficulté progressive). Le script peut être en `"aspect_ratio": "16:9"`
+pour un essai YouTube horizontal. Ce format compile dans le même pipeline Quiz ;
+les plafonds de blocs et de caractères sont relevés uniquement pour cette recette.
+Les illustrations sont désactivées par défaut pour limiter le coût de 25 questions.
+
+Pour une série, le générateur doit lire les questions des épisodes précédents de
+la même série et du même compte, puis fournir dans `quiz.previous_questions` des
+objets `{ "question": "...", "answer": "...", "fact": "..." }` (500 maximum).
+Chaque nouvelle question peut avoir un champ `fact` stable décrivant le fait
+testé. Le validateur refuse une répétition exacte, une reformulation très proche
+avec la même réponse, ou un `fact` identique. Le générateur doit renouveler la
+question refusée avant le rendu et signaler une revue si aucune alternative
+fiable n'est trouvée. Sans historique fourni, la comparaison entre épisodes
+reste indisponible ; le moteur ne doit pas annoncer une série sans répétition.
+
 Le parcours produit peut proposer cinq recettes stables : `quick`,
 `true_false`, `riddle`, `logo` et `impossible`. Une recette fournit le type, la
 difficulté et le compte à rebours par défaut ; chaque question peut encore
