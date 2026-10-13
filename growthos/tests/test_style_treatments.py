@@ -164,6 +164,25 @@ class TestGameArtFrameSafeMargin(unittest.TestCase):
                 )
 
 
+class TestGameArtLoadingMotifAvoidsCaptions(unittest.TestCase):
+    """Regression : le motif LOADING (66 % de la hauteur) passait derrière les
+    sous-titres (bande ~56-72 %) sur une vraie vidéo."""
+
+    def test_motif_stays_above_the_caption_band(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "flat.jpg"
+            Image.new("RGB", (1024, 1536), (20, 20, 20)).save(src, "JPEG", quality=95)
+            out = Path(tmp) / "out.jpg"
+            game_art.apply(str(src), str(out), "wide", "hook")
+            with Image.open(out) as treated:
+                w, h = treated.size
+                margin = safe_margin((w, h))
+                inner = (margin + 12, round(h * 0.54), w - margin - 12, round(h * 0.80))
+                self.assertFalse(_has_color_near(treated, game_art._FRAME_COLOR, inner))
+                motif = (margin + 12, round(h * 0.46), w - margin - 12, round(h * 0.54))
+                self.assertTrue(_has_color_near(treated, game_art._FRAME_COLOR, motif))
+
+
 class TestGameArtVignette(unittest.TestCase):
     """Regression (Phase 3 visual QA) : une 1re version assombrissait le
     CENTRE et éclaircissait les COINS — l'inverse d'une vignette — confirmé

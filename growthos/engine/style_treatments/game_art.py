@@ -30,9 +30,11 @@ _FRAME_COLOR = (198, 168, 92)
 _TRACK_COLOR = (80, 80, 86)
 _VIGNETTE_STRENGTH = 0.55
 _POSTERIZE_BITS = 5
-# Zone sûre sous-titres (engine/motion_graphics/canvas.py::SAFE_BOTTOM_RATIO)
-# = 30% du bas — le motif reste nettement au-dessus.
-_LOADING_Y_RATIO = 0.66
+# Les sous-titres (engine/captions.py, margin_v ~540/1920) occupent environ
+# 56-72 % de la hauteur sur 1-2 lignes. Le motif à 66 % passait derrière le
+# sous-titre et se lisait comme un artefact (constaté sur une vraie vidéo,
+# 2026-10-13) : il reste au-dessus de cette bande.
+_LOADING_Y_RATIO = 0.50
 
 
 def wants_loading_motif(shot_type: str | None, visual_purpose: str | None) -> bool:
