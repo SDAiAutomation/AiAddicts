@@ -61,7 +61,10 @@ def _title(image: Image.Image, draw, theme: Theme, size: tuple[int, int], text: 
         return
     w, h = size
     base_px = round(h * 0.03)
-    color = lerp_color(theme.background, theme.secondary, anim.fade_in(t, 0.0, 0.2))
+    # Le titre de scene est la seule chose a l'ecran avant la 1re revelation calee sur la voix : melange a moitie vers
+    # le texte pour rester lisible (le rendu final assombrit les bords ; `secondary` seul tombait a ~4,5:1 mesure).
+    title_color = "#%02x%02x%02x" % lerp_color(theme.secondary, theme.text, 0.5)
+    color = lerp_color(theme.background, title_color, anim.fade_in(t, 0.0, 0.2))
     offset = anim.slide_up(t, 0.0, 0.25, distance=18)
     shown = display_text.display_title(text) if math else text.upper()  # maths : la variable x reste en minuscule
     layout.draw_fitted(draw, (w / 2, h * y_ratio + offset), shown, base_px, w * 0.88, color, bold=True)

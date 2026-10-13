@@ -26,6 +26,10 @@ _STOP = {
 LEAD_SECONDS = 0.12  # appear just before the word is fully spoken
 MAX_REVEAL = 0.92  # the last item must still be visible before the block ends
 MIN_MATCH_RATIO = 0.5
+# Une scene dont le 1er element ne porte AUCUN nombre ne reste pas vide en attendant que la voix le nomme : il
+# apparait au plus tard apres ce delai. Jamais pour un element chiffre : « un chiffre ne s'affiche jamais avant
+# d'etre dit » reste la regle (ces scenes-la gardent leur calage exact sur la voix).
+FIRST_ITEM_MAX_DELAY_SECONDS = 1.0
 
 
 def item_texts(scene: dict) -> list[str]:
@@ -234,6 +238,8 @@ def compute_reveals(scene: dict, words: list[dict], duration: float) -> list[flo
         t = max(0.0, (s - LEAD_SECONDS)) / duration
         t = min(t, MAX_REVEAL)
         out.append(max(t, out[-1]) if out else t)  # monotonic
+    if out and not (numbers[0] if numbers else []):
+        out[0] = min(out[0], FIRST_ITEM_MAX_DELAY_SECONDS / duration)  # abaisser le 1er garde l'ordre monotone
     return [round(t, 4) for t in out]
 
 
