@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover
 REFERENCE = render.HERE / "reference"
 PROTOTYPE_HTML = REFERENCE / "voyage-message.html"
 TIMELINE = REFERENCE / "voyage-message.timeline.js"
+SHOWCASE = REFERENCE / "showcase-dakar-paris.timeline.js"
 # Un instant par scène, plus les raccords (coupes noires) et des instants non entiers.
 TIMES = [0.0, 1.2, 3.0, 5.9, 8.0, 20.0, 30.9, 36.2, 44.1, 50.5, 53.0, 56.0, 58.0]
 
@@ -94,6 +95,45 @@ class TestExplainerGolden(unittest.TestCase):
         self.assertEqual(fetch, "bloque")
         for report in reports:
             self.assertEqual(report["errors"], [], f"erreur JS à t={report['t']}")
+
+
+@unittest.skipUnless(HAVE_PLAYWRIGHT, "playwright non installe")
+class TestShowcase(unittest.TestCase):
+    """Video vitrine de la phase 2 : aucune erreur JS, deterministe, narration et SFX dans la duree."""
+
+    @classmethod
+    def setUpClass(cls):
+        async def run():
+            with tempfile.TemporaryDirectory() as tmp:
+                stage = render.build_stage_html(SHOWCASE, tmp)
+                async with async_playwright() as p:
+                    try:
+                        browser, page = await render.open_page(p, stage)
+                    except Exception as exc:
+                        raise unittest.SkipTest(f"Chromium indisponible : {str(exc)[:80]}")
+                    video = await page.evaluate("VIDEO")
+                    times = [i * 0.5 for i in range(121)]
+                    reports = [await page.evaluate("(t)=>probeFrame(t)", t) for t in times]
+                    same = [await render.grab(page, t, "png") for t in (21.7, 40.0, 21.7, 50.2, 10.3, 50.2)]
+                    await browser.close()
+                return video, reports, same
+
+        cls.video, cls.reports, cls.same = _run(run())
+
+    def test_duration_and_audio_events(self):
+        self.assertEqual(self.video["duration"], 60)
+        self.assertTrue(all(0 <= e["at"] <= self.video["duration"] for e in self.video["sfx"]))
+        starts = [at for at, _ in self.video["narration"]]
+        self.assertEqual(starts, sorted(starts))
+        self.assertLess(starts[-1], self.video["duration"])
+
+    def test_no_js_error_over_the_whole_video(self):
+        for report in self.reports:
+            self.assertEqual(report["errors"], [], f"erreur JS a t={report['t']}")
+
+    def test_deterministic_across_scenes(self):
+        self.assertEqual(self.same[0], self.same[2])
+        self.assertEqual(self.same[3], self.same[5])
 
 
 class TestStageHtml(unittest.TestCase):

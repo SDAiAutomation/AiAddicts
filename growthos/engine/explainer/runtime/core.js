@@ -22,6 +22,8 @@ function kf(t,keys,def=io){
   return keys[keys.length-1][1];
 }
 const camera=c=>ctx.setTransform(c.z,0,0,c.z,W/2-c.x*c.z,H/2-c.y*c.z);
+/* Camera avec rotation (r en radians) : rotation autour du centre de l'ecran, puis zoom, puis recentrage. */
+const cameraR=c=>{ctx.setTransform(1,0,0,1,0,0);ctx.translate(W/2,H/2);ctx.rotate(c.r||0);ctx.scale(c.z,c.z);ctx.translate(-c.x,-c.y)};
 const screen=()=>ctx.setTransform(1,0,0,1,0,0);
 function T(s,x,y,o={}){
   const {size=40,weight=700,fam=DISP,color=C.ink,alpha=1,align='center',base='middle',ls=0,glow=0}=o;

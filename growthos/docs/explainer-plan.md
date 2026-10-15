@@ -222,3 +222,28 @@ Détail de la 2e ligne : réalisateur 0,16 € ; animateur ≈ 0,60 € (8 plans
 4. **Rien n'est acquis avant mesure** : les tokens de réflexion adaptative et le nombre réel d'itérations sont inconnus. La phase 3 mesure le coût réel sur le banc de 5 sujets ; si le typique dépasse 1,00 €, on baisse l'effort, on réduit la critique à une planche par vidéo, ou on passe le prix à 3 crédits.
 
 Le prix en crédits est une décision produit à valider avant la phase 6 ; les phases 1 à 5 n'en dépendent pas.
+
+## 10. Phase 2 — kit d'illustration et vidéo vitrine (état)
+
+**Fait** (branche `explainer/phase-2`)
+- `runtime/kit-world.js` : personnages (pose assise, téléphone, sourire, clignement, 4 coiffures), maison en coupe (palettes Dakar et Paris, fenêtre avec baobab ou tour Eiffel), ville de nuit, tour d'antenne, océan en coupe avec rayons de lumière, fond marin, câble sous-marin lumineux, poissons, baleine, bateaux, station côtière, data center (baies, LED).
+- `runtime/kit-tech.js` : `scramble`, `stageHud` ; `runtime/core.js` : `cameraR` (caméra avec rotation, pour le raccord zoom-through).
+- `reference/showcase-dakar-paris.timeline.js` : vidéo vitrine de 60 s, écrite à la main (maison de Dakar, zoom dans l'écran, cinq étapes dans le téléphone, antenne, câble sous-marin, data center, appartement à Paris, réponse, récapitulatif).
+- Tests : aucune erreur JS sur 121 instants, déterminisme entre scènes, narration et SFX dans la durée.
+- Rendu mesuré en local (Windows) : 60 s, 1 800 images, 165 s.
+
+**Auto-évaluation sur la grille de la section 6 (mon estimation, à contredire par ton regard)**
+
+| Critère | Note | Remarque |
+|---|---|---|
+| Hook | 4 | pièce chaleureuse, téléphone qui s'allume, « DAKAR » ; pas de texte nécessaire |
+| Continuité | 4,5 | zoom-through maison → écran, un seul monde Dakar → océan → Paris ; trois fondus au noir courts |
+| Synchronisation | non évaluable | narration calée à la main, pas de voix réelle ; mesure en phase 3 |
+| Lisibilité | 4 | bulles du téléphone lisibles ; les étiquettes du bas (36 px) sont sous les 64 px demandés pour les mots-clés |
+| Clarté pédagogique | 4,5 | cinq étapes + réassemblage à l'arrivée ; sans le son, l'idée se comprend |
+| Rythme | 4 | à vérifier à l'œil sur la vidéo entière |
+| Finition | 4 | style plat cohérent ; les personnages restent simples (une pose assise) |
+| Son | non évalué | bruitages synthétisés non écoutés par moi (aucune sortie audio) ; volume : crête −3,6 dB |
+| Justesse | 4,5 | aucun chiffre, seulement des mécanismes généraux |
+
+Moyenne des critères évaluables ≈ 4,2 : **sous la barre de 4,5 demandée.** L'acceptation de la phase 2 attend donc ton avis visuel et les retouches qui en découlent.

@@ -26,7 +26,7 @@ HERE = Path(__file__).resolve().parent
 RUNTIME_DIR = HERE / "runtime"
 FONTS_DIR = HERE.parents[1] / "assets" / "fonts"
 # Ordre de chargement : les scripts classiques partagent la portée globale (core avant les kits).
-RUNTIME_FILES = ("core.js", "kit-tech.js", "audio.js", "probe.js")
+RUNTIME_FILES = ("core.js", "kit-tech.js", "kit-world.js", "audio.js", "probe.js")
 WIDTH, HEIGHT = 1080, 1920
 JPEG_QUALITY = 0.95
 FONT_WEIGHTS = {"Bricolage Grotesque": ("500", "600", "700", "800"), "JetBrains Mono": ("500", "700")}
@@ -83,6 +83,19 @@ async def grab(page, t: float, fmt: str = "jpeg") -> bytes:
     return base64.b64decode(data.split(",", 1)[1])
 
 
+async def read_video_async(timeline_path) -> dict:
+    """Lit `VIDEO` (duree, fps, narration, sfx) de la timeline, sans rien rendre."""
+    from playwright.async_api import async_playwright
+
+    with tempfile.TemporaryDirectory() as tmp:
+        stage = build_stage_html(timeline_path, tmp)
+        async with async_playwright() as p:
+            browser, page = await open_page(p, stage)
+            video = await page.evaluate("VIDEO")
+            await browser.close()
+    return video
+
+
 async def render_stills_async(timeline_path, times, out_dir, fmt: str = "png") -> list[Path]:
     from playwright.async_api import async_playwright
 
@@ -101,7 +114,22 @@ async def render_stills_async(timeline_path, times, out_dir, fmt: str = "png") -
     return paths
 
 
-async def render_video_async(timeline_path, out_path) -> dict:
+def voice_inputs(voice_path) -> list[str]:
+    return ["-i", str(voice_path)] if voice_path else []
+
+
+def audio_args(voice_path) -> list[str]:
+    """Avec une voix off : les bruitages sont baisses automatiquement quand la voix parle (sidechain), puis mixes.
+    Sans voix : la piste de bruitages seule, comme en phase 1."""
+    if not voice_path:
+        return []
+    graph = ("[2:a]asplit=2[vk][vm];[1:a]volume=0.8[sfx];"
+             "[sfx][vk]sidechaincompress=threshold=0.03:ratio=10:attack=5:release=350[duck];"
+             "[duck][vm]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[mix]")
+    return ["-filter_complex", graph, "-map", "0:v", "-map", "[mix]"]
+
+
+async def render_video_async(timeline_path, out_path, voice_path=None) -> dict:
     """Rend le MP4 complet (H.264 CRF 18, yuv420p, +faststart) avec la piste sonore synthétisée. Renvoie un rapport."""
     from playwright.async_api import async_playwright
 
@@ -117,8 +145,8 @@ async def render_video_async(timeline_path, out_path) -> dict:
             wav.write_bytes(base64.b64decode(await page.evaluate("renderAudio()")))
             ff = subprocess.Popen(
                 ["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(fps), "-c:v", "mjpeg", "-i", "-",
-                 "-i", str(wav), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
-                 "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(out)],
+                 "-i", str(wav), *voice_inputs(voice_path), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                 *audio_args(voice_path), "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(out)],
                 stdin=subprocess.PIPE,
             )
             frames = int(round(duration * fps))
@@ -148,10 +176,11 @@ def main(argv: list[str]) -> int:
         paths = asyncio.run(render_stills_async(argv[0], [float(s) for s in argv[3].split(",")], argv[1]))
         print("\n".join(str(p) for p in paths))
         return 0
-    if len(argv) != 2:
+    if len(argv) not in (2, 4):
         print(__doc__)
         return 2
-    print(json.dumps(asyncio.run(render_video_async(argv[0], argv[1])), ensure_ascii=False))
+    voice = argv[argv.index("--voice") + 1] if "--voice" in argv else None
+    print(json.dumps(asyncio.run(render_video_async(argv[0], argv[1], voice)), ensure_ascii=False))
     return 0
 
 

@@ -35,6 +35,7 @@ function phone(cx,cy,o){
   ctx.fillStyle=LC[7];ctx.beginPath();ctx.arc(0,0,38,0,7);ctx.fill();
   ctx.fillStyle=C.dark;ctx.beginPath();ctx.moveTo(-13,-16);ctx.lineTo(19,0);ctx.lineTo(-13,16);ctx.lineTo(-7,0);ctx.closePath();ctx.fill();ctx.restore();
   for(const b of o.bubbles||[])bubble(b);
+  if(o.after)o.after(x,y,w,h);
 }
 function bubble({edge,y,text,side,alpha=1,col,tc=C.dark,s=1}){
   if(alpha<=0.002)return;const w=measure(text,34,600)+64,h=88,x=side==='right'?edge-w:edge;
@@ -81,3 +82,22 @@ function lock(x,y,s,a){
   ctx.fillStyle=LC[6];rr(-34,0,68,52,10);ctx.fill();ctx.fillStyle=C.dark;ctx.beginPath();ctx.arc(0,22,8,0,7);ctx.fill();ctx.restore();
 }
 
+
+/* Remplace progressivement src par dst en passant par des glyphes qui clignotent (chiffrement / dechiffrement). */
+function scramble(src,dst,p,l,k){
+  const G='#%&@$*+=?!<>0123456789ABCDEFxzq';let s='';const n=src.length;
+  for(let i=0;i<n;i++){const c=i/n;if(p>=1||p>c+0.18)s+=dst[i];else if(p>c)s+=G[Math.floor(hash(i,Math.floor(l*16)+k)*G.length)];else s+=src[i]}
+  return s;
+}
+/* En-tete d'etapes : grand numero, nom, role, pastilles a droite. stages=[{n,name,role,col,t}] ; l = temps local. */
+function stageHud(l,stages,eyebrow){
+  screen();const g=ctx.createLinearGradient(0,0,0,640);g.addColorStop(0,'rgba(10,15,28,0.96)');g.addColorStop(0.7,'rgba(10,15,28,0.75)');g.addColorStop(1,'rgba(10,15,28,0)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,640);T(eyebrow,76,168,{size:26,fam:MONO,weight:700,color:C.dim,align:'left',ls:6});
+  for(let i=0;i<stages.length;i++){const s=stages[i],e=s.t,ne=i+1<stages.length?stages[i+1].t:999;
+    const a=out(seg(l,e,e+0.45))*(1-seg(l,ne-0.45,ne-0.05));if(a<=0)continue;const dy=(1-a)*36;
+    T(String(s.n),66,330+dy,{size:250,weight:800,color:s.col,align:'left',alpha:a,glow:30});
+    T(s.name,250,282+dy,{size:72,weight:800,align:'left',alpha:a,ls:-1});T(s.role,252,366+dy,{size:40,weight:500,color:C.dim,align:'left',alpha:a});}
+  let cur=0;for(let i=0;i<stages.length;i++)if(l>=stages[i].t)cur=i;
+  for(let i=0;i<stages.length;i++){const y=600+i*120,on=i===cur;ctx.fillStyle=stages[i].col;ctx.globalAlpha=on?1:0.28;ctx.beginPath();ctx.arc(1024,y,on?15:9,0,7);ctx.fill();ctx.globalAlpha=1;
+    if(on){ctx.strokeStyle=stages[i].col;ctx.lineWidth=3;ctx.beginPath();ctx.arc(1024,y,26,0,7);ctx.stroke()}}
+}
