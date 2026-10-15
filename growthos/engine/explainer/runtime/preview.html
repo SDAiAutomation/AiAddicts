@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explainer — prévisualisation</title>
+<!-- Lecteur de développement : ouvrir ce fichier dans un navigateur après avoir ajouté un <script src> de timeline
+     (par défaut, la vidéo de référence). Le rendu MP4 n'utilise PAS cette page (voir render.py). -->
+<style>
+@font-face{font-family:"Bricolage Grotesque";src:url("../../../assets/fonts/bricolage-grotesque/BricolageGrotesque-Variable.ttf");font-weight:200 800}
+@font-face{font-family:"JetBrains Mono";src:url("../../../assets/fonts/jetbrains-mono/JetBrainsMono-Variable.ttf");font-weight:100 800}
+:root{--ground:#070a13;--ink:#e9eefc;--dim:#8a93ad;--accent:#ff8a5b;--cyan:#49c6e5;--line:#1f2840;--disp:"Bricolage Grotesque",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--disp);display:flex;flex-direction:column;align-items:center;gap:12px;padding:14px 16px;box-sizing:border-box}
+.col{width:min(100%,calc((100dvh - 210px) * 9 / 16));min-width:240px;display:flex;flex-direction:column;gap:10px}
+.stage{aspect-ratio:9/16;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#0a0f1c}
+canvas{width:100%;height:100%;display:block}
+.bar{display:flex;align-items:center;gap:8px}
+button{font:700 13px var(--mono);color:#0a0f1c;background:var(--accent);border:0;border-radius:999px;padding:9px 13px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan)}
+input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.time{font:500 12px var(--mono);color:var(--dim);font-variant-numeric:tabular-nums}
+.vo{font-size:15px;line-height:1.45;min-height:3em;margin:0}
+.vo b{font:700 11px var(--mono);letter-spacing:.12em;color:var(--dim);display:block;margin-bottom:2px}
+</style>
+<div class="col">
+  <div class="stage"><canvas id="c" width="1080" height="1920"></canvas></div>
+  <div class="bar">
+    <button id="play" type="button">Pause</button>
+    <button id="snd" class="ghost" type="button" aria-pressed="false">Son</button>
+    <input id="seek" type="range" min="0" max="58" step="0.01" value="0" aria-label="Position dans la vidéo">
+    <span class="time" id="time">0:00</span>
+  </div>
+  <p class="vo" id="vo"><b>VOIX OFF</b><span id="voText"></span></p>
+</div>
+<script src="core.js"></script>
+<script src="kit-tech.js"></script>
+<script src="audio.js"></script>
+<script src="probe.js"></script>
+<script src="../reference/voyage-message.timeline.js"></script>
+<script src="player.js"></script>
