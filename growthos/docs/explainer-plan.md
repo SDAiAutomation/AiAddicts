@@ -247,3 +247,13 @@ Le prix en crédits est une décision produit à valider avant la phase 6 ; les 
 | Justesse | 4,5 | aucun chiffre, seulement des mécanismes généraux |
 
 Moyenne des critères évaluables ≈ 4,2 : **sous la barre de 4,5 demandée.** L'acceptation de la phase 2 attend donc ton avis visuel et les retouches qui en découlent.
+
+## 11. Phase 3 — réalisateur, animateur, validation, repli (état)
+
+**Fait** (branche `explainer/phase-3`)
+- `runtime/scene.js` : graphe de scène déclaratif (30+ éléments, `h.to/set/appear/follow`, caméra, SFX) : l'animateur n'écrit jamais sur le canvas. API décrite dans `prompts/runtime-api.md`.
+- `director.py` (Opus 5.5) → storyboard validé par `schema.py` + ancres vérifiées dans la narration ; `animator.py` (Sonnet 5.5, prompt système mis en cache, 4 plans de référence, plans animés en parallèle, 2 corrections max, on garde la meilleure version) ; `validate.py` : liste blanche AST (esprima) + essai Chromium (erreurs, budget par image, texte coupé/chevauchant/zones d'interface, déterminisme) ; `Function.prototype.constructor` neutralisé dans la page ; `fallback.py` : scène Pillow `motion_graphics` pour un plan qui échoue, écrite au rapport ; `pipeline.py` : `explainer.report.json` (modèles, tokens, coût estimé par étape, itérations, replis, versions de prompts, de runtime et de Chromium).
+- 31 tests Explainer (dont un pipeline complet avec LLM simulé, repli Pillow compris).
+
+**Premier essai réel — sujet « le trajet d'un message »** (sans voix : timings estimés) : 8 plans, 0 repli, 3 corrections d'animateur au total, coût LLM **0,56 $** (plafond 1,20 $), rendu 168 s pour 79 s de vidéo. Limites constatées à l'œil : plusieurs plans ont des compositions faibles (décors coupés, zones vides, un grand rectangle vert), et la narration générée contient une affirmation à vérifier (« trois secondes plus tard ») : le contrôle de vérité sur la narration relève de la phase 4 (critique).
+**Pas encore fait** : les 4 autres sujets du banc, la moyenne ≥ 4 de la grille, la mesure de synchronisation (voix réelle après le 17).
