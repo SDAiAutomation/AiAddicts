@@ -1,0 +1,6 @@
+# Rendu du style « Explainer animé » (engine/explainer/) : OPTIONNEL, comme Manim.
+# Chromium headless pilote le runtime JS ; installation du navigateur (étape à part) :
+#   python -m playwright install --with-deps chromium     (Linux, CI/worker)
+#   python -m playwright install chromium                 (Windows/macOS, local)
+# Sans lui, les tests Explainer sont ignorés et le style n'est pas proposé au worker.
+playwright==1.64.0

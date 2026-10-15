@@ -1,0 +1,32 @@
+/* probe.js — instrumentation de validation (jamais utilisée pour le rendu de production).
+   `probeFrame(t)` rend l'image `t` en enregistrant chaque texte dessiné, et signale ceux qui sortent du cadre.
+   Rapport seulement en phase 1 : aucune règle ne bloque encore (les zooms de caméra sortent volontairement du cadre). */
+(function () {
+  const P = { on: false, texts: [], errors: [] };
+  window.__probe = P;
+  const fillText = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (s, x, y, maxWidth) {
+    if (P.on && this.globalAlpha > 0.05 && s) {
+      const m = this.measureText(String(s));
+      const w = m.width, asc = m.actualBoundingBoxAscent || 0, desc = m.actualBoundingBoxDescent || 0;
+      const x0 = this.textAlign === 'center' ? x - w / 2 : this.textAlign === 'right' ? x - w : x;
+      const tr = this.getTransform();
+      const xs = [], ys = [];
+      for (const [px, py] of [[x0, y - asc], [x0 + w, y - asc], [x0, y + desc], [x0 + w, y + desc]]) {
+        xs.push(tr.a * px + tr.c * py + tr.e);
+        ys.push(tr.b * px + tr.d * py + tr.f);
+      }
+      P.texts.push({ s: String(s).slice(0, 40), x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) });
+    }
+    return fillText.call(this, s, x, y, maxWidth);
+  };
+  window.addEventListener('error', (e) => P.errors.push(String(e.message)));
+  window.probeFrame = function (t) {
+    P.texts = [];
+    P.on = true;
+    try { renderFrame(t); } catch (e) { P.errors.push(String((e && e.message) || e)); }
+    P.on = false;
+    const issues = P.texts.filter((r) => r.x0 < 0 || r.x1 > W || r.y0 < 0 || r.y1 > H).map((r) => ({ kind: 'offscreen', ...r }));
+    return { t, texts: P.texts.length, issues, errors: P.errors.slice() };
+  };
+})();
