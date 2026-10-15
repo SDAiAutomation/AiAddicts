@@ -21,6 +21,19 @@
     }
     return fillText.call(this, s, x, y, maxWidth);
   };
+  /* Part de l'image qui n'est pas le fond dominant (grille 54 x 96) : mesure grossiere du « cadre vide ». */
+  const small = document.createElement('canvas');
+  small.width = 54; small.height = 96;
+  function frameCoverage() {
+    const g = small.getContext('2d');
+    g.drawImage(document.getElementById('c'), 0, 0, 54, 96);
+    const d = g.getImageData(0, 0, 54, 96).data, counts = new Map();
+    for (let i = 0; i < d.length; i += 4) {
+      const key = (d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return 1 - Math.max(...counts.values()) / (54 * 96);
+  }
   window.addEventListener('error', (e) => P.errors.push(String(e.message)));
   window.probeFrame = function (t) {
     P.texts = [];
@@ -29,7 +42,8 @@
     try { renderFrame(t); } catch (e) { P.errors.push(String((e && e.message) || e)); }
     const ms = performance.now() - started;
     P.on = false;
+    const coverage = frameCoverage();
     const issues = P.texts.filter((r) => r.alpha > 0.05 && (r.x0 < 0 || r.x1 > W || r.y0 < 0 || r.y1 > H)).map((r) => ({ kind: 'offscreen', ...r }));
-    return { t, ms, texts: P.texts, issues, errors: P.errors.slice() };
+    return { t, ms, coverage, texts: P.texts, issues, errors: P.errors.slice() };
   };
 })();

@@ -5,10 +5,16 @@
 const Faceloop=(()=>{
 const EASE={lin:x=>x,io,out,inn,back};
 const TOKEN={ink:C.ink,dim:C.dim,bg:C.bg,panel:C.panel,chip:C.chip,dark:C.dark,primary:LC[3],accent:LC[7],warm:LC[6],good:LC[4],violet:LC[1],blue:LC[2],yellow:LC[5],line:C.line,white:'#ffffff'};
-const col=c=>TOKEN[c]||c;
+const RUNTIME_ERRORS=[];
+const COLOR_RE=/^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\))$/i;
+/* Un jeton connu ou une couleur CSS valide. Une valeur invalide serait IGNOREE par le canvas (la couleur precedente
+   reste active : c'est ainsi qu'un rectangle vert est apparu) : on la signale et on retombe sur 'ink'. */
+const col=c=>{if(TOKEN[c])return TOKEN[c];if(typeof c==='string'&&COLOR_RE.test(c))return c;
+  const m='couleur invalide : '+JSON.stringify(c);if(!RUNTIME_ERRORS.includes(m))RUNTIME_ERRORS.push(m);return TOKEN.ink};
 const SKY={night:{top:'#070b1f',mid:'#18204f',low:'#3a2a66',stars:140},dusk:{top:'#1a1740',mid:'#6a3a7a',low:'#f08a5b',stars:40},day:{top:'#4aa3e8',mid:'#8cc9f5',low:'#dff1ff',stars:0},void:{top:C.bg,mid:C.bg,low:C.bg,stars:0}};
 
 /* ---- éléments ----------------------------------------------------------------------------------------------- */
+const COMMON={x:540,y:960,s:1,a:1,r:0,hud:false,par:1,layer:0};
 const DEFAULTS={
   text:{text:'',size:64,weight:700,color:'ink',mono:false,glow:0,ls:0,maxW:0,lh:1.15},
   box:{w:200,h:100,r:16,color:'panel',stroke:'',sw:3},
@@ -40,16 +46,25 @@ const NUMERIC_NONTWEEN=new Set(['pid','seed','count','n','decimals']);
 
 function makeHandle(S,kind,props){
   if(!DEFAULTS[kind])throw new Error('element inconnu : '+kind);
-  const init=Object.assign({x:540,y:960,s:1,a:1,r:0,hud:false,par:1,layer:0},DEFAULTS[kind],props||{});
+  const BASE=Object.assign({},COMMON,DEFAULTS[kind]);
+  const check=(k,v,where)=>{
+    if(!(k in BASE)){S.errors.push(`propriété inconnue « ${k} » pour l'élément ${kind}${where}`);return undefined}
+    const d=BASE[k];
+    if(typeof d==='number'&&typeof v!=='number'){S.errors.push(`${kind}.${k} doit être un nombre (reçu ${JSON.stringify(v)})`);return undefined}
+    if(typeof d==='boolean'&&typeof v!=='boolean'){S.errors.push(`${kind}.${k} doit être un booléen (reçu ${JSON.stringify(v)})`);return undefined}
+    if(typeof d==='number'&&!isFinite(v)){S.errors.push(`${kind}.${k} n'est pas un nombre fini`);return undefined}
+    return v};
+  const clean={};for(const k in props||{}){const v=check(k,props[k],'');if(v!==undefined)clean[k]=v}
+  const init=Object.assign({},BASE,clean);
   const h={kind,init,tl:{},order:S.items.length};
   const val=(p,t)=>{const L=h.tl[p];let v=init[p];if(!L)return v;
     for(const g of L){if(t>=g.t1)v=g.v1;else if(t>=g.t0){return typeof g.v0==='number'&&typeof g.v1==='number'?lerp(g.v0,g.v1,EASE[g.e](clamp((t-g.t0)/(g.t1-g.t0)))):g.v0}else break}return v};
   h.val=val;
   h.props=t=>{const o={};for(const k in init)o[k]=val(k,t);return o};
   const push=(p,g)=>{const L=h.tl[p]||(h.tl[p]=[]);L.push(g);L.sort((a,b)=>a.t0-b.t0)};
-  h.set=(t,props)=>{for(const p in props){if(!(p in init))init[p]=props[p];push(p,{t0:t,t1:t,v0:props[p],v1:props[p],e:'lin'})}return h};
+  h.set=(t,props)=>{for(const p in props){const v=check(p,props[p],' (set)');if(v===undefined)continue;push(p,{t0:t,t1:t,v0:v,v1:v,e:'lin'})}return h};
   h.to=(t0,t1,props,ease='io')=>{if(!(t1>t0))t1=t0+0.001;if(!EASE[ease])ease='io';
-    for(const p in props){if(!(p in init))init[p]=props[p];const v1=props[p],tween=typeof v1==='number'&&!NUMERIC_NONTWEEN.has(p);
+    for(const p in props){const v1=check(p,props[p],' (to)');if(v1===undefined)continue;const tween=typeof v1==='number'&&!NUMERIC_NONTWEEN.has(p);
       if(tween)push(p,{t0,t1,v0:val(p,t0),v1,e:ease});else push(p,{t0,t1:t0,v0:v1,v1,e:'lin'})}return h};
   h.appear=(t,dur=0.4,how='pop')=>{const x=init.x,y=init.y,s=init.s;init.a=0;
     h.to(t,t+dur,{a:1},'out');
@@ -141,7 +156,7 @@ function drawScene(S,t){
     ctx.save();
     if(p.hud){screen()}else{const z=lerp(1,cam.z,p.par),cx=540+(cam.x-540)*p.par;cameraR({x:cx,y:960+(cam.y-960)*p.par,z,r:(cam.r||0)*p.par});}
     ctx.translate(p.x,p.y);if(p.r)ctx.rotate(p.r);if(p.s!==1)ctx.scale(p.s,p.s);ctx.globalAlpha*=clamp(p.a);
-    try{DRAW[h.kind](p,t)}catch(e){S.errors.push(h.kind+' : '+e.message)}
+    try{DRAW[h.kind](p,t)}catch(e){const m=h.kind+' : '+e.message;if(!RUNTIME_ERRORS.includes(m))RUNTIME_ERRORS.push(m)}
     ctx.restore();}
   screen();for(const f of S.fades){const a=f.dir==='in'?1-seg(t,f.t0,f.t1):seg(t,f.t0,f.t1);overlay(col(f.color),a)}
 }
@@ -156,8 +171,7 @@ function define(spec){
   const duration=spec.duration||cursor,sfx=[];
   for(const {P,S} of plans)for(const s of S.sounds)sfx.push({at:P.start+s.at,type:s.type,k:s.k||0});
   sfx.sort((a,b)=>a.at-b.at);
-  const runtimeErrors=[];
-  window.__runtimeErrors=runtimeErrors;
+  window.__runtimeErrors=RUNTIME_ERRORS;
   window.VIDEO={duration,fps,narration:spec.narration||[],sfx,plans:plans.map(({P})=>({id:P.id,start:P.start,duration:P.duration}))};
   window.renderAt=t=>{t=clamp(t,0,duration);screen();ctx.globalAlpha=1;ctx.setLineDash([]);ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
     let cur=plans[plans.length-1];for(const q of plans)if(t<q.P.start+q.P.duration){cur=q;break}

@@ -56,6 +56,16 @@ Couleurs : un jeton (`ink`, `dim`, `bg`, `panel`, `chip`, `primary` cyan, `accen
 - `bars` : histogramme vertical (origine = pied, centre) : `values`, `labels`, `w`, `h`, `color`, `grow` (0..1, animer), `size`.
 - `golden` : rectangles d'or et spirale : `base`, `n`, `draw` (nombre d'étapes tracées, animable), `color`.
 
+## Types et couleurs (vérifiés : une erreur fait échouer le plan)
+Les nombres sont des nombres (`dark: 0.25`, jamais `true`), les booléens des booléens, `pid` un nombre. Une prop inconnue pour un élément (faute de frappe) est une erreur. Les couleurs sont un jeton de la liste ou `#rrggbb` : `'red'`, `'green'`… sont INVALIDES.
+
+## Composition (ce qui sépare un plan moyen d'un plan de studio)
+- Le sujet remplit le cadre : le contenu vit dans la zone y 250–1550 ; pas de grande zone vide (une image dont presque tout est du fond uni est refusée). Un décor (maison, ville, océan) est posé plein cadre, avec un sol qui descend jusqu'au bas de l'écran (`box` de grande taille, `layer: -1`).
+- Maison : largeur 720 × `s`. Avec `s`=1,45 elle remplit l'écran. Personnage assis dans une maison de position (hx, hy) et d'échelle hs : `x = hx − 120·hs`, `y = hy − 106·hs`, `s = 1.25·hs` (`flip` : `x = hx + 110·hs`).
+- Un seul décor par plan ; pour montrer deux lieux, deux plans (ou un déplacement de caméra), pas un écran coupé en deux.
+- La caméra bouge toujours (zoom lent 1.0 → 1.15 minimum, ou travelling). Les mots-clés sont `hud: true`, 64 px minimum, placés en haut (y ≈ 230–330) ou en bas (y ≈ 1450–1550).
+- Les éléments qui racontent (téléphone, paquets, chiffre) sont assez grands pour être lus sur un téléphone : au moins 90 px de haut.
+
 ## Règles de réalisation (elles seront vérifiées)
 1. UN seul point focal à la fois. Pas d'image figée plus de 1,5 s : quelque chose bouge (caméra, apparition, pulse, particules).
 2. Chaque phrase de la voix off fait bouger quelque chose de signifiant. Les actions importantes tombent sur leur ancre (`S.t`), à ±150 ms.

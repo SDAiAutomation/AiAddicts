@@ -102,6 +102,23 @@ class TestStaticCheck(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(any("interdit" in e or "essai Chromium" in e for e in result["errors"]), result)
 
+    def test_strict_types_colors_and_unknown_props_fail_the_plan(self):
+        if not HAVE_PLAYWRIGHT:
+            self.skipTest("playwright non installé")
+        cases = {"dark": ("S.add('house',{dark:true})", "doit être un nombre"), "color": ("S.add('box',{color:'red'})", "couleur invalide"),
+                 "prop": ("S.add('box',{colour:'ink'})", "propriété inconnue"), "pid": ("S.add('person',{pid:'awa'})", "doit être un nombre")}
+        for name, (code, expected) in cases.items():
+            result = validate.validate_plan(code + ";S.sky('night')", "x", 4.0, {})
+            self.assertFalse(result["ok"], name)
+            self.assertTrue(any(expected in e for e in result["errors"]), (name, result["errors"]))
+
+    def test_nearly_empty_frame_is_rejected(self):
+        if not HAVE_PLAYWRIGHT:
+            self.skipTest("playwright non installé")
+        result = validate.validate_plan("S.sky('void');const t=S.add('text',{text:'OK',x:540,y:900,size:64});", "x", 4.0, {})
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("cadre presque vide" in e for e in result["errors"]), result["errors"])
+
     def test_too_long_code(self):
         self.assertTrue(validate.static_check("const a=1;\n" * 5000))
 

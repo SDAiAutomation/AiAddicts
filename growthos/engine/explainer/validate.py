@@ -25,6 +25,7 @@ from . import render
 MAX_CODE_CHARS = 14000
 FRAME_BUDGET_MS = 250
 TRIAL_TIMEOUT_S = 45
+MIN_COVERAGE = 0.07   # part minimale de l'image qui n'est pas le fond dominant
 ALLOWED_GLOBALS = {"S", "Math", "hash", "W", "H", "Number", "String", "undefined", "Infinity", "NaN"}
 ALLOWED_MATH = {"abs", "sin", "cos", "tan", "atan", "atan2", "PI", "pow", "min", "max", "floor", "ceil", "round", "sqrt", "exp", "log", "sign", "hypot", "trunc"}
 FORBIDDEN_PROPS = {"constructor", "__proto__", "prototype", "call", "apply", "bind", "eval", "Function", "caller", "callee",
@@ -169,6 +170,7 @@ def analyse_probe(report: dict) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+
 def sample_times(duration: float, anchors: dict[str, float]) -> list[float]:
     base = [0.05, duration * 0.25, duration * 0.5, duration * 0.75, duration - 0.1]
     around = [a + d for a in anchors.values() for d in (0.05, 0.6)]
@@ -180,6 +182,7 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
 
     errors: list[str] = []
     warnings: list[str] = []
+    coverages: list[tuple[float, float]] = []
     with tempfile.TemporaryDirectory() as tmp:
         timeline = Path(tmp) / "plan.timeline.js"
         timeline.write_text(module_js, encoding="utf-8")
@@ -198,6 +201,12 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
                         e, w = analyse_probe(report)
                         errors.extend(e)
                         warnings.extend(w)
+                        coverages.append((report["t"], report.get("coverage", 1.0)))
+                    errors.extend(f"erreur d'exécution : {m}" for m in await page.evaluate("window.__runtimeErrors || []"))
+                    sparse = [t for t, c in coverages if t > 0.3 and c < MIN_COVERAGE]
+                    if len(sparse) >= 2:
+                        errors.append("cadre presque vide aux instants " + ", ".join(f"{t:.1f}s" for t in sparse[:4])
+                                      + " : remplis l'écran (décor, éléments plus grands, caméra plus serrée)")
                     t_mid = duration * 0.4
                     first = await render.grab(page, t_mid, "png")
                     await render.grab(page, duration * 0.8, "png")
