@@ -22,6 +22,7 @@ Un seul objet JSON valide (dans un bloc ```json), sans rien d'autre. Les comment
       "lines": [0, 1],                  // indices des lignes de narration couvertes ; contigus, dans l'ordre, tous couverts
       "intent": "ce que le spectateur doit comprendre ou ressentir",
       "visual": "QUOI est à l'écran et QUELLE action tombe sur QUEL mot (cite les mots de la voix off)",
+      "layout": "scene" | "title" | "equation" | "bignumber" | "bars" | "linechart" | "bullets" | "compare" | "flow" | "segment" | "fibonacci",   // OBLIGATOIRE : voir règles
       "camera": "mouvement de caméra (ex. plan large puis zoom lent vers le téléphone)",
       "anchors": [ { "id": "send", "text": "Envoyer", "occurrence": 1 } ],   // mots EXACTS de la narration qui déclenchent les actions
       "transitionOut": "dip" | "cut",
@@ -32,6 +33,7 @@ Un seul objet JSON valide (dans un bloc ```json), sans rien d'autre. Les comment
 ```
 
 ## Règles
+- `layout` (obligatoire) : « scene » pour une scène vécue (personnage, lieu, appareil, trajet réel : l'animateur compose avec des éléments libres) ; un NOM DE GABARIT pour tout contenu abstrait : `equation` (calcul par étapes), `bignumber` (un chiffre qui évolue), `bars` (comparaison de quantités ou croissance), `linechart` (évolution, convergence), `bullets` (liste d'idées), `compare` (deux côtés face à face), `flow` (processus en étapes), `segment` (proportion), `fibonacci` (suite et pavage), `title` (carte titre ou accroche textuelle). Le validateur EXIGE que l'animateur instancie ce gabarit ; il peut y ajouter des éléments libres et une caméra. Choisis le gabarit qui sert l'idée du plan, et varie : pas le même gabarit sur plus de deux plans de suite.
 - 6 à 10 plans (maximum 12). Un plan = une idée visuelle ; la durée d'un plan est celle de ses lignes.
 - Premier plan : un hook visuel dès la première seconde (une situation qui intrigue, pas du texte). Dernier plan : une chute ou un récapitulatif net.
 - `anchors[].text` doit être UN mot (ou deux mots qui se suivent) qui existe tel quel dans les lignes du plan, avec la même graphie que la narration : si la narration écrit « deux fois quatre », l'ancre est « quatre », pas « 2 × 4 » ; si elle écrit « 2x », l'ancre est « 2x ». 2 à 5 ancres par plan, uniquement pour les actions qui doivent tomber sur un mot.

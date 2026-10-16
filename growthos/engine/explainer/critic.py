@@ -18,7 +18,7 @@ from . import llm, prompts, render
 THRESHOLD = 4.0
 MAX_ITERATIONS = 2
 SHEET_FRAMES = 6
-CELL = (360, 640)
+CELL = (420, 747)
 CRITERIA = ("hook", "continuite", "synchro", "lisibilite", "clarte", "rythme", "finition", "son", "justesse")
 
 
@@ -62,7 +62,7 @@ def build_sheets(timeline_js: str | Path, windows: list[dict], anchors: dict[str
             ImageDraw.Draw(cell).text((10, CELL[1] - 24), f"image {i + 1}  t = {t:.1f} s", fill=(255, 255, 255))
             sheet.paste(cell, ((i % 3) * CELL[0], (i // 3) * CELL[1]))
         path = out / f"sheet-{pid}.jpg"
-        sheet.save(path, quality=85)
+        sheet.save(path, quality=90)
         sheets[pid] = (path, times)
     return sheets
 

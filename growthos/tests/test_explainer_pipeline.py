@@ -327,5 +327,67 @@ class TestTemplates(unittest.TestCase):
             self.assertTrue(result["ok"], (name, result["errors"]))
 
 
+class TestLayout(unittest.TestCase):
+    def test_schema_accepts_scene_and_template_layouts_and_rejects_unknown(self):
+        sb = storyboard()
+        sb["plans"][0]["layout"] = "equation"
+        self.assertEqual(schema.validate_storyboard(sb, 4), [])
+        sb["plans"][0]["layout"] = "diaporama"
+        self.assertTrue(any("layout" in p for p in schema.validate_storyboard(sb, 4)))
+
+    def test_required_template_must_be_called(self):
+        code = "S.grid(true);S.template('equation',{lines:[{text:'x = 1',t:0}]});"
+        self.assertEqual(validate.static_check(code, ("equation",)), [])
+        self.assertTrue(any("layout" in e for e in validate.static_check("S.grid(true);", ("equation",))))
+        self.assertTrue(any("layout" in e for e in validate.static_check(code, ("bars",))))
+        self.assertEqual(validate.static_check("S.grid(true);", ()), [])
+
+    def test_brief_carries_the_layout_and_references_declare_theirs(self):
+        sb = storyboard()
+        sb["plans"][0]["layout"] = "flow"
+        brief = json.loads(animator.plan_brief(sb["plans"][0], 5.0, {}, "texte", "sujet", {}, {}))
+        self.assertEqual(brief["layout"], "flow")
+        self.assertEqual(animator.REFERENCES["equation-steps"]["layout"], "equation")
+        for name, spec in animator.REFERENCES.items():
+            code = Path(animator.PLANS_DIR, name + ".plan.js").read_text(encoding="utf-8")
+            self.assertEqual(validate.static_check(code, () if spec.get("layout", "scene") == "scene" else (spec["layout"],)), [], name)
+
+
+class TestTransientErrors(unittest.TestCase):
+    def test_network_cut_mid_stream_is_retried_then_reported_not_fatal(self):
+        class Boom(Exception):
+            pass
+        Boom.__module__ = "httpx2._exceptions"
+        calls = []
+
+        class Client:
+            class messages:
+                @staticmethod
+                def stream(**kw):
+                    calls.append(1)
+                    raise Boom("peer closed connection")
+
+        with mock.patch.object(llm, "client", lambda: Client()), mock.patch.object(llm.time, "sleep", lambda s: None):
+            with self.assertRaises(RuntimeError) as ctx:
+                llm.complete(llm.Spend(), "x", "claude-sonnet-5-5", "sys", "user")
+        self.assertEqual(len(calls), llm.STREAM_ATTEMPTS)
+        self.assertIn("réseau Claude indisponible", str(ctx.exception))
+
+    def test_non_transient_error_is_not_retried(self):
+        calls = []
+
+        class Client:
+            class messages:
+                @staticmethod
+                def stream(**kw):
+                    calls.append(1)
+                    raise ValueError("requête invalide")
+
+        with mock.patch.object(llm, "client", lambda: Client()):
+            with self.assertRaises(ValueError):
+                llm.complete(llm.Spend(), "x", "claude-sonnet-5-5", "sys", "user")
+        self.assertEqual(len(calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -259,3 +259,23 @@ Moyenne des critères évaluables ≈ 4,2 : **sous la barre de 4,5 demandée.** 
 **Correction avant fusion (même sujet, mêmes phrases, relancé)** : le premier essai montrait un rectangle vert sur plusieurs plans. Cause : l'animateur avait passé `dark: true` (booléen) à la maison, ce qui invalidait une couleur du canvas, qui gardait alors la précédente. Corrections : le runtime refuse les props inconnues, les types faux et les couleurs invalides (le plan échoue à la validation et l'animateur le corrige), contrôle de « cadre presque vide » (couverture), règles de composition et formule de placement d'un personnage dans une maison dans l'API, nouveau plan de référence `house-room`, narration sans durée inventée. Second essai : 8 plans, 0 repli, 3 corrections ciblées, **0,68 $**, rendu 194 s ; plus de rectangle vert, décors plein cadre, plus de textes superposés. Restent faibles à l'œil : le plan d'ouverture (deux maisons en diagonale, encore proche de l'« écran coupé en deux »), un grand disque noir sur le plan des ondes radio, du sol vide en bas de certains plans.
 
 **Pas encore fait** : les 4 autres sujets du banc, la moyenne ≥ 4 de la grille, la mesure de synchronisation (voix réelle après le 17).
+
+### 11 bis. Reprise qualité du 2026-10-16
+
+Constat après le premier banc (moyenne du critique ≈ 2,9 sur 5, décors sombres, textes petits, plans mal remplis) :
+- **Bug du runtime** : `box.r` était à la fois rotation et rayon des coins ; toute boîte sans `r` était tournée de 16 rad (panneaux inclinés, carrés à 45°). Renommé `box.corner` ; un test garde la régression et le chargement échoue si une prop d'élément masque une prop commune.
+- **Gabarits** (`runtime/templates.js`) : title, equation, bignumber, bars, linechart, bullets, compare, flow, segment, fibonacci. Le réalisateur fixe un `layout` par plan (`scene` ou un gabarit) et le validateur EXIGE l'appel `S.template(layout, ...)`.
+- **Validation du remplissage** : contraste local par bandes horizontales (cadre vide, contenu mal réparti, premier plan vide), seuils calibrés sur la vitrine validée à l'œil.
+- **Critique** : contrôle de vérité de la narration avant la réalisation (corrige les phrases fausses ou trompeuses quand aucune voix n'est enregistrée, chaque remplacement écrit au rapport) ; planche d'images clés plus lisible (420 px) avec rappel de l'échelle ; budget planifié (retouche + re-critique réservées plan par plan, plus aucune retouche non re-jugée).
+- **Robustesse** : reprises sur coupure réseau pendant le flux Claude (3 essais), une ancre introuvable n'arrête plus la réalisation, réparations du réalisateur au modèle courant (≈ 2x moins cher).
+
+Mesures (sans voix, timings estimés, tarifs estimés) :
+
+| Sujet | Plans | Replis | Coût LLM | Moyenne critique |
+|---|---|---|---|---|
+| Trajet d'un message (1er essai) | 8 | 0 | 0,56 $ (sans critique) | — |
+| Nombre d'or, avant correctifs | 9 | 0 | 1,24 $ | 2,97 |
+| Nombre d'or, après correctifs | 8 | 0 | 1,03 $ | 2,89 |
+| Équation 2x + 3 = 11, après correctifs | 9 | 0 | 1,10 $ | 3,17 |
+
+Lecture honnête : la qualité visuelle s'est nettement améliorée à l'œil (composition, remplissage, absence de glitchs), mais la note du critique ne dépasse pas 3,2 : les vidéos générées sont des infographies animées propres, pas encore des films d'illustration comme la vitrine écrite à la main. La boucle de retouche réussit environ une fois sur trois (les retouches échouent surtout parce que l'animateur abandonne le gabarit exigé ou dépasse sa limite de tokens) ; elle est maintenant bornée par le budget. Critère d'acceptation « moyenne ≥ 4 » : NON atteint.

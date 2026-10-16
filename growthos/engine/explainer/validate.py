@@ -82,8 +82,9 @@ def _declared(tree) -> set[str]:
     return names
 
 
-def static_check(code: str) -> list[str]:
-    """Liste des violations de la liste blanche (vide = conforme). `code` = corps de `build(S)`."""
+def static_check(code: str, required_templates: tuple[str, ...] = ()) -> list[str]:
+    """Liste des violations de la liste blanche (vide = conforme). `code` = corps de `build(S)`.
+    `required_templates` : gabarits que le plan DOIT instancier (`layout` du storyboard)."""
     if len(code) > MAX_CODE_CHARS:
         return [f"code trop long ({len(code)} caractères, maximum {MAX_CODE_CHARS})"]
     try:
@@ -123,6 +124,19 @@ def static_check(code: str) -> list[str]:
             errors.append(f"écrasement de {node.left.name} interdit")
 
     _walk(tree, visit)
+    if required_templates:
+        used: set[str] = set()
+
+        def collect(node, _parent):
+            if (node.type == "CallExpression" and node.callee.type == "MemberExpression" and not node.callee.computed
+                    and getattr(node.callee.object, "name", None) == "S" and node.callee.property.name == "template"
+                    and node.arguments and node.arguments[0].type == "Literal"):
+                used.add(str(node.arguments[0].value))
+
+        _walk(tree, collect)
+        for name in required_templates:
+            if name not in used:
+                errors.append(f"ce plan a le layout « {name} » : il doit appeler S.template('{name}', {{...}}) (utilisés : {sorted(used) or 'aucun'})")
     return sorted(set(errors))
 
 
@@ -238,9 +252,9 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
     return {"errors": sorted(set(errors)), "warnings": sorted(set(warnings))}
 
 
-def validate_plan(code: str, plan_id: str, duration: float, anchors: dict[str, float]) -> dict:
-    """{ok, stage, errors, warnings}. `stage` : 'static' ou 'trial' (où ça a échoué)."""
-    static = static_check(code)
+def validate_plan(code: str, plan_id: str, duration: float, anchors: dict[str, float], layout: str = "scene") -> dict:
+    """{ok, stage, errors, warnings}. `stage` : 'static' ou 'trial' (où ça a échoué). `layout` : gabarit exigé ('scene' = libre)."""
+    static = static_check(code, () if layout in ("scene", "", None) else (layout,))
     if static:
         return {"ok": False, "stage": "static", "errors": static, "warnings": []}
     result = asyncio.run(trial_async(plan_module(code, plan_id, duration, anchors), duration, anchors))

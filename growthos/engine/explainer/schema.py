@@ -10,6 +10,9 @@ import re
 STORYBOARD_VERSION = "explainer-storyboard:v1"
 TRUTH_MODES = ("fact", "inspired", "fiction")
 TRANSITIONS = ("dip", "cut")
+# `layout` d'un plan : "scene" (éléments libres : lieu, personnage, appareil, trajet) ou un gabarit du runtime (contenu abstrait).
+TEMPLATE_NAMES = ("title", "equation", "bignumber", "bars", "linechart", "bullets", "compare", "flow", "segment", "fibonacci")
+LAYOUTS = ("scene",) + TEMPLATE_NAMES
 MAX_PLANS = 12
 _ID = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
 
@@ -69,6 +72,8 @@ def validate_storyboard(sb: object, n_lines: int) -> list[str]:
             anchor_ids.add(anchor["id"])
             if not isinstance(anchor.get("occurrence", 1), int) or anchor.get("occurrence", 1) < 1:
                 errors.append(f"{a_tag}.occurrence doit être un entier >= 1")
+        if plan.get("layout", "scene") not in LAYOUTS:
+            errors.append(f"{tag}.layout doit être l'un de {LAYOUTS}")
         if plan.get("transitionOut", "dip") not in TRANSITIONS:
             errors.append(f"{tag}.transitionOut doit être l'un de {TRANSITIONS}")
         for k, claim in enumerate(plan.get("claims", []) or []):

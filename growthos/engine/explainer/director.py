@@ -28,16 +28,19 @@ def anchor_problems(storyboard: dict, narration: list[tuple[float, str]], words:
 def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], words: list[dict], total: float) -> dict:
     system = prompts.load("director")
     user = narration_brief(topic, narration)
-    last_text, problems = "", []
+    last_text, problems, history = "", [], []
     for attempt in range(MAX_REPAIRS + 1):
         prompt = user if not problems else (
             user + "\nTa proposition précédente :\n```json\n" + last_text + "\n```\nElle a ces problèmes, corrige exactement ceux-là et renvoie le storyboard complet :\n- "
             + "\n- ".join(problems))
-        text = llm.complete(spend, f"director#{attempt + 1}", llm.DIRECTOR_MODEL, system, prompt, max_tokens=12000, effort="medium")
+        # 1re passe : le modèle fort ; corrections (mécaniques : ancres, structure) : le modèle courant, ~2x moins cher
+        model = llm.DIRECTOR_MODEL if attempt == 0 else llm.ANIMATOR_MODEL
+        text = llm.complete(spend, f"director#{attempt + 1}", model, system, prompt, max_tokens=9000, effort="medium")
         try:
             storyboard = llm.extract_json(text)
         except (ValueError, json.JSONDecodeError) as exc:
             problems, last_text = [f"JSON invalide : {exc}"], text[:6000]
+            history.append({"attempt": attempt + 1, "problems": problems})
             continue
         problems = schema.validate_storyboard(storyboard, len(narration))
         if not problems:
@@ -45,8 +48,9 @@ def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], wor
             if problems and attempt == MAX_REPAIRS:
                 # Jamais bloquant : une ancre introuvable tombe sur le début de la 1re ligne du plan
                 # (timeline.resolve_anchors) et reste écrite au rapport (`unresolvedAnchors`).
-                return {"storyboard": storyboard, "attempts": attempt + 1, "anchorWarnings": problems}
+                return {"storyboard": storyboard, "attempts": attempt + 1, "anchorWarnings": problems, "history": history}
         if not problems:
-            return {"storyboard": storyboard, "attempts": attempt + 1}
+            return {"storyboard": storyboard, "attempts": attempt + 1, "history": history}
+        history.append({"attempt": attempt + 1, "problems": problems[:6]})
         last_text = json.dumps(storyboard, ensure_ascii=False)
     raise RuntimeError("le réalisateur n'a pas produit de storyboard valide : " + " | ".join(problems[:5]))

@@ -34,7 +34,9 @@ reg('equation',(S,p)=>{need(p,'lines','array');
 
 /* Gros nombre animé : {from, to, t0, t1, prefix?, suffix?, decimals=0, label?, labelT?, color='ink'} */
 reg('bignumber',(S,p)=>{need(p,'to','number');
-  const from=p.from??0,txt=String(Math.round(Math.max(Math.abs(from),Math.abs(p.to)))),size=clampI(1000/((txt.length+(p.suffix||'').length+(p.prefix||'').length+1)*0.62),120,260);
+  const from=p.from??0,dec=p.decimals||0,ints=String(Math.floor(Math.max(Math.abs(from),Math.abs(p.to)))).length,
+    chars=ints+Math.floor((ints-1)/3)+(dec?dec+1:0)+(p.suffix||'').length+(p.prefix||'').length+(Math.min(from,p.to)<0?1:0),
+    size=clampI(900/(chars*0.64),70,260);   // le texte réel (séparateurs et décimales compris) tient dans 900 px
   const c=S.add('counter',{x:540,y:p.y??800,value:from,size,color:p.color||'ink',glow:22,prefix:p.prefix||'',suffix:p.suffix||'',decimals:p.decimals||0});
   c.to(p.t0??0,p.t1??((p.t0??0)+2),{value:p.to},'io');   // visible dès la première image (valeur de départ)
   S.add('particles',{x:540,y:960,n:60,seed:9,w:1080,h:1920,speed:16,diry:-1,size:3.5,color:'primary',alpha:0.4,layer:-2});

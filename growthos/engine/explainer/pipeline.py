@@ -21,6 +21,7 @@ from . import RUNTIME_VERSION, animator, critic, director, fallback, llm, prompt
 
 FPS = 30
 DIP = 0.3
+ITERATION_COST_USD = 0.075   # retouche d'un plan (~0,04 $) + nouvelle critique (~0,02 $) + marge
 
 
 def write_script(spend: llm.Spend, topic: str) -> dict:
@@ -66,13 +67,17 @@ def refine(spend, storyboard, windows, anchors, codes, narration, total, topic, 
     best = critique(ids, "v0") if ids else {}
     history = {pid: [{"iteration": 0, "average": c["average"], "scores": c["scores"]}] for pid, c in best.items()}
     for iteration in range(1, critic.MAX_ITERATIONS + 1):
-        weak = [pid for pid, c in best.items() if critic.needs_work(c)]
-        if not weak or spend.total_usd >= spend.limit_usd * 0.85:
+        weak = sorted((pid for pid, c in best.items() if critic.needs_work(c)), key=lambda pid: best[pid]["average"] or 0)
+        # Une retouche n'a de sens que si on peut aussi la re-juger : on réserve retouche + critique par plan,
+        # en commençant par les plans les plus faibles.
+        affordable = int((spend.limit_usd - spend.total_usd - 0.05) / ITERATION_COST_USD)
+        if not weak or affordable < 1:
             break
-        log(f"       itération {iteration} : {len(weak)} plan(s) à retravailler ({', '.join(weak)})")
+        weak = weak[:affordable]
+        log(f"       itération {iteration} : {len(weak)} plan(s) à retravailler ({', '.join(weak)}), budget restant {spend.limit_usd - spend.total_usd:.2f} $")
         with ThreadPoolExecutor(max_workers=3) as pool:
             futures = {pid: pool.submit(animator.improve_plan, spend, system, briefs[pid]["brief"], codes[pid], critic.issues_text(best[pid]),
-                                        pid, briefs[pid]["duration"], briefs[pid]["anchors"]) for pid in weak}
+                                        pid, briefs[pid]["duration"], briefs[pid]["anchors"], briefs[pid].get("layout", "scene")) for pid in weak}
             candidates = {pid: f.result() for pid, f in futures.items()}
         changed = [pid for pid, c in candidates.items() if c["ok"] and c["code"] != codes[pid]]
         for pid in weak:
@@ -152,6 +157,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     storyboard = directed["storyboard"]
     report["storyboard"], report["directorAttempts"] = storyboard, directed["attempts"]
     report["anchorWarnings"] = directed.get("anchorWarnings", [])
+    report["directorHistory"] = directed.get("history", [])
     (out / "storyboard.json").write_text(json.dumps(storyboard, ensure_ascii=False, indent=1), encoding="utf-8")
     step("director")
 
@@ -162,7 +168,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
         unresolved += missing
         text = " ".join(narration[i][1] for i in plan["lines"])
         brief = animator.plan_brief(plan, win["duration"], anchors[plan["id"]], text, topic, storyboard.get("bible", {}), storyboard.get("world", {}))
-        jobs.append({"brief": brief, "plan_id": plan["id"], "duration": win["duration"], "anchors": anchors[plan["id"]]})
+        jobs.append({"brief": brief, "plan_id": plan["id"], "duration": win["duration"], "anchors": anchors[plan["id"]], "layout": plan.get("layout", "scene")})
     report["unresolvedAnchors"] = unresolved
 
     log(f"[3/5] Animation de {len(jobs)} plans…")
