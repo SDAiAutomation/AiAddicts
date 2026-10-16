@@ -307,6 +307,8 @@ TEMPLATE_CASES = {
     "room-send": "S.template('room',{place:'dakar',who:'awa',tag:'DAKAR',contact:'Lea',message:'On mange ce soir ?',sendAt:4,zoomPhone:{t0:5.2,t1:6.8}});",
     "room-receive": "S.template('room',{place:'paris',who:'lea',tag:'PARIS',contact:'Awa',message:'On mange ce soir ?',receiveAt:1,reply:'Oui, 20h !',replyFrom:4.2,replyAt:6.4,smileAt:5});",
     "journey": "S.template('journey',{});",
+    "equation-guide": "S.grid(true);S.template('equation',{lines:[{text:'2x + 3 = 11',t:0},{text:'2x = 8',t:2.5},{text:'x = 4',t:4.5}]});S.template('guide',{who:'awa',side:'left',size:0.8,poses:[{t:0,pose:'wave'},{t:2.5,pose:'point'},{t:4.5,pose:'cheer'}],say:[{t:0.3,text:'Salut !',until:1.6}]});",
+    "guide-title": "S.sky('night');S.template('title',{text:'Bravo !',sub:'tu as compris'});S.template('guide',{who:'sam',side:'left',size:1.0,y:1650,poses:[{t:0,pose:'cheer'}]});S.template('guide',{who:'malik',side:'right',size:1.0,y:1650,poses:[{t:0,pose:'wave'}]});",
 }
 
 
@@ -314,8 +316,8 @@ TEMPLATE_CASES = {
 class TestTemplates(unittest.TestCase):
     def test_every_template_passes_the_validator(self):
         for name, code in TEMPLATE_CASES.items():
-            dur = 22.0 if name == "journey" else 8.0 if name.startswith("room") else 7.0
-            result = validate.validate_plan(code, "t_" + name.replace("-", "_"), dur, {}, name.split("-")[0] if name.split("-")[0] in ("room", "journey") else "scene")
+            dur = 22.0 if name == "journey" else 8.0 if name.startswith(("room", "equation-guide")) else 7.0
+            result = validate.validate_plan(code, "t_" + name.replace("-", "_"), dur, {}, name.split("-")[0] if name.split("-")[0] in ("room", "journey") else "equation" if name == "equation-guide" else "scene")
             self.assertTrue(result["ok"], (name, result["errors"]))
 
     def test_unknown_template_and_missing_param_fail_the_plan(self):
