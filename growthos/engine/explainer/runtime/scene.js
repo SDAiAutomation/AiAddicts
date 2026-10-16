@@ -26,7 +26,7 @@ const DEFAULTS={
   bubble:{text:'',color:'accent',tc:'dark',size:40},
   phone:{contact:'Awa',avatar:'primary',input:'',press:0,bubbles:[]},
   miniphone:{label:'',glow:0},
-  person:{pose:'sitPhone',skin:'#9a6240',hair:'#150e0c',style:'short',top:'#ff8a5b',pants:'#222a55',flip:false,typing:false,glow:0,pid:1},
+  person:{pose:'sitPhone',skin:'#9a6240',hair:'#150e0c',style:'short',top:'#ff8a5b',pants:'#222a55',flip:false,typing:false,glow:0,pid:1,ui:null,fly:0,press:0,thumbA:1},
   house:{palette:'dakar',flip:false,dark:0.25},
   tower:{h:470,act:0},
   city:{count:12,seed:1,far:false,minH:140,varH:280},
@@ -78,6 +78,7 @@ function makeHandle(S,kind,props){
   h.hide=(t,dur=0.3)=>h.to(t,t+dur,{a:0},'inn');
   h.pulse=(t,amount=0.18,dur=0.35)=>{const s=val('s',t);h.to(t,t+dur*0.4,{s:s*(1+amount)},'out');h.to(t+dur*0.4,t+dur,{s},'io');return h};
   h.follow=(points,t0,t1,ease='io')=>{const q=EASE[ease]||io;h.pathFollow={points,t0,t1,q};return h};
+  h.followKeys=(points,keys)=>{h.pathKeys={points,keys};return h};
   S.items.push(h);return h;
 }
 
@@ -103,7 +104,13 @@ const DRAW={
   bubble(p){const w=measure(p.text,p.size,600)+p.size*1.9,h=p.size*2.5;ctx.fillStyle=col(p.color);rr(-w/2,-h/2,w,h,h*0.4);ctx.fill();T(p.text,0,2,{size:p.size,weight:600,color:col(p.tc)})},
   phone(p){phone(0,0,{contact:p.contact,avatar:col(p.avatar),input:p.input,press:p.press,bubbles:(p.bubbles||[]).map(b=>({...b,col:col(b.col||'chip'),tc:col(b.tc||'ink')}))})},
   miniphone(p){miniPhone(0,0,p.label,p.glow)},
-  person(p,t){person(0,0,{s:1,skin:col(p.skin),hair:col(p.hair),style:p.style,top:col(p.top),pants:col(p.pants),pose:p.pose,flip:p.flip,typing:p.typing,glow:p.glow,id:p.pid,t})},
+  person(p,t){
+    let phoneUI=null;const u=p.ui;
+    if(u){const bubbles=(u.bubbles||[]).map(b=>({...b,col:col(b.col||'chip'),tc:col(b.tc||'ink')}));
+      if(u.flyText&&p.fly>0&&p.fly<1){const f=out(p.fly);bubbles.push({edge:lerp(150,244,f),y:lerp(442,(u.flyY??-110),f),text:u.flyText,side:'right',col:col('accent'),s:lerp(0.6,1,f)})}
+      phoneUI={contact:u.contact||'',avatar:col(u.avatar||'primary'),input:u.input||'',press:p.press,bubbles,
+        after:u.sent?()=>T('Envoyé ✓',244,(u.sentY??-110)+72,{size:24,weight:500,color:C.dim,align:'right'}):undefined}}
+    person(0,0,{s:1,skin:col(p.skin),hair:col(p.hair),style:p.style,top:col(p.top),pants:col(p.pants),pose:p.pose,flip:p.flip,typing:p.typing,glow:p.glow,id:p.pid,t,thumbA:p.thumbA,phoneUI})},
   house(p,t){house(0,0,{palette:p.palette,flip:p.flip,dark:p.dark,t})},
   tower(p,t){tower(0,0,p.h,{t,act:p.act})},
   city(p){city(0,0,p.count,{seed:p.seed,far:p.far,minH:p.minH,varH:p.varH})},
@@ -147,7 +154,8 @@ function makeScene(plan){
   S.fade=(t0,t1,color='bg',dir='in')=>{S.fades.push({t0,t1,color,dir})};
   return S;
 }
-function posOf(h,t){const p=h.props(t);if(h.pathFollow){const f=h.pathFollow,q=f.q(clamp((t-f.t0)/(f.t1-f.t0)));const [x,y]=polyPos(f.points,q);p.x=x;p.y=y}return p}
+function pathFrac(keys,t){if(t<=keys[0][0])return keys[0][1];for(let i=1;i<keys.length;i++){const [t1,f1]=keys[i],[t0,f0]=keys[i-1];if(t<=t1)return lerp(f0,f1,clamp((t-t0)/(t1-t0||1e-6)))}return keys[keys.length-1][1]}
+function posOf(h,t){const p=h.props(t);if(h.pathKeys){const k=h.pathKeys,[x,y]=polyPos(k.points,clamp(pathFrac(k.keys,t)));p.x=x;p.y=y}if(h.pathFollow){const f=h.pathFollow,q=f.q(clamp((t-f.t0)/(f.t1-f.t0)));const [x,y]=polyPos(f.points,q);p.x=x;p.y=y}return p}
 function drawScene(S,t){
   const cam=S.cam.at(t),sk=SKY[S.skyKind];
   screen();
@@ -183,5 +191,6 @@ function define(spec){
     if(dIn>0)overlay(col(tr.color||'bg'),1-seg(lt,0,dIn));if(dOut>0)overlay(col(tr.color||'bg'),seg(lt,cur.P.duration-dOut,cur.P.duration));
     screen();const v=ctx.createRadialGradient(W/2,H/2,H*0.32,W/2,H/2,H*0.78);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,0.34)');ctx.fillStyle=v;ctx.fillRect(0,0,W,H)};
 }
-return {define,EASE,TOKEN,DEFAULTS,TEMPLATES,registerTemplate:(name,fn)=>{TEMPLATES[name]=fn}};
+const registerKind=(name,defaults,fn)=>{for(const c in COMMON)if(c in defaults)throw new Error('registerKind '+name+' : '+c+' masque une propriete commune');DEFAULTS[name]=defaults;DRAW[name]=fn};
+return {define,EASE,TOKEN,DEFAULTS,TEMPLATES,registerTemplate:(name,fn)=>{TEMPLATES[name]=fn},registerKind,col};
 })();

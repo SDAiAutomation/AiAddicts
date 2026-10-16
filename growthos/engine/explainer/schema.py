@@ -11,7 +11,7 @@ STORYBOARD_VERSION = "explainer-storyboard:v1"
 TRUTH_MODES = ("fact", "inspired", "fiction")
 TRANSITIONS = ("dip", "cut")
 # `layout` d'un plan : "scene" (éléments libres : lieu, personnage, appareil, trajet) ou un gabarit du runtime (contenu abstrait).
-TEMPLATE_NAMES = ("title", "equation", "bignumber", "bars", "linechart", "bullets", "compare", "flow", "segment", "fibonacci")
+TEMPLATE_NAMES = ("title", "equation", "bignumber", "bars", "linechart", "bullets", "compare", "flow", "segment", "fibonacci", "room", "journey")
 LAYOUTS = ("scene",) + TEMPLATE_NAMES
 MAX_PLANS = 12
 _ID = re.compile(r"^[a-z][a-z0-9_]{0,23}$")

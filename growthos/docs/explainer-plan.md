@@ -279,3 +279,14 @@ Mesures (sans voix, timings estimés, tarifs estimés) :
 | Équation 2x + 3 = 11, après correctifs | 9 | 0 | 1,10 $ | 3,17 |
 
 Lecture honnête : la qualité visuelle s'est nettement améliorée à l'œil (composition, remplissage, absence de glitchs), mais la note du critique ne dépasse pas 3,2 : les vidéos générées sont des infographies animées propres, pas encore des films d'illustration comme la vitrine écrite à la main. La boucle de retouche réussit environ une fois sur trois (les retouches échouent surtout parce que l'animateur abandonne le gabarit exigé ou dépasse sa limite de tokens) ; elle est maintenant bornée par le budget. Critère d'acceptation « moyenne ≥ 4 » : NON atteint.
+
+## 12. Bibliothèque de scènes types (2026-10-16)
+
+Décision (utilisateur + moi) : le niveau « film » de la vitrine ne vient pas d'un modèle plus fort mais de pièces illustrées écrites une fois, que l'IA choisit et règle. Première livraison, extraite de la vitrine Dakar → Paris (`runtime/scenes.js`) :
+- `room` : personne chez elle (maison en coupe de nuit, Dakar ou Paris), tape et envoie un message, le reçoit (trois morceaux par la fenêtre, déchiffrement), répond, sourit, plongée caméra dans l'écran du téléphone ; quatre personnages prédéfinis (awa, lea, malik, sam).
+- `journey` : trajet complet d'un message (antenne, câble sous-marin, faune, data center, antenne d'arrivée), trois paquets lumineux, légendes, caméra intégrée.
+- Moteur : `person` pilote l'interface du téléphone (`ui`, `fly`, `press`), `h.followKeys` (chemin à paliers), `Faceloop.registerKind` (éléments fournis par un module).
+- `layout` du storyboard étendu (`room`, `journey`), le réalisateur les préfère pour les histoires de messagerie ; 2 plans de référence ; 46 tests.
+
+Mesure (sujet « trajet d'un message », mêmes phrases que le 1er essai, sans voix) : 9 plans (2 `room`, 1 `journey`), 1 repli, 1,01 $ de LLM, moyenne du critique **3,09** (meilleure du banc sur ce sujet). Les plans `room` et `journey` reprennent l'esthétique de la vitrine ; le repli et les plans de scène libre restent plus faibles.
+Suite prévue : plus de scènes types (autres lieux, personnages, poses), voix off le 17 (ElevenLabs), essai « premium » (agent itérant sur de vraies images) plus tard.

@@ -304,6 +304,9 @@ TEMPLATE_CASES = {
     "flow": "S.grid(true);S.template('flow',{nodes:[{label:'Telephone',t:0.4},{label:'Antenne',t:1.4},{label:'Cable',t:2.4},{label:'Data center',t:3.4},{label:'Ton ami',t:4.4}]});",
     "segment": "S.grid(true);S.template('segment',{tCut:1.5});S.cam.to(0,S.dur,{x:540,y:960,z:1.1});",
     "fibonacci": "S.grid(true);S.template('fibonacci',{t0:0.2,t1:5,n:8});S.cam.to(0,S.dur,{x:540,y:960,z:1.1});",
+    "room-send": "S.template('room',{place:'dakar',who:'awa',tag:'DAKAR',contact:'Lea',message:'On mange ce soir ?',sendAt:4,zoomPhone:{t0:5.2,t1:6.8}});",
+    "room-receive": "S.template('room',{place:'paris',who:'lea',tag:'PARIS',contact:'Awa',message:'On mange ce soir ?',receiveAt:1,reply:'Oui, 20h !',replyFrom:4.2,replyAt:6.4,smileAt:5});",
+    "journey": "S.template('journey',{});",
 }
 
 
@@ -311,7 +314,8 @@ TEMPLATE_CASES = {
 class TestTemplates(unittest.TestCase):
     def test_every_template_passes_the_validator(self):
         for name, code in TEMPLATE_CASES.items():
-            result = validate.validate_plan(code, "t_" + name, 7.0, {})
+            dur = 22.0 if name == "journey" else 8.0 if name.startswith("room") else 7.0
+            result = validate.validate_plan(code, "t_" + name.replace("-", "_"), dur, {}, name.split("-")[0] if name.split("-")[0] in ("room", "journey") else "scene")
             self.assertTrue(result["ok"], (name, result["errors"]))
 
     def test_unknown_template_and_missing_param_fail_the_plan(self):
