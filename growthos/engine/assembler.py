@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
-    math_narration, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
+    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
     script as script_module, shot_planning, storage, tts, versions, video, visuals, voices,
 )
 
@@ -850,6 +850,9 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     data.setdefault("organization", script_module.DEFAULT_ORGANIZATION)
     data.setdefault("language", "fr")
     data.setdefault("content_goal", "reach")
+
+    # Modération avant la réservation du crédit : un contenu refusé ne coûte rien.
+    moderation.check_script(data)
 
     # Réservation atomique après validation, mais avant le premier appel
     # payant. Une simple lecture laisserait deux workers consommer le dernier
