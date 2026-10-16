@@ -14,6 +14,25 @@ const CIPH='x9#Fq@7%kL2!vR8&Zt';
 const cipherOf=n=>{let s='';while(s.length<n)s+=CIPH;return s.slice(0,n)};
 const enter=(h,t,how='up',dur=0.45)=>{if((t??0)<=0.05)return h;return h.appear(t,dur,how)};
 
+/* ---- le guide : un personnage debout, en bas d'un coin, qui réagit à ce que dit la voix (salue, montre, réfléchit, applaudit) ---- */
+/* À ajouter À CÔTÉ d'un autre gabarit (equation, bars, bullets...) : il donne de la vie aux infographies.
+   params : {who:'awa'|'lea'|'malik'|'sam'|{...}, side:'left'|'right', size?:0.7-1.1, y?, t?, poses:[{t, pose}], say:[{t, text, until?}]}
+   poses : stand | wave | point | think | cheer. Garde-le petit (size <= 0.9) pour ne pas couvrir le contenu. */
+F.registerKind('guide',{pose:'stand',skin:'#9a6240',hair:'#150e0c',style:'short',top:'#ff8a5b',pants:'#222a55',flip:false,pid:1,bubble:''},(p,t)=>{
+  personStand(0,0,{s:1,skin:F.col(p.skin),hair:F.col(p.hair),style:p.style,top:F.col(p.top),pants:F.col(p.pants),t,flip:p.flip,id:p.pid,pose:p.pose});
+  if(p.bubble){const size=36,w=Math.min(520,measure(p.bubble,size,700)+56),h=size*2.1,d=p.flip?-1:1,bx=d*(w/2+10),by=-405;
+    ctx.fillStyle=F.col('white');rr(bx-w/2,by-h/2,w,h,h*0.42);ctx.fill();
+    ctx.beginPath();ctx.moveTo(d*10,by+h/2-2);ctx.lineTo(d*34,by+h/2-2);ctx.lineTo(d*16,by+h/2+24);ctx.fill();
+    T(p.bubble,bx,by+2,{size,weight:700,color:F.col('dark'),maxW:w-40})}
+});
+reg('guide',(S,p)=>{
+  const who=typeof p.who==='object'?Object.assign({},PRESETS.awa,p.who):Object.assign({},PRESETS[p.who||'awa']||PRESETS.awa);
+  const right=p.side==='right',size=p.size??0.9,g=S.add('guide',{x:right?900:180,y:p.y??1620,s:1.25*size,flip:right,...who,pose:(p.poses&&p.poses[0]&&p.poses[0].pose)||'stand'});
+  enter(g,p.t??0,'up');
+  (p.poses||[]).forEach(({t,pose})=>{if(t>0)g.set(t,{pose})});
+  (p.say||[]).forEach(({t,text,until})=>{g.set(t,{bubble:String(text)});g.set(until??t+2.6,{bubble:''})});
+  return [g]});
+
 /* ---- la pièce : une personne chez elle avec son téléphone (envoyer / recevoir / répondre / sourire) --------------------- */
 /* params : {place:'dakar'|'paris', who:'awa'|'lea'|'malik'|'sam'|{...props person}, tag?, contact?, message?,
              typeFrom?, sendAt?, previous?, receiveAt?, reply?, replyFrom?, replyAt?, smileAt?, zoomPhone?:{t0,t1}, zoomOut?:{t0,t1}} */
