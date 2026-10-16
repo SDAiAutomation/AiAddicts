@@ -26,7 +26,7 @@ HERE = Path(__file__).resolve().parent
 RUNTIME_DIR = HERE / "runtime"
 FONTS_DIR = HERE.parents[1] / "assets" / "fonts"
 # Ordre de chargement : les scripts classiques partagent la portée globale (core avant les kits).
-RUNTIME_FILES = ("core.js", "kit-tech.js", "kit-world.js", "scene.js", "templates.js", "audio.js", "probe.js")
+RUNTIME_FILES = ("core.js", "kit-tech.js", "kit-world.js", "scene.js", "templates.js", "scenes.js", "audio.js", "probe.js")
 WIDTH, HEIGHT = 1080, 1920
 JPEG_QUALITY = 0.95
 FONT_WEIGHTS = {"Bricolage Grotesque": ("500", "600", "700", "800"), "JetBrains Mono": ("500", "700")}
