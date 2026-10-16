@@ -67,6 +67,7 @@ class WorkerMotionTests(unittest.TestCase):
         stub("engine.assembler.repo.mark_generation_completed")
         stub("engine.assembler.events.organization_id_of", return_value="organization")
         events = stub("engine.assembler.events.record")
+        stub("engine.assembler.moderation.check_script")
         stub("engine.assembler.asset_store.configure")
         stub("engine.assembler.asset_store.stats", return_value={})
         stub("engine.assembler.asset_store.finish")
