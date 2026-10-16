@@ -4,3 +4,5 @@
 #   python -m playwright install chromium                 (Windows/macOS, local)
 # Sans lui, les tests Explainer sont ignorés et le style n'est pas proposé au worker.
 playwright==1.64.0
+anthropic==1.15.0
+esprima==4.0.1

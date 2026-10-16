@@ -33,7 +33,7 @@ function T(s,x,y,o={}){
   if(glow){ctx.shadowColor=color;ctx.shadowBlur=glow}
   ctx.fillText(s,x,y);ctx.restore();
 }
-function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,Math.min(r,h/2,w/2));else ctx.rect(x,y,w,h)}
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,Math.max(0,Math.min(r,Math.abs(h)/2,Math.abs(w)/2)));else ctx.rect(x,y,w,h)}
 function measure(s,size,weight=700,fam=DISP){ctx.save();ctx.font=`${weight} ${size}px ${fam}`;const w=ctx.measureText(s).width;ctx.restore();return w}
 function background(cam){
   screen();ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
