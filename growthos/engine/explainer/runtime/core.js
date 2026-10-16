@@ -22,6 +22,8 @@ function kf(t,keys,def=io){
   return keys[keys.length-1][1];
 }
 const camera=c=>ctx.setTransform(c.z,0,0,c.z,W/2-c.x*c.z,H/2-c.y*c.z);
+/* Camera avec rotation (r en radians) : rotation autour du centre de l'ecran, puis zoom, puis recentrage. */
+const cameraR=c=>{ctx.setTransform(1,0,0,1,0,0);ctx.translate(W/2,H/2);ctx.rotate(c.r||0);ctx.scale(c.z,c.z);ctx.translate(-c.x,-c.y)};
 const screen=()=>ctx.setTransform(1,0,0,1,0,0);
 function T(s,x,y,o={}){
   const {size=40,weight=700,fam=DISP,color=C.ink,alpha=1,align='center',base='middle',ls=0,glow=0}=o;
@@ -31,7 +33,7 @@ function T(s,x,y,o={}){
   if(glow){ctx.shadowColor=color;ctx.shadowBlur=glow}
   ctx.fillText(s,x,y);ctx.restore();
 }
-function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,Math.min(r,h/2,w/2));else ctx.rect(x,y,w,h)}
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,Math.max(0,Math.min(r,Math.abs(h)/2,Math.abs(w)/2)));else ctx.rect(x,y,w,h)}
 function measure(s,size,weight=700,fam=DISP){ctx.save();ctx.font=`${weight} ${size}px ${fam}`;const w=ctx.measureText(s).width;ctx.restore();return w}
 function background(cam){
   screen();ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);

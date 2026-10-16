@@ -51,7 +51,7 @@ jobs:
           echo "chromium_install_seconds=$(( $(date +%s) - start )) (cache: ${{ steps.chromium-cache.outputs.cache-hit }})" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Tests Explainer
-        run: python -m unittest tests.test_explainer_render -v
+        run: python -m unittest tests.test_explainer_render tests.test_explainer_voiceover tests.test_explainer_pipeline -v
 
       - name: Rendre la vidéo de référence (durée mesurée)
         run: |

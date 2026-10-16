@@ -222,3 +222,71 @@ Détail de la 2e ligne : réalisateur 0,16 € ; animateur ≈ 0,60 € (8 plans
 4. **Rien n'est acquis avant mesure** : les tokens de réflexion adaptative et le nombre réel d'itérations sont inconnus. La phase 3 mesure le coût réel sur le banc de 5 sujets ; si le typique dépasse 1,00 €, on baisse l'effort, on réduit la critique à une planche par vidéo, ou on passe le prix à 3 crédits.
 
 Le prix en crédits est une décision produit à valider avant la phase 6 ; les phases 1 à 5 n'en dépendent pas.
+
+## 10. Phase 2 — kit d'illustration et vidéo vitrine (état)
+
+**Fait** (branche `explainer/phase-2`)
+- `runtime/kit-world.js` : personnages (pose assise, téléphone, sourire, clignement, 4 coiffures), maison en coupe (palettes Dakar et Paris, fenêtre avec baobab ou tour Eiffel), ville de nuit, tour d'antenne, océan en coupe avec rayons de lumière, fond marin, câble sous-marin lumineux, poissons, baleine, bateaux, station côtière, data center (baies, LED).
+- `runtime/kit-tech.js` : `scramble`, `stageHud` ; `runtime/core.js` : `cameraR` (caméra avec rotation, pour le raccord zoom-through).
+- `reference/showcase-dakar-paris.timeline.js` : vidéo vitrine de 60 s, écrite à la main (maison de Dakar, zoom dans l'écran, cinq étapes dans le téléphone, antenne, câble sous-marin, data center, appartement à Paris, réponse, récapitulatif).
+- Tests : aucune erreur JS sur 121 instants, déterminisme entre scènes, narration et SFX dans la durée.
+- Rendu mesuré en local (Windows) : 60 s, 1 800 images, 165 s.
+
+**Auto-évaluation sur la grille de la section 6 (mon estimation, à contredire par ton regard)**
+
+| Critère | Note | Remarque |
+|---|---|---|
+| Hook | 4 | pièce chaleureuse, téléphone qui s'allume, « DAKAR » ; pas de texte nécessaire |
+| Continuité | 4,5 | zoom-through maison → écran, un seul monde Dakar → océan → Paris ; trois fondus au noir courts |
+| Synchronisation | non évaluable | narration calée à la main, pas de voix réelle ; mesure en phase 3 |
+| Lisibilité | 4 | bulles du téléphone lisibles ; les étiquettes du bas (36 px) sont sous les 64 px demandés pour les mots-clés |
+| Clarté pédagogique | 4,5 | cinq étapes + réassemblage à l'arrivée ; sans le son, l'idée se comprend |
+| Rythme | 4 | à vérifier à l'œil sur la vidéo entière |
+| Finition | 4 | style plat cohérent ; les personnages restent simples (une pose assise) |
+| Son | non évalué | bruitages synthétisés non écoutés par moi (aucune sortie audio) ; volume : crête −3,6 dB |
+| Justesse | 4,5 | aucun chiffre, seulement des mécanismes généraux |
+
+Moyenne des critères évaluables ≈ 4,2 : **sous la barre de 4,5 demandée.** L'acceptation de la phase 2 attend donc ton avis visuel et les retouches qui en découlent.
+
+## 11. Phase 3 — réalisateur, animateur, validation, repli (état)
+
+**Fait** (branche `explainer/phase-3`)
+- `runtime/scene.js` : graphe de scène déclaratif (30+ éléments, `h.to/set/appear/follow`, caméra, SFX) : l'animateur n'écrit jamais sur le canvas. API décrite dans `prompts/runtime-api.md`.
+- `director.py` (Opus 5.5) → storyboard validé par `schema.py` + ancres vérifiées dans la narration ; `animator.py` (Sonnet 5.5, prompt système mis en cache, 4 plans de référence, plans animés en parallèle, 2 corrections max, on garde la meilleure version) ; `validate.py` : liste blanche AST (esprima) + essai Chromium (erreurs, budget par image, texte coupé/chevauchant/zones d'interface, déterminisme) ; `Function.prototype.constructor` neutralisé dans la page ; `fallback.py` : scène Pillow `motion_graphics` pour un plan qui échoue, écrite au rapport ; `pipeline.py` : `explainer.report.json` (modèles, tokens, coût estimé par étape, itérations, replis, versions de prompts, de runtime et de Chromium).
+- 31 tests Explainer (dont un pipeline complet avec LLM simulé, repli Pillow compris).
+
+**Premier essai réel — sujet « le trajet d'un message »** (sans voix : timings estimés) : 8 plans, 0 repli, 3 corrections d'animateur au total, coût LLM **0,56 $** (plafond 1,20 $), rendu 168 s pour 79 s de vidéo. Limites constatées à l'œil : plusieurs plans ont des compositions faibles (décors coupés, zones vides, un grand rectangle vert), et la narration générée contient une affirmation à vérifier (« trois secondes plus tard ») : le contrôle de vérité sur la narration relève de la phase 4 (critique).
+**Correction avant fusion (même sujet, mêmes phrases, relancé)** : le premier essai montrait un rectangle vert sur plusieurs plans. Cause : l'animateur avait passé `dark: true` (booléen) à la maison, ce qui invalidait une couleur du canvas, qui gardait alors la précédente. Corrections : le runtime refuse les props inconnues, les types faux et les couleurs invalides (le plan échoue à la validation et l'animateur le corrige), contrôle de « cadre presque vide » (couverture), règles de composition et formule de placement d'un personnage dans une maison dans l'API, nouveau plan de référence `house-room`, narration sans durée inventée. Second essai : 8 plans, 0 repli, 3 corrections ciblées, **0,68 $**, rendu 194 s ; plus de rectangle vert, décors plein cadre, plus de textes superposés. Restent faibles à l'œil : le plan d'ouverture (deux maisons en diagonale, encore proche de l'« écran coupé en deux »), un grand disque noir sur le plan des ondes radio, du sol vide en bas de certains plans.
+
+**Pas encore fait** : les 4 autres sujets du banc, la moyenne ≥ 4 de la grille, la mesure de synchronisation (voix réelle après le 17).
+
+### 11 bis. Reprise qualité du 2026-10-16
+
+Constat après le premier banc (moyenne du critique ≈ 2,9 sur 5, décors sombres, textes petits, plans mal remplis) :
+- **Bug du runtime** : `box.r` était à la fois rotation et rayon des coins ; toute boîte sans `r` était tournée de 16 rad (panneaux inclinés, carrés à 45°). Renommé `box.corner` ; un test garde la régression et le chargement échoue si une prop d'élément masque une prop commune.
+- **Gabarits** (`runtime/templates.js`) : title, equation, bignumber, bars, linechart, bullets, compare, flow, segment, fibonacci. Le réalisateur fixe un `layout` par plan (`scene` ou un gabarit) et le validateur EXIGE l'appel `S.template(layout, ...)`.
+- **Validation du remplissage** : contraste local par bandes horizontales (cadre vide, contenu mal réparti, premier plan vide), seuils calibrés sur la vitrine validée à l'œil.
+- **Critique** : contrôle de vérité de la narration avant la réalisation (corrige les phrases fausses ou trompeuses quand aucune voix n'est enregistrée, chaque remplacement écrit au rapport) ; planche d'images clés plus lisible (420 px) avec rappel de l'échelle ; budget planifié (retouche + re-critique réservées plan par plan, plus aucune retouche non re-jugée).
+- **Robustesse** : reprises sur coupure réseau pendant le flux Claude (3 essais), une ancre introuvable n'arrête plus la réalisation, réparations du réalisateur au modèle courant (≈ 2x moins cher).
+
+Mesures (sans voix, timings estimés, tarifs estimés) :
+
+| Sujet | Plans | Replis | Coût LLM | Moyenne critique |
+|---|---|---|---|---|
+| Trajet d'un message (1er essai) | 8 | 0 | 0,56 $ (sans critique) | — |
+| Nombre d'or, avant correctifs | 9 | 0 | 1,24 $ | 2,97 |
+| Nombre d'or, après correctifs | 8 | 0 | 1,03 $ | 2,89 |
+| Équation 2x + 3 = 11, après correctifs | 9 | 0 | 1,10 $ | 3,17 |
+
+Lecture honnête : la qualité visuelle s'est nettement améliorée à l'œil (composition, remplissage, absence de glitchs), mais la note du critique ne dépasse pas 3,2 : les vidéos générées sont des infographies animées propres, pas encore des films d'illustration comme la vitrine écrite à la main. La boucle de retouche réussit environ une fois sur trois (les retouches échouent surtout parce que l'animateur abandonne le gabarit exigé ou dépasse sa limite de tokens) ; elle est maintenant bornée par le budget. Critère d'acceptation « moyenne ≥ 4 » : NON atteint.
+
+## 12. Bibliothèque de scènes types (2026-10-16)
+
+Décision (utilisateur + moi) : le niveau « film » de la vitrine ne vient pas d'un modèle plus fort mais de pièces illustrées écrites une fois, que l'IA choisit et règle. Première livraison, extraite de la vitrine Dakar → Paris (`runtime/scenes.js`) :
+- `room` : personne chez elle (maison en coupe de nuit, Dakar ou Paris), tape et envoie un message, le reçoit (trois morceaux par la fenêtre, déchiffrement), répond, sourit, plongée caméra dans l'écran du téléphone ; quatre personnages prédéfinis (awa, lea, malik, sam).
+- `journey` : trajet complet d'un message (antenne, câble sous-marin, faune, data center, antenne d'arrivée), trois paquets lumineux, légendes, caméra intégrée.
+- Moteur : `person` pilote l'interface du téléphone (`ui`, `fly`, `press`), `h.followKeys` (chemin à paliers), `Faceloop.registerKind` (éléments fournis par un module).
+- `layout` du storyboard étendu (`room`, `journey`), le réalisateur les préfère pour les histoires de messagerie ; 2 plans de référence ; 46 tests.
+
+Mesure (sujet « trajet d'un message », mêmes phrases que le 1er essai, sans voix) : 9 plans (2 `room`, 1 `journey`), 1 repli, 1,01 $ de LLM, moyenne du critique **3,09** (meilleure du banc sur ce sujet). Les plans `room` et `journey` reprennent l'esthétique de la vitrine ; le repli et les plans de scène libre restent plus faibles.
+Suite prévue : plus de scènes types (autres lieux, personnages, poses), voix off le 17 (ElevenLabs), essai « premium » (agent itérant sur de vraies images) plus tard.
