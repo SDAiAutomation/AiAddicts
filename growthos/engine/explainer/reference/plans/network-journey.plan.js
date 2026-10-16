@@ -2,7 +2,7 @@
 S.sky('night');
 S.add('city', { x: -300, y: 1500, count: 12, seed: 3, far: true, par: 0.6 });
 S.add('city', { x: -200, y: 1500, count: 10, seed: 5 });
-S.add('box', { x: 1100, y: 1760, w: 3400, h: 520, color: '#141a38', r: 0 });
+S.add('box', { x: 1100, y: 1760, w: 3400, h: 520, color: '#141a38', corner: 0 });
 const tower = S.add('tower', { x: 700, y: 1500, h: 520 });
 const phone = S.add('miniphone', { x: 160, y: 1400, label: 'toi' });
 const path = [[160, 1400], [700, 990], [700, 1490], [1700, 1490]];

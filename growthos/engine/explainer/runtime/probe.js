@@ -21,18 +21,25 @@
     }
     return fillText.call(this, s, x, y, maxWidth);
   };
-  /* Part de l'image qui n'est pas le fond dominant (grille 54 x 96) : mesure grossiere du « cadre vide ». */
+  /* Remplissage de l'image, mesure au CONTRASTE LOCAL sur une grille 54 x 96 (un degrade de ciel n'est pas du contenu).
+     Renvoie {total, bands} : `bands` = 8 bandes horizontales de 240 px, part de cellules contrastees dans chacune. */
   const small = document.createElement('canvas');
   small.width = 54; small.height = 96;
   function frameCoverage() {
-    const g = small.getContext('2d');
+    const g = small.getContext('2d', { willReadFrequently: true });
     g.drawImage(document.getElementById('c'), 0, 0, 54, 96);
-    const d = g.getImageData(0, 0, 54, 96).data, counts = new Map();
-    for (let i = 0; i < d.length; i += 4) {
-      const key = (d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4);
-      counts.set(key, (counts.get(key) || 0) + 1);
+    const d = g.getImageData(0, 0, 54, 96).data, at = (x, y) => (y * 54 + x) * 4;
+    const bands = new Array(8).fill(0), per = 54 * 12;
+    let total = 0;
+    for (let y = 0; y < 95; y++) {
+      for (let x = 0; x < 53; x++) {
+        const i = at(x, y), r = at(x + 1, y), b = at(x, y + 1);
+        const c = Math.max(Math.abs(d[i] - d[r]), Math.abs(d[i + 1] - d[r + 1]), Math.abs(d[i + 2] - d[r + 2]),
+          Math.abs(d[i] - d[b]), Math.abs(d[i + 1] - d[b + 1]), Math.abs(d[i + 2] - d[b + 2]));
+        if (c > 22) { total++; bands[Math.floor(y / 12)]++; }
+      }
     }
-    return 1 - Math.max(...counts.values()) / (54 * 96);
+    return { total: total / (53 * 95), bands: bands.map((n) => n / per) };
   }
   window.addEventListener('error', (e) => P.errors.push(String(e.message)));
   window.probeFrame = function (t) {

@@ -15,7 +15,9 @@ import sys
 import time
 from pathlib import Path
 
-from . import RUNTIME_VERSION, animator, director, fallback, llm, prompts, render, timeline
+from concurrent.futures import ThreadPoolExecutor
+
+from . import RUNTIME_VERSION, animator, critic, director, fallback, llm, prompts, render, timeline
 
 FPS = 30
 DIP = 0.3
@@ -46,8 +48,61 @@ def assemble_timeline_js(storyboard: dict, windows: list[dict], anchors: dict[st
         total, FPS, json.dumps([[s, t] for s, t in narration], ensure_ascii=False), ",\n".join(plans))
 
 
+def refine(spend, storyboard, windows, anchors, codes, narration, total, topic, timeline_js, out, jobs, log) -> dict:
+    """Critique chaque plan validé sur une planche d'images clés ; retravaille ceux qui sont sous le seuil (2 itérations
+    au plus) et garde TOUJOURS la meilleure version notée. `codes` est mis à jour sur place."""
+    by_id = {p["id"]: p for p in storyboard["plans"]}
+    briefs = {j["plan_id"]: j for j in jobs}
+    texts = {p["id"]: " ".join(narration[i][1] for i in p["lines"]) for p in storyboard["plans"]}
+    system = animator.system_prompt()
+
+    def critique(ids: list[str], tag: str) -> dict[str, dict]:
+        sheets = critic.build_sheets(timeline_js, windows, anchors, ids, out / "critic" / tag)
+        batch = [{"plan_id": pid, "intent": by_id[pid]["intent"], "narration": texts[pid], "sheet": sheets[pid][0], "times": sheets[pid][1],
+                  "step": f"critic:{pid}:{tag}"} for pid in ids]
+        return {c["plan"]: c for c in critic.critique_all(spend, batch)}
+
+    ids = [pid for pid, code in codes.items() if code]
+    best = critique(ids, "v0") if ids else {}
+    history = {pid: [{"iteration": 0, "average": c["average"], "scores": c["scores"]}] for pid, c in best.items()}
+    for iteration in range(1, critic.MAX_ITERATIONS + 1):
+        weak = [pid for pid, c in best.items() if critic.needs_work(c)]
+        if not weak or spend.total_usd >= spend.limit_usd * 0.85:
+            break
+        log(f"       itération {iteration} : {len(weak)} plan(s) à retravailler ({', '.join(weak)})")
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {pid: pool.submit(animator.improve_plan, spend, system, briefs[pid]["brief"], codes[pid], critic.issues_text(best[pid]),
+                                        pid, briefs[pid]["duration"], briefs[pid]["anchors"]) for pid in weak}
+            candidates = {pid: f.result() for pid, f in futures.items()}
+        changed = [pid for pid, c in candidates.items() if c["ok"] and c["code"] != codes[pid]]
+        for pid in weak:
+            if pid not in changed:
+                history[pid].append({"iteration": iteration, "kept": "previous", "reason": (candidates[pid]["errors"] or ["code inchangé"])[0][:160]})
+        if not changed:
+            break
+        previous = {pid: codes[pid] for pid in changed}
+        for pid in changed:
+            codes[pid] = candidates[pid]["code"]
+        timeline_js.write_text(assemble_timeline_js(storyboard, windows, anchors, codes, narration, total), encoding="utf-8")
+        new = critique(changed, f"v{iteration}")
+        for pid in changed:
+            old_avg, new_avg = best[pid]["average"] or 0, new[pid]["average"] or 0
+            if new_avg > old_avg:
+                best[pid] = new[pid]
+                history[pid].append({"iteration": iteration, "average": new_avg, "scores": new[pid]["scores"], "kept": "new"})
+            else:
+                codes[pid] = previous[pid]
+                history[pid].append({"iteration": iteration, "average": new_avg, "kept": "previous", "reason": "la retouche ne progresse pas"})
+        timeline_js.write_text(assemble_timeline_js(storyboard, windows, anchors, codes, narration, total), encoding="utf-8")
+    averages = [c["average"] for c in best.values() if c["average"] is not None]
+    return {"threshold": critic.THRESHOLD, "videoAverage": round(sum(averages) / len(averages), 2) if averages else None,
+            "plans": {pid: {"average": c["average"], "scores": c["scores"], "issues": c["issues"], "facts": c["facts"], "history": history[pid]}
+                      for pid, c in best.items()},
+            "syncAndSoundNotEvaluated": True}
+
+
 def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None, voice_report: dict | None = None,
-             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, log=print) -> dict:
+             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, log=print) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     budget = budget_usd if budget_usd is not None else float(os.environ.get("EXPLAINER_LLM_BUDGET_USD") or llm.DEFAULT_BUDGET_USD)
@@ -66,6 +121,20 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     if lines is None:
         script = write_script(spend, topic)
         lines, report["truthModeScript"] = script["lines"], script["truthMode"]
+    if use_critic:
+        check = critic.fact_check(spend, lines)
+        report["factCheck"] = check
+        if check["verdict"] == "a_reviser" and not voice_report:
+            # Pas de voix enregistrée : on peut corriger. Chaque remplacement est écrit au rapport (jamais silencieux).
+            edits = []
+            for flag in check["flags"]:
+                i, new_text = flag.get("ligne"), str(flag.get("reformulation") or "").strip()
+                if isinstance(i, int) and 0 <= i < len(lines) and new_text and flag.get("type") in ("faux", "trompeur", "chiffre_non_source"):
+                    edits.append({"line": i, "before": lines[i], "after": new_text, "why": flag.get("pourquoi")})
+                    lines[i] = new_text
+            report["lineEdits"] = edits
+        elif check["verdict"] == "a_reviser":
+            report["needsReview"] = "narration déjà enregistrée : problèmes de vérité signalés, non corrigés"
     report["lines"] = lines
     step("script")
 
@@ -82,6 +151,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     directed = director.direct(spend, topic, narration, words, total)
     storyboard = directed["storyboard"]
     report["storyboard"], report["directorAttempts"] = storyboard, directed["attempts"]
+    report["anchorWarnings"] = directed.get("anchorWarnings", [])
     (out / "storyboard.json").write_text(json.dumps(storyboard, ensure_ascii=False, indent=1), encoding="utf-8")
     step("director")
 
@@ -111,6 +181,12 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
 
     timeline_js = out / "explainer.timeline.js"
     timeline_js.write_text(assemble_timeline_js(storyboard, windows, anchors, codes, narration, total), encoding="utf-8")
+    if use_critic:
+        log("[3b/5] Critique visuelle…")
+        report["critic"] = refine(spend, storyboard, windows, anchors, codes, narration, total, topic, timeline_js, out, jobs, log)
+        step("critic")
+        for pid, code in codes.items():
+            (out / "plans" / f"{pid}.js").write_text(code or "", encoding="utf-8")
     report["spend"] = spend.report()
 
     if do_render:
@@ -147,7 +223,7 @@ def main(argv: list[str]) -> int:
     lines = json.loads(Path(argv[argv.index("--lines") + 1]).read_text(encoding="utf-8")) if "--lines" in argv else None
     voice_report = json.loads(Path(argv[argv.index("--voice-report") + 1]).read_text(encoding="utf-8")) if "--voice-report" in argv else None
     voice_wav = voice_report["wav"] if voice_report else None
-    generate(argv[0], argv[1], lines=lines, voice_report=voice_report, voice_wav=voice_wav, do_render="--no-render" not in argv)
+    generate(argv[0], argv[1], lines=lines, voice_report=voice_report, voice_wav=voice_wav, do_render="--no-render" not in argv, use_critic="--no-critic" not in argv)
     return 0
 
 

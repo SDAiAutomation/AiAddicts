@@ -28,14 +28,18 @@ REFERENCES = {
                    "intent": "installer le lieu et le personnage, puis s'approcher du geste d'envoi",
                    "visual": "Maison en coupe de nuit remplissant l'écran, Awa assise sur le canapé avec son téléphone ; mot-clé DAKAR en haut qui disparaît juste avant « envoyer » ; sur « envoyer » un petit rebond du personnage et un bruit.",
                    "camera": "plan large puis zoom lent vers le personnage"},
-    "data-reveal": {"duration": 7.0, "anchors": {"start": 1.0, "end": 5.0}, "narration": "Mille euros à dix pour cent par an : après dix ans, on dépasse deux mille six cents.",
+    "data-reveal": {"duration": 7.0, "anchors": {"start": 1.0, "end": 5.0, "bars": 2.0}, "narration": "Mille euros à dix pour cent par an : après dix ans, on dépasse deux mille six cents.",
                     "intent": "montrer une croissance exponentielle avec un chiffre et des barres",
-                    "visual": "Gros compteur qui passe de 1 000 € à 2 653 € pendant que 11 barres (années 0 à 10) grandissent ; légende « après 10 ans » à la fin.",
+                    "visual": "Gabarits bignumber (de 1 000 € à 2 594 €, légende « après 10 ans ») et bars (11 barres, années 0 à 10).",
                     "camera": "léger zoom continu"},
     "equation-steps": {"duration": 8.0, "anchors": {"s1": 2.0, "s2": 3.8, "s3": 5.6}, "narration": "On enlève trois des deux côtés, on divise par deux, et x vaut quatre.",
                        "intent": "résoudre 2x + 3 = 11 étape par étape",
-                       "visual": "Quatre lignes d'équation apparaissent l'une sous l'autre, chacune sur sa phrase ; une note ambre indique l'opération ; la dernière est entourée en vert.",
-                       "camera": "fixe"},
+                       "visual": "Gabarit equation : lignes 2x + 3 = 11 / 2x = 11 − 3 (note « − 3 des deux côtés ») / 2x = 8 / x = 4 (note « ÷ 2 des deux côtés »), chacune sur sa phrase.",
+                       "camera": "léger zoom"},
+    "geometry-golden": {"duration": 7.0, "anchors": {"cut": 2.0, "name": 3.5}, "narration": "Coupe un segment en deux, de façon que le tout sur le grand morceau égale le grand morceau sur le petit : c'est le nombre d'or.",
+                        "intent": "montrer la coupe d'un segment selon une proportion",
+                        "visual": "Gabarit segment (a + b, coupe sur « coupe », étiquettes a et b) ; le mot-clé LE NOMBRE D'OR en haut sur « nombre d'or ».",
+                        "camera": "léger zoom"},
 }
 
 
@@ -84,6 +88,19 @@ def animate_plan(spend: llm.Spend, system: str, brief: str, plan_id: str, durati
     if best:
         return {"id": plan_id, "ok": True, "code": best["code"], "attempts": best["attempt"], "errors": [], "warnings": best["warnings"], "history": history}
     return {"id": plan_id, "ok": False, "code": code, "attempts": len(history), "errors": errors, "warnings": [], "history": history}
+
+
+def improve_plan(spend: llm.Spend, system: str, brief: str, code: str, issues: str, plan_id: str, duration: float, anchors: dict[str, float]) -> dict:
+    """Retouche d'un plan déjà valide d'après les corrections du critique. Renvoie {ok, code, errors} : un résultat qui
+    ne valide pas est écarté par l'appelant (on garde la version précédente)."""
+    user = (brief + "\n\nCode actuel du plan :\n```js\n" + code + "\n```\nLe critique visuel demande ces retouches. Applique-les sans casser "
+            "le reste (mêmes ancres, mêmes éléments utiles) et renvoie le plan complet :\n" + issues)
+    try:
+        new = llm.extract_code(llm.complete(spend, f"improve:{plan_id}", llm.ANIMATOR_MODEL, system, user, max_tokens=12000, effort="medium"))
+    except RuntimeError as exc:   # budget atteint, refus, réponse tronquée : on garde la version actuelle
+        return {"id": plan_id, "ok": False, "code": code, "errors": [str(exc)]}
+    result = validate.validate_plan(new, plan_id, duration, anchors)
+    return {"id": plan_id, "ok": result["ok"], "code": new if result["ok"] else code, "errors": result["errors"], "warnings": result["warnings"]}
 
 
 def animate_all(spend: llm.Spend, jobs: list[dict], workers: int = 3) -> list[dict]:

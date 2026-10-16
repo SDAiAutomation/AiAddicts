@@ -14,10 +14,11 @@ const col=c=>{if(TOKEN[c])return TOKEN[c];if(typeof c==='string'&&COLOR_RE.test(
 const SKY={night:{top:'#070b1f',mid:'#18204f',low:'#3a2a66',stars:140},dusk:{top:'#1a1740',mid:'#6a3a7a',low:'#f08a5b',stars:40},day:{top:'#4aa3e8',mid:'#8cc9f5',low:'#dff1ff',stars:0},void:{top:C.bg,mid:C.bg,low:C.bg,stars:0}};
 
 /* ---- éléments ----------------------------------------------------------------------------------------------- */
+const TEMPLATES={};
 const COMMON={x:540,y:960,s:1,a:1,r:0,hud:false,par:1,layer:0};
 const DEFAULTS={
   text:{text:'',size:64,weight:700,color:'ink',mono:false,glow:0,ls:0,maxW:0,lh:1.15},
-  box:{w:200,h:100,r:16,color:'panel',stroke:'',sw:3},
+  box:{w:200,h:100,corner:16,color:'panel',stroke:'',sw:3},
   circle:{rad:40,color:'primary',stroke:'',sw:3,glow:0},
   line:{dx:200,dy:0,w:6,color:'primary',draw:1,dash:null,glow:0,head:false},
   polyline:{points:[],w:6,color:'primary',draw:1,glow:0,fill:''},
@@ -42,6 +43,7 @@ const DEFAULTS={
   bars:{values:[],labels:[],w:600,h:400,color:'primary',grow:1,size:28},
   golden:{base:600,n:8,draw:8,color:'warm',w:4},
 };
+for(const k in DEFAULTS)for(const c in COMMON)if(c in DEFAULTS[k])throw new Error('DEFAULTS.'+k+'.'+c+' masque une propriete commune');
 const NUMERIC_NONTWEEN=new Set(['pid','seed','count','n','decimals']);
 
 function makeHandle(S,kind,props){
@@ -85,7 +87,7 @@ function fmtNum(v,p){const n=Math.abs(v).toFixed(p.decimals),[i,d]=n.split('.');
 const DRAW={
   text(p,t){const lines=wrapLines(p.text);let size=p.size;if(p.maxW){const w=Math.max(...lines.map(l=>measure(l,size,p.weight,p.mono?MONO:DISP)));if(w>p.maxW)size*=p.maxW/w}
     lines.forEach((l,i)=>T(l,0,(i-(lines.length-1)/2)*size*p.lh,{size,weight:p.weight,fam:p.mono?MONO:DISP,color:col(p.color),glow:p.glow,ls:p.ls}))},
-  box(p){ctx.fillStyle=col(p.color);rr(-p.w/2,-p.h/2,p.w,p.h,p.r);ctx.fill();if(p.stroke){ctx.strokeStyle=col(p.stroke);ctx.lineWidth=p.sw;ctx.stroke()}},
+  box(p){ctx.fillStyle=col(p.color);rr(-p.w/2,-p.h/2,p.w,p.h,p.corner);ctx.fill();if(p.stroke){ctx.strokeStyle=col(p.stroke);ctx.lineWidth=p.sw;ctx.stroke()}},
   circle(p){ctx.save();if(p.glow){ctx.shadowColor=col(p.color);ctx.shadowBlur=p.glow}ctx.fillStyle=col(p.color);ctx.beginPath();ctx.arc(0,0,p.rad,0,7);ctx.fill();ctx.restore();
     if(p.stroke){ctx.strokeStyle=col(p.stroke);ctx.lineWidth=p.sw;ctx.beginPath();ctx.arc(0,0,p.rad,0,7);ctx.stroke()}},
   line(p){const e=clamp(p.draw),x=p.dx*e,y=p.dy*e;ctx.save();ctx.strokeStyle=col(p.color);ctx.lineWidth=p.w;ctx.lineCap='round';if(p.glow){ctx.shadowColor=col(p.color);ctx.shadowBlur=p.glow}
@@ -140,6 +142,7 @@ function makeScene(plan){
   S.sky=k=>{S.skyKind=SKY[k]?k:'void'};
   S.grid=on=>{S.gridOn=!!on};
   S.add=(kind,props)=>makeHandle(S,kind,props);
+  S.template=(name,params)=>{const f=TEMPLATES[name];if(!f){S.errors.push('gabarit inconnu : '+name);return []}try{return f(S,params||{})}catch(e){S.errors.push('gabarit '+name+' : '+e.message);return []}};
   S.sfx=(t,type)=>{S.sounds.push({at:t,type})};
   S.fade=(t0,t1,color='bg',dir='in')=>{S.fades.push({t0,t1,color,dir})};
   return S;
@@ -180,5 +183,5 @@ function define(spec){
     if(dIn>0)overlay(col(tr.color||'bg'),1-seg(lt,0,dIn));if(dOut>0)overlay(col(tr.color||'bg'),seg(lt,cur.P.duration-dOut,cur.P.duration));
     screen();const v=ctx.createRadialGradient(W/2,H/2,H*0.32,W/2,H/2,H*0.78);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,0.34)');ctx.fillStyle=v;ctx.fillRect(0,0,W,H)};
 }
-return {define,EASE,TOKEN,DEFAULTS};
+return {define,EASE,TOKEN,DEFAULTS,TEMPLATES,registerTemplate:(name,fn)=>{TEMPLATES[name]=fn}};
 })();

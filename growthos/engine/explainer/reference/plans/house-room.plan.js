@@ -2,7 +2,7 @@
 S.sky('night');
 const hs = 1.45, hx = 540, hy = 1300;                  // échelle et position (bas, centre) de la maison
 S.add('city', { x: -200, y: hy, count: 12, seed: 3, far: true, par: 0.5 });
-S.add('box', { x: 540, y: hy + 450, w: 2000, h: 900, color: '#1a2150', r: 0, layer: -1 });   // la rue, sous la maison
+S.add('box', { x: 540, y: hy + 450, w: 2000, h: 900, color: '#1a2150', corner: 0, layer: -1 });   // la rue, sous la maison
 S.add('house', { x: hx, y: hy, s: hs, palette: 'dakar', dark: 0.22 });
 // un personnage posé sur le canapé d'une maison d'échelle hs : x = hx - 120*hs, y = hy - 106*hs, s = 1.25*hs
 const awa = S.add('person', { x: hx - 120 * hs, y: hy - 106 * hs, s: 1.25 * hs, pose: 'sitPhone', typing: true, glow: 1,

@@ -42,6 +42,10 @@ def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], wor
         problems = schema.validate_storyboard(storyboard, len(narration))
         if not problems:
             problems = anchor_problems(storyboard, narration, words, total)
+            if problems and attempt == MAX_REPAIRS:
+                # Jamais bloquant : une ancre introuvable tombe sur le début de la 1re ligne du plan
+                # (timeline.resolve_anchors) et reste écrite au rapport (`unresolvedAnchors`).
+                return {"storyboard": storyboard, "attempts": attempt + 1, "anchorWarnings": problems}
         if not problems:
             return {"storyboard": storyboard, "attempts": attempt + 1}
         last_text = json.dumps(storyboard, ensure_ascii=False)

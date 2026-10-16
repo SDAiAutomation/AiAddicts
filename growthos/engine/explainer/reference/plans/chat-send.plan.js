@@ -3,7 +3,7 @@ S.grid(true);
 const msg = 'On mange ce soir ?';
 const phone = S.add('phone', { x: 540, y: 930, s: 0.9, contact: 'Léa', avatar: 'primary', input: '',
   bubbles: [{ edge: -244, y: -300, text: 'Tu es où ?', side: 'left', col: 'chip', tc: 'ink' }] });
-phone.appear(0.1, 0.5, 'up');
+// le téléphone est visible dès la première image (pas d'appear sur le sujet principal)
 const t0 = 0.8, t1 = S.t('send') - 0.3;
 for (let i = 1; i <= msg.length; i++) {
   const t = t0 + (t1 - t0) * (i / msg.length);

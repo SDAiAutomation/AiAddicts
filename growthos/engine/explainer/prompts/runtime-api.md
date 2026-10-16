@@ -7,7 +7,7 @@ Un seul bloc ```js contenant uniquement le corps de la fonction (pas de `functio
 
 ## Ce qui est autorisé (le reste est refusé par l'analyse statique)
 - Variables `const`/`let`, boucles `for` (avec condition d'arrêt) et `for...of`, `if`, fonctions fléchées, `.map/.forEach/.slice/.join`, littéraux d'objets et de tableaux, gabarits `` `...` ``, opérateurs.
-- Globales : `S`, `Math` (abs sin cos tan atan atan2 PI pow min max floor ceil round sqrt exp log sign hypot trunc — PAS `Math.random`), `hash(a,b)` (hasard déterministe entre 0 et 1), `W`=1080, `H`=1920, `Number`, `String`.
+- Globales : `S`, `Math` (abs sin cos tan atan atan2 PI pow min max floor ceil round sqrt exp log sign hypot trunc — PAS `Math.random`), `hash(a,b)` (hasard déterministe entre 0 et 1), `W`=1080, `H`=1920, `Number`, `String`, `Array` (`Array.from({length: n}, (_, i) => i)`). Pas d'`Object` (utilise des tableaux), pas de `floor` seul : `Math.floor`.
 - INTERDIT : `new`, `this`, `while`, `try`, `class`, `switch`, `fetch`, `window`, `document`, `Date`, `eval`, `constructor`, `?.`, `??`, accès DOM, réseau, tout `import`.
 
 ## Repère
@@ -37,7 +37,7 @@ Règles : appelle `h.to` dans l'ordre chronologique pour une même prop ; une va
 ## Éléments (`kind` et props propres, valeurs par défaut entre parenthèses)
 Couleurs : un jeton (`ink`, `dim`, `bg`, `panel`, `chip`, `primary` cyan, `accent` orange, `warm` ambre, `good` vert, `violet`, `blue`, `yellow`, `white`) ou une couleur CSS `#rrggbb`.
 - `text` : `text`, `size`(64), `weight`(700), `color`('ink'), `mono`(false), `glow`(0), `maxW`(0, réduit la taille pour tenir), `ls`(0). `\n` = retour à la ligne. Centré sur (x,y). Mots-clés : 64 px minimum.
-- `box` : `w`(200), `h`(100), `r`(16), `color`('panel'), `stroke`(''), `sw`(3). Centré.
+- `box` : `w`(200), `h`(100), `corner`(16, rayon des coins ; `r` est la ROTATION en radians, 0 par défaut), `color`('panel'), `stroke`(''), `sw`(3). Centré.
 - `circle` : `rad`(40), `color`, `stroke`, `sw`, `glow`.
 - `line` : de (x,y) vers (x+dx, y+dy) ; `dx`, `dy`, `w`(6), `color`, `draw`(1 : proportion tracée, animable de 0 à 1), `dash`(null ou [12,12]), `glow`, `head`(true = pointe de flèche).
 - `polyline` : `points` (coordonnées RELATIVES à (x,y)), `w`, `color`, `draw` (0..1), `glow`, `fill` (couleur de surface sous la courbe, jusqu'à y=0 local). Courbes de données : calcule les points en JS.
@@ -56,6 +56,20 @@ Couleurs : un jeton (`ink`, `dim`, `bg`, `panel`, `chip`, `primary` cyan, `accen
 - `bars` : histogramme vertical (origine = pied, centre) : `values`, `labels`, `w`, `h`, `color`, `grow` (0..1, animer), `size`.
 - `golden` : rectangles d'or et spirale : `base`, `n`, `draw` (nombre d'étapes tracées, animable), `color`.
 
+## Gabarits de scène (`S.template(nom, params)`) — À PRÉFÉRER pour le contenu texte, maths, chiffres et processus
+Compositions déjà dessinées : centrées, grandes, bien remplies, animées aux temps que TU donnes (secondes locales, souvent `S.t('ancre')`). Un élément prévu à `t <= 0.05` est visible dès la première image. Tu peux les combiner avec des éléments libres (`S.add`) et une caméra (`S.cam`) pour ajouter une illustration, un mot-clé, un mouvement. Un gabarit mal paramétré fait échouer le plan.
+- `title` : `{text, sub?, t=0, color='ink', hide?}` — carte titre plein cadre avec particules.
+- `equation` : `{lines:[{text, t, note?, color?}], size?}` — étapes empilées ; la ligne courante est vive, les précédentes s'estompent, la dernière est encadrée en vert. `note` = l'opération annoncée au-dessus de la ligne. Écris les maths en caractères simples (`2x + 3 = 11`, `−`, `÷`, `×`, `√`).
+- `bignumber` : `{from, to, t0, t1, prefix?, suffix?, decimals?, label?, labelT?, color?}` — gros nombre qui compte de `from` à `to` entre `t0` et `t1`.
+- `bars` : `{values, labels?, t0, t1, title?, readout?, readoutT?}` — histogramme plein cadre qui grandit.
+- `linechart` : `{values, t0, t1, title?, xlabel?, ylabel?, ref?: {value, label}}` — axes + courbe tracée, droite de référence pointillée.
+- `bullets` : `{items:[{text, t}], title?}` — cartes numérotées empilées, une par idée dite.
+- `compare` : `{left:{title, items:[texte...], times?:[...]}, right:{...}, t?, step?}` — deux colonnes face à face.
+- `flow` : `{nodes:[{label, t, color?}]}` — chaîne verticale de blocs reliés par des flèches (étapes d'un processus, trajet).
+- `segment` : `{tCut, ratio=0.618, aLabel='a', bLabel='b'}` — segment coupé en deux parties (proportion, nombre d'or).
+- `fibonacci` : `{t0, t1, n=8}` — pavage de carrés numérotés qui se construit (suite de Fibonacci).
+Règle de choix : contenu abstrait (calcul, chiffre, comparaison, liste, processus, géométrie) → gabarit ; scène vécue (personnage, lieu, appareil, trajet réel) → éléments libres (`house`, `person`, `phone`, `tower`, `water`...). Un plan peut mélanger les deux.
+
 ## Types et couleurs (vérifiés : une erreur fait échouer le plan)
 Les nombres sont des nombres (`dark: 0.25`, jamais `true`), les booléens des booléens, `pid` un nombre. Une prop inconnue pour un élément (faute de frappe) est une erreur. Les couleurs sont un jeton de la liste ou `#rrggbb` : `'red'`, `'green'`… sont INVALIDES.
 
@@ -73,4 +87,7 @@ Les nombres sont des nombres (`dark: 0.25`, jamais `true`), les booléens des bo
 4. On doit comprendre le mécanisme sans le son.
 5. N'invente AUCUN chiffre : n'affiche que ceux fournis par le plan.
 6. Décor et personnages cohérents avec la bible (mêmes couleurs, mêmes props).
-7. Le plan doit s'exécuter vite (pas de boucles de milliers d'itérations).
+7. Le sujet principal est VISIBLE dès la première image (t = 0) : ne le fais pas apparaître avec `appear` après 0,1 s, un cadre vide au début tue l'accroche. Les éléments secondaires, eux, peuvent arriver ensuite.
+7bis. Le plan doit s'exécuter vite (pas de boucles de milliers d'itérations).
+8. Texte : si une ligne d'équation ou de légende risque de dépasser 900 px de large, donne `maxW: 860` à l'élément `text` (la taille se réduit pour tenir) : un texte coupé par le bord est une erreur.
+9. Les tailles et dimensions animées restent positives : un easing `'back'` peut dépasser sous zéro, évite-le sur `w`, `h`, `rad`.

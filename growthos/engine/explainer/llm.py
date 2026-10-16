@@ -23,6 +23,10 @@ PRICES = {
 }
 
 
+# Coût maximal plausible d'un appel : on refuse de le lancer s'il ferait dépasser le plafond (appels parallèles compris).
+CALL_RESERVE_USD = {"claude-opus-5-5": 0.20, "claude-sonnet-5-5": 0.07, "claude-haiku-5-5": 0.02}
+
+
 class BudgetExceeded(RuntimeError):
     pass
 
@@ -41,9 +45,9 @@ class Spend:
     def has_unknown_cost(self) -> bool:
         return any(c["costUsd"] is None for c in self.calls)
 
-    def check(self) -> None:
-        if self.total_usd >= self.limit_usd:
-            raise BudgetExceeded(f"budget LLM atteint : {self.total_usd:.2f} $ sur {self.limit_usd:.2f} $")
+    def check(self, reserve: float = 0.0) -> None:
+        if self.total_usd + reserve >= self.limit_usd:
+            raise BudgetExceeded(f"budget LLM atteint : {self.total_usd:.2f} $ sur {self.limit_usd:.2f} $ (réserve {reserve:.2f} $)")
 
     def record(self, step: str, model: str, usage) -> dict:
         fresh, out = usage.input_tokens or 0, usage.output_tokens or 0
@@ -77,9 +81,10 @@ def client():
     return _client
 
 
-def complete(spend: Spend, step: str, model: str, system: str, user: str, max_tokens: int = 16000, effort: str = "medium") -> str:
-    """Un appel Claude en streaming ; le prompt système est mis en cache. Renvoie le texte de la réponse."""
-    spend.check()
+def complete(spend: Spend, step: str, model: str, system: str, user, max_tokens: int = 16000, effort: str = "medium") -> str:
+    """Un appel Claude en streaming ; le prompt système est mis en cache. `user` : texte, ou liste de blocs de contenu
+    (texte + images base64 pour le critique). Renvoie le texte de la réponse."""
+    spend.check(CALL_RESERVE_USD.get(model, 0.10))
     with client().messages.stream(
         model=model, max_tokens=max_tokens,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],

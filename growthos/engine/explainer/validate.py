@@ -25,8 +25,10 @@ from . import render
 MAX_CODE_CHARS = 14000
 FRAME_BUDGET_MS = 250
 TRIAL_TIMEOUT_S = 45
-MIN_COVERAGE = 0.07   # part minimale de l'image qui n'est pas le fond dominant
-ALLOWED_GLOBALS = {"S", "Math", "hash", "W", "H", "Number", "String", "undefined", "Infinity", "NaN"}
+MIN_COVERAGE = 0.008   # part minimale de cellules contrastees (contraste local, pas la couleur dominante)
+FIRST_FRAME_MIN = 0.003  # un seul titre suffit à ne pas être « vide » ; un fond uni seul, si
+BAND_MIN = 0.01        # part minimale de cellules contrastees pour qu'une bande horizontale compte comme occupee
+ALLOWED_GLOBALS = {"S", "Math", "hash", "W", "H", "Number", "String", "Array", "undefined", "Infinity", "NaN"}
 ALLOWED_MATH = {"abs", "sin", "cos", "tan", "atan", "atan2", "PI", "pow", "min", "max", "floor", "ceil", "round", "sqrt", "exp", "log", "sign", "hypot", "trunc"}
 FORBIDDEN_PROPS = {"constructor", "__proto__", "prototype", "call", "apply", "bind", "eval", "Function", "caller", "callee",
                    "__defineGetter__", "__defineSetter__", "__lookupGetter__", "globalThis", "window", "document"}
@@ -201,9 +203,19 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
                         e, w = analyse_probe(report)
                         errors.extend(e)
                         warnings.extend(w)
-                        coverages.append((report["t"], report.get("coverage", 1.0)))
+                        coverages.append((report["t"], report.get("coverage", {"total": 1.0, "bands": [1.0] * 8})))
                     errors.extend(f"erreur d'exécution : {m}" for m in await page.evaluate("window.__runtimeErrors || []"))
-                    sparse = [t for t, c in coverages if t > 0.3 and c < MIN_COVERAGE]
+                    first = [c["total"] for t, c in coverages if t <= 0.1]
+                    if first and first[0] < FIRST_FRAME_MIN:
+                        errors.append("premier plan vide : le sujet principal doit être visible dès la première image (t = 0), sans attendre un `appear`")
+                    sparse = [t for t, c in coverages if t > 0.3 and c["total"] < MIN_COVERAGE]
+                    # Remplissage vertical : au moins 3 des 6 bandes centrales (y 240 -> 1680) doivent contenir quelque chose (calibré sur la vitrine
+                    # validée à l'œil : 4 à 7 bandes ; et sur les gabarits : 2 à 5 bandes selon l'instant)
+                    lopsided = [t for t, c in coverages if t > 0.3 and sum(1 for b in c["bands"][1:7] if b >= BAND_MIN) < 3]
+                    if len(lopsided) >= max(2, round(len(coverages) * 0.6)):
+                        errors.append("contenu mal réparti : de grandes zones verticales de l'écran sont vides aux instants "
+                                      + ", ".join(f"{t:.1f}s" for t in lopsided[:4]) + " : centre la composition, agrandis les éléments, "
+                                      "utilise un gabarit (S.template) ou un décor plein cadre")
                     if len(sparse) >= 2:
                         errors.append("cadre presque vide aux instants " + ", ".join(f"{t:.1f}s" for t in sparse[:4])
                                       + " : remplis l'écran (décor, éléments plus grands, caméra plus serrée)")
