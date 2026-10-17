@@ -25,8 +25,8 @@ def anchor_problems(storyboard: dict, narration: list[tuple[float, str]], words:
     return problems
 
 
-def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], words: list[dict], total: float) -> dict:
-    system = prompts.load("director")
+def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], words: list[dict], total: float, templates_only: bool = False) -> dict:
+    system = prompts.load("director") + (prompts.load("director-templates") if templates_only else "")
     user = narration_brief(topic, narration)
     last_text, problems, history = "", [], []
     for attempt in range(MAX_REPAIRS + 1):
@@ -34,7 +34,8 @@ def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], wor
             user + "\nTa proposition précédente :\n```json\n" + last_text + "\n```\nElle a ces problèmes, corrige exactement ceux-là et renvoie le storyboard complet :\n- "
             + "\n- ".join(problems))
         # 1re passe : le modèle fort ; corrections (mécaniques : ancres, structure) : le modèle courant, ~2x moins cher
-        model = llm.DIRECTOR_MODEL if attempt == 0 else llm.ANIMATOR_MODEL
+        # Mode gabarits : tâche plus simple (choisir des gabarits), le modèle courant suffit dès la 1re passe.
+        model = llm.DIRECTOR_MODEL if attempt == 0 and not templates_only else llm.ANIMATOR_MODEL
         text = llm.complete(spend, f"director#{attempt + 1}", model, system, prompt, max_tokens=9000, effort="medium")
         try:
             storyboard = llm.extract_json(text)
@@ -43,6 +44,8 @@ def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], wor
             history.append({"attempt": attempt + 1, "problems": problems})
             continue
         problems = schema.validate_storyboard(storyboard, len(narration))
+        if templates_only and not problems:
+            problems = [f"plan {p.get('id')} : layout « scene » interdit en mode gabarits (choisis un nom de gabarit)" for p in storyboard["plans"] if p.get("layout", "scene") == "scene"]
         if not problems:
             problems = anchor_problems(storyboard, narration, words, total)
             if problems and attempt == MAX_REPAIRS:

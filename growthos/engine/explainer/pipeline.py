@@ -1,6 +1,6 @@
 """Explainer de bout en bout : sujet -> narration -> storyboard -> plans animés -> MP4 + `explainer.report.json`.
 
-    python -m engine.explainer.pipeline "Pourquoi le ciel est bleu" out_dir [--lines lignes.json] [--voice-report voiceover.report.json] [--no-render]
+    python -m engine.explainer.pipeline "Pourquoi le ciel est bleu" out_dir [--lines lignes.json] [--voice-report voiceover.report.json] [--no-render] [--templates]
 
 Sans `--voice-report`, les timings de la voix sont ESTIMÉS (marqués comme tels au rapport) et la vidéo est rendue sans
 voix. Un plan qui échoue à la validation après les itérations est remplacé par la scène Pillow équivalente, et c'est
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from concurrent.futures import ThreadPoolExecutor
 
-from . import RUNTIME_VERSION, animator, critic, director, fallback, llm, prompts, render, timeline
+from . import RUNTIME_VERSION, animator, composer, critic, director, fallback, llm, prompts, render, timeline
 
 FPS = 30
 DIP = 0.3
@@ -107,13 +107,19 @@ def refine(spend, storyboard, windows, anchors, codes, narration, total, topic, 
 
 
 def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None, voice_report: dict | None = None,
-             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, log=print) -> dict:
+             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, mode: str | None = None, log=print) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    # Mode « templates » : le modèle choisit des gabarits (un appel batché), il n'écrit pas de code ; pas de critique visuelle
+    # ni de retouches (les sondes de mise en page déterministes les remplacent). Mode « code » : animateur + critique (évaluations).
+    mode = (mode or os.environ.get("EXPLAINER_MODE") or "code").strip().lower()
+    if mode not in ("code", "templates"):
+        raise ValueError(f"mode inconnu : {mode!r} (code | templates)")
     budget = budget_usd if budget_usd is not None else float(os.environ.get("EXPLAINER_LLM_BUDGET_USD") or llm.DEFAULT_BUDGET_USD)
     spend = llm.Spend(limit_usd=budget)
-    report: dict = {"topic": topic, "runtimeVersion": RUNTIME_VERSION, "promptVersions": prompts.versions(),
-                    "models": {"director": llm.DIRECTOR_MODEL, "animator": llm.ANIMATOR_MODEL}, "steps": {}}
+    report: dict = {"topic": topic, "mode": mode, "runtimeVersion": RUNTIME_VERSION, "promptVersions": prompts.versions(),
+                    "models": ({"director": llm.ANIMATOR_MODEL, "composer": llm.COMPOSER_MODEL} if mode == "templates"
+                               else {"director": llm.DIRECTOR_MODEL, "animator": llm.ANIMATOR_MODEL}), "steps": {}}
     clock = time.monotonic()
 
     def step(name: str) -> None:
@@ -153,7 +159,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     report["durationSeconds"] = total
 
     log("[2/5] Réalisation (storyboard)…")
-    directed = director.direct(spend, topic, narration, words, total)
+    directed = director.direct(spend, topic, narration, words, total, templates_only=(mode == "templates"))
     storyboard = directed["storyboard"]
     report["storyboard"], report["directorAttempts"] = storyboard, directed["attempts"]
     report["anchorWarnings"] = directed.get("anchorWarnings", [])
@@ -171,9 +177,14 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
         jobs.append({"brief": brief, "plan_id": plan["id"], "duration": win["duration"], "anchors": anchors[plan["id"]], "layout": plan.get("layout", "scene")})
     report["unresolvedAnchors"] = unresolved
 
-    log(f"[3/5] Animation de {len(jobs)} plans…")
-    results = animator.animate_all(spend, jobs)
-    step("animator")
+    if mode == "templates":
+        log(f"[3/5] Composition de {len(jobs)} plans (gabarits)…")
+        results = composer.compose_all(spend, storyboard, windows, anchors, narration, topic, jobs)
+        step("composer")
+    else:
+        log(f"[3/5] Animation de {len(jobs)} plans…")
+        results = animator.animate_all(spend, jobs)
+        step("animator")
     codes = {r["id"]: (r["code"] if r["ok"] else None) for r in results}
     fallbacks = []
     for r, plan, win in zip(results, storyboard["plans"], windows):
@@ -187,7 +198,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
 
     timeline_js = out / "explainer.timeline.js"
     timeline_js.write_text(assemble_timeline_js(storyboard, windows, anchors, codes, narration, total), encoding="utf-8")
-    if use_critic:
+    if use_critic and mode == "code":
         log("[3b/5] Critique visuelle…")
         report["critic"] = refine(spend, storyboard, windows, anchors, codes, narration, total, topic, timeline_js, out, jobs, log)
         step("critic")
@@ -229,7 +240,8 @@ def main(argv: list[str]) -> int:
     lines = json.loads(Path(argv[argv.index("--lines") + 1]).read_text(encoding="utf-8")) if "--lines" in argv else None
     voice_report = json.loads(Path(argv[argv.index("--voice-report") + 1]).read_text(encoding="utf-8")) if "--voice-report" in argv else None
     voice_wav = voice_report["wav"] if voice_report else None
-    generate(argv[0], argv[1], lines=lines, voice_report=voice_report, voice_wav=voice_wav, do_render="--no-render" not in argv, use_critic="--no-critic" not in argv)
+    generate(argv[0], argv[1], lines=lines, voice_report=voice_report, voice_wav=voice_wav, do_render="--no-render" not in argv, use_critic="--no-critic" not in argv,
+             mode="templates" if "--templates" in argv else None)
     return 0
 
 

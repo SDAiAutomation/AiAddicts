@@ -50,7 +50,7 @@ reg('bars',(S,p)=>{need(p,'values','array');
   const out=[];
   if(p.title)out.push(enter(S.add('text',{text:p.title,x:540,y:430,size:76,weight:800,color:'ink',maxW:900}),0,'up'));
   const b=S.add('bars',{x:540,y:1450,w:900,h:760,values:p.values,labels:p.labels||p.values.map((_,i)=>String(i+1)),grow:0,color:p.color||'primary',size:34});
-  enter(b,Math.max(0,(p.t0??0)-0.2),'up');b.to(p.t0??0.2,p.t1??2.5,{grow:1},'out');out.push(b);
+  enter(b,0,'up');b.to(p.t0??0.2,p.t1??2.5,{grow:1},'out');out.push(b);
   if(p.readout)out.push(enter(S.add('text',{text:p.readout,x:540,y:1590,size:80,weight:800,color:'warm',maxW:900}),p.readoutT??p.t1??2.5,'up'));
   return out});
 

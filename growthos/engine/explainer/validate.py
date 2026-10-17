@@ -265,7 +265,7 @@ def sample_times(duration: float, anchors: dict[str, float]) -> list[float]:
     return sorted({round(min(max(t, 0.0), duration - 0.05), 2) for t in base + around})
 
 
-async def trial_async(module_js: str, duration: float, anchors: dict[str, float]) -> dict:
+async def trial_async(module_js: str, duration: float, anchors: dict[str, float], balanced: bool = True) -> dict:
     from playwright.async_api import async_playwright
 
     errors: list[str] = []
@@ -301,7 +301,8 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
                     # Remplissage vertical : au moins 3 des 6 bandes centrales (y 240 -> 1680) doivent contenir quelque chose (calibré sur la vitrine
                     # validée à l'œil : 4 à 7 bandes ; et sur les gabarits : 2 à 5 bandes selon l'instant)
                     lopsided = [t for t, c in coverages if t > 0.3 and sum(1 for b in c["bands"][1:7] if b >= BAND_MIN) < 3]
-                    if len(lopsided) >= max(2, round(len(coverages) * 0.6)):
+                    # Une carte titre est volontairement minimale : elle n'a pas à remplir toutes les bandes verticales.
+                    if balanced and len(lopsided) >= max(2, round(len(coverages) * 0.6)):
                         errors.append("contenu mal réparti : de grandes zones verticales de l'écran sont vides aux instants "
                                       + ", ".join(f"{t:.1f}s" for t in lopsided[:4]) + " : centre la composition, agrandis les éléments, "
                                       "utilise un gabarit (S.template) ou un décor plein cadre")
@@ -332,5 +333,5 @@ def validate_plan(code: str, plan_id: str, duration: float, anchors: dict[str, f
     static = static_check(code, () if layout in ("scene", "", None) else (layout,))
     if static:
         return {"ok": False, "stage": "static", "errors": static, "warnings": []}
-    result = asyncio.run(trial_async(plan_module(code, plan_id, duration, anchors), duration, anchors))
+    result = asyncio.run(trial_async(plan_module(code, plan_id, duration, anchors), duration, anchors, balanced=(layout != "title")))
     return {"ok": not result["errors"], "stage": "trial", **result}
