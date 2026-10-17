@@ -34,12 +34,12 @@ class TestUpload(unittest.TestCase):
         bucket.get_public_url.return_value = public_url
         return client, bucket
 
-    def test_long_cache_and_versioned_url(self):
+    def test_no_shared_cache_and_versioned_url(self):
         client, bucket = self._client("https://x.test/storage/v1/object/public/content-videos/a.mp4")
         with patch.object(storage.time, "time", return_value=1234):
             url = storage.upload_video(client, "a", "/tmp/a.mp4")
         options = bucket.upload.call_args.kwargs["file_options"]
-        self.assertEqual(options["cache-control"], "31536000")
+        self.assertEqual(options["cache-control"], "0")
         self.assertEqual(options["content-type"], "video/mp4")
         self.assertEqual(options["upsert"], "true")
         self.assertTrue(url.endswith("a.mp4?v=1234"))
