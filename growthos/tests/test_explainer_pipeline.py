@@ -359,6 +359,58 @@ class TestLayout(unittest.TestCase):
             self.assertEqual(validate.static_check(code, () if spec.get("layout", "scene") == "scene" else (spec["layout"],)), [], name)
 
 
+class TestLayoutProbe(unittest.TestCase):
+    """Règles de mise en page sur les boîtes des formes (éléments coupés par un bord, texte recouvert)."""
+
+    @staticmethod
+    def shape(kind, order, seq, x0, x1, y0, y1, op="fill", alpha=1.0):
+        return {"kind": kind, "order": order, "seq": seq, "op": op, "alpha": alpha, "x0": x0, "x1": x1, "y0": y0, "y1": y1}
+
+    def report(self, shapes, texts=(), t=1.0):
+        return {"t": t, "shapes": list(shapes), "texts": list(texts), "ms": 1, "errors": []}
+
+    def test_box_cut_by_one_edge_is_flagged_but_not_scenery_or_two_edges(self):
+        cut = self.shape("box", 1, 0, 700, 1180, 400, 520)                       # dépasse le bord droit (1080) de 100 px sur 480
+        self.assertEqual([f["rule"] for f in validate.layout_findings(self.report([cut]))], ["cut"])
+        scenery = self.shape("water", 2, 1, 700, 1180, 400, 520)
+        self.assertEqual(validate.layout_findings(self.report([scenery])), [])
+        both = self.shape("box", 3, 2, -200, 1300, 400, 520)                      # traverse tout l'écran : décor, pas objet coupé
+        self.assertEqual(validate.layout_findings(self.report([both])), [])
+        inside = self.shape("box", 4, 3, 100, 600, 400, 520)
+        self.assertEqual(validate.layout_findings(self.report([inside])), [])
+
+    def test_mostly_offscreen_element_is_an_entrance_not_a_defect(self):
+        sliding = self.shape("box", 1, 0, 1000, 1500, 400, 520)                   # presque entièrement hors cadre
+        self.assertEqual(validate.layout_findings(self.report([sliding])), [])
+
+    def test_text_covered_by_later_shape_is_flagged_but_not_text_over_shape(self):
+        text = {"s": "Année 1", "seq": 5, "order": 9, "alpha": 1.0, "x0": 100, "x1": 400, "y0": 800, "y1": 880}
+        over = self.shape("circle", 2, 6, 150, 350, 780, 900)
+        self.assertEqual([f["rule"] for f in validate.layout_findings(self.report([over], [text]))], ["cover"])
+        under = self.shape("circle", 2, 4, 150, 350, 780, 900)                    # dessiné AVANT le texte : le texte reste lisible
+        self.assertEqual(validate.layout_findings(self.report([under], [text])), [])
+        halo = self.shape("circle", 2, 6, 150, 350, 780, 900, alpha=0.1)
+        self.assertEqual(validate.layout_findings(self.report([halo], [text])), [])
+        backdrop = self.shape("circle", 2, 6, -400, 1500, 300, 1700)              # fond immense : pas un objet
+        self.assertEqual(validate.layout_findings(self.report([backdrop], [text])), [])
+
+    def test_a_finding_needs_two_frames(self):
+        f = {"rule": "cut", "key": "box#1", "msg": "coupé", "t": 1.0}
+        self.assertEqual(validate.aggregate_findings([[f], []]), [])
+        errors = validate.aggregate_findings([[f], [{**f, "t": 2.0}]])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("1.0s", errors[0])
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, "playwright non installé")
+    def test_box_cut_by_the_edge_is_rejected_in_chromium(self):
+        code = ("S.sky('void');S.grid(true);S.add('text',{text:'Titre',x:540,y:300,size:90});"
+                "S.add('box',{x:900,y:960,w:520,h:200,color:'cyan'});S.add('box',{x:300,y:1400,w:400,h:200,color:'amber'});")
+        result = validate.validate_plan(code, "x", 4.0, {})
+        self.assertTrue(any("coupé par le bord droit" in e for e in result["errors"]), result["errors"])
+        ok = validate.validate_plan(code.replace("x:900", "x:600"), "x", 4.0, {})
+        self.assertFalse(any("coupé par le bord" in e for e in ok["errors"]), ok["errors"])
+
+
 class TestTransientErrors(unittest.TestCase):
     def test_network_cut_mid_stream_is_retried_then_reported_not_fatal(self):
         class Boom(Exception):
