@@ -107,12 +107,14 @@ def refine(spend, storyboard, windows, anchors, codes, narration, total, topic, 
 
 
 def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None, voice_report: dict | None = None,
-             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, mode: str | None = None, log=print) -> dict:
+             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, mode: str | None = None, spec: dict | None = None, log=print) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     # Mode « templates » : le modèle choisit des gabarits (un appel batché), il n'écrit pas de code ; pas de critique visuelle
     # ni de retouches (les sondes de mise en page déterministes les remplacent). Mode « code » : animateur + critique (évaluations).
-    mode = (mode or os.environ.get("EXPLAINER_MODE") or "code").strip().lower()
+    mode = "templates" if spec else (mode or os.environ.get("EXPLAINER_MODE") or "code").strip().lower()
+    if spec:
+        lines = spec["lines"]   # générateur déterministe : narration, storyboard et composition viennent du spec, aucun modèle
     if mode not in ("code", "templates"):
         raise ValueError(f"mode inconnu : {mode!r} (code | templates)")
     budget = budget_usd if budget_usd is not None else float(os.environ.get("EXPLAINER_LLM_BUDGET_USD") or llm.DEFAULT_BUDGET_USD)
@@ -132,7 +134,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     if lines is None:
         script = write_script(spend, topic)
         lines, report["truthModeScript"] = script["lines"], script["truthMode"]
-    if use_critic:
+    if use_critic and not spec:
         check = critic.fact_check(spend, lines)
         report["factCheck"] = check
         if check["verdict"] == "a_reviser" and not voice_report:
@@ -159,7 +161,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     report["durationSeconds"] = total
 
     log("[2/5] Réalisation (storyboard)…")
-    directed = director.direct(spend, topic, narration, words, total, templates_only=(mode == "templates"))
+    directed = {"storyboard": spec["storyboard"], "attempts": 0} if spec else director.direct(spend, topic, narration, words, total, templates_only=(mode == "templates"))
     storyboard = directed["storyboard"]
     report["storyboard"], report["directorAttempts"] = storyboard, directed["attempts"]
     report["anchorWarnings"] = directed.get("anchorWarnings", [])
@@ -179,7 +181,8 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
 
     if mode == "templates":
         log(f"[3/5] Composition de {len(jobs)} plans (gabarits)…")
-        results = composer.compose_all(spend, storyboard, windows, anchors, narration, topic, jobs)
+        results = (composer.compose_fixed(spec["composition"], jobs) if spec
+                   else composer.compose_all(spend, storyboard, windows, anchors, narration, topic, jobs))
         step("composer")
     else:
         log(f"[3/5] Animation de {len(jobs)} plans…")

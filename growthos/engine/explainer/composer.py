@@ -131,6 +131,15 @@ def _check(job: dict, spec: dict | None) -> dict:
     return {"ok": result["ok"], "code": code, "errors": result["errors"], "warnings": result["warnings"]}
 
 
+def compose_fixed(composition: dict, jobs: list[dict], workers: int = 3) -> list[dict]:
+    """Composition DÉJÀ écrite (générateur déterministe) : mêmes contrôles que `compose_all`, aucun appel de modèle, aucune réparation."""
+    specs = {p.get("id"): p for p in composition.get("plans", []) if isinstance(p, dict)}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        checks = list(pool.map(lambda j: _check(j, specs.get(j["plan_id"])), jobs))
+    return [{"id": j["plan_id"], "ok": c["ok"], "code": c["code"], "attempts": 1, "errors": c["errors"], "warnings": c["warnings"],
+             "history": [{"attempt": 1, "ok": c["ok"], "errors": c["errors"][:8]}]} for j, c in zip(jobs, checks)]
+
+
 def compose_all(spend: llm.Spend, storyboard: dict, windows: list[dict], anchors: dict[str, dict], narration: list[tuple[float, str]],
                 topic: str, jobs: list[dict], workers: int = 3) -> list[dict]:
     """Même forme de résultat que `animator.animate_all` : {id, ok, code, attempts, errors, warnings, history}."""
