@@ -187,18 +187,91 @@ def analyse_probe(report: dict) -> tuple[list[str], list[str]]:
 
 
 
+# Éléments de décor : ils débordent du cadre par construction (sol, eau, ville, particules, flèches, courbes).
+SCENERY = {"water", "city", "particles", "line", "polyline", "house", "tower", "boat", "whale", "fish", "datacenter", "antenna"}
+CUT_MIN_PX, CUT_MAX_SHARE = 6, 0.5       # un élément coupé par UN seul bord, sur moins de la moitié de sa largeur
+COVER_MIN_SHARE = 0.15                   # part de la boîte du texte masquée par des éléments dessinés après lui
+COVER_TEXT_MIN_H = 22                    # hauteur minimale d'un texte pour compter (les mentions minuscules d'interface sont ignorées)
+BIG_SHAPE_SHARE = 0.4                    # au-delà de cette part du cadre, c'est un fond, pas un objet
+
+
+def layout_findings(report: dict) -> list[dict]:
+    """Défauts de mise en page d'UNE image sondée, mesurés sur les boîtes des formes : {rule, key, msg, t}.
+    Un élément qui glisse dans le cadre ou en sort est normal à un instant donné : trial_async n'en fait une erreur que s'il
+    est constaté sur au moins deux images."""
+    t, W, H = report["t"], render.WIDTH, render.HEIGHT
+    shapes = [x for x in report.get("shapes", []) if x["alpha"] > 0.05]
+    findings: list[dict] = []
+    groups: dict[tuple, dict] = {}
+    for x in shapes:
+        g = groups.setdefault((x["order"], x["kind"]), {"x0": x["x0"], "x1": x["x1"], "y0": x["y0"], "y1": x["y1"]})
+        g["x0"], g["x1"] = min(g["x0"], x["x0"]), max(g["x1"], x["x1"])
+        g["y0"], g["y1"] = min(g["y0"], x["y0"]), max(g["y1"], x["y1"])
+    for (order, kind), g in groups.items():
+        width, height = g["x1"] - g["x0"], g["y1"] - g["y0"]
+        if kind in SCENERY or kind == "text" or width < 40 or height < 20 or width * height > BIG_SHAPE_SHARE * W * H:
+            continue
+        left_cut, right_cut = max(0.0, -g["x0"]), max(0.0, g["x1"] - W)
+        if (left_cut > CUT_MIN_PX) != (right_cut > CUT_MIN_PX):                  # exactement un bord
+            cut = max(left_cut, right_cut)
+            if cut / width < CUT_MAX_SHARE and width - cut > 20:
+                side = "gauche" if left_cut > right_cut else "droit"
+                findings.append({"rule": "cut", "key": f"{kind}#{order}", "t": t,
+                                 "msg": f"un élément « {kind} » est coupé par le bord {side} de l'écran (rentre-le dans le cadre : marges d'au moins 60 px)"})
+    texts = [x for x in report["texts"] if x["alpha"] > 0.5 and (x["y1"] - x["y0"]) >= COVER_TEXT_MIN_H]
+    for tx in texts:
+        # Part du texte cachée par les formes dessinées après lui : points d'une grille dans sa boîte, couverts par la
+        # boîte d'une forme d'un autre élément (un personnage est fait de dizaines de petites formes : une par une,
+        # aucune ne dépasse le seuil, ensemble elles masquent le mot).
+        covering = [sh for sh in shapes if sh["op"] == "fill" and sh["seq"] > tx["seq"] and sh["order"] != tx["order"] and sh["alpha"] >= 0.25
+                    and sh["kind"] != "text" and (sh["x1"] - sh["x0"]) * (sh["y1"] - sh["y0"]) <= BIG_SHAPE_SHARE * W * H]
+        if not covering:
+            continue
+        tw, th = tx["x1"] - tx["x0"], tx["y1"] - tx["y0"]
+        cols, rows, hit = min(60, max(14, int(tw / 10))), 5, 0
+        for i in range(cols):
+            for j in range(rows):
+                px = tx["x0"] + tw * (i + 0.5) / cols
+                py = tx["y0"] + th * (j + 0.5) / rows
+                if any(sh["x0"] <= px <= sh["x1"] and sh["y0"] <= py <= sh["y1"] for sh in covering):
+                    hit += 1
+        # Masqué = au moins une demi-case de caractère (h x h / 2) OU une part notable de la boîte : une pièce posée
+        # sur un seul chiffre d'une longue phrase est un défaut même si elle ne couvre que 14 % de sa largeur.
+        covered_area = hit / (cols * rows) * tw * th
+        if covered_area >= 0.5 * th * th or hit / (cols * rows) >= COVER_MIN_SHARE:
+            kinds = sorted({sh["kind"] for sh in covering if sh["x0"] < tx["x1"] and sh["x1"] > tx["x0"] and sh["y0"] < tx["y1"] and sh["y1"] > tx["y0"]})
+            findings.append({"rule": "cover", "key": tx["s"], "t": t,
+                             "msg": f"« {tx['s']} » est en partie caché par {', '.join(kinds)} dessiné après lui (éloigne-les, ou donne au texte un `layer` plus haut)"})
+    return findings
+
+
+MIN_FRAMES = {"cut": 2, "cover": 1}   # un élément qui glisse dans le cadre est normal à un instant ; un texte caché ne l'est jamais
+
+
+def aggregate_findings(per_frame: list[list[dict]], min_frames: int | None = None) -> list[str]:
+    """Erreurs de mise en page, regroupées par défaut : `cut` constaté sur au moins deux images, `cover` dès une image."""
+    seen: dict[tuple, dict] = {}
+    for frame in per_frame:
+        for f in frame:
+            entry = seen.setdefault((f["rule"], f["key"]), {"rule": f["rule"], "msg": f["msg"], "times": set()})
+            entry["times"].add(f["t"])
+    return [f"{e['msg']} (images à " + ", ".join(f"{t:.1f}s" for t in sorted(e["times"])[:3]) + ")"
+            for e in seen.values() if len(e["times"]) >= (min_frames or MIN_FRAMES.get(e["rule"], 2))]
+
+
 def sample_times(duration: float, anchors: dict[str, float]) -> list[float]:
     base = [0.05, duration * 0.25, duration * 0.5, duration * 0.75, duration - 0.1]
     around = [a + d for a in anchors.values() for d in (0.05, 0.6)]
     return sorted({round(min(max(t, 0.0), duration - 0.05), 2) for t in base + around})
 
 
-async def trial_async(module_js: str, duration: float, anchors: dict[str, float]) -> dict:
+async def trial_async(module_js: str, duration: float, anchors: dict[str, float], balanced: bool = True) -> dict:
     from playwright.async_api import async_playwright
 
     errors: list[str] = []
     warnings: list[str] = []
     coverages: list[tuple[float, float]] = []
+    layout: list[list[dict]] = []
     with tempfile.TemporaryDirectory() as tmp:
         timeline = Path(tmp) / "plan.timeline.js"
         timeline.write_text(module_js, encoding="utf-8")
@@ -217,8 +290,10 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
                         e, w = analyse_probe(report)
                         errors.extend(e)
                         warnings.extend(w)
+                        layout.append(layout_findings(report))
                         coverages.append((report["t"], report.get("coverage", {"total": 1.0, "bands": [1.0] * 8})))
                     errors.extend(f"erreur d'exécution : {m}" for m in await page.evaluate("window.__runtimeErrors || []"))
+                    errors.extend(aggregate_findings(layout))
                     first = [c["total"] for t, c in coverages if t <= 0.1]
                     if first and first[0] < FIRST_FRAME_MIN:
                         errors.append("premier plan vide : le sujet principal doit être visible dès la première image (t = 0), sans attendre un `appear`")
@@ -226,7 +301,8 @@ async def trial_async(module_js: str, duration: float, anchors: dict[str, float]
                     # Remplissage vertical : au moins 3 des 6 bandes centrales (y 240 -> 1680) doivent contenir quelque chose (calibré sur la vitrine
                     # validée à l'œil : 4 à 7 bandes ; et sur les gabarits : 2 à 5 bandes selon l'instant)
                     lopsided = [t for t, c in coverages if t > 0.3 and sum(1 for b in c["bands"][1:7] if b >= BAND_MIN) < 3]
-                    if len(lopsided) >= max(2, round(len(coverages) * 0.6)):
+                    # Une carte titre est volontairement minimale : elle n'a pas à remplir toutes les bandes verticales.
+                    if balanced and len(lopsided) >= max(2, round(len(coverages) * 0.6)):
                         errors.append("contenu mal réparti : de grandes zones verticales de l'écran sont vides aux instants "
                                       + ", ".join(f"{t:.1f}s" for t in lopsided[:4]) + " : centre la composition, agrandis les éléments, "
                                       "utilise un gabarit (S.template) ou un décor plein cadre")
@@ -257,5 +333,5 @@ def validate_plan(code: str, plan_id: str, duration: float, anchors: dict[str, f
     static = static_check(code, () if layout in ("scene", "", None) else (layout,))
     if static:
         return {"ok": False, "stage": "static", "errors": static, "warnings": []}
-    result = asyncio.run(trial_async(plan_module(code, plan_id, duration, anchors), duration, anchors))
+    result = asyncio.run(trial_async(plan_module(code, plan_id, duration, anchors), duration, anchors, balanced=(layout != "title")))
     return {"ok": not result["errors"], "stage": "trial", **result}

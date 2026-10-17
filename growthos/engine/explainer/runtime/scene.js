@@ -167,6 +167,7 @@ function drawScene(S,t){
     ctx.save();
     if(p.hud){screen()}else{const z=lerp(1,cam.z,p.par),cx=540+(cam.x-540)*p.par;cameraR({x:cx,y:960+(cam.y-960)*p.par,z,r:(cam.r||0)*p.par});}
     ctx.translate(p.x,p.y);if(p.r)ctx.rotate(p.r);if(p.s!==1)ctx.scale(p.s,p.s);ctx.globalAlpha*=clamp(p.a);
+    if(window.__probe&&window.__probe.on)window.__probe.cur={kind:h.kind,order:h.order};
     try{DRAW[h.kind](p,t)}catch(e){const m=h.kind+' : '+e.message;if(!RUNTIME_ERRORS.includes(m))RUNTIME_ERRORS.push(m)}
     ctx.restore();}
   screen();for(const f of S.fades){const a=f.dir==='in'?1-seg(t,f.t0,f.t1):seg(t,f.t0,f.t1);overlay(col(f.color),a)}

@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
-VERSIONS = {"explainer-script": "v1", "explainer-director": "v1", "explainer-animator": "v1", "runtime-api": "0.1.0"}
+VERSIONS = {"explainer-script": "v1", "explainer-director": "v1", "explainer-animator": "v1", "explainer-composer": "v1", "runtime-api": "0.1.0"}
 
 
 def load(name: str) -> str:

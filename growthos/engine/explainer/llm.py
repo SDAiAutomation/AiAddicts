@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 DIRECTOR_MODEL = os.environ.get("EXPLAINER_DIRECTOR_MODEL", "claude-opus-5-5")
 ANIMATOR_MODEL = os.environ.get("EXPLAINER_ANIMATOR_MODEL", "claude-sonnet-5-5")
+COMPOSER_MODEL = os.environ.get("EXPLAINER_COMPOSER_MODEL", ANIMATOR_MODEL)   # mode gabarits : un seul appel batché, le modèle courant suffit
 DEFAULT_BUDGET_USD = 1.20
 
 # USD par million de tokens : (entrée, sortie, lecture de cache, écriture de cache 5 min)

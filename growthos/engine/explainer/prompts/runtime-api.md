@@ -76,6 +76,11 @@ Séquences complètes extraites de la vidéo vitrine (décor plein cadre, person
 - `journey` : `{t0?, dur?, label?, labels?}` — le trajet d'un message de bout en bout : antenne, câble qui plonge dans l'océan (poissons, baleine, bateaux), traversée, data center, antenne d'arrivée, avec trois paquets lumineux qui suivent le chemin et trois légendes. Il occupe `dur` secondes à partir de `t0` (par défaut tout le plan, ~22 s idéal ; plus court, il accélère). La caméra est gérée.
 Un plan `room` ou `journey` ne demande presque rien de plus : ajoute au besoin un mot-clé (`hud: true`, 64 px) et des bruitages.
 
+## Le guide (`S.template('guide', ...)`) — un personnage debout qui réagit, à ajouter à côté d'un gabarit
+Donne de la vie aux infographies : un personnage en bas d'un coin qui salue, montre, réfléchit ou applaudit au rythme de la voix, avec des bulles courtes. Il s'AJOUTE à un autre gabarit (le `layout` reste celui du plan).
+`{who:'awa'|'lea'|'malik'|'sam'|{...props person}, side:'left'|'right', size?:0.7-1.0, y?, t?, poses:[{t, pose}], say:[{t, text, until?}]}` — poses : `stand`, `wave` (salue), `point` (montre le contenu), `think` (réfléchit), `cheer` (bravo). `say` : bulle de 3 à 4 mots (ex. « Salut ! », « x = 4 ! ») entre `t` et `until`.
+À utiliser avec les gabarits qui laissent un coin du bas libre : `title`, `bignumber`, `equation` (guide à gauche, `size` ≤ 0.8), `segment`, `fibonacci`. À éviter avec `bars`, `compare`, `flow`, `bullets` (le guide couvrirait le contenu). Un seul guide par plan, sauf pour une scène de fin (deux guides de chaque côté d'un titre). Cohérence : garde le même personnage (`who`) du début à la fin de la vidéo.
+
 ## Types et couleurs (vérifiés : une erreur fait échouer le plan)
 Les nombres sont des nombres (`dark: 0.25`, jamais `true`), les booléens des booléens, `pid` un nombre. Une prop inconnue pour un élément (faute de frappe) est une erreur. Les couleurs sont un jeton de la liste ou `#rrggbb` : `'red'`, `'green'`… sont INVALIDES.
 

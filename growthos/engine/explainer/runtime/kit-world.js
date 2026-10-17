@@ -243,3 +243,51 @@ function dataCenter(cx,baseY,t,o={}){
   ctx.fillStyle='rgba(180,210,255,0.08)';ctx.fillRect(l,baseY-44,w,4);
   return {left:l,right:l+w,top,baseY,mid:cx,racksY:top+80+(h-130)/2};
 }
+
+
+/* ---- personnage debout (le « guide ») ------------------------------------------------------------------------------ */
+/* Origine = sol, entre les pieds ; visage vers +x. pose : 'stand' | 'wave' | 'point' | 'think' | 'cheer'. */
+function personStand(x,y,o={}){
+  const {s=1,skin=WC.skin.brown,hair='#150e0c',style='short',top='#ff8a5b',pants='#222a55',t=0,flip=false,id=0,pose='stand'}=o;
+  ctx.save();ctx.translate(x,y);ctx.scale(flip?-s:s,s);
+  const line=(a,b,w,c)=>{ctx.strokeStyle=c;ctx.lineWidth=w;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()};
+  const breathe=Math.sin(t*1.6+id)*1.6,sh=[0,-236+breathe],hd=[6,-298+breathe],hx=hd[0],hy=hd[1];
+  ctx.fillStyle='rgba(0,0,0,0.2)';ctx.beginPath();ctx.ellipse(0,4,74,10,0,0,7);ctx.fill();
+  // jambes + chaussures
+  line([-14,-128],[-18,-16],32,pants);line([14,-128],[18,-16],32,pants);
+  ctx.fillStyle='#f2f2f2';for(const fx of [-18,18]){ctx.beginPath();ctx.ellipse(fx+10,-7,27,11,0,0,7);ctx.fill()}
+  // cheveux de derriere
+  ctx.fillStyle=hair;
+  if(style==='curly'){for(let k=0;k<11;k++){const a=Math.PI*(0.85+k*0.13);ctx.beginPath();ctx.arc(hx-4+Math.cos(a)*40,hy-4+Math.sin(a)*38,22,0,7);ctx.fill()}}
+  else if(style==='braids'){ctx.beginPath();ctx.ellipse(hx-8,hy-6,41,40,0,0,7);ctx.fill();for(let k=0;k<5;k++)line([hx-30+k*6,hy+10],[hx-46+k*8,hy+96+k*3],8,hair)}
+  else if(style==='bun'){ctx.beginPath();ctx.ellipse(hx-6,hy-4,40,40,0,0,7);ctx.fill();ctx.beginPath();ctx.arc(hx-18,hy-52,20,0,7);ctx.fill()}
+  else{ctx.beginPath();ctx.ellipse(hx-6,hy-6,40,40,0,0,7);ctx.fill()}
+  // bras lointain (derriere le torse), puis torse
+  const arm=(sho,elb,hand,col,sleeve=26,fore=20)=>{line(sho,elb,sleeve,col);line(elb,hand,fore,skin);ctx.fillStyle=skin;ctx.beginPath();ctx.arc(hand[0],hand[1],12,0,7);ctx.fill()};
+  const dark=mix(top,'#000000',0.18);
+  const far=pose==='cheer'?[[-30,-340],[-28,-292]]:[[-16,-140],[-14,-190]];
+  arm([-8,sh[1]+12],far[1],far[0],dark);
+  line([0,-124],[0,sh[1]+4],66,top);ctx.fillStyle=dark;ctx.beginPath();ctx.arc(0,sh[1]+10,33,Math.PI,0);ctx.fill();
+  // cou + tete + oreille + frange
+  line([2,sh[1]-8],[hx-2,hy+30],24,skin);ctx.fillStyle=skin;ctx.beginPath();ctx.arc(hx,hy,38,0,7);ctx.fill();
+  ctx.fillStyle=mix(skin,'#000000',0.12);ctx.beginPath();ctx.arc(hx-14,hy+6,9,0,7);ctx.fill();
+  ctx.fillStyle=hair;ctx.beginPath();ctx.arc(hx-2,hy-4,40,Math.PI*1.02,Math.PI*1.82);ctx.lineTo(hx+30,hy-18);ctx.quadraticCurveTo(hx+8,hy-26,hx-34,hy-6);ctx.fill();
+  // visage
+  const bp=(t+id*1.3)%3.4,happy=pose==='cheer'||pose==='wave',closed=bp<0.13||pose==='cheer',ex=hx+17,ey=hy+(pose==='think'?-2:2);
+  ctx.strokeStyle='#1a0f0b';ctx.lineWidth=4;ctx.lineCap='round';
+  if(closed){ctx.beginPath();ctx.arc(ex,ey+(pose==='cheer'?4:0),6,Math.PI*1.1,Math.PI*1.9);ctx.stroke()}
+  else{ctx.fillStyle='#1a0f0b';ctx.beginPath();ctx.ellipse(ex+(pose==='think'?2:0),ey-(pose==='think'?3:0),4.2,5.6,0,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ex+2.5,ey-2,1.5,0,7);ctx.fill()}
+  ctx.beginPath();ctx.moveTo(ex-9,ey-14);ctx.lineTo(ex+8,ey-14-(happy||pose==='think'?3:0));ctx.stroke();
+  ctx.lineWidth=3.5;ctx.beginPath();
+  if(happy){ctx.arc(hx+16,hy+16,13,0.15,Math.PI-0.55);ctx.stroke();ctx.fillStyle='rgba(255,120,110,0.28)';ctx.beginPath();ctx.arc(hx+8,hy+14,8,0,7);ctx.fill()}
+  else if(pose==='think'){ctx.arc(hx+17,hy+24,5,0,7);ctx.stroke()}
+  else{ctx.moveTo(hx+9,hy+22);ctx.quadraticCurveTo(hx+17,hy+25,hx+24,hy+21);ctx.stroke()}
+  // bras proche selon la pose
+  const nsh=[8,sh[1]+12];
+  if(pose==='wave'){const el=[46,-252+breathe],a=-1.25+0.5*Math.sin(t*10),hand=[el[0]+58*Math.cos(a),el[1]+58*Math.sin(a)];arm(nsh,el,hand,top)}
+  else if(pose==='point'){arm(nsh,[48,-216+breathe],[110,-226+breathe],top)}
+  else if(pose==='think'){arm(nsh,[36,-186+breathe],[18,-262+breathe],top)}
+  else if(pose==='cheer'){arm(nsh,[36,-292+breathe],[44,-342+breathe],top)}
+  else{arm(nsh,[16,-190+breathe],[18,-140+breathe],top)}
+  ctx.restore();
+}

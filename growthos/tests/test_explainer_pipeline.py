@@ -10,7 +10,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from engine.explainer import animator, llm, pipeline, schema, timeline, validate  # noqa: E402
+from engine.explainer import animator, composer, llm, pipeline, schema, timeline, validate  # noqa: E402
 
 try:
     import playwright  # noqa: F401
@@ -307,6 +307,8 @@ TEMPLATE_CASES = {
     "room-send": "S.template('room',{place:'dakar',who:'awa',tag:'DAKAR',contact:'Lea',message:'On mange ce soir ?',sendAt:4,zoomPhone:{t0:5.2,t1:6.8}});",
     "room-receive": "S.template('room',{place:'paris',who:'lea',tag:'PARIS',contact:'Awa',message:'On mange ce soir ?',receiveAt:1,reply:'Oui, 20h !',replyFrom:4.2,replyAt:6.4,smileAt:5});",
     "journey": "S.template('journey',{});",
+    "equation-guide": "S.grid(true);S.template('equation',{lines:[{text:'2x + 3 = 11',t:0},{text:'2x = 8',t:2.5},{text:'x = 4',t:4.5}]});S.template('guide',{who:'awa',side:'left',size:0.8,poses:[{t:0,pose:'wave'},{t:2.5,pose:'point'},{t:4.5,pose:'cheer'}],say:[{t:0.3,text:'Salut !',until:1.6}]});",
+    "guide-title": "S.sky('night');S.template('title',{text:'Bravo !',sub:'tu as compris'});S.template('guide',{who:'sam',side:'left',size:1.0,y:1650,poses:[{t:0,pose:'cheer'}]});S.template('guide',{who:'malik',side:'right',size:1.0,y:1650,poses:[{t:0,pose:'wave'}]});",
 }
 
 
@@ -314,8 +316,8 @@ TEMPLATE_CASES = {
 class TestTemplates(unittest.TestCase):
     def test_every_template_passes_the_validator(self):
         for name, code in TEMPLATE_CASES.items():
-            dur = 22.0 if name == "journey" else 8.0 if name.startswith("room") else 7.0
-            result = validate.validate_plan(code, "t_" + name.replace("-", "_"), dur, {}, name.split("-")[0] if name.split("-")[0] in ("room", "journey") else "scene")
+            dur = 22.0 if name == "journey" else 8.0 if name.startswith(("room", "equation-guide")) else 7.0
+            result = validate.validate_plan(code, "t_" + name.replace("-", "_"), dur, {}, name.split("-")[0] if name.split("-")[0] in ("room", "journey") else "equation" if name == "equation-guide" else "scene")
             self.assertTrue(result["ok"], (name, result["errors"]))
 
     def test_unknown_template_and_missing_param_fail_the_plan(self):
@@ -355,6 +357,139 @@ class TestLayout(unittest.TestCase):
         for name, spec in animator.REFERENCES.items():
             code = Path(animator.PLANS_DIR, name + ".plan.js").read_text(encoding="utf-8")
             self.assertEqual(validate.static_check(code, () if spec.get("layout", "scene") == "scene" else (spec["layout"],)), [], name)
+
+
+class TestLayoutProbe(unittest.TestCase):
+    """Règles de mise en page sur les boîtes des formes (éléments coupés par un bord, texte recouvert)."""
+
+    @staticmethod
+    def shape(kind, order, seq, x0, x1, y0, y1, op="fill", alpha=1.0):
+        return {"kind": kind, "order": order, "seq": seq, "op": op, "alpha": alpha, "x0": x0, "x1": x1, "y0": y0, "y1": y1}
+
+    def report(self, shapes, texts=(), t=1.0):
+        return {"t": t, "shapes": list(shapes), "texts": list(texts), "ms": 1, "errors": []}
+
+    def test_box_cut_by_one_edge_is_flagged_but_not_scenery_or_two_edges(self):
+        cut = self.shape("box", 1, 0, 700, 1180, 400, 520)                       # dépasse le bord droit (1080) de 100 px sur 480
+        self.assertEqual([f["rule"] for f in validate.layout_findings(self.report([cut]))], ["cut"])
+        scenery = self.shape("water", 2, 1, 700, 1180, 400, 520)
+        self.assertEqual(validate.layout_findings(self.report([scenery])), [])
+        both = self.shape("box", 3, 2, -200, 1300, 400, 520)                      # traverse tout l'écran : décor, pas objet coupé
+        self.assertEqual(validate.layout_findings(self.report([both])), [])
+        inside = self.shape("box", 4, 3, 100, 600, 400, 520)
+        self.assertEqual(validate.layout_findings(self.report([inside])), [])
+
+    def test_mostly_offscreen_element_is_an_entrance_not_a_defect(self):
+        sliding = self.shape("box", 1, 0, 1000, 1500, 400, 520)                   # presque entièrement hors cadre
+        self.assertEqual(validate.layout_findings(self.report([sliding])), [])
+
+    def test_text_covered_by_later_shape_is_flagged_but_not_text_over_shape(self):
+        text = {"s": "Année 1", "seq": 5, "order": 9, "alpha": 1.0, "x0": 100, "x1": 400, "y0": 800, "y1": 880}
+        over = self.shape("circle", 2, 6, 150, 350, 780, 900)
+        self.assertEqual([f["rule"] for f in validate.layout_findings(self.report([over], [text]))], ["cover"])
+        under = self.shape("circle", 2, 4, 150, 350, 780, 900)                    # dessiné AVANT le texte : le texte reste lisible
+        self.assertEqual(validate.layout_findings(self.report([under], [text])), [])
+        halo = self.shape("circle", 2, 6, 150, 350, 780, 900, alpha=0.1)
+        self.assertEqual(validate.layout_findings(self.report([halo], [text])), [])
+        backdrop = self.shape("circle", 2, 6, -400, 1500, 300, 1700)              # fond immense : pas un objet
+        self.assertEqual(validate.layout_findings(self.report([backdrop], [text])), [])
+
+    def test_a_finding_needs_two_frames(self):
+        f = {"rule": "cut", "key": "box#1", "msg": "coupé", "t": 1.0}
+        self.assertEqual(validate.aggregate_findings([[f], []]), [])
+        errors = validate.aggregate_findings([[f], [{**f, "t": 2.0}]])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("1.0s", errors[0])
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, "playwright non installé")
+    def test_box_cut_by_the_edge_is_rejected_in_chromium(self):
+        code = ("S.sky('void');S.grid(true);S.add('text',{text:'Titre',x:540,y:300,size:90});"
+                "S.add('box',{x:900,y:960,w:520,h:200,color:'cyan'});S.add('box',{x:300,y:1400,w:400,h:200,color:'amber'});")
+        result = validate.validate_plan(code, "x", 4.0, {})
+        self.assertTrue(any("coupé par le bord droit" in e for e in result["errors"]), result["errors"])
+        ok = validate.validate_plan(code.replace("x:900", "x:600"), "x", 4.0, {})
+        self.assertFalse(any("coupé par le bord" in e for e in ok["errors"]), ok["errors"])
+
+
+class TestComposer(unittest.TestCase):
+    """Mode gabarits : le modèle renvoie du JSON, le code des plans est généré ici."""
+
+    def test_code_is_generated_from_params_with_anchor_references(self):
+        code, errors = composer.plan_code({"template": "bars", "params": {"values": [1, 2, 3], "t0": "@go", "t1": "@go+1.5", "title": "Épargne"}}, {"go"})
+        self.assertEqual(errors, [])
+        self.assertIn("S.grid(true);", code)
+        self.assertIn('"t0": S.t("go")', code)
+        self.assertIn('"t1": S.t("go")+1.5', code)
+        self.assertIn("S.cam.to(", code)
+
+    def test_scenes_do_not_get_a_grid_or_camera(self):
+        code, errors = composer.plan_code({"template": "journey", "params": {}}, set())
+        self.assertEqual(errors, [])
+        self.assertNotIn("S.grid", code)
+        self.assertNotIn("S.cam", code)
+
+    def test_problems_are_reported_never_silently_dropped(self):
+        _, e1 = composer.plan_code({"template": "diaporama", "params": {}}, set())
+        self.assertTrue(any("gabarit inconnu" in e for e in e1))
+        _, e2 = composer.plan_code({"template": "bars", "params": {"values": [1], "couleur": "red"}}, set())
+        self.assertTrue(any("paramètre inconnu" in e and "couleur" in e for e in e2))
+        _, e3 = composer.plan_code({"template": "bars", "params": {}}, set())
+        self.assertTrue(any("manquant" in e for e in e3))
+        _, e4 = composer.plan_code({"template": "bars", "params": {"values": [1], "t0": "@nope"}}, {"go"})
+        self.assertTrue(any("ancre inconnue" in e for e in e4))
+        _, e5 = composer.plan_code({"template": "bars", "params": {"values": [1]}, "guide": {"who": "awa"}}, set())
+        self.assertTrue(any("pas de guide" in e for e in e5))
+
+    def test_catalog_covers_every_registered_template(self):
+        names = set(composer.TEMPLATES)
+        doc = composer.catalog_text()
+        for name in names:
+            self.assertIn("`" + name + "`", doc, name)
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, "playwright non installé")
+    def test_pipeline_in_templates_mode_makes_one_batched_call_and_no_critic(self):
+        sb = storyboard()
+        sb["plans"][0].update({"layout": "title", "anchors": []})
+        sb["plans"][1].update({"layout": "bars", "anchors": []})
+        calls = []
+
+        def complete(spend, step, model, system, user, **kw):
+            calls.append((step, model))
+            if step.startswith("composer"):
+                body = {"plans": [{"id": "p1", "template": "title", "params": {"text": "ENVOYER", "sub": "un message"}, "guide": None},
+                                  {"id": "p2", "template": "bars", "params": {"values": [1, 2, 3, 4], "t0": 0.5, "t1": 3}, "guide": None}]}
+                return "```json\n" + json.dumps(body) + "\n```"
+            raise AssertionError("appel inattendu : " + step)
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(llm, "complete", complete),                 mock.patch.object(director_module(), "direct", lambda spend, *a, **k: {"storyboard": sb, "attempts": 1}):
+            report = pipeline.generate("test", tmp, lines=LINES, do_render=False, use_critic=False, mode="templates", log=lambda *_: None)
+        self.assertEqual(report["mode"], "templates")
+        self.assertEqual([c[0] for c in calls], ["composer#1"])
+        self.assertEqual(report["fallbacks"], [])
+        self.assertEqual([p["ok"] for p in report["plans"]], [True, True])
+        self.assertNotIn("critic", report)
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, "playwright non installé")
+    def test_a_bad_plan_gets_one_grouped_repair_then_falls_back(self):
+        sb = storyboard()
+        sb["plans"][0].update({"layout": "title", "anchors": []})
+        sb["plans"][1].update({"layout": "bars", "anchors": []})
+        calls = []
+
+        def complete(spend, step, model, system, user, **kw):
+            calls.append(step)
+            good = {"id": "p1", "template": "title", "params": {"text": "OK"}, "guide": None}
+            bad = {"id": "p2", "template": "bars", "params": {"valeurs": [1, 2]}, "guide": None}
+            return "```json\n" + json.dumps({"plans": [good, bad]}) + "\n```"
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(llm, "complete", complete),                 mock.patch.object(director_module(), "direct", lambda spend, *a, **k: {"storyboard": sb, "attempts": 1}):
+            report = pipeline.generate("test", tmp, lines=LINES, do_render=False, use_critic=False, mode="templates", log=lambda *_: None)
+        self.assertEqual(calls, ["composer#1", "composer#2"])
+        self.assertEqual([f["plan"] for f in report["fallbacks"]], ["p2"])
+
+    def test_unknown_mode_is_refused(self):
+        with self.assertRaises(ValueError):
+            pipeline.generate("t", tempfile.mkdtemp(), lines=LINES, do_render=False, mode="magique", log=lambda *_: None)
 
 
 class TestTransientErrors(unittest.TestCase):
