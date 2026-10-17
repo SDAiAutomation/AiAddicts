@@ -1,4 +1,4 @@
-"""Voix off de l'Explainer : une synthèse ElevenLabs par ligne de narration, posée à l'instant prévu par la timeline.
+"""Voix off de l'Explainer : une synthèse ElevenLabs par ligne de narration, puis placement selon la parole réelle.
 
 Réutilise `engine/tts.py` (même modèle, mêmes réglages, mêmes reprises sur 429/5xx que le reste du moteur) et
 `engine/voices.py` (même résolution de voix). La clé ElevenLabs vient de l'environnement (`.env` chargé par
@@ -24,6 +24,10 @@ from engine import tts, voices
 
 MAX_TEMPO = 1.15      # accélération maximale tolérée pour faire tenir une ligne dans sa fenêtre
 MIN_GAP = 0.15        # silence à garder avant la ligne suivante (s)
+SENTENCE_GAP = 0.38   # respiration naturelle après une phrase, mesurée depuis le dernier mot prononcé
+QUESTION_GAP = 0.48   # une question laisse un peu plus de place à l'idée
+SHORT_GAP = 0.28      # fragment qui se poursuit à la ligne suivante
+TAIL = 1.2            # fin de vidéo après la dernière parole
 
 
 def _line_key(text: str, voice_id: str) -> str:
@@ -58,6 +62,30 @@ def plan_tempo(lines: list[dict], total: float) -> None:
         line["overflow"] = round(max(0.0, line["duration"] / tempo - window), 2)
 
 
+def pace_lines(lines: list[dict], lead_in: float = 0.4) -> float:
+    """Place les lignes à partir de leurs vrais mots, puis renvoie la durée du mix.
+
+    L'estimation caractères/seconde sert au premier storyboard seulement. Elle
+    ne doit pas créer des secondes de silence une fois la voix synthétisée.
+    La fin muette d'un MP3 peut se superposer au début de la ligne suivante ;
+    seuls les mots prononcés déterminent l'espace audible entre deux phrases.
+    """
+    if not lines:
+        return round(max(0.0, lead_in) + TAIL, 2)
+    cursor = max(0.0, lead_in)
+    for line in lines:
+        line["start"] = round(cursor, 3)
+        line["tempo"] = 1.0
+        line["overflow"] = 0.0
+        word_end = max((float(w["end"]) for w in line["words"]), default=float(line["duration"]))
+        speech_end = min(float(line["duration"]), word_end) if word_end > 0 else float(line["duration"])
+        text = line["text"].rstrip()
+        pause = QUESTION_GAP if text.endswith(("?", "!")) else SENTENCE_GAP if text.endswith((".", "…")) else SHORT_GAP
+        cursor = line["start"] + speech_end + pause
+    last = lines[-1]
+    return round(max(last["start"] + last["duration"], cursor - pause) + TAIL, 2)
+
+
 def mix_lines(lines: list[dict], total: float, out_path: Path) -> Path:
     """Pose chaque ligne à son instant (adelay) et mixe le tout dans un WAV stéréo 48 kHz de `total` secondes."""
     cmd = ["ffmpeg", "-y", "-loglevel", "error"]
@@ -79,7 +107,7 @@ def build_voiceover(narration: list, total: float, out_dir: str | Path, voice_id
     out_dir = Path(out_dir)
     voice = voice_id or voices.resolve_voice({})
     lines = synthesize_lines(narration, out_dir, voice, api_key)
-    plan_tempo(lines, total)
+    total = pace_lines(lines, narration[0][0] if narration else 0.4)
     wav = mix_lines(lines, total, out_dir / "voice.wav")
     billed = sum(line["chars"] for line in lines)
     rate = os.environ.get("ELEVENLABS_USD_PER_1K_CHARS", "").strip()

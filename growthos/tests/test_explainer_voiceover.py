@@ -36,6 +36,27 @@ class TestPlanTempo(unittest.TestCase):
         self.assertNotEqual(voiceover._line_key("a", "v1"), voiceover._line_key("a", "v2"))
         self.assertEqual(voiceover._line_key("a", "v1"), voiceover._line_key("a", "v1"))
 
+    def test_pacing_uses_real_speech_end_instead_of_estimated_line_starts(self):
+        lines = [
+            {"start": 0.4, "duration": 3.4, "text": "Pourquoi ?", "words": [{"end": 3.2}]},
+            {"start": 6.1, "duration": 2.9, "text": "Voici la réponse.", "words": [{"end": 2.6}]},
+            {"start": 11.0, "duration": 2.0, "text": "Et ensuite", "words": [{"end": 1.8}]},
+        ]
+        total = voiceover.pace_lines(lines)
+        self.assertEqual(lines[0]["start"], 0.4)
+        self.assertAlmostEqual(lines[1]["start"] - (lines[0]["start"] + 3.2), voiceover.QUESTION_GAP)
+        self.assertAlmostEqual(lines[2]["start"] - (lines[1]["start"] + 2.6), voiceover.SENTENCE_GAP)
+        self.assertLess(total, 11.0)
+        self.assertEqual([line["tempo"] for line in lines], [1.0] * 3)
+
+    def test_pacing_handles_missing_word_timestamps_without_overlapping_audio(self):
+        lines = [
+            {"start": 0.4, "duration": 2.0, "text": "Un.", "words": [{"end": 0}]},
+            {"start": 7.0, "duration": 1.0, "text": "Deux.", "words": []},
+        ]
+        voiceover.pace_lines(lines)
+        self.assertGreaterEqual(lines[1]["start"], lines[0]["start"] + lines[0]["duration"])
+
 
 class TestAudioArgs(unittest.TestCase):
     def test_without_voice_the_sfx_track_is_unchanged(self):
