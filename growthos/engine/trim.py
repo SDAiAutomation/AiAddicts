@@ -126,10 +126,17 @@ def _download(url: str, dest: Path, *, content_item_id: str, supabase_url: str |
     supabase_url = supabase_url or os.environ.get("SUPABASE_URL", "")
     if not is_trusted_storage_url(url, content_item_id, supabase_url):
         raise ValueError(_REFUSED)
+    # Stored public-shaped URLs are stable object references, not public access.
+    # Validate the exact origin/path BEFORE attaching the service credential.
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not service_key:
+        raise ValueError("Stockage privé indisponible.")
+    url = url.replace("/storage/v1/object/public/", "/storage/v1/object/authenticated/", 1)
+    headers = {"Authorization": f"Bearer {service_key}", "apikey": service_key}
     dest.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     try:
-        with requests.get(url, stream=True, timeout=(10, 30), allow_redirects=False) as resp:
+        with requests.get(url, headers=headers, stream=True, timeout=(10, 30), allow_redirects=False) as resp:
             if 300 <= resp.status_code < 400:
                 raise ValueError(_REFUSED)
             resp.raise_for_status()

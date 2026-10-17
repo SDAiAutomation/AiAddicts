@@ -105,6 +105,9 @@ def fake_response(status=200, chunks=(b"x" * 10,), headers=None):
 
 class Download(unittest.TestCase):
     def setUp(self):
+        self.env = patch.dict("os.environ", {"SUPABASE_SERVICE_ROLE_KEY": "test-service-key"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
         self.tmp = Path(tempfile.mkdtemp())
         self.dest = self.tmp / "work" / "source.mp4"
         self.url = f"{PREFIX}/{ITEM}.mp4?v=1"
@@ -130,6 +133,14 @@ class Download(unittest.TestCase):
         self.assertIs(kwargs["allow_redirects"], False)
         self.assertTrue(kwargs["stream"])
         self.assertIsInstance(kwargs["timeout"], tuple)  # (connexion, lecture)
+        self.assertIn("/object/authenticated/content-videos/", get.call_args.args[0])
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-service-key")
+
+    def test_missing_service_key_fails_closed(self):
+        with patch.dict("os.environ", {"SUPABASE_SERVICE_ROLE_KEY": ""}), patch("engine.trim.requests.get") as get:
+            with self.assertRaises(ValueError):
+                self.call()
+            get.assert_not_called()
 
     def test_redirect_is_refused_and_leaves_no_file(self):
         with patch("engine.trim.requests.get", return_value=fake_response(status=302, headers={"Location": "http://127.0.0.1/"})):
