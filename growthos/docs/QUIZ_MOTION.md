@@ -21,7 +21,7 @@ La bonne réponse n'influence aucun événement de la phase question. Les entré
 
 ## Contrat et coordination
 
-`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v1` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
+`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v2` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
 
 L'intégration partagée est limitée à ce dispatch et à la liste du cache. Aucun changement de worker, DB, quota, publication ou contrat AutoEdit. À relire par le propriétaire du pipeline partagé lors de l'intégration. Déployer le moteur avant le frontend : un ancien moteur ignorerait l'option Motion choisie dans une interface plus récente.
 
@@ -46,3 +46,16 @@ Les aperçus locaux sont sans voix, avec durées illustratives, et ne prouvent p
 Cette V1 est une présentation animée réutilisable, pas un réalisateur IA qui invente des scènes 3D ou des diagrammes factuels pour chaque question. Aucun appel Opus, Cinetic, Remotion ou génération de musique n'est intégré. L'aperçu interactif des questions dans le frontend reste destiné à la relecture du contenu ; son texte précise que les animations sont appliquées au rendu final. Aucune amélioration de rétention n'est revendiquée.
 
 Les modifications sont locales, non publiées et non déployées. Le rendu classique reste le premier choix.
+
+## Coût de rendu (mesuré)
+
+`python scripts/measure_quiz_motion.py --render` (quiz long de 25 questions, 1920×1080, 456 s sans voix, fond uni, machine de dev à 4 cœurs) :
+
+| | événements | sous-titres | rendu FFmpeg |
+|---|---|---|---|
+| classique | 1 725 | 0,3 Mo | 177 s |
+| motion, scène en rectangle plein écran | 6 059 | 2,4 Mo | 312 s |
+| motion, anneau allégé (12 images/s, 48 points) | 4 559 | 1,2 Mo | 313 s |
+| motion, fond de base de la couleur de la scène | 4 507 | 1,2 Mo | **126 s** |
+
+Le coût ne venait pas de l'anneau mais du rectangle plein écran que libass mélange à chaque image (~60 % du temps). Quand la vidéo de base est déjà de la couleur de la scène (`quiz_motion.base_background_for` : mode motion, pas de fondu au noir entre plans), l'assembleur passe cette couleur à `render_final(bg_color=…)` et marque les blocs `quiz_base_background` : le rectangle n'est plus dessiné. Image identique pixel pour pixel en thème sombre, 3/255 d'écart maximal en thème clair. Les chiffres sont indicatifs : à refaire sur le worker de production.
