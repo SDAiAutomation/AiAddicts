@@ -10,7 +10,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-VERSION = "quiz-motion:v5"
+VERSION = "quiz-motion:v6"
+REVEAL_BEAT_SECONDS = 0.5
 
 # Police de marque (celle de la miniature, engine/thumbnail.py). libass dimensionne `\fs` sur la hauteur de la
 # cellule de la police (ascendante + descendante) : à taille de code égale Poppins s'affiche ~30 % plus petit
@@ -130,14 +131,15 @@ def build_timeline(script: dict, durations: list[float]) -> dict | None:
         if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
             raise ValueError(f"Quiz : durée audio invalide pour le bloc {index + 1}.")
         hold = float(block.get("hold_after_seconds") or 0)
-        if not math.isfinite(hold) or hold < 0 or hold > duration:
+        beat = max(0.0, float(block.get("quiz_reveal_beat_seconds") or 0)) if block.get("quiz_phase") == "question" else 0.0
+        if not math.isfinite(hold) or not math.isfinite(beat) or hold < 0 or hold + beat > duration:
             raise ValueError(f"Quiz : la durée audio du bloc {index + 1} ne contient pas son temps de réflexion.")
         scene = {"block": index, "phase": block.get("quiz_phase"),
                  "startSeconds": round(cursor, 4), "endSeconds": round(cursor + duration, 4)}
         if block.get("quiz_phase") == "question":
-            scene["reflectionStartSeconds"] = round(cursor + duration - hold, 4)
+            scene["reflectionStartSeconds"] = round(cursor + duration - hold - beat, 4)
             scene["reflectionSeconds"] = hold
-            scene["entranceEnabled"] = info["mode"] == "motion" and duration - hold >= 1
+            scene["entranceEnabled"] = info["mode"] == "motion" and duration - hold - beat >= 1
         scenes.append(scene)
         cursor += duration
     return {**info, "timingSource": "measured_audio", "totalDurationSeconds": round(cursor, 4),
@@ -315,7 +317,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     number = int(block.get("quiz_question_number") or 1)
     total = max(number, int(block.get("quiz_question_total") or number))
     hold = max(0.0, float(block.get("hold_after_seconds") or 0))
-    animate = phase == "question" and duration - hold >= 1.0
+    # Suspense : le minuteur s'arrête `beat` secondes avant la fin du bloc ; les cartes restent figées, sans compte à rebours.
+    beat = max(0.0, float(block.get("quiz_reveal_beat_seconds") or 0)) if phase == "question" else 0.0
+    tend = end - beat
+    animate = phase == "question" and duration - hold - beat >= 1.0
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
     # Offsets follow the type size in landscape, where `span` is far wider than
     # the glyphs and fractions of it would push "/ 03" away from "01".
@@ -383,24 +388,24 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         if phase == "question":
             radius = 64 * scale
             ring_y = height * .79
-            urgent_from = end - 2 if hold >= 3 else None
+            urgent_from = tend - 2 if hold >= 3 else None
             if hold > 0:
-                timer_start = max(start, end - hold)
-                steps_n = max(1, math.ceil((end - timer_start) * TIMER_STEPS_PER_SECOND))
+                timer_start = max(start, tend - hold)
+                steps_n = max(1, math.ceil((tend - timer_start) * TIMER_STEPS_PER_SECOND))
                 for j in range(steps_n):
-                    a = timer_start + (end - timer_start) * j / steps_n
-                    b = timer_start + (end - timer_start) * (j + 1) / steps_n
+                    a = timer_start + (tend - timer_start) * j / steps_n
+                    b = timer_start + (tend - timer_start) * (j + 1) / steps_n
                     ring(a, b, left_cx, ring_y, radius, (URGENT_COLOUR_LIGHT if light else URGENT_COLOUR)
                          if urgent_from is not None and a >= urgent_from else accent, portion=max(.001, 1 - j / steps_n))
                 for remaining in range(math.ceil(min(hold, duration)), 0, -1):
-                    a, b = max(timer_start, end - remaining), min(end, end - remaining + 1)
+                    a, b = max(timer_start, tend - remaining), tend - remaining + 1
                     text(a, b, remaining, left_cx, ring_y, 62, (URGENT_COLOUR_LIGHT if light else URGENT_COLOUR)
                          if urgent_from is not None and remaining <= 2 else ink, max_width=radius * 1.5, lines=1,
                          style="QuizTimer", extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
                 strip_y = height * .915
-                rect(timer_start, end, col_left, strip_y, left_w, 5 * scale, rail)
-                rect(timer_start, end, col_left, strip_y, left_w, 5 * scale, accent,
-                     extra=f"\\fscx100\\t(0,{round((end - timer_start) * 1000)},\\fscx0)")
+                rect(timer_start, tend, col_left, strip_y, left_w, 5 * scale, rail)
+                rect(timer_start, tend, col_left, strip_y, left_w, 5 * scale, accent,
+                     extra=f"\\fscx100\\t(0,{round((tend - timer_start) * 1000)},\\fscx0)")
         else:
             hero_y, hero_h = height * .525, height * .27
             rect(start, end, col_left, hero_y - hero_h / 2, left_w, hero_h, accent, layer=2,
@@ -523,7 +528,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
              style="QuizCorrect" if selected else "QuizChoice")
 
     if phase == "question":
-        timer_start = max(start, end - hold)
+        timer_start = max(start, tend - hold)
         radius = (64 if landscape else 57) * scale
         urgent_colour = URGENT_COLOUR_LIGHT if light else URGENT_COLOUR
         urgent_from = None
@@ -534,23 +539,23 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         if hold > 0:
             # Each arc consumes exactly its share of the existing audio hold.
             # TIMER_STEPS_PER_SECOND bounds ASS size (the ring is most of a long quiz's subtitle weight).
-            steps = max(1, math.ceil((end - timer_start) * TIMER_STEPS_PER_SECOND))
+            steps = max(1, math.ceil((tend - timer_start) * TIMER_STEPS_PER_SECOND))
             # Les 2 dernières secondes préviennent le spectateur (orange) ; pas pour un compte à rebours trop court.
-            urgent_from = end - 2 if hold >= 3 else None
+            urgent_from = tend - 2 if hold >= 3 else None
             for j in range(steps):
-                a = timer_start + (end - timer_start) * j / steps
-                b = timer_start + (end - timer_start) * (j + 1) / steps
+                a = timer_start + (tend - timer_start) * j / steps
+                b = timer_start + (tend - timer_start) * (j + 1) / steps
                 ring(a, b, timer_x, timer_y, radius, urgent_colour if urgent_from is not None and a >= urgent_from else accent,
                      portion=max(.001, 1 - j / steps))
             for remaining in range(math.ceil(min(hold, duration)), 0, -1):
-                a, b = max(timer_start, end - remaining), min(end, end - remaining + 1)
+                a, b = max(timer_start, tend - remaining), tend - remaining + 1
                 text(a, b, remaining, timer_x, timer_y, 62, urgent_colour if urgent_from is not None and remaining <= 2 else ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
                      extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
             # The full-width time strip provides peripheral timing without
             # shaking, flickering or moving the answers being read.
-            rect(timer_start, end, left, strip_y, span, 5 * scale, rail)
-            rect(timer_start, end, left, strip_y, span, 5 * scale, accent,
-                 extra=f"\\fscx100\\t(0,{round((end - timer_start) * 1000)},\\fscx0)")
+            rect(timer_start, tend, left, strip_y, span, 5 * scale, rail)
+            rect(timer_start, tend, left, strip_y, span, 5 * scale, accent,
+                 extra=f"\\fscx100\\t(0,{round((tend - timer_start) * 1000)},\\fscx0)")
     else:
         # A high-contrast answer strip opens below the cards. A brief geometric
         # burst marks the result, then settles while the explanation is spoken.

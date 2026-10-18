@@ -24,7 +24,7 @@ QUIZ_RECIPES = {
     "riddle": {"kind": "riddle", "question_count": 3, "countdown_seconds": 8, "difficulty": "medium"},
     "logo": {"kind": "logo", "question_count": 5, "countdown_seconds": 5, "difficulty": "medium"},
     "impossible": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "hard"},
-    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 5, "difficulty": "progressive"},
+    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 7, "difficulty": "progressive"},
 }
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
 QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
@@ -251,8 +251,12 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
             block["quiz_presentation"] = normalized_quiz["presentation"]
             block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
             if normalized_quiz["presentation"] == "motion":
-                from .quiz_motion import VERSION
+                from .quiz_motion import REVEAL_BEAT_SECONDS, VERSION
                 block["quiz_motion_version"] = VERSION
+                if block.get("quiz_phase") == "question" and (block.get("hold_after_seconds") or 0) > 0:
+                    block["quiz_reveal_beat_seconds"] = REVEAL_BEAT_SECONDS
+                else:
+                    block.pop("quiz_reveal_beat_seconds", None)
                 block["quiz_theme"] = normalized_quiz["theme"]
             else:
                 block.pop("quiz_motion_version", None)
