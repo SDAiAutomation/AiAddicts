@@ -64,9 +64,11 @@ def upload_poster(client, content_item_id: str, local_path: str) -> str:
     return _upload(client, f"{content_item_id}.jpg", local_path, "image/jpeg")
 
 
-def upload_thumbnail(client, content_item_id: str, local_path: str) -> str:
-    """Miniature YouTube 1280x720 sous `<content_item_id>.thumbnail.jpg` (voir engine/thumbnail.py)."""
-    return _upload(client, f"{content_item_id}.thumbnail.jpg", local_path, "image/jpeg")
+def upload_thumbnail(client, content_item_id: str, local_path: str, variant: str = "A") -> str:
+    """Miniature YouTube 1280x720 (voir engine/thumbnail.py) : la variante A sous
+    `<content_item_id>.thumbnail.jpg`, les autres sous `<id>.thumbnail-b.jpg`, `-c.jpg`."""
+    suffix = "" if variant == "A" else f"-{variant.lower()}"
+    return _upload(client, f"{content_item_id}.thumbnail{suffix}.jpg", local_path, "image/jpeg")
 
 
 def _upload(client, storage_path: str, local_path: str, content_type: str) -> str:
