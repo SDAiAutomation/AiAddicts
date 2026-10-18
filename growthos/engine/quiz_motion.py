@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-VERSION = "quiz-motion:v3"
+VERSION = "quiz-motion:v4"
 
 # Anneau du compte à rebours : 70 % du poids des sous-titres d'un quiz long (mesuré avec
 # scripts/measure_quiz_motion.py). 12 images/s et 48 points suffisent à l'œil pour un anneau de 100 px.
@@ -19,23 +19,55 @@ RING_POINTS = 48
 
 _LIGHT_THEMES = {"minimal", "logo"}
 
+# Un quiz long est découpé en 4 parties, chacune avec sa teinte de fond : sur 11 minutes, un fond qui ne change
+# jamais est la première source de monotonie. Teintes très sombres (ou très claires), le texte garde son contraste.
+PARTS = 4
+MIN_QUESTIONS_FOR_PARTS = 10
+_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
+_TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
+URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
+_SCENE_PHASES = {"intro", "question", "reveal", "outro"}
 
-def stage_background(theme: str | None) -> str:
+
+def part_index(block: dict) -> int:
+    """Partie (0 à 3) d'un bloc ; toujours 0 pour un quiz de moins de 10 questions."""
+    total = int(block.get("quiz_question_total") or 0)
+    if total < MIN_QUESTIONS_FOR_PARTS:
+        return 0
+    phase = block.get("quiz_phase")
+    if phase == "intro":
+        return 0
+    if phase == "outro":
+        return PARTS - 1
+    number = max(1, int(block.get("quiz_question_number") or 1))
+    return min(PARTS - 1, (number - 1) * PARTS // total)
+
+
+def stage_background(theme: str | None, part: int = 0) -> str:
     """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
-    return "#eef2f6" if theme in _LIGHT_THEMES else "#080e1c"
+    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_DARK
+    return tints[max(0, min(PARTS - 1, part))]
 
 
-def base_background_for(script: dict, fade_duration: float) -> str | None:
-    """Couleur FFmpeg (`0xRRGGBB`) à donner au fond uni de la vidéo, ou None.
+def base_background_for(script: dict, fade_duration: float, block: dict | None = None) -> str | None:
+    """Couleur FFmpeg (`0xRRGGBB`) à donner au fond uni de la vidéo pour ce bloc, ou None.
 
     Dessiner la scène en rectangle plein écran dans libass coûte un mélange 1080p par image :
     mesuré à ~60 % du temps de rendu d'un quiz long. Quand la vidéo de base est déjà de la
     couleur de la scène, le rectangle devient inutile. Pas de fondu au noir entre les plans :
-    il serait visible sans le rectangle qui le recouvrait."""
+    il serait visible sans le rectangle qui le recouvrait. Sans `block`, la couleur de la partie 1."""
     info = presentation_info(script)
     if info is None or info["mode"] != "motion" or fade_duration > 0:
         return None
-    return "0x" + stage_background((script.get("quiz") or {}).get("theme"))[1:].upper()
+    if block is not None and block.get("quiz_phase") not in _SCENE_PHASES:
+        return None
+    part = part_index(block) if block is not None else 0
+    return "0x" + stage_background((script.get("quiz") or {}).get("theme"), part)[1:].upper()
+
+
+def _mix_hex(first: str, second: str, amount: float) -> str:
+    a, b = (tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) for c in (first, second))
+    return "#" + "".join(f"{round(x + (y - x) * amount):02x}" for x, y in zip(a, b))
 
 
 def presentation_info(script: dict) -> dict | None:
@@ -105,8 +137,13 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     luminance = sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
     selected_ink = "#000000" if luminance > .179 else "#ffffff"
     light = block.get("quiz_theme") in _LIGHT_THEMES
-    background = stage_background(block.get("quiz_theme"))
+    background = stage_background(block.get("quiz_theme"), part_index(block))
     rail = "#cbd5e1" if light else "#243249"
+    if not light:
+        # Cartes plus claires que la scène (le bleu nuit du thème se fondait dans le fond) et cernées d'un
+        # filet : la séparation reste visible sur un petit écran. Les thèmes clairs ont déjà des cartes blanches.
+        card = _mix_hex(background, "#ffffff", .10)
+    card_border = rail if light else _mix_hex(background, "#ffffff", .24)
     events: list[str] = []
 
     def emit(a, b, tags, content, layer=2, style="QuizPanel"):
@@ -272,7 +309,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         rect(start, end, x + 5 * scale, y + 6 * scale, card_w, row_h, rail,
              origin=(origin[0] + 5 * scale, origin[1] + 6 * scale) if origin else None,
              delay=delay, travel=travel, extra=fold)
-        rect(start, end, x, y, card_w, row_h, fill, origin=origin, delay=delay, travel=travel, extra=fold)
+        outline = "" if selected else f"\\bord{max(1.5, 2 * scale):.1f}\\3c{_ass_rgb(card_border)}"
+        rect(start, end, x, y, card_w, row_h, fill, origin=origin, delay=delay, travel=travel, extra=fold + outline)
         rect(start, end, x, y, max(3, 5 * scale), row_h, accent if not selected else selected_ink,
              origin=origin, delay=delay, travel=travel)
         label_x, label_y = x + (30 if grid else 35) * scale, y + row_h * (.23 if grid else .5)
@@ -280,9 +318,21 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         if focus_reveal:
             label_origin = (old_x + (30 if question_grid else 35) * scale,
                             old_y + old_row_h * (.23 if question_grid else .5))
-        text(start, end, "✓" if selected else "ABCD"[i], label_x, label_y, 26 if grid or (landscape and focus_reveal) else 34,
-             selected_ink if selected else accent, max_width=52 * scale, lines=1,
-             origin=label_origin, delay=delay, travel=travel)
+        if selected or focus_reveal:
+            text(start, end, "✓" if selected else "ABCD"[i], label_x, label_y, 26 if grid or (landscape and focus_reveal) else 34,
+                 selected_ink if selected else accent, max_width=52 * scale, lines=1,
+                 origin=label_origin, delay=delay, travel=travel)
+        else:
+            # Pastille pleine, comme sur la miniature : la lettre se lit d'un coup d'œil, même en petit.
+            chip = min(row_h * (.40 if grid else .62), (44 if grid else 64) * scale)
+            chip_x = x + (14 if grid else 18) * scale
+            chip_y = y + (12 * scale if grid else (row_h - chip) / 2)
+            chip_origin = (chip_x + origin[0] - x, chip_y + origin[1] - y) if origin else None
+            rect(start, end, chip_x, chip_y, chip, chip, accent, origin=chip_origin, delay=delay, travel=travel, layer=2)
+            text(start, end, "ABCD"[i], chip_x + chip / 2, chip_y + chip / 2 + chip * .03, chip * .62 / scale, accent_ink,
+                 max_width=chip, lines=1,
+                 origin=(chip_x + chip / 2 + chip_origin[0] - chip_x, chip_y + chip / 2 + chip_origin[1] - chip_y) if origin else None,
+                 delay=delay, travel=travel)
         answer_x = x + card_w / 2 + (0 if grid else 22 * scale)
         answer_y = y + row_h * (.61 if grid else .5)
         answer_origin = (answer_x, answer_y + height * .055) if origin else None
@@ -298,6 +348,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     if phase == "question":
         timer_start = max(start, end - hold)
         radius = 57 * scale
+        urgent_colour = URGENT_COLOUR
+        urgent_from = None
         # Portrait : sous les réponses. Paysage : à droite de la question (les réponses occupent la hauteur),
         # avec le trait de temps juste sous elle.
         timer_x, timer_y = (right - radius - 6 * scale, height * .277) if landscape else (cx, height * .69)
@@ -306,13 +358,16 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
             # Each arc consumes exactly its share of the existing audio hold.
             # TIMER_STEPS_PER_SECOND bounds ASS size (the ring is most of a long quiz's subtitle weight).
             steps = max(1, math.ceil((end - timer_start) * TIMER_STEPS_PER_SECOND))
+            # Les 2 dernières secondes préviennent le spectateur (orange) ; pas pour un compte à rebours trop court.
+            urgent_from = end - 2 if hold >= 3 else None
             for j in range(steps):
                 a = timer_start + (end - timer_start) * j / steps
                 b = timer_start + (end - timer_start) * (j + 1) / steps
-                ring(a, b, timer_x, timer_y, radius, accent, portion=max(.001, 1 - j / steps))
+                ring(a, b, timer_x, timer_y, radius, urgent_colour if urgent_from is not None and a >= urgent_from else accent,
+                     portion=max(.001, 1 - j / steps))
             for remaining in range(math.ceil(min(hold, duration)), 0, -1):
                 a, b = max(timer_start, end - remaining), min(end, end - remaining + 1)
-                text(a, b, remaining, timer_x, timer_y, 62, ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
+                text(a, b, remaining, timer_x, timer_y, 62, urgent_colour if urgent_from is not None and remaining <= 2 else ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
                      extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
             # The full-width time strip provides peripheral timing without
             # shaking, flickering or moving the answers being read.

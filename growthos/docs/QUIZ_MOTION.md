@@ -21,7 +21,7 @@ La bonne réponse n'influence aucun événement de la phase question. Les entré
 
 ## Contrat et coordination
 
-`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v3` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
+`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v4` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
 
 L'intégration partagée est limitée à ce dispatch et à la liste du cache. Aucun changement de worker, DB, quota, publication ou contrat AutoEdit. À relire par le propriétaire du pipeline partagé lors de l'intégration. Déployer le moteur avant le frontend : un ancien moteur ignorerait l'option Motion choisie dans une interface plus récente.
 
@@ -60,11 +60,20 @@ Les modifications sont locales, non publiées et non déployées. Le rendu class
 
 Le coût ne venait pas de l'anneau mais du rectangle plein écran que libass mélange à chaque image (~60 % du temps). Quand la vidéo de base est déjà de la couleur de la scène (`quiz_motion.base_background_for` : mode motion, pas de fondu au noir entre plans), l'assembleur passe cette couleur à `render_final(bg_color=…)` et marque les blocs `quiz_base_background` : le rectangle n'est plus dessiné. Image identique pixel pour pixel en thème sombre, 3/255 d'écart maximal en thème clair. Les chiffres sont indicatifs : à refaire sur le worker de production.
 
-## Mise en page par format (v3)
+## Mise en page par format (v3, inchangée en v4)
 
 `tests/test_quiz_motion_layout.py` analyse les événements produits pour 720×1280, 1080×1920, 1080×1080 et 1920×1080 : aucun élément hors cadre, texte de la question et des réponses ≥ 1,85 % de la hauteur, texte paysage proportionnellement aussi grand que le texte vertical. Il a trouvé deux défauts :
 
 - **Vertical** : une réponse de plus de 30 caractères dans la grille 2×2 tombait à 23 px sur 1920 de haut. La grille est désormais limitée à 30 caractères (52 en paysage) ; au-delà, rangées pleine largeur. Les réponses courtes (cas courant) sont rendues à l'identique.
 - **Paysage / carré** : des cartes trop basses pour deux lignes réduisaient les réponses à 20 px. Géométrie dédiée : cartes de 15 % de la hauteur, compte à rebours à droite de la question, trait de temps sous la question, clé de révélation plus haute, sous-titres en bande basse (9 % de marge au lieu de 28 %, il n'y a pas de commandes de plateforme à éviter).
 
-Le paysage reste une mise en page empilée (question, puis cartes) ; une vraie disposition en colonnes reste possible. `quiz_motion_version=quiz-motion:v3` permet de comparer plus tard la rétention des vidéos v2 et v3 dans les analyses.
+Le paysage reste une mise en page empilée (question, puis cartes) ; une vraie disposition en colonnes reste possible. `quiz_motion_version=quiz-motion:v4` permet de comparer plus tard la rétention des vidéos v2 et v3 dans les analyses.
+
+## Design v4
+
+Constats après les rendus v3 : fond plat pendant 11 minutes, cartes de réponse bleu nuit sur presque noir (séparation faible sur un petit écran), un seul accent, lettres A–D minuscules. Hypothèses de design (aucune rétention revendiquée ; à comparer avec `quiz_motion_version` dans les analyses) :
+
+- **Fond par partie** : un quiz de 10 questions ou plus est découpé en 4 parties (marine, sarcelle, indigo, bordeaux ; variantes pastel pour les thèmes clairs). L'intro est en partie 1, la conclusion en partie 4. La teinte est la couleur de la vidéo de base de chaque bloc (`render_final(bg_colors=…)`) : aucun coût de rendu en plus. Moins de 10 questions : un seul fond.
+- **Cartes** : plus claires que la scène (10 % de blanc) avec un filet ; la lettre A–D est une pastille jaune pleine, comme sur la miniature.
+- **Anneau d'urgence** : orange pour les 2 dernières secondes d'un compte à rebours d'au moins 3 secondes.
+- Non fait : police de marque (Poppins s'affiche ~30 % plus petit qu'Arial à taille de code égale ; recalibrage des tailles nécessaire), mise en page paysage en colonnes, visuel de sujet derrière les cartes.
