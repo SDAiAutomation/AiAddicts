@@ -165,8 +165,30 @@ def _canonical(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value))
 
 
+# Mots interrogatifs ignorés ; miroir de src/lib/quiz-duplicates.ts (growthos-web) : garder les deux identiques.
+_QUESTION_WORDS = {
+    "which", "what", "that", "this", "with", "from", "have", "does", "quel", "quelle", "quels", "quelles",
+    "dans", "pour", "sont", "avec", "plus", "welche", "welcher", "welches", "cual", "cuales", "quale", "quali",
+    "qual", "quais", "esta", "este", "como", "comment", "quand", "when", "where", "wann",
+}
+# Réponses d'un vrai/faux (ou oui/non) : toutes les affirmations partagent la même « réponse ».
+_BINARY_ANSWERS = {
+    "true", "false", "yes", "no", "vrai", "faux", "oui", "non", "verdadero", "falso", "si", "wahr", "falsch",
+    "ja", "nein", "vero", "verdadeiro", "sim", "nao",
+}
+
+
+def _content_words(value: str) -> set[str]:
+    # Les nombres et dates comptent même courts : « 1998 » et « 2002 » distinguent deux questions.
+    return {word for word in _canonical(value).split()
+            if (len(word) > 3 or any(c.isdigit() for c in word)) and word not in _QUESTION_WORDS}
+
+
 def same_quiz_fact(first: dict, second: dict) -> bool:
-    """Conservative duplicate check; fact IDs catch paraphrases reliably."""
+    """Deux questions qui testent le même fait, reformulation comprise.
+
+    Même question, même identifiant de fait, quasi-même vocabulaire (85 %), ou
+    même bonne réponse avec la moitié des mots clés en commun."""
     left, right = _canonical(str(first.get("question") or "")), _canonical(str(second.get("question") or ""))
     if not left or not right:
         return False
@@ -175,9 +197,16 @@ def same_quiz_fact(first: dict, second: dict) -> bool:
     fact_left, fact_right = _canonical(str(first.get("fact") or "")), _canonical(str(second.get("fact") or ""))
     if fact_left and fact_right and fact_left == fact_right:
         return True
-    answer_left, answer_right = _canonical(str(first.get("answer") or "")), _canonical(str(second.get("answer") or ""))
-    return bool(answer_left and answer_left == answer_right and
-                SequenceMatcher(None, left, right).ratio() >= .96)
+    words_left, words_right = _content_words(left), _content_words(right)
+    smallest = min(len(words_left), len(words_right))
+    if smallest < 3:
+        return False
+    overlap = len(words_left & words_right) / smallest
+    if overlap >= .85:
+        return True
+    answer = _canonical(str(first.get("answer") or ""))
+    return bool(answer and answer not in _BINARY_ANSWERS
+                and answer == _canonical(str(second.get("answer") or "")) and overlap >= .5)
 
 
 _GENERIC_VISUAL = re.compile(r"brainloop|emblem", re.IGNORECASE)
