@@ -54,6 +54,19 @@ class QuizMotionTests(unittest.TestCase):
             self.assertEqual(original, altered)
             self.assertFalse(any(",QuizCorrect," in e or "✓" in e for e in original))
 
+    def test_landscape_text_is_sized_from_the_height_not_the_portrait_ratio(self):
+        import re
+        self.script["quiz"]["presentation"] = "motion"
+        blocks = compile_quiz(self.script)["blocks"]
+        for index, minimum in ((1, 40), (2, 28)):
+            sizes = [int(m) for e in _quiz_events([blocks[index]], [7], 1920, 1080)
+                     for m in re.findall(r"\\fs(\d+)", e)]
+            self.assertGreaterEqual(max(sizes), 70)
+            self.assertGreaterEqual(sorted(sizes)[len(sizes) // 2], minimum)
+        # Portrait output is untouched by the landscape layout.
+        portrait = [int(m) for e in _quiz_events([blocks[1]], [7], 1080, 1920) for m in re.findall(r"\\fs(\d+)", e)]
+        self.assertEqual(max(portrait), 75)
+
     def test_short_narration_has_no_choice_entrance_and_timer_is_bounded(self):
         self.script["quiz"]["presentation"] = "motion"
         question = compile_quiz(self.script)["blocks"][1]
