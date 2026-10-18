@@ -26,6 +26,8 @@ MIN_QUESTIONS_FOR_PARTS = 10
 _TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
 URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
+# Coche dessinée dans une boîte de 100 x 100 (aucun glyphe unicode : il dépend de la police de repli).
+_CHECK_POINTS = ((8, 54), (22, 40), (40, 58), (78, 18), (92, 32), (40, 86))
 _SCENE_PHASES = {"intro", "question", "reveal", "outro"}
 
 
@@ -162,11 +164,40 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         tags = f"\\an7{position(x,y,origin,delay,travel)}\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{extra}"
         emit(a, b, tags, f"m 0 0 l {w} 0 {w} {h} 0 {h}{{\\p0}}", layer)
 
-    def text(a, b, value, x, y, size, colour, *, max_width=span, max_height=None, lines=2, origin=None, delay=0, travel=420, extra="", style="QuizQuestion", layer=3):
-        fs, content = _quiz_fit_text(str(value), round(max_width), max(1, round(size * scale)), lines)
+    def frame(a, b, x, y, w, h, edge, colour, *, origin=None, delay=0, travel=420, layer=1, extra=""):
+        """Cadre d'épaisseur `edge` fait de quatre fines bandes. libass mélange à chaque image la boîte englobante
+        de chaque forme, même creuse : un rectangle plein de plus coûte ~60 s de rendu pour un quiz long, un
+        contour `\\bord` ~70 s, un cadre en tracé évidé autant (mesuré). Des bandes fines ne coûtent presque rien."""
+        e = max(1.0, edge)
+        shift = (lambda dx, dy: (origin[0] + dx, origin[1] + dy)) if origin else (lambda dx, dy: None)
+        for bx, by, bw, bh in ((0, 0, w, e), (0, h - e, w, e), (0, e, e, h - 2 * e), (w - e, e, e, h - 2 * e)):
+            rect(a, b, x + bx, y + by, bw, bh, colour, origin=shift(bx, by), delay=delay, travel=travel, layer=layer, extra=extra)
+
+    def check(a, b, cx_, cy_, size, colour, *, origin=None, delay=0, travel=420, extra="", layer=3):
+        """Coche dessinée (la police n'a pas de glyphe fiable) ; `size` = côté de sa boîte, centrée en (cx_, cy_)."""
+        points = " ".join(f"{round(px * size / 100)} {round(py * size / 100)}" for px, py in _CHECK_POINTS)
+        shift = (cx_ - size / 2, cy_ - size / 2)
+        moved = (origin[0] - size / 2, origin[1] - size / 2) if origin else None
+        tags = f"\\an7{position(shift[0], shift[1], moved, delay, travel)}\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{extra}"
+        emit(a, b, tags, f"m {points}{{\\p0}}{{check}}", layer)
+
+    def text(a, b, value, x, y, size, colour, *, max_width=span, max_height=None, lines=2, origin=None, delay=0, travel=420, extra="", style="QuizQuestion", layer=3, steps=None):
+        if steps:
+            # Tailles discrètes plutôt qu'un rétrécissement continu : deux questions de longueurs voisines
+            # gardent la même taille, le rythme visuel reste régulier sur 25 questions.
+            for step in steps:
+                fs, content = _quiz_fit_text(str(value), round(max_width), max(1, round(step * scale)), lines)
+                if fs >= round(step * scale):
+                    break
+        else:
+            fs, content = _quiz_fit_text(str(value), round(max_width), max(1, round(size * scale)), lines)
         if max_height is not None:
             fitted = min(fs, max(1, int(max_height / ((content.count(r"\N") + 1) * 1.25))))
             fs, content = _quiz_fit_text(str(value), round(max_width), fitted, lines)
+        # Jamais de ponctuation seule sur la dernière ligne (« ? » orphelin) : on la rattache au mot précédent.
+        head, _, last = content.rpartition(r"\N")
+        if head and last.strip() in {"?", "!", ":", ";", "…", "?!"}:
+            content = f"{head} {last.strip()}"
         tags = f"\\an5{position(x,y,origin,delay,travel)}\\fs{fs}\\bord0\\shad0\\b1\\q2\\1c{_ass_rgb(colour)}{extra}"
         emit(a, b, tags, content, layer, style)
 
@@ -214,9 +245,13 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         # entrance, not perpetual motion behind readable content.
         text(start, end, "QUIZ", cx, height * .29, 255, ink, lines=1,
              extra=f"\\1a&HFF&\\bord{2 * scale:.1f}\\3c{_ass_rgb(rail)}", layer=1)
-        text(start, end, "QUIZ" if phase == "intro" else "✓", cx, height * .30, 216, ink,
-             lines=1, origin=(cx - span * .12, height * .30), travel=settle,
-             extra=f"\\fscx112\\t(0,{settle},0.4,\\fscx100)")
+        if phase == "intro":
+            text(start, end, "QUIZ", cx, height * .30, 216, ink,
+                 lines=1, origin=(cx - span * .12, height * .30), travel=settle,
+                 extra=f"\\fscx112\\t(0,{settle},0.4,\\fscx100)")
+        else:
+            check(start, end, cx, height * .30, 216 * scale * .9, ink,
+                  origin=(cx - span * .12, height * .30), travel=settle)
         rect(start, end, left, height * .415, span, height * .038, accent,
              extra=f"\\fscx0\\t(0,{settle},0.4,\\fscx100)")
         # Abstract orbit marks, never a fabricated scientific diagram or score.
@@ -241,10 +276,15 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     text(start, end, f"{number:02d}", number_x, height * .145, 74, ink, lines=1, max_width=span * .18)
     text(start, end, f"/ {total:02d}", total_x, height * .15, 30, accent, lines=1, max_width=span * .13)
     gap = 7 * scale
-    segment = (span * .46 - (total - 1) * gap) / total
-    for i in range(total):
-        rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
-             segment, 7 * scale, accent if i < number else rail)
+    if total > 12:
+        # Au-delà de 12 questions, 25 segments deviennent un pointillé illisible : une barre continue.
+        rect(start, end, right - span * .46, height * .146, span * .46, 7 * scale, rail)
+        rect(start, end, right - span * .46, height * .146, span * .46 * number / total, 7 * scale, accent)
+    else:
+        segment = (span * .46 - (total - 1) * gap) / total
+        for i in range(total):
+            rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
+                 segment, 7 * scale, accent if i < number else rail)
 
     # Four choices get an editorial 2x2 composition; long answers and image
     # questions keep full-width rails. Both share the same stable card language.
@@ -258,8 +298,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         """(hauteur, pas, y de départ) des réponses pendant la question, sans illustration."""
         if landscape:
             # Le cadre est large et bas : cartes plus hautes pour que deux lignes restent lisibles.
-            return ((height * .15, height * .17, height * .405) if question_grid else
-                    (height * (.105 if count == 4 else .12), height * (.12 if count == 4 else .135), height * .40))
+            # Les cartes occupent la hauteur disponible sous la question (jusqu'à ~85 %) : un cadre 16:9 dont
+            # le tiers bas reste vide paraît inachevé.
+            return ((height * .21, height * .235, height * .40) if question_grid else
+                    (height * (.115 if count == 4 else .13), height * (.135 if count == 4 else .15), height * .395))
         return (height * (.090 if question_grid else .055 if count == 4 else .063),
                 height * (.103 if question_grid else .066 if count == 4 else .076),
                 height * (.415 if question_grid else .375))
@@ -276,12 +318,13 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         rows_y, row_h, row_step = height * .505, height * .034, height * .043
         if landscape:
             # Taller rows keep answers legible; the last row still ends above the caption band.
-            rows_y, row_h, row_step = height * .50, height * .05, height * .058
+            rows_y, row_h, row_step = height * .56, height * .06, height * .07
     question_y = height * (.224 if visual else .225 if focus_reveal else .277)
     text(start, end, block.get("quiz_question", ""), cx, question_y, 64 if visual else 46 if focus_reveal else 76,
          ink, lines=3, max_height=height * (.09 if focus_reveal else .105 if visual else .17),
+         steps=None if visual or focus_reveal else (76, 64, 54),
          # En paysage le compte à rebours occupe la droite de la ligne de la question.
-         max_width=span - 2 * 154 * scale if landscape and phase == "question" else span,
+         max_width=span - 2 * 168 * scale if landscape and phase == "question" else span,
          origin=(cx, height * .277) if focus_reveal else (cx, question_y + height * .025) if animate else None,
          travel=350,
          extra="\\fscx135\\fscy135\\t(0,350,0.4,\\fscx100\\fscy100)" if focus_reveal else
@@ -305,26 +348,28 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
             fold = (f"\\fscx{old_card_w / card_w * 100:.1f}\\fscy{old_row_h / row_h * 100:.1f}"
                     f"\\t(0,{travel},0.4,\\fscx100\\fscy100)")
         fill = correct if selected else card
-        # A shallow offset shadow gives each answer physical presence.
-        rect(start, end, x + 5 * scale, y + 6 * scale, card_w, row_h, rail,
-             origin=(origin[0] + 5 * scale, origin[1] + 6 * scale) if origin else None,
-             delay=delay, travel=travel, extra=fold)
-        outline = "" if selected else f"\\bord{max(1.5, 2 * scale):.1f}\\3c{_ass_rgb(card_border)}"
-        rect(start, end, x, y, card_w, row_h, fill, origin=origin, delay=delay, travel=travel, extra=fold + outline)
-        rect(start, end, x, y, max(3, 5 * scale), row_h, accent if not selected else selected_ink,
-             origin=origin, delay=delay, travel=travel)
+        # Élévation déclarée une seule fois : le filet. Ni ombre dure décalée, ni barre colorée sur le côté
+        # (la pastille de lettre porte l'accent). Le filet est un cadre creux (voir `frame`).
+        if selected:
+            rect(start, end, x, y, card_w, row_h, fill, origin=origin, delay=delay, travel=travel, extra=fold)
+        else:
+            rect(start, end, x, y, card_w, row_h, fill, origin=origin, delay=delay, travel=travel, extra=fold)
+            frame(start, end, x, y, card_w, row_h, max(2, 2 * scale), card_border,
+                  origin=origin, delay=delay, travel=travel, extra=fold, layer=2)
         label_x, label_y = x + (30 if grid else 35) * scale, y + row_h * (.23 if grid else .5)
         label_origin = (label_x, label_y + height * .055) if origin else None
         if focus_reveal:
             label_origin = (old_x + (30 if question_grid else 35) * scale,
                             old_y + old_row_h * (.23 if question_grid else .5))
-        if selected or focus_reveal:
-            text(start, end, "✓" if selected else "ABCD"[i], label_x, label_y, 26 if grid or (landscape and focus_reveal) else 34,
-                 selected_ink if selected else accent, max_width=52 * scale, lines=1,
-                 origin=label_origin, delay=delay, travel=travel)
+        if selected:
+            mark = (30 if grid or (landscape and focus_reveal) else 36) * scale
+            check(start, end, label_x, label_y, mark, selected_ink, origin=label_origin, delay=delay, travel=travel)
+        elif focus_reveal:
+            text(start, end, "ABCD"[i], label_x, label_y, 26 if grid or landscape else 34,
+                 accent, max_width=52 * scale, lines=1, origin=label_origin, delay=delay, travel=travel)
         else:
             # Pastille pleine, comme sur la miniature : la lettre se lit d'un coup d'œil, même en petit.
-            chip = min(row_h * (.40 if grid else .62), (44 if grid else 64) * scale)
+            chip = min(row_h * (.40 if grid else .62), ((52 if landscape else 44) if grid else 64) * scale)
             chip_x = x + (14 if grid else 18) * scale
             chip_y = y + (12 * scale if grid else (row_h - chip) / 2)
             chip_origin = (chip_x + origin[0] - x, chip_y + origin[1] - y) if origin else None
@@ -339,7 +384,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         if focus_reveal:
             answer_origin = (old_x + old_card_w / 2 + (0 if question_grid else 22 * scale),
                              old_y + old_row_h * (.61 if question_grid else .5))
-        text(start, end, choice, answer_x, answer_y, 43 if grid else 44,
+        text(start, end, choice, answer_x, answer_y, (54 if grid else 50) if landscape and not focus_reveal else 43 if grid else 44,
              selected_ink if selected else ink, max_width=card_w - (44 if grid else 150) * scale,
              max_height=row_h * (.52 if grid else .86),
              origin=answer_origin, delay=delay, travel=travel,
@@ -347,7 +392,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
 
     if phase == "question":
         timer_start = max(start, end - hold)
-        radius = 57 * scale
+        radius = (64 if landscape else 57) * scale
         urgent_colour = URGENT_COLOUR
         urgent_from = None
         # Portrait : sous les réponses. Paysage : à droite de la question (les réponses occupent la hauteur),
@@ -377,8 +422,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     else:
         # A high-contrast answer strip opens below the cards. A brief geometric
         # burst marks the result, then settles while the explanation is spoken.
-        hero_y = height * .36
-        hero_h = height * (.105 if visual else .135)
+        hero_y = height * (.37 if landscape and not visual else .36)
+        hero_h = height * (.105 if visual else .17 if landscape else .135)
         if visual:
             rect(start, end, left, height * .305, span, height * .115, background, layer=2)
         rect(start, end, left, hero_y - hero_h / 2, span, hero_h, accent, layer=2,
