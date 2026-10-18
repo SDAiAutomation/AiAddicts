@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-VERSION = "quiz-motion:v4"
+VERSION = "quiz-motion:v5"
 
 # Police de marque (celle de la miniature, engine/thumbnail.py). libass dimensionne `\fs` sur la hauteur de la
 # cellule de la police (ascendante + descendante) : à taille de code égale Poppins s'affiche ~30 % plus petit
@@ -52,6 +52,18 @@ URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y a
 # Coche dessinée dans une boîte de 100 x 100 (aucun glyphe unicode : il dépend de la police de repli).
 _CHECK_POINTS = ((8, 54), (22, 40), (40, 58), (78, 18), (92, 32), (40, 86))
 _SCENE_PHASES = {"intro", "question", "reveal", "outro"}
+
+
+def uses_columns(width: int, height: int) -> bool:
+    """Cadres larges (16:9) : question à gauche, réponses empilées à droite. Le carré garde la pile centrée."""
+    return width >= height * 1.3
+
+
+def column_layout(width: int) -> tuple[float, float, float, float]:
+    """(x gauche, largeur de la colonne gauche, x de la colonne droite, x droit) de la mise en page en colonnes."""
+    left, right = width * .08, width * .90
+    left_w = (right - left) * .46
+    return left, left_w, left + left_w + width * .033, right
 
 
 def part_index(block: dict) -> int:
@@ -248,6 +260,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     # Preserve the illustration as a real window; never substitute invented
     # factual diagrams for a supplied image/logo question.
     visual = bool(block.get("quiz_visual_available")) and phase in {"question", "reveal"}
+    columns = uses_columns(width, height) and not visual
     if visual:
         top, bottom = height * .29, height * .435
         rect(start, end, 0, 0, width, top, background, layer=0)
@@ -319,6 +332,91 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         for i in range(total):
             rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
                  segment, 7 * scale, accent if i < number else rail)
+
+    if columns:
+        # 16:9 : le cadre est large et bas. Lecture en deux temps : la question à gauche (elle mène), les
+        # réponses empilées à droite (elles soutiennent) ; le compte à rebours reste en périphérie, sous la
+        # question. Les réponses ne bougent pas à la révélation : seule la bonne passe au vert, et la réponse
+        # apparaît en grand à gauche.
+        col_left, left_w, col_x, _ = column_layout(width)
+        col_w = right - col_x
+        left_cx = col_left + left_w / 2
+        count = max(1, len(choices))
+        band_top, band_bottom, row_gap = height * .215, height * .925, height * .02
+        row_h = min(height * .19, (band_bottom - band_top - (count - 1) * row_gap) / count)
+        rows_top = band_top + (band_bottom - band_top - (count * row_h + (count - 1) * row_gap)) / 2
+        question_cy = height * .40
+        if phase == "question":
+            text(start, end, block.get("quiz_question", ""), left_cx, question_cy, 64, ink, lines=5, max_width=left_w,
+                 max_height=height * .34, steps=(64, 56, 48),
+                 origin=(left_cx - 50 * scale, question_cy) if animate else None, travel=350,
+                 extra="\\fscx96\\fscy96\\t(0,350,0.5,\\fscx100\\fscy100)" if animate else "")
+        else:
+            text(start, end, block.get("quiz_question", ""), left_cx, height * .275, 44, ink, lines=3, max_width=left_w,
+                 max_height=height * .15, steps=(44, 40, 36))
+        for i, choice in enumerate(choices):
+            y = rows_top + i * (row_h + row_gap)
+            selected = i == correct_index
+            delay, travel = i * 65, 380
+            origin = (col_x + 70 * scale, y) if animate else None
+            if selected:
+                rect(start, end, col_x, y, col_w, row_h, correct, origin=origin, delay=delay, travel=travel)
+                check(start, end, col_x + (18 + 32) * scale, y + row_h / 2, 34 * scale, selected_ink,
+                      origin=(origin[0] + (18 + 32) * scale, origin[1] + row_h / 2) if origin else None, delay=delay, travel=travel)
+            else:
+                rect(start, end, col_x, y, col_w, row_h, card, origin=origin, delay=delay, travel=travel)
+                frame(start, end, col_x, y, col_w, row_h, max(2, 2 * scale), card_border,
+                      origin=origin, delay=delay, travel=travel, layer=2)
+                chip = min(row_h * .62, 64 * scale)
+                chip_x, chip_y = col_x + 18 * scale, y + (row_h - chip) / 2
+                chip_origin = (chip_x + (origin[0] - col_x), chip_y + (origin[1] - y)) if origin else None
+                rect(start, end, chip_x, chip_y, chip, chip, accent, origin=chip_origin, delay=delay, travel=travel, layer=2)
+                text(start, end, "ABCD"[i], chip_x + chip / 2, chip_y + chip / 2 + chip * .03, chip * .62 / scale, accent_ink,
+                     max_width=chip, lines=1,
+                     origin=(chip_x + chip / 2 + chip_origin[0] - chip_x, chip_y + chip / 2 + chip_origin[1] - chip_y) if origin else None,
+                     delay=delay, travel=travel)
+            answer_x = col_x + col_w / 2 + 40 * scale
+            text(start, end, choice, answer_x, y + row_h / 2, 50, selected_ink if selected else ink,
+                 max_width=col_w - 196 * scale, max_height=row_h * .86,
+                 origin=(answer_x + (origin[0] - col_x), y + row_h / 2 + (origin[1] - y)) if origin else None,
+                 delay=delay, travel=travel, style="QuizCorrect" if selected else "QuizChoice")
+        if phase == "question":
+            radius = 64 * scale
+            ring_y = height * .79
+            urgent_from = end - 2 if hold >= 3 else None
+            if hold > 0:
+                timer_start = max(start, end - hold)
+                steps_n = max(1, math.ceil((end - timer_start) * TIMER_STEPS_PER_SECOND))
+                for j in range(steps_n):
+                    a = timer_start + (end - timer_start) * j / steps_n
+                    b = timer_start + (end - timer_start) * (j + 1) / steps_n
+                    ring(a, b, left_cx, ring_y, radius, (URGENT_COLOUR_LIGHT if light else URGENT_COLOUR)
+                         if urgent_from is not None and a >= urgent_from else accent, portion=max(.001, 1 - j / steps_n))
+                for remaining in range(math.ceil(min(hold, duration)), 0, -1):
+                    a, b = max(timer_start, end - remaining), min(end, end - remaining + 1)
+                    text(a, b, remaining, left_cx, ring_y, 62, (URGENT_COLOUR_LIGHT if light else URGENT_COLOUR)
+                         if urgent_from is not None and remaining <= 2 else ink, max_width=radius * 1.5, lines=1,
+                         style="QuizTimer", extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+                strip_y = height * .915
+                rect(timer_start, end, col_left, strip_y, left_w, 5 * scale, rail)
+                rect(timer_start, end, col_left, strip_y, left_w, 5 * scale, accent,
+                     extra=f"\\fscx100\\t(0,{round((end - timer_start) * 1000)},\\fscx0)")
+        else:
+            hero_y, hero_h = height * .525, height * .27
+            rect(start, end, col_left, hero_y - hero_h / 2, left_w, hero_h, accent, layer=2,
+                 extra="\\fscx0\\t(0,300,0.4,\\fscx100)")
+            answer = choices[correct_index] if 0 <= correct_index < len(choices) else ""
+            source_y = rows_top + max(0, correct_index) * (row_h + row_gap) + row_h / 2
+            text(start, end, answer, left_cx, hero_y, 84, accent_ink, max_width=left_w - 80 * scale, lines=3,
+                 max_height=hero_h * .80, origin=(col_x, source_y), travel=min(380, round(duration * 250)),
+                 extra="\\fscx78\\fscy78\\t(0,380,0.4,\\fscx100\\fscy100)", steps=(84, 72, 60, 52))
+            burst_end = min(end, start + .48)
+            for direction in (-1, 1):
+                for j in range(3):
+                    rect(start, burst_end, left_cx + direction * (left_w / 2 - 12 * scale), hero_y + (j - 1) * 18 * scale,
+                         5 * scale, 5 * scale, accent, origin=(left_cx + direction * left_w * .3, hero_y), travel=350,
+                         layer=3, extra="\\fad(0,160)")
+        return events
 
     # Four choices get an editorial 2x2 composition; long answers and image
     # questions keep full-width rails. Both share the same stable card language.

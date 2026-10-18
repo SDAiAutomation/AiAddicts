@@ -14,7 +14,7 @@ import os
 import textwrap
 from pathlib import Path
 
-from .quiz_motion import font_profile
+from .quiz_motion import column_layout, font_profile, uses_columns
 
 # 2-4 mots par écran (choisi avec l'utilisateur) : assez court pour bouger
 # vite, assez long pour rester lisible.
@@ -205,7 +205,7 @@ def _ass_header(width: int, height: int, preset: dict, font: str, quiz_theme: st
         preset["bold"], 0, 0, 0,            # Italic, Underline, StrikeOut
         100, 100, preset["spacing"], 0,     # ScaleX, ScaleY, Spacing, Angle
         preset["border_style"], preset["outline_w"], preset["shadow"],
-        2, 60, 60, preset["margin_v"], 1,   # Alignment(bottom-center), margins, Encoding
+        2, preset.get("margin_l", 60), preset.get("margin_r", 60), preset["margin_v"], 1,   # Alignment(bottom-center), margins, Encoding
     ])
     return (
         "[Script Info]\n"
@@ -492,6 +492,11 @@ def write_ass(
             # commandes à éviter, la bande basse libère le centre pour les cartes (voir engine/quiz_motion.py).
             "margin_v": round(height * (0.09 if width >= height else 0.28)),
         }
+        if uses_columns(width, height) and any(b.get("quiz_presentation") == "motion" for b in (blocks or [])):
+            # Mise en page en colonnes (quiz_motion.column_layout) : les explications restent sous la réponse,
+            # dans la colonne de gauche, au lieu de passer sur les réponses empilées à droite.
+            col_left, left_w, _, _ = column_layout(width)
+            preset["margin_l"], preset["margin_r"] = round(col_left), round(width - (col_left + left_w))
 
     base_fs = preset["font_size"]
     events: list[str] = []

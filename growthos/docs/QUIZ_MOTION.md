@@ -21,7 +21,7 @@ La bonne réponse n'influence aucun événement de la phase question. Les entré
 
 ## Contrat et coordination
 
-`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v4` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
+`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v5` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
 
 L'intégration partagée est limitée à ce dispatch et à la liste du cache. Aucun changement de worker, DB, quota, publication ou contrat AutoEdit. À relire par le propriétaire du pipeline partagé lors de l'intégration. Déployer le moteur avant le frontend : un ancien moteur ignorerait l'option Motion choisie dans une interface plus récente.
 
@@ -67,7 +67,7 @@ Le coût ne venait pas de l'anneau mais du rectangle plein écran que libass mé
 - **Vertical** : une réponse de plus de 30 caractères dans la grille 2×2 tombait à 23 px sur 1920 de haut. La grille est désormais limitée à 30 caractères (52 en paysage) ; au-delà, rangées pleine largeur. Les réponses courtes (cas courant) sont rendues à l'identique.
 - **Paysage / carré** : des cartes trop basses pour deux lignes réduisaient les réponses à 20 px. Géométrie dédiée : cartes de 15 % de la hauteur, compte à rebours à droite de la question, trait de temps sous la question, clé de révélation plus haute, sous-titres en bande basse (9 % de marge au lieu de 28 %, il n'y a pas de commandes de plateforme à éviter).
 
-Le paysage reste une mise en page empilée (question, puis cartes) ; une vraie disposition en colonnes reste possible. `quiz_motion_version=quiz-motion:v4` permet de comparer plus tard la rétention des vidéos v2 et v3 dans les analyses.
+Le paysage reste une mise en page empilée (question, puis cartes) ; une vraie disposition en colonnes reste possible. `quiz_motion_version=quiz-motion:v5` permet de comparer plus tard la rétention des vidéos v2 et v3 dans les analyses.
 
 ## Design v4
 
@@ -80,3 +80,14 @@ Constats après les rendus v3 : fond plat pendant 11 minutes, cartes de réponse
 - **Coût du rendu des formes** (mesuré, quiz long de 25 questions, 1920×1080) : libass mélange à chaque image la boîte englobante de chaque forme, même creuse. Un contour `\bord` sur les cartes ou un cadre en tracé évidé coûtaient 60 à 70 s de rendu ; quatre fines bandes ne coûtent presque rien (140 s au total contre 312 s avant #30). À retenir pour toute nouvelle forme : préférer des bandes fines à un grand objet creux ou contouré.
 - **Police de marque (Poppins)**, celle de la miniature, pour la mise en scène Motion : `write_ass(font="Poppins")` choisi par l'assembleur quand les fichiers de `assets/fonts` sont livrés (`SUBTITLE_FONT` garde la priorité). libass dimensionne `\fs` sur la hauteur de cellule : Poppins s'affiche ~30 % plus petit qu'Arial à taille égale (capitales 53 px à `\fs` 130 contre 63 px à 100). Mesuré : `size_k` = 1,45 rétablit la taille visuelle d'Arial (légèrement en dessous des capitales pour compenser le grand œil de Poppins). L'interligne natif de Poppins est trop aéré (+60 %) : chaque ligne devient un événement posé à l'interligne visuel voulu (`pitch` 1,12). `render_final(fonts_dir=…)` copie les polices à côté des sous-titres (`fontsdir=fonts`, chemin relatif). Rendu complet 25 questions : 154 s. Hors du mode Motion, rien ne change.
 - Non fait : mise en page paysage en colonnes, visuel de sujet derrière les cartes.
+
+## Mise en page 16:9 en colonnes (v5)
+
+Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc 16:9 ; le carré garde la pile centrée) lisent en deux temps : la question mène à gauche (46 % de la largeur utile, jusqu'à 5 lignes, tailles 64 / 56 / 48), les réponses sont empilées à droite et le compte à rebours (anneau + trait de temps) reste en périphérie, sous la question.
+
+- Les réponses **ne bougent pas** à la révélation : la bonne passe au vert avec une coche, et la réponse apparaît en grand à gauche dans un panneau jaune, en partant de sa rangée.
+- Les sous-titres d'explication restent dans la colonne de gauche, sous la réponse (`write_ass` règle `MarginL` / `MarginR` du style à partir de `column_layout`) au lieu de passer sur les réponses.
+- 2, 3 ou 4 réponses : la bande de réponses (21,5 % à 92,5 % de la hauteur) est répartie, rangées de 19 % au plus, centrée verticalement.
+- Avec illustration, la géométrie en pile centrée reste (non adaptée au paysage).
+- `tests/test_quiz_motion_columns.py` : colonnes sans chevauchement, question à gauche et réponses à droite, rangées identiques entre question et révélation (2, 3, 4 réponses), une seule rangée verte, marges des sous-titres uniquement pour le motion large.
+- `quiz_motion_version=quiz-motion:v5` pour comparer avec v4 (pile centrée) dans les analyses.
