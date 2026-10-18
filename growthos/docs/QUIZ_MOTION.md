@@ -124,3 +124,10 @@ Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc
 - La finale est la **dernière question de la série** (à rendre plus difficile côté contenu, le format `long` a déjà une difficulté progressive) : aucune question ajoutée, aucun changement de validation des blocs.
 - Les libellés restent neutres en langue (« n / N »). Le rendu classique reçoit une carte violette sombre, car sa lecture suppose du texte clair.
 - Vérifié sur un aperçu sans voix (3 questions de test) ; pas de rendu complet avec voix, ni d'essai en 16:9.
+
+## Thème « Split Decision » (première étape, sans images)
+
+- `quiz.theme = "split"` : pour une question à **deux réponses en vertical**, deux camps pleine hauteur (bleu / orange, blanc dessus à au moins 4,5:1, vérifié par test), une lettre géante et la réponse dans chacun, le minuteur à la jointure, pastille « n / N » et points de progression. À la révélation, le camp juste garde sa couleur et reçoit une coche, l'autre s'assombrit. Aucune lecture de la bonne réponse avant la révélation.
+- Trois réponses ou plus, 16:9, ou question avec image : mise en page standard, palette marine/jaune.
+- **Pas encore fait :** une image par choix (deux générations par question), qui devra rester fidèle au fait posé (une illustration trompeuse sur une question factuelle est à éviter). Le bas de l'écran reste vide sans elles.
+- Correctif général : la coche dessinée n'apparaissait pas dans le rendu Motion (tracé `m` sans `l`, que libass ignore). Elle s'affiche maintenant partout (réponse juste, fin du quiz, échelle Final Boss).

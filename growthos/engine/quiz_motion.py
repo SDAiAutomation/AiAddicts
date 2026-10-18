@@ -49,6 +49,8 @@ MIN_QUESTIONS_FOR_PARTS = 10
 _TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
 _TINTS_BOSS = ("#150a33", "#190c3b", "#12082c", "#1d0b34")  # violets profonds du « Final Boss »
+_TINTS_SPLIT = ("#0a1030", "#0b1234", "#091029", "#0c1133")  # marine : seulement derrière les deux camps
+SPLIT_LEFT, SPLIT_RIGHT = "#1740c9", "#cf3e14"  # bleu / orange ; blanc dessus : au moins 4,5:1 (vérifié par test)
 _TINTS_VAULT = ("#0b0906", "#0d0a06", "#0a0806", "#0e0a07")  # noirs chauds : le coffre-fort ; l'or (accent) porte le reste
 URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
 URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y atteint que ~2,6:1, #c2410c ~5:1
@@ -85,7 +87,7 @@ def part_index(block: dict) -> int:
 
 def stage_background(theme: str | None, part: int = 0) -> str:
     """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
-    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_BOSS if theme == "boss" else _TINTS_DARK
+    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_BOSS if theme == "boss" else _TINTS_SPLIT if theme == "split" else _TINTS_DARK
     return tints[max(0, min(PARTS - 1, part))]
 
 
@@ -224,7 +226,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
 
     def check(a, b, cx_, cy_, size, colour, *, origin=None, delay=0, travel=420, extra="", layer=3):
         """Coche dessinée (la police n'a pas de glyphe fiable) ; `size` = côté de sa boîte, centrée en (cx_, cy_)."""
-        points = " ".join(f"{round(px * size / 100)} {round(py * size / 100)}" for px, py in _CHECK_POINTS)
+        # `m` puis `l` : sans `l`, libass ne dessine rien (la coche de réponse n'apparaissait pas).
+        first, *rest = (f"{round(px * size / 100)} {round(py * size / 100)}" for px, py in _CHECK_POINTS)
+        points = f"{first} l {' '.join(rest)}"
         shift = (cx_ - size / 2, cy_ - size / 2)
         moved = (origin[0] - size / 2, origin[1] - size / 2) if origin else None
         tags = f"\\an7{position(shift[0], shift[1], moved, delay, travel)}\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{extra}"
@@ -344,6 +348,53 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
             else:
                 text(start, end, i + 1, x, y, 26, "#1a0f3a" if current else dim, lines=1, max_width=d)
 
+    def split_scene(choices, number, total, correct_index, hold_, tend_):
+        """« Split Decision » : deux camps pleine hauteur (bleu / orange), une lettre géante et la réponse dans chacun,
+        le minuteur à la jointure. Seulement pour deux réponses en vertical (vrai/faux, comparaison) ; sans image
+        par choix pour l'instant. À la révélation le camp juste garde sa couleur, l'autre s'assombrit."""
+        half = width / 2
+        sides = ((0, SPLIT_LEFT), (half, SPLIT_RIGHT))
+        cream, yellow = "#f8f0dc", "#ffe14d"
+        for index, (x0, colour) in enumerate(sides):
+            rect(start, end, x0, 0, half, height, colour, layer=0)
+            if phase == "reveal" and index != correct_index:
+                rect(start, end, x0, 0, half, height, "#05081a", layer=1, extra="\\alpha&H4C&")
+        text(start, end, "SPLIT DECISION", cx, height * .036, 30, cream, lines=1, max_width=span, extra="\\fsp6")
+        pill_w, pill_h = 190 * scale, 56 * scale
+        rect(start, end, cx - pill_w / 2, height * .066, pill_w, pill_h, cream, layer=2)
+        text(start, end, f"{number} / {total}", cx, height * .066 + pill_h / 2, 32, "#0b1030", lines=1, max_width=pill_w - 20 * scale)
+        text(start, end, block.get("quiz_question", ""), cx, height * .19, 88, "#ffffff", lines=3, max_height=height * .19,
+             steps=(88, 74, 62, 54), max_width=span)
+        for index, (x0, colour) in enumerate(sides):
+            centre = x0 + half / 2
+            tint = _mix_hex(colour, "#ffffff", .30)
+            if phase == "reveal" and index == correct_index:
+                check(start, end, centre, height * .40, 230 * scale, "#ffffff", extra="\\fscx60\\fscy60\\t(0,300,0.4,\\fscx100\\fscy100)")
+            else:
+                text(start, end, "AB"[index], centre, height * .40, 300, tint, lines=1, max_width=half)
+            text(start, end, choices[index], centre, height * .59, 74, "#ffffff", lines=3, max_height=height * .17,
+                 steps=(74, 62, 52, 44), max_width=half - 90 * scale, style="QuizChoice")
+        if phase == "question" and hold_ > 0:
+            radius, ring_y = 78 * scale, height * .49
+            timer_start = max(start, tend_ - hold_)
+            steps = max(1, math.ceil((tend_ - timer_start) * TIMER_STEPS_PER_SECOND))
+            urgent_from = tend_ - 2 if hold_ >= 3 else None
+            disc = "m " + " l ".join(f"{round(radius * math.cos(t / 28 * 2 * math.pi))} {round(radius * math.sin(t / 28 * 2 * math.pi))}" for t in range(28))
+            emit(timer_start, tend_, f"\\an7\\pos({round(cx)},{round(ring_y)})\\p1\\bord0\\shad0\\1c{_ass_rgb('#0b1030')}", disc + "{\\p0}", 2)
+            for j in range(steps):
+                a = timer_start + (tend_ - timer_start) * j / steps
+                b = timer_start + (tend_ - timer_start) * (j + 1) / steps
+                ring(a, b, cx, ring_y, radius, yellow if urgent_from is not None and a >= urgent_from else cream, portion=max(.001, 1 - j / steps))
+            for remaining in range(math.ceil(min(hold_, duration)), 0, -1):
+                a, b = max(timer_start, tend_ - remaining), tend_ - remaining + 1
+                text(a, b, remaining, cx, ring_y, 66, yellow if urgent_from is not None and remaining <= 2 else "#ffffff",
+                     lines=1, max_width=radius * 1.5, style="QuizTimer", extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+        if total <= 10:
+            dot, gap_ = 22 * scale, 18 * scale
+            x0 = cx - (total * dot + (total - 1) * gap_) / 2
+            for i in range(total):
+                rect(start, end, x0 + i * (dot + gap_), height * .925, dot, dot, cream if i < number else _mix_hex("#0b1030", "#ffffff", .25), layer=2)
+
     # Preserve the illustration as a real window; never substitute invented
     # factual diagrams for a supplied image/logo question.
     visual = bool(block.get("quiz_visual_available")) and phase in {"question", "reveal"}
@@ -369,7 +420,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     accent_ink = contrast(accent)
     # Corner crop marks create a stage without a generic box around everything.
     vault_header = (vault or boss) and not landscape and phase in {"question", "reveal"}
-    for x, direction in (() if vault_header else ((left, 1), (right, -1))):
+    split_on = block.get("quiz_theme") == "split" and not landscape and not visual and len(block.get("quiz_choices") or []) == 2
+    for x, direction in (() if vault_header or split_on else ((left, 1), (right, -1))):
         rect(start, end, x - (20 * scale if direction < 0 else 0), height * .105,
              20 * scale, 3 * scale, accent)
         rect(start, end, x, height * .105, 3 * scale, 20 * scale, accent)
@@ -408,6 +460,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     tend = end - beat
     animate = phase == "question" and duration - hold - beat >= 1.0
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
+    if (block.get("quiz_theme") == "split" and not landscape and not visual and len(choices) == 2
+            and phase in {"question", "reveal"}):
+        split_scene(choices, number, total, correct_index, hold, tend)
+        return events
     # Offsets follow the type size in landscape, where `span` is far wider than
     # the glyphs and fractions of it would push "/ 03" away from "01".
     if vault_header:
