@@ -64,7 +64,11 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         return []
     phase = block["quiz_phase"]
     duration = end - start
-    scale = min(width / 1080, height / 1920)
+    # The layout is authored for 9:16 (1080 wide). Landscape and square frames
+    # are as wide as the reference but shorter, so `height / 1920` would shrink
+    # every glyph to ~56 %; size them against the 1080 px reference instead.
+    landscape = width >= height
+    scale = height / 1080 if landscape else min(width / 1080, height / 1920)
     cx = width / 2
     left, right = width * .08, width * .90
     span = right - left
@@ -167,8 +171,11 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     hold = max(0.0, float(block.get("hold_after_seconds") or 0))
     animate = phase == "question" and duration - hold >= 1.0
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
-    text(start, end, f"{number:02d}", left + span * .09, height * .145, 74, ink, lines=1, max_width=span * .18)
-    text(start, end, f"/ {total:02d}", left + span * .17, height * .15, 30, accent, lines=1, max_width=span * .13)
+    # Offsets follow the type size in landscape, where `span` is far wider than
+    # the glyphs and fractions of it would push "/ 03" away from "01".
+    number_x, total_x = (left + 80 * scale, left + 160 * scale) if landscape else (left + span * .09, left + span * .17)
+    text(start, end, f"{number:02d}", number_x, height * .145, 74, ink, lines=1, max_width=span * .18)
+    text(start, end, f"/ {total:02d}", total_x, height * .15, 30, accent, lines=1, max_width=span * .13)
     gap = 7 * scale
     segment = (span * .46 - (total - 1) * gap) / total
     for i in range(total):
@@ -188,6 +195,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         # The grid folds into a compact answer key. This frees the centre for
         # the payoff instead of adding yet another label under the same slide.
         rows_y, row_h, row_step = height * .505, height * .034, height * .043
+        if landscape:
+            # Taller rows keep answers legible; the last row still ends above the caption band.
+            rows_y, row_h, row_step = height * .485, height * .041, height * .046
     question_y = height * (.224 if visual else .225 if focus_reveal else .277)
     text(start, end, block.get("quiz_question", ""), cx, question_y, 64 if visual else 46 if focus_reveal else 76,
          ink, lines=3, max_height=height * (.09 if focus_reveal else .105 if visual else .17),
@@ -227,7 +237,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         if focus_reveal:
             label_origin = (old_x + (30 if question_grid else 35) * scale,
                             old_y + old_row_h * (.23 if question_grid else .5))
-        text(start, end, "✓" if selected else "ABCD"[i], label_x, label_y, 26 if grid else 34,
+        text(start, end, "✓" if selected else "ABCD"[i], label_x, label_y, 26 if grid or (landscape and focus_reveal) else 34,
              selected_ink if selected else accent, max_width=52 * scale, lines=1,
              origin=label_origin, delay=delay, travel=travel)
         answer_x = x + card_w / 2 + (0 if grid else 22 * scale)
