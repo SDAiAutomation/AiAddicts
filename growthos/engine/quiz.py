@@ -288,7 +288,7 @@ def compile_quiz(script: dict) -> dict:
     phrases = _PHRASES[lang]
     topic = quiz.get("topic") or result.get("niche") or _TOPIC_FALLBACK[lang]
     hook = str(quiz.get("intro") or phrases["intro"].format(topic=topic)).strip()
-    blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro"})
+    blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro", "quiz_question_total": len(quiz["questions"])})
 
     letters = "ABCD"
     for number, item in enumerate(quiz["questions"], start=1):
@@ -338,7 +338,7 @@ def compile_quiz(script: dict) -> dict:
         })
 
     cta = str(quiz.get("outro") or result.get("cta") or phrases["outro"]).strip()
-    blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro"})
+    blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro", "quiz_question_total": len(quiz["questions"])})
     result["blocks"] = blocks
     return _prepare_existing_quiz_blocks(result, normalized_quiz)
 

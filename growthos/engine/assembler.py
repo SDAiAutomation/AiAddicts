@@ -296,17 +296,18 @@ def _generate(
     fade_duration = 0.3 if transition == "fade" else 0.0
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
-    # Quiz Motion : fond de base de la couleur de la scène plutôt qu'un rectangle plein écran par image.
-    base_background = quiz_motion.base_background_for(data, fade_duration)
+    # Quiz Motion : fond de base de la couleur de la scène (une teinte par partie d'un quiz long) plutôt
+    # qu'un rectangle plein écran par image.
+    block_backgrounds = [quiz_motion.base_background_for(data, fade_duration, block) for block in render_blocks]
     caption_blocks = [
         ({**block, "quiz_visual_available": bool(render_image_paths[index])}
          if block.get("quiz_phase") in {"question", "reveal"} else block)
         for index, block in enumerate(render_blocks)
     ]
-    if base_background:
+    if any(block_backgrounds):
         caption_blocks = [
-            ({**block, "quiz_base_background": "#" + base_background[2:].lower()} if block.get("quiz_phase") else block)
-            for block in caption_blocks
+            ({**block, "quiz_base_background": "#" + colour[2:].lower()} if colour else block)
+            for block, colour in zip(caption_blocks, block_backgrounds)
         ]
     ass_file = captions.write_ass(
         cues, str(work_dir / "captions.ass"), caption_style, resolution,
@@ -327,7 +328,7 @@ def _generate(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
         moves=resolved_moves, fade_duration=fade_duration,
-        **({"bg_color": base_background} if base_background else {}),
+        **({"bg_colors": block_backgrounds} if any(block_backgrounds) else {}),
     )
     render_seconds = time.monotonic() - t0
     print(f"       vidéo finale rendue en {render_seconds:.1f}s")

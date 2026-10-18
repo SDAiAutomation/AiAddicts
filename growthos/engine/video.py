@@ -332,6 +332,7 @@ def render_final(
     image_paths: list[str | None] | None = None,
     aspect_ratio: str = "9:16",
     bg_color: str = DEFAULT_BG,
+    bg_colors: list[str | None] | None = None,
     font: str | None = None,
     fps: int = DEFAULT_FPS,
     moves: list[str | None] | None = None,
@@ -379,7 +380,8 @@ def render_final(
             print(f"       plan {i}/{n_clips} — bloc {block_index} ({duration:.1f}s)…")
             t0 = time.monotonic()
             _render_block_clip(
-                image_path, duration, str(clip_path), resolution, bg_color, fps,
+                image_path, duration, str(clip_path), resolution,
+                (bg_colors[block_index - 1] if bg_colors and 0 < block_index <= len(bg_colors) and bg_colors[block_index - 1] else bg_color), fps,
                 block_index=i, source_offset=source_offset, motion_move=move, fade_duration=fade_duration,
             )
             print(f"       plan {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
