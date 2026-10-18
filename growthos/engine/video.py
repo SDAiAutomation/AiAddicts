@@ -224,6 +224,7 @@ def _render_block_clip(
     source_offset: float = 0.0,
     motion_move: str | None = None,
     fade_duration: float = 0.0,
+    static: bool = False,
 ) -> str:
     """Un clip silencieux pour un bloc :
     - `.mp4/.mov/...` -> clip vidéo de stock ou Motion Graphics, recadré plein
@@ -260,6 +261,14 @@ def _render_block_clip(
                 str(out.resolve()),
             ]
         )
+    elif image_path and static:
+        # Fond fixe (fond illustré d'un quiz, déjà préparé en bichromie) : ni Ken Burns ni vignette, un simple
+        # cadrage plein cadre. Bien moins cher qu'un zoompan sur-échantillonné.
+        vf = (f"scale={resolution}:force_original_aspect_ratio=increase:flags=lanczos,"
+              f"crop={resolution.replace('x', ':')},format=yuv420p")
+        _run(["ffmpeg", "-y", "-loop", "1", "-i", str(Path(image_path).resolve()), "-t", f"{duration:.3f}",
+              "-vf", vf, "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast", "-crf", _CRF,
+              "-tune", "stillimage", "-an", str(out.resolve())])
     elif image_path:
         # Sur-cadre (sur-échantillonné, voir _KENBURNS_SUPERSAMPLE) puis crop
         # avant le zoom : sinon le zoompan révèle les bords de l'image source
@@ -334,6 +343,7 @@ def render_final(
     aspect_ratio: str = "9:16",
     bg_color: str = DEFAULT_BG,
     bg_colors: list[str | None] | None = None,
+    static_blocks: list[bool] | None = None,
     fonts_dir: str | None = None,
     font: str | None = None,
     fps: int = DEFAULT_FPS,
@@ -385,6 +395,7 @@ def render_final(
                 image_path, duration, str(clip_path), resolution,
                 (bg_colors[block_index - 1] if bg_colors and 0 < block_index <= len(bg_colors) and bg_colors[block_index - 1] else bg_color), fps,
                 block_index=i, source_offset=source_offset, motion_move=move, fade_duration=fade_duration,
+                static=bool(static_blocks and 0 < block_index <= len(static_blocks) and static_blocks[block_index - 1]),
             )
             print(f"       plan {i}/{n_clips} terminé en {time.monotonic() - t0:.1f}s")
 

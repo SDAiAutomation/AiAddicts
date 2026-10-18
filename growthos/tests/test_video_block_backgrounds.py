@@ -6,6 +6,23 @@ from unittest import mock
 from engine import video
 
 
+class StaticBlocksTests(unittest.TestCase):
+    def test_static_blocks_get_the_static_clip_path_and_others_keep_ken_burns(self):
+        flags = []
+
+        def fake_clip(image_path, duration, out_path, resolution, bg_color, fps, **kwargs):
+            flags.append((Path(out_path).name, kwargs.get("static")))
+            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(out_path).write_bytes(b"clip")
+            return out_path
+
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(video, "_render_block_clip", fake_clip), mock.patch.object(video, "_run"):
+            video.render_final(str(Path(folder) / "a.wav"), str(Path(folder) / "c.ass"), str(Path(folder) / "o.mp4"),
+                               [2.0, 2.0, 2.0], static_blocks=[True, False, True])
+        self.assertEqual([static for _, static in sorted(flags)], [True, False, True])
+
+
 class BlockBackgroundTests(unittest.TestCase):
     def _render(self, bg_colors):
         used = []

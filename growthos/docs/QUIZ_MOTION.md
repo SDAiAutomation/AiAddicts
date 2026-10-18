@@ -91,3 +91,13 @@ Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc
 - Avec illustration, la géométrie en pile centrée reste (non adaptée au paysage).
 - `tests/test_quiz_motion_columns.py` : colonnes sans chevauchement, question à gauche et réponses à droite, rangées identiques entre question et révélation (2, 3, 4 réponses), une seule rangée verte, marges des sous-titres uniquement pour le motion large.
 - `quiz_motion_version=quiz-motion:v5` pour comparer avec v4 (pile centrée) dans les analyses.
+
+## Fond illustré (opt-in)
+
+`quiz.backdrops: true` (quiz long en Motion seulement ; faux par défaut, jamais activé sans choix) ajoute un fond de sujet : **une image par partie du quiz, soit 4 images**, au lieu de 25 illustrations. `engine/quiz_backdrop.py` demande à l'API d'images (qualité `low`, 16:9, « sans texte, sans personne ») une photo éditoriale du sujet par partie, puis la passe en **bichromie** aux couleurs de la partie : niveaux de gris recadrés en 1920×1080, ramenés entre la teinte de la scène et cette teinte éclaircie de 22 %. Le contraste du texte est donc borné par construction, quelle que soit l'image (testé : ≥ 4,5:1 pour toutes les parties, thèmes sombre et clair), et chaque partie garde son identité.
+
+- Les images servent de fond de base de chaque bloc (clip fixe : `render_final(static_blocks=…)`, sans Ken Burns ni vignette, bien moins cher qu'un zoompan) ; ce ne sont pas des fenêtres d'illustration (`quiz_visual_available` reste faux, la mise en page en colonnes est conservée).
+- Jamais bloquant : sans clé, ou si une génération échoue, la partie garde son fond uni. Les images sont mises en cache dans `images/quiz-backdrop-<partie>.jpg`.
+- Coût : 4 images en plus d'un rendu ; ~13 s entre deux requêtes (limite du fournisseur), donc ~1 min de plus au pire.
+- Interface : bouton « Ajouter le fond illustré » dans la relecture de l'assistant (quiz long en Motion) et case dans l'éditeur ; le texte annonce « 4 images en plus ».
+- Non vérifié : la qualité des images réelles du fournisseur (rendu relu sur des images synthétiques de type bokeh).
