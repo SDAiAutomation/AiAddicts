@@ -488,17 +488,28 @@ def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Pa
 
 
 def _publish_thumbnail(client, content_item_id: str, data: dict, work_dir: Path) -> None:
-    """Miniature YouTube des quiz longs (voir engine/thumbnail.py) : son URL est
-    rangée dans le script (`thumbnail_url`), lue ensuite par la publication
-    YouTube du site. Facultatif : tout échec laisse la vidéo publiable, sans
-    miniature personnalisée, et ne lève jamais."""
+    """Miniatures YouTube des quiz longs (voir engine/thumbnail.py).
+
+    `script.thumbnail_url` = variante A, envoyée automatiquement par la
+    publication YouTube du site ; `script.thumbnail_variants` = A, B, C pour le
+    téléchargement et le test A/B manuel de YouTube Studio. Facultatif : tout
+    échec laisse la vidéo publiable, sans miniature personnalisée, et ne lève jamais."""
     if not thumbnail.is_long_quiz(data):
         return
     try:
-        path = thumbnail.build_for_script(data, str(work_dir / "thumbnail.jpg"))
-        data["thumbnail_url"] = storage.upload_thumbnail(client, content_item_id, path)
+        built = thumbnail.build_variants_for_script(data, str(work_dir))
+        variants = []
+        for variant, info in built.items():
+            report = info["report"]
+            if report["issues"]:
+                print(f"       miniature {variant} : {', '.join(report['issues'])}")
+            variants.append({"id": variant, "axis": info["axis"],
+                             "url": storage.upload_thumbnail(client, content_item_id, info["path"], variant)})
+        data["thumbnail_variants"] = variants
+        data["thumbnail_url"] = variants[0]["url"]
     except Exception as exc:
         data.pop("thumbnail_url", None)
+        data.pop("thumbnail_variants", None)
         print(f"       miniature YouTube non générée ({exc})")
 
 
