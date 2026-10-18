@@ -48,6 +48,7 @@ PARTS = 4
 MIN_QUESTIONS_FOR_PARTS = 10
 _TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
+_TINTS_BOSS = ("#150a33", "#190c3b", "#12082c", "#1d0b34")  # violets profonds du « Final Boss »
 _TINTS_VAULT = ("#0b0906", "#0d0a06", "#0a0806", "#0e0a07")  # noirs chauds : le coffre-fort ; l'or (accent) porte le reste
 URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
 URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y atteint que ~2,6:1, #c2410c ~5:1
@@ -84,7 +85,7 @@ def part_index(block: dict) -> int:
 
 def stage_background(theme: str | None, part: int = 0) -> str:
     """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
-    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_DARK
+    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_BOSS if theme == "boss" else _TINTS_DARK
     return tints[max(0, min(PARTS - 1, part))]
 
 
@@ -185,6 +186,11 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         card = _mix_hex(background, "#ffffff", .10)
     card_border = rail if light else _mix_hex(background, "#ffffff", .24)
     vault = block.get("quiz_theme") == "vault"
+    boss = block.get("quiz_theme") == "boss"
+    # Encre des réponses : cartes crème du Final Boss = texte sombre, le reste suit `ink`.
+    card_ink, label_colour = ("#1a0f3a", "#5b2fc9") if boss else (ink, accent)
+    if boss:
+        card, card_border, rail = "#f3ead2", "#d9b43a", "#3a2670"
     if vault:
         # Coffre-fort : cartes noir chaud cernées d'un filet d'or terni, rail et fentes dans le même brun.
         card, card_border, rail = "#17120a", "#8a6a1f", "#3a2c10"
@@ -304,6 +310,40 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         frame(start, end, cx - q_w / 2, label_y, q_w, q_h, max(2, 2 * scale), dim)
         text(start, end, f"QUESTION {number} / {total}", cx, label_y + q_h / 2, 28, ink, lines=1, max_width=q_w - 24 * scale)
 
+    def boss_ladder(number: int, total: int, phase_: str) -> None:
+        """En-tête « Final Boss » : plaque, pastille « n / N » et échelle de niveaux dans la marge gauche
+        (coche = passé, jaune = en cours, couronne = le boss, dernier niveau). Au-delà de 8 niveaux l'échelle
+        deviendrait illisible : plaque et pastille seulement."""
+        gold, dim, deep = "#ffd23f", "#5a3fa0", "#2a1760"
+        plaque_w, plaque_h = 400 * scale, 64 * scale
+        frame(start, end, cx - plaque_w / 2, height * .032, plaque_w, plaque_h, max(2, 3 * scale), gold)
+        text(start, end, "FINAL BOSS", cx, height * .032 + plaque_h / 2, 40, gold, lines=1, max_width=plaque_w - 30 * scale)
+        q_w, q_h = 240 * scale, 56 * scale
+        q_y = height * .105
+        frame(start, end, cx - q_w / 2, q_y, q_w, q_h, max(2, 2 * scale), dim)
+        text(start, end, f"{number} / {total}", cx, q_y + q_h / 2, 32, gold, lines=1, max_width=q_w - 24 * scale)
+        if total > 8:
+            return
+        top, bottom = height * .17, height * .36
+        step = (bottom - top) / max(1, total - 1)
+        d = min(46 * scale, step * .88)
+        x = left / 2
+        for i in range(total):
+            y = top + i * step
+            current, last = i == number - 1 and phase_ != "reveal", i == total - 1
+            done = i < number - 1 or (phase_ == "reveal" and i == number - 1)
+            disc = "m " + " l ".join(f"{round(d / 2 + d / 2 * math.cos(t / 20 * 2 * math.pi))} {round(d / 2 + d / 2 * math.sin(t / 20 * 2 * math.pi))}" for t in range(20))
+            fill = gold if (done or current) else deep
+            emit(start, end, f"\\an7\\pos({round(x - d / 2)},{round(y - d / 2)})\\p1\\bord0\\shad0\\1c{_ass_rgb(fill)}", disc + "{\\p0}", 2)
+            if last:
+                crown = ((10, 82), (10, 34), (30, 56), (50, 18), (70, 56), (90, 34), (90, 82))
+                path = "m " + " l ".join(f"{round(px * d * .6 / 100)} {round(py * d * .6 / 100)}" for px, py in crown)
+                emit(start, end, f"\\an7\\pos({round(x - d * .3)},{round(y - d * .28)})\\p1\\bord0\\shad0\\1c{_ass_rgb('#1a0f3a' if current else gold if done else dim)}", path + "{\\p0}", 3)
+            elif done:
+                check(start, end, x, y, d * .55, "#1a0f3a")
+            else:
+                text(start, end, i + 1, x, y, 26, "#1a0f3a" if current else dim, lines=1, max_width=d)
+
     # Preserve the illustration as a real window; never substitute invented
     # factual diagrams for a supplied image/logo question.
     visual = bool(block.get("quiz_visual_available")) and phase in {"question", "reveal"}
@@ -328,7 +368,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
 
     accent_ink = contrast(accent)
     # Corner crop marks create a stage without a generic box around everything.
-    vault_header = vault and not landscape and phase in {"question", "reveal"}
+    vault_header = (vault or boss) and not landscape and phase in {"question", "reveal"}
     for x, direction in (() if vault_header else ((left, 1), (right, -1))):
         rect(start, end, x - (20 * scale if direction < 0 else 0), height * .105,
              20 * scale, 3 * scale, accent)
@@ -371,7 +411,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     # Offsets follow the type size in landscape, where `span` is far wider than
     # the glyphs and fractions of it would push "/ 03" away from "01".
     if vault_header:
-        vault_slots(number, total, phase)
+        (boss_ladder if boss else vault_slots)(number, total, phase)
     else:
         number_x, total_x = (left + 80 * scale, left + 160 * scale) if landscape else (left + span * .09, left + span * .17)
         text(start, end, f"{number:02d}", number_x, height * .145, 74, ink, lines=1, max_width=span * .18)
@@ -430,7 +470,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
                      origin=(chip_x + chip / 2 + chip_origin[0] - chip_x, chip_y + chip / 2 + chip_origin[1] - chip_y) if origin else None,
                      delay=delay, travel=travel)
             answer_x = col_x + col_w / 2 + 40 * scale
-            text(start, end, choice, answer_x, y + row_h / 2, 50, selected_ink if selected else ink,
+            text(start, end, choice, answer_x, y + row_h / 2, 50, selected_ink if selected else card_ink,
                  max_width=col_w - 196 * scale, max_height=row_h * .86,
                  origin=(answer_x + (origin[0] - col_x), y + row_h / 2 + (origin[1] - y)) if origin else None,
                  delay=delay, travel=travel, style="QuizCorrect" if selected else "QuizChoice")
@@ -552,7 +592,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
             check(start, end, label_x, label_y, mark, selected_ink, origin=label_origin, delay=delay, travel=travel)
         elif focus_reveal:
             text(start, end, "ABCD"[i], label_x, label_y, 26 if grid or landscape else 34,
-                 accent, max_width=52 * scale, lines=1, origin=label_origin, delay=delay, travel=travel)
+                 label_colour, max_width=52 * scale, lines=1, origin=label_origin, delay=delay, travel=travel)
         else:
             # Pastille pleine, comme sur la miniature : la lettre se lit d'un coup d'œil, même en petit.
             chip = min(row_h * (.40 if grid else .62), ((52 if landscape else 44) if grid else 64) * scale)
@@ -571,7 +611,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
             answer_origin = (old_x + old_card_w / 2 + (0 if question_grid else 22 * scale),
                              old_y + old_row_h * (.61 if question_grid else .5))
         text(start, end, choice, answer_x, answer_y, (54 if grid else 50) if landscape and not focus_reveal else 43 if grid else 44,
-             selected_ink if selected else ink, max_width=card_w - (44 if grid else 150) * scale,
+             selected_ink if selected else card_ink, max_width=card_w - (44 if grid else 150) * scale,
              max_height=row_h * (.52 if grid else .86),
              origin=answer_origin, delay=delay, travel=travel,
              style="QuizCorrect" if selected else "QuizChoice")
