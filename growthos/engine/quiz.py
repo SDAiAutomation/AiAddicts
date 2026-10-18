@@ -60,6 +60,8 @@ def normalize_quiz(quiz: object) -> dict:
     recipe = QUIZ_RECIPES[recipe_id]
     if "illustrations" in result and not isinstance(result["illustrations"], bool):
         raise ValueError("'quiz.illustrations' doit être un booléen")
+    if "backdrops" in result and not isinstance(result["backdrops"], bool):
+        raise ValueError("'quiz.backdrops' doit être un booléen")
     result.setdefault("recipe", recipe_id)
     result.setdefault("kind", recipe["kind"])
     result.setdefault("difficulty", recipe["difficulty"])
@@ -69,6 +71,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("presentation", "classic")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
+    result.setdefault("backdrops", False)  # fond illustré (4 images) : opt-in, voir engine/quiz_backdrop.py
     if recipe_id == "long" and "illustrations" not in quiz:
         result["illustrations"] = False
     for question in result.get("questions") or []:

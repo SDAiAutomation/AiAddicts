@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
-    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
+    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, repo, retention,
     script as script_module, shot_planning, storage, thumbnail, tts, versions, video, visuals, voices,
 )
 
@@ -216,6 +216,7 @@ def _generate(
     # local dans les deux cas), stock_footage n'a pas d'identité IA à casser.
     stock_selection: dict = {}
     motion_preflight: list = []
+    backdrop_flags = [False] * n_blocks  # blocs dont l'image est un fond illustré (pas une fenêtre d'illustration)
     if motion_graphics_style:
         image_paths = visuals.fetch_motion_graphics_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
@@ -238,6 +239,14 @@ def _generate(
         image_reports = []
         visual_fallbacks = []
         style_treatment_reports = []
+        if quiz_backdrop.enabled(data):
+            # Fond illustré : une image de sujet par partie (4), en bichromie, jamais bloquant (voir quiz_backdrop).
+            backdrops = quiz_backdrop.generate(data, work_dir)
+            for index, block in enumerate(data["blocks"]):
+                path = backdrops[quiz_motion.part_index(block)]
+                if path:
+                    image_paths[index], backdrop_flags[index] = path, True
+            print(f"       fond illustré : {sum(1 for p in backdrops if p)}/{len(backdrops)} image(s)")
     else:
         image_paths, image_reports, visual_fallbacks, style_treatment_reports = visuals.fetch_block_images(
             data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
@@ -265,6 +274,7 @@ def _generate(
     render_blocks = data["blocks"]
     render_durations = durations
     render_image_paths = image_paths
+    render_backdrops = backdrop_flags
     cover = (data.get("quiz") or {}).get("cover") or {}
     if data.get("content_format") == "quiz" and cover.get("enabled"):
         cover_duration = float(cover.get("duration_seconds") or 0.8)
@@ -280,6 +290,7 @@ def _generate(
         render_blocks = [cover_block, *data["blocks"]]
         render_durations = [cover_duration, *durations]
         render_image_paths = [quiz_cover.generate_cover(data, work_dir), *image_paths]
+        render_backdrops = [False, *backdrop_flags]
     cue_words = ([([], render_durations[0])] + block_words) if render_blocks is not data["blocks"] else block_words
     cues = captions.build_cues(
         cue_words,
@@ -304,7 +315,7 @@ def _generate(
     motion_scene = (quiz_motion.presentation_info(data) or {}).get("mode") == "motion"
     brand_font = quiz_motion.BRAND_FONT if motion_scene and not os.environ.get("SUBTITLE_FONT") and quiz_motion.brand_font_available() else None
     caption_blocks = [
-        ({**block, "quiz_visual_available": bool(render_image_paths[index])}
+        ({**block, "quiz_visual_available": bool(render_image_paths[index]) and not render_backdrops[index]}
          if block.get("quiz_phase") in {"question", "reveal"} else block)
         for index, block in enumerate(render_blocks)
     ]
@@ -331,6 +342,7 @@ def _generate(
     final_video = video.render_final(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
+        static_blocks=render_backdrops if any(render_backdrops) else None,
         moves=resolved_moves, fade_duration=fade_duration,
         **({"bg_colors": block_backgrounds} if any(block_backgrounds) else {}),
         **({"fonts_dir": str(quiz_motion.FONT_DIR)} if brand_font else {}),
