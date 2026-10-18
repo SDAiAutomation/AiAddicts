@@ -153,6 +153,20 @@ class QuizMotionTests(unittest.TestCase):
         urgent_events = [e for e in events if urgent_bgr.upper() in e.upper()]
         self.assertTrue(urgent_events)
         self.assertTrue(all(float(e.split(",")[1].split(":")[2]) >= 12 - 5 + 3 - 1e-6 for e in urgent_events if e.count(" l ") > 40))
+        # Sur une scène claire, l'orange est assombri pour rester à 3:1 au moins.
+        def contrast(first, second):
+            def lum(colour):
+                chans = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+                lin = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in chans]
+                return .2126 * lin[0] + .7152 * lin[1] + .0722 * lin[2]
+            high, low = sorted((lum(first), lum(second)), reverse=True)
+            return (high + .05) / (low + .05)
+        self.assertGreaterEqual(contrast(quiz_motion.URGENT_COLOUR_LIGHT, quiz_motion.stage_background("minimal")), 3.0)
+        self.assertGreaterEqual(contrast(quiz_motion.URGENT_COLOUR, quiz_motion.stage_background("studio")), 3.0)
+        light_script, light_blocks = self._long_blocks(theme="minimal")
+        light_events = _quiz_events([{**[b for b in light_blocks if b["quiz_phase"] == "question"][3], "hold_after_seconds": 5}], [12], 1920, 1080)
+        light_bgr = "&H00" + quiz_motion.URGENT_COLOUR_LIGHT[5:7].upper() + quiz_motion.URGENT_COLOUR_LIGHT[3:5].upper() + quiz_motion.URGENT_COLOUR_LIGHT[1:3].upper()
+        self.assertTrue([e for e in light_events if light_bgr in e.upper()])
         # Un compte à rebours de moins de 3 secondes ne passe pas à l'orange.
         short_events = _quiz_events([{**question, "hold_after_seconds": 2}], [12], 1920, 1080)
         self.assertFalse([e for e in short_events if urgent_bgr.upper() in e.upper()])

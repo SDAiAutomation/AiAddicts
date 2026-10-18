@@ -26,6 +26,7 @@ MIN_QUESTIONS_FOR_PARTS = 10
 _TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
 URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
+URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y atteint que ~2,6:1, #c2410c ~5:1
 # Coche dessinée dans une boîte de 100 x 100 (aucun glyphe unicode : il dépend de la police de repli).
 _CHECK_POINTS = ((8, 54), (22, 40), (40, 58), (78, 18), (92, 32), (40, 86))
 _SCENE_PHASES = {"intro", "question", "reveal", "outro"}
@@ -393,7 +394,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     if phase == "question":
         timer_start = max(start, end - hold)
         radius = (64 if landscape else 57) * scale
-        urgent_colour = URGENT_COLOUR
+        urgent_colour = URGENT_COLOUR_LIGHT if light else URGENT_COLOUR
         urgent_from = None
         # Portrait : sous les réponses. Paysage : à droite de la question (les réponses occupent la hauteur),
         # avec le trait de temps juste sous elle.
