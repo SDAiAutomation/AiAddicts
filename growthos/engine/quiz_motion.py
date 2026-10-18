@@ -48,6 +48,7 @@ PARTS = 4
 MIN_QUESTIONS_FOR_PARTS = 10
 _TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
+_TINTS_VAULT = ("#0b0906", "#0d0a06", "#0a0806", "#0e0a07")  # noirs chauds : le coffre-fort ; l'or (accent) porte le reste
 URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
 URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y atteint que ~2,6:1, #c2410c ~5:1
 # Coche dessinée dans une boîte de 100 x 100 (aucun glyphe unicode : il dépend de la police de repli).
@@ -83,7 +84,7 @@ def part_index(block: dict) -> int:
 
 def stage_background(theme: str | None, part: int = 0) -> str:
     """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
-    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_DARK
+    tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_DARK
     return tints[max(0, min(PARTS - 1, part))]
 
 
@@ -183,6 +184,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         # filet : la séparation reste visible sur un petit écran. Les thèmes clairs ont déjà des cartes blanches.
         card = _mix_hex(background, "#ffffff", .10)
     card_border = rail if light else _mix_hex(background, "#ffffff", .24)
+    vault = block.get("quiz_theme") == "vault"
+    if vault:
+        # Coffre-fort : cartes noir chaud cernées d'un filet d'or terni, rail et fentes dans le même brun.
+        card, card_border, rail = "#17120a", "#8a6a1f", "#3a2c10"
     events: list[str] = []
     profile = font_profile(font)
 
@@ -259,6 +264,46 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         path = "m " + " l ".join(f"{round(px)} {round(py)}" for px, py in points)
         emit(a, b, f"\\an7\\pos({round(x)},{round(y)})\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{extra}", path + "{\\p0}", 2)
 
+    def vault_slots(number: int, total: int, phase_: str) -> None:
+        """En-tête « The Vault » : plaque, une case par question (chiffre du code ou cadenas) et plaque de question.
+        Les chiffres sont décoratifs (un code de coffre, pas une donnée) ; la case de la question se déverrouille
+        à la révélation. Au-delà de 8 questions les cases deviendraient illisibles : repli sur le compteur discret."""
+        gold, dim = accent, "#6b5420"
+        plaque_w, plaque_h = 400 * scale, 64 * scale
+        frame(start, end, cx - plaque_w / 2, height * .032, plaque_w, plaque_h, max(2, 3 * scale), gold)
+        text(start, end, "THE VAULT", cx, height * .032 + plaque_h / 2, 40, gold, lines=1, max_width=plaque_w - 30 * scale)
+        if total <= 8:
+            size = min(110 * scale, (span - (total - 1) * 14 * scale) / total)
+            row_w = total * size + (total - 1) * 14 * scale
+            x0, y0 = cx - row_w / 2, height * .092
+            for i in range(total):
+                x = x0 + i * (size + 14 * scale)
+                unlocked = i < number - 1 or (phase_ == "reveal" and i == number - 1)
+                current = i == number - 1
+                frame(start, end, x, y0, size, size, max(2, (4 if current else 3) * scale), gold if unlocked or current else dim)
+                if unlocked:
+                    pop = "\\fscx140\\fscy140\\t(0,350,0.4,\\fscx100\\fscy100)" if current else ""
+                    text(start, end, (7 + 6 * i) % 10, x + size / 2, y0 + size / 2, 64, gold, lines=1, max_width=size, extra=pop)
+                else:
+                    # Cadenas dessiné : corps plein et anse en U faite de trois fines bandes.
+                    colour = gold if current else dim
+                    body_w, body_h = size * .46, size * .32
+                    bx, by = x + (size - body_w) / 2, y0 + size * .46
+                    rect(start, end, bx, by, body_w, body_h, colour, layer=2)
+                    arm = max(2, size * .06)
+                    sx, sy, sw, sh = bx + body_w * .16, y0 + size * .22, body_w * .68, size * .26
+                    rect(start, end, sx, sy, arm, sh, colour, layer=2)
+                    rect(start, end, sx + sw - arm, sy, arm, sh, colour, layer=2)
+                    rect(start, end, sx, sy, sw, arm, colour, layer=2)
+            label_y = y0 + size + height * .027
+        else:
+            label_y = height * .092 + height * .03
+        if phase_ == "reveal":
+            return  # la question remonte pendant la révélation : la plaque la chevaucherait
+        q_w, q_h = 340 * scale, 52 * scale
+        frame(start, end, cx - q_w / 2, label_y, q_w, q_h, max(2, 2 * scale), dim)
+        text(start, end, f"QUESTION {number} / {total}", cx, label_y + q_h / 2, 28, ink, lines=1, max_width=q_w - 24 * scale)
+
     # Preserve the illustration as a real window; never substitute invented
     # factual diagrams for a supplied image/logo question.
     visual = bool(block.get("quiz_visual_available")) and phase in {"question", "reveal"}
@@ -283,7 +328,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
 
     accent_ink = contrast(accent)
     # Corner crop marks create a stage without a generic box around everything.
-    for x, direction in ((left, 1), (right, -1)):
+    vault_header = vault and not landscape and phase in {"question", "reveal"}
+    for x, direction in (() if vault_header else ((left, 1), (right, -1))):
         rect(start, end, x - (20 * scale if direction < 0 else 0), height * .105,
              20 * scale, 3 * scale, accent)
         rect(start, end, x, height * .105, 3 * scale, 20 * scale, accent)
@@ -324,19 +370,22 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
     # Offsets follow the type size in landscape, where `span` is far wider than
     # the glyphs and fractions of it would push "/ 03" away from "01".
-    number_x, total_x = (left + 80 * scale, left + 160 * scale) if landscape else (left + span * .09, left + span * .17)
-    text(start, end, f"{number:02d}", number_x, height * .145, 74, ink, lines=1, max_width=span * .18)
-    text(start, end, f"/ {total:02d}", total_x, height * .15, 30, accent, lines=1, max_width=span * .13)
-    gap = 7 * scale
-    if total > 12:
-        # Au-delà de 12 questions, 25 segments deviennent un pointillé illisible : une barre continue.
-        rect(start, end, right - span * .46, height * .146, span * .46, 7 * scale, rail)
-        rect(start, end, right - span * .46, height * .146, span * .46 * number / total, 7 * scale, accent)
+    if vault_header:
+        vault_slots(number, total, phase)
     else:
-        segment = (span * .46 - (total - 1) * gap) / total
-        for i in range(total):
-            rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
-                 segment, 7 * scale, accent if i < number else rail)
+        number_x, total_x = (left + 80 * scale, left + 160 * scale) if landscape else (left + span * .09, left + span * .17)
+        text(start, end, f"{number:02d}", number_x, height * .145, 74, ink, lines=1, max_width=span * .18)
+        text(start, end, f"/ {total:02d}", total_x, height * .15, 30, accent, lines=1, max_width=span * .13)
+        gap = 7 * scale
+        if total > 12:
+            # Au-delà de 12 questions, 25 segments deviennent un pointillé illisible : une barre continue.
+            rect(start, end, right - span * .46, height * .146, span * .46, 7 * scale, rail)
+            rect(start, end, right - span * .46, height * .146, span * .46 * number / total, 7 * scale, accent)
+        else:
+            segment = (span * .46 - (total - 1) * gap) / total
+            for i in range(total):
+                rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
+                     segment, 7 * scale, accent if i < number else rail)
 
     if columns:
         # 16:9 : le cadre est large et bas. Lecture en deux temps : la question à gauche (elle mène), les

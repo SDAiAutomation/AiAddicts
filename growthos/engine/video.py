@@ -100,7 +100,7 @@ def pad_audio(audio_path: str, extra_seconds: float, out_path: str) -> str:
 
 _QUIZ_BEEP_FREQUENCIES = {
     "studio": 880, "arcade": 1040, "education": 740, "sport": 920,
-    "pop": 980, "minimal": 660, "photo": 880, "logo": 820,
+    "pop": 980, "minimal": 660, "photo": 880, "logo": 820, "vault": 700,
 }
 
 
