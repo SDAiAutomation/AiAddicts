@@ -14,7 +14,7 @@ from typing import Callable
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
     math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
-    script as script_module, shot_planning, storage, tts, versions, video, visuals, voices,
+    script as script_module, shot_planning, storage, thumbnail, tts, versions, video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -487,6 +487,21 @@ def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Pa
         return None
 
 
+def _publish_thumbnail(client, content_item_id: str, data: dict, work_dir: Path) -> None:
+    """Miniature YouTube des quiz longs (voir engine/thumbnail.py) : son URL est
+    rangée dans le script (`thumbnail_url`), lue ensuite par la publication
+    YouTube du site. Facultatif : tout échec laisse la vidéo publiable, sans
+    miniature personnalisée, et ne lève jamais."""
+    if not thumbnail.is_long_quiz(data):
+        return
+    try:
+        path = thumbnail.build_for_script(data, str(work_dir / "thumbnail.jpg"))
+        data["thumbnail_url"] = storage.upload_thumbnail(client, content_item_id, path)
+    except Exception as exc:
+        data.pop("thumbnail_url", None)
+        print(f"       miniature YouTube non générée ({exc})")
+
+
 def _apply_originality_check(
     data: dict, metrics: dict | None, client, account_id: str | None,
     exclude_content_item_id: str | None = None,
@@ -771,6 +786,9 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     poster_url = _publish_poster(client, content_item_id, final_video, work_dir)
     if poster_url:
         update_fields["poster_url"] = poster_url
+    _publish_thumbnail(client, content_item_id, data, work_dir)
+    if data.get("thumbnail_url"):
+        update_fields["script"] = data
     _apply_image_report(update_fields, metrics)
     _apply_cost_report(update_fields, metrics)
     if video_url != final_video:
@@ -930,6 +948,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     poster_url = _publish_poster(client, content_item_id, final_video, work_dir)
     if poster_url:
         final_fields["poster_url"] = poster_url
+    _publish_thumbnail(client, content_item_id, data, work_dir)  # `data` est déjà dans final_fields["script"]
     _apply_image_report(final_fields, metrics)
     _apply_cost_report(final_fields, metrics)
     if asset_reuse and isinstance(final_fields.get("generation_cost_report"), dict):
