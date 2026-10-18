@@ -43,7 +43,7 @@ class QuizMotionTests(unittest.TestCase):
         motion = compile_quiz(self.script)
         self.assertNotEqual(classic, fingerprint(motion, "voice"))
         self.assertIn("quiz_motion.py", _GENERATION_MODULES)
-        self.assertEqual(motion["blocks"][0]["quiz_motion_version"], "quiz-motion:v2")
+        self.assertEqual(motion["blocks"][0]["quiz_motion_version"], "quiz-motion:v3")
 
     def test_correct_answer_does_not_affect_question_frames(self):
         self.script["quiz"]["presentation"] = "motion"
