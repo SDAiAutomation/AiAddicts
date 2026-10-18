@@ -14,6 +14,8 @@ import os
 import textwrap
 from pathlib import Path
 
+from .quiz_motion import font_profile
+
 # 2-4 mots par écran (choisi avec l'utilisateur) : assez court pour bouger
 # vite, assez long pour rester lisible.
 _WORDS_PER_CUE = 3
@@ -233,7 +235,7 @@ def _dialogue(start: float, end: float, text: str, style: str = "Default", layer
     return f"Dialogue: {layer},{_ass_timestamp(start)},{_ass_timestamp(end)},{style},,0,0,0,,{text}"
 
 
-def _quiz_events(blocks: list[dict], durations: list[float], width: int, height: int) -> list[str]:
+def _quiz_events(blocks: list[dict], durations: list[float], width: int, height: int, font: str | None = None) -> list[str]:
     """Cartes quiz calées sur les blocs compilés, avec timer pendant le silence final."""
     events: list[str] = []
     cursor = 0.0
@@ -243,7 +245,7 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
         phase = block.get("quiz_phase")
         if block.get("quiz_presentation") == "motion" and phase in {"intro", "question", "reveal", "outro"}:
             from .quiz_motion import scene_events
-            events.extend(scene_events(block, start, end, width, height))
+            events.extend(scene_events(block, start, end, width, height, font))
             cursor = end
             continue
         if phase == "cover":
@@ -484,7 +486,8 @@ def write_ass(
         # and above platform controls, including with the word-pop style.
         preset = {
             **preset, "single_word": False,
-            "font_size": max(1, round(72 * min(width / 1080, height / 1920))),
+            # Police de marque : même taille visuelle qu'Arial (voir quiz_motion.FONT_PROFILES).
+            "font_size": max(1, round(72 * min(width / 1080, height / 1920) * (font_profile(font) or {}).get("size_k", 1.0))),
             # Portrait : sous les cartes et au-dessus des commandes de la plateforme. Paysage / carré : pas de
             # commandes à éviter, la bande basse libère le centre pour les cartes (voir engine/quiz_motion.py).
             "margin_v": round(height * (0.09 if width >= height else 0.28)),
@@ -535,7 +538,7 @@ def write_ass(
             events.append(_dialogue(cue["start"], cue["end"], fs_prefix + text))
 
     if blocks and block_durations:
-        events = _quiz_events(blocks, block_durations, width, height) + events
+        events = _quiz_events(blocks, block_durations, width, height, font) + events
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(
