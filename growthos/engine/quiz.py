@@ -24,10 +24,10 @@ QUIZ_RECIPES = {
     "riddle": {"kind": "riddle", "question_count": 3, "countdown_seconds": 8, "difficulty": "medium"},
     "logo": {"kind": "logo", "question_count": 5, "countdown_seconds": 5, "difficulty": "medium"},
     "impossible": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "hard"},
-    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 5, "difficulty": "progressive"},
+    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 7, "difficulty": "progressive"},
 }
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
-QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
+QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo", "vault", "boss", "split"}
 SOUND_EFFECT_MODES = {"automatic", "subtle", "off"}
 PRESENTATION_MODES = {"classic", "motion"}
 
@@ -60,6 +60,8 @@ def normalize_quiz(quiz: object) -> dict:
     recipe = QUIZ_RECIPES[recipe_id]
     if "illustrations" in result and not isinstance(result["illustrations"], bool):
         raise ValueError("'quiz.illustrations' doit être un booléen")
+    if "backdrops" in result and not isinstance(result["backdrops"], bool):
+        raise ValueError("'quiz.backdrops' doit être un booléen")
     result.setdefault("recipe", recipe_id)
     result.setdefault("kind", recipe["kind"])
     result.setdefault("difficulty", recipe["difficulty"])
@@ -69,6 +71,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("presentation", "classic")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
+    result.setdefault("backdrops", False)  # fond illustré (4 images) : opt-in, voir engine/quiz_backdrop.py
     if recipe_id == "long" and "illustrations" not in quiz:
         result["illustrations"] = False
     for question in result.get("questions") or []:
@@ -248,8 +251,12 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
             block["quiz_presentation"] = normalized_quiz["presentation"]
             block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
             if normalized_quiz["presentation"] == "motion":
-                from .quiz_motion import VERSION
+                from .quiz_motion import REVEAL_BEAT_SECONDS, VERSION
                 block["quiz_motion_version"] = VERSION
+                if block.get("quiz_phase") == "question" and (block.get("hold_after_seconds") or 0) > 0:
+                    block["quiz_reveal_beat_seconds"] = REVEAL_BEAT_SECONDS
+                else:
+                    block.pop("quiz_reveal_beat_seconds", None)
                 block["quiz_theme"] = normalized_quiz["theme"]
             else:
                 block.pop("quiz_motion_version", None)
@@ -288,7 +295,7 @@ def compile_quiz(script: dict) -> dict:
     phrases = _PHRASES[lang]
     topic = quiz.get("topic") or result.get("niche") or _TOPIC_FALLBACK[lang]
     hook = str(quiz.get("intro") or phrases["intro"].format(topic=topic)).strip()
-    blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro"})
+    blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro", "quiz_question_total": len(quiz["questions"])})
 
     letters = "ABCD"
     for number, item in enumerate(quiz["questions"], start=1):
@@ -338,7 +345,7 @@ def compile_quiz(script: dict) -> dict:
         })
 
     cta = str(quiz.get("outro") or result.get("cta") or phrases["outro"]).strip()
-    blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro"})
+    blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro", "quiz_question_total": len(quiz["questions"])})
     result["blocks"] = blocks
     return _prepare_existing_quiz_blocks(result, normalized_quiz)
 

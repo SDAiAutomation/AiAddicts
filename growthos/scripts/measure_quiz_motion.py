@@ -48,8 +48,9 @@ def main() -> None:
     base = None if args.full_screen_rect else quiz_motion.base_background_for(script, 0.0)
     for block in blocks:
         block["quiz_visual_available"] = False
-        if base:
-            block["quiz_base_background"] = "#" + base[2:].lower()
+        colour = None if args.full_screen_rect else quiz_motion.base_background_for(script, 0.0, block)
+        if colour:
+            block["quiz_base_background"] = "#" + colour[2:].lower()
     durations = [{"question": 12.0, "reveal": 6.0}.get(block["quiz_phase"], 3.0) for block in blocks]
     for block, duration in zip(blocks, durations):
         if block["quiz_phase"] == "question":

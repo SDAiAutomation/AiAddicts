@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
-    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
+    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, repo, retention,
     script as script_module, shot_planning, storage, thumbnail, tts, versions, video, visuals, voices,
 )
 
@@ -142,6 +142,7 @@ def _generate(
                     video.pad_audio(str(audio_path), extra, str(held_path))
                 rendered_audio = str(held_path)
         hold_after = float(block.get("hold_after_seconds") or 0)
+        beat = float(block.get("quiz_reveal_beat_seconds") or 0) if hold_after > 0 else 0.0
         if hold_after > 0:
             padded_path = work_dir / "audio" / f"block-{i:02d}-padded.mp3"
             if not _exists_nonempty(padded_path):
@@ -149,10 +150,10 @@ def _generate(
                 if sound_mode != "off":
                     video.add_countdown_sfx(
                         str(audio_path), tts.get_duration_seconds(str(audio_path)), int(hold_after),
-                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"),
+                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"), beat,
                     )
                 else:
-                    video.pad_audio(str(audio_path), hold_after, str(padded_path))
+                    video.pad_audio(str(audio_path), hold_after + beat, str(padded_path))
             rendered_audio = str(padded_path)
         return rendered_audio, tts.get_duration_seconds(rendered_audio), words
 
@@ -216,6 +217,7 @@ def _generate(
     # local dans les deux cas), stock_footage n'a pas d'identité IA à casser.
     stock_selection: dict = {}
     motion_preflight: list = []
+    backdrop_flags = [False] * n_blocks  # blocs dont l'image est un fond illustré (pas une fenêtre d'illustration)
     if motion_graphics_style:
         image_paths = visuals.fetch_motion_graphics_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
@@ -238,6 +240,14 @@ def _generate(
         image_reports = []
         visual_fallbacks = []
         style_treatment_reports = []
+        if quiz_backdrop.enabled(data):
+            # Fond illustré : une image de sujet par partie (4), en bichromie, jamais bloquant (voir quiz_backdrop).
+            backdrops = quiz_backdrop.generate(data, work_dir)
+            for index, block in enumerate(data["blocks"]):
+                path = backdrops[quiz_motion.part_index(block)]
+                if path:
+                    image_paths[index], backdrop_flags[index] = path, True
+            print(f"       fond illustré : {sum(1 for p in backdrops if p)}/{len(backdrops)} image(s)")
     else:
         image_paths, image_reports, visual_fallbacks, style_treatment_reports = visuals.fetch_block_images(
             data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
@@ -265,6 +275,7 @@ def _generate(
     render_blocks = data["blocks"]
     render_durations = durations
     render_image_paths = image_paths
+    render_backdrops = backdrop_flags
     cover = (data.get("quiz") or {}).get("cover") or {}
     if data.get("content_format") == "quiz" and cover.get("enabled"):
         cover_duration = float(cover.get("duration_seconds") or 0.8)
@@ -280,6 +291,7 @@ def _generate(
         render_blocks = [cover_block, *data["blocks"]]
         render_durations = [cover_duration, *durations]
         render_image_paths = [quiz_cover.generate_cover(data, work_dir), *image_paths]
+        render_backdrops = [False, *backdrop_flags]
     cue_words = ([([], render_durations[0])] + block_words) if render_blocks is not data["blocks"] else block_words
     cues = captions.build_cues(
         cue_words,
@@ -296,22 +308,27 @@ def _generate(
     fade_duration = 0.3 if transition == "fade" else 0.0
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
-    # Quiz Motion : fond de base de la couleur de la scène plutôt qu'un rectangle plein écran par image.
-    base_background = quiz_motion.base_background_for(data, fade_duration)
+    # Quiz Motion : fond de base de la couleur de la scène (une teinte par partie d'un quiz long) plutôt
+    # qu'un rectangle plein écran par image.
+    block_backgrounds = [quiz_motion.base_background_for(data, fade_duration, block) for block in render_blocks]
+    # Police de marque (celle de la miniature) pour la mise en scène Motion ; SUBTITLE_FONT garde la priorité,
+    # et sans les fichiers de police on reste sur la police par défaut plutôt que de risquer des tailles fausses.
+    motion_scene = (quiz_motion.presentation_info(data) or {}).get("mode") == "motion"
+    brand_font = quiz_motion.BRAND_FONT if motion_scene and not os.environ.get("SUBTITLE_FONT") and quiz_motion.brand_font_available() else None
     caption_blocks = [
-        ({**block, "quiz_visual_available": bool(render_image_paths[index])}
+        ({**block, "quiz_visual_available": bool(render_image_paths[index]) and not render_backdrops[index]}
          if block.get("quiz_phase") in {"question", "reveal"} else block)
         for index, block in enumerate(render_blocks)
     ]
-    if base_background:
+    if any(block_backgrounds):
         caption_blocks = [
-            ({**block, "quiz_base_background": "#" + base_background[2:].lower()} if block.get("quiz_phase") else block)
-            for block in caption_blocks
+            ({**block, "quiz_base_background": "#" + colour[2:].lower()} if colour else block)
+            for block, colour in zip(caption_blocks, block_backgrounds)
         ]
     ass_file = captions.write_ass(
         cues, str(work_dir / "captions.ass"), caption_style, resolution,
         blocks=caption_blocks, block_durations=render_durations,
-        centre_reserved=kinetic_typography_style,
+        centre_reserved=kinetic_typography_style, font=brand_font,
     )
     print(f"       sous-titres : style « {caption_style} »")
 
@@ -326,8 +343,10 @@ def _generate(
     final_video = video.render_final(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
+        static_blocks=render_backdrops if any(render_backdrops) else None,
         moves=resolved_moves, fade_duration=fade_duration,
-        **({"bg_color": base_background} if base_background else {}),
+        **({"bg_colors": block_backgrounds} if any(block_backgrounds) else {}),
+        **({"fonts_dir": str(quiz_motion.FONT_DIR)} if brand_font else {}),
     )
     render_seconds = time.monotonic() - t0
     print(f"       vidéo finale rendue en {render_seconds:.1f}s")
