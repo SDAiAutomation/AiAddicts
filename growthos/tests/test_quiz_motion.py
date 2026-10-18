@@ -67,6 +67,39 @@ class QuizMotionTests(unittest.TestCase):
         portrait = [int(m) for e in _quiz_events([blocks[1]], [7], 1080, 1920) for m in re.findall(r"\\fs(\d+)", e)]
         self.assertEqual(max(portrait), 75)
 
+    def test_base_background_replaces_the_full_screen_rectangle_only_when_it_matches(self):
+        from engine import quiz_motion
+        self.script["quiz"]["presentation"] = "motion"
+        compiled = compile_quiz(self.script)
+        question = compiled["blocks"][1]
+
+        def full_screen(events):
+            return [e for e in events if "m 0 0 l 1080 0 1080 1920" in e]
+
+        self.assertEqual(len(full_screen(_quiz_events([question], [7], 1080, 1920))), 1)
+        same = {**question, "quiz_base_background": quiz_motion.stage_background(question.get("quiz_theme"))}
+        self.assertEqual(full_screen(_quiz_events([same], [7], 1080, 1920)), [])
+        other = {**question, "quiz_base_background": "#112233"}
+        self.assertEqual(len(full_screen(_quiz_events([other], [7], 1080, 1920))), 1)
+
+    def test_base_background_is_only_offered_for_motion_without_fades(self):
+        from engine import quiz_motion
+        motion = {**self.script, "quiz": {**self.script["quiz"], "presentation": "motion", "theme": "studio"}}
+        self.assertEqual(quiz_motion.base_background_for(motion, 0.0), "0x080E1C")
+        self.assertIsNone(quiz_motion.base_background_for(motion, 0.3))
+        light = {**motion, "quiz": {**motion["quiz"], "theme": "minimal"}}
+        self.assertEqual(quiz_motion.base_background_for(light, 0.0), "0xEEF2F6")
+        classic = {**self.script, "quiz": {**self.script["quiz"], "presentation": "classic"}}
+        self.assertIsNone(quiz_motion.base_background_for(classic, 0.0))
+        self.assertIsNone(quiz_motion.base_background_for({"content_format": "standard"}, 0.0))
+
+    def test_timer_ring_stays_light_for_long_quizzes(self):
+        self.script["quiz"]["presentation"] = "motion"
+        question = compile_quiz(self.script)["blocks"][1]
+        events = _quiz_events([{**question, "hold_after_seconds": 5}], [12], 1920, 1080)
+        rings = [e for e in events if e.count(" l ") > 40]
+        self.assertLessEqual(len(rings), 5 * 12 + 1)
+
     def test_short_narration_has_no_choice_entrance_and_timer_is_bounded(self):
         self.script["quiz"]["presentation"] = "motion"
         question = compile_quiz(self.script)["blocks"][1]

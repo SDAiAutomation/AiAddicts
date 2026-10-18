@@ -286,20 +286,6 @@ def _generate(
         block_roles=[str(block.get("role") or "") for block in render_blocks],
     )
     captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
-    caption_style = captions.caption_style_or_default(data.get("caption_style"))
-    resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
-    caption_blocks = [
-        ({**block, "quiz_visual_available": bool(render_image_paths[index])}
-         if block.get("quiz_phase") in {"question", "reveal"} else block)
-        for index, block in enumerate(render_blocks)
-    ]
-    ass_file = captions.write_ass(
-        cues, str(work_dir / "captions.ass"), caption_style, resolution,
-        blocks=caption_blocks, block_durations=render_durations,
-        centre_reserved=kinetic_typography_style,
-    )
-    print(f"       sous-titres : style « {caption_style} »")
-
     # Style Identity (Phase 2) : résolu une seconde fois ici (déjà fait une
     # fois à l'intérieur de `visuals.fetch_block_images` pour les styles
     # image IA) — appel pur et bon marché, plus simple que de faire remonter
@@ -308,6 +294,27 @@ def _generate(
     motion_profile = style_bible["motion_profile"]
     transition = style_bible["transition"]
     fade_duration = 0.3 if transition == "fade" else 0.0
+    caption_style = captions.caption_style_or_default(data.get("caption_style"))
+    resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
+    # Quiz Motion : fond de base de la couleur de la scène plutôt qu'un rectangle plein écran par image.
+    base_background = quiz_motion.base_background_for(data, fade_duration)
+    caption_blocks = [
+        ({**block, "quiz_visual_available": bool(render_image_paths[index])}
+         if block.get("quiz_phase") in {"question", "reveal"} else block)
+        for index, block in enumerate(render_blocks)
+    ]
+    if base_background:
+        caption_blocks = [
+            ({**block, "quiz_base_background": "#" + base_background[2:].lower()} if block.get("quiz_phase") else block)
+            for block in caption_blocks
+        ]
+    ass_file = captions.write_ass(
+        cues, str(work_dir / "captions.ass"), caption_style, resolution,
+        blocks=caption_blocks, block_durations=render_durations,
+        centre_reserved=kinetic_typography_style,
+    )
+    print(f"       sous-titres : style « {caption_style} »")
+
     render_shots = video.plan_shots(render_durations, render_image_paths)
     resolved_moves = motion_profiles.resolve_motion_sequence(render_shots, render_blocks, motion_profile)
     print(f"       mouvement : profil « {motion_profile} », transition « {transition} »")
@@ -320,6 +327,7 @@ def _generate(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
         moves=resolved_moves, fade_duration=fade_duration,
+        **({"bg_color": base_background} if base_background else {}),
     )
     render_seconds = time.monotonic() - t0
     print(f"       vidéo finale rendue en {render_seconds:.1f}s")

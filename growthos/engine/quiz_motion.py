@@ -11,6 +11,32 @@ import math
 
 VERSION = "quiz-motion:v2"
 
+# Anneau du compte à rebours : 70 % du poids des sous-titres d'un quiz long (mesuré avec
+# scripts/measure_quiz_motion.py). 12 images/s et 48 points suffisent à l'œil pour un anneau de 100 px.
+TIMER_STEPS_PER_SECOND = 12
+RING_POINTS = 48
+
+
+_LIGHT_THEMES = {"minimal", "logo"}
+
+
+def stage_background(theme: str | None) -> str:
+    """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
+    return "#eef2f6" if theme in _LIGHT_THEMES else "#080e1c"
+
+
+def base_background_for(script: dict, fade_duration: float) -> str | None:
+    """Couleur FFmpeg (`0xRRGGBB`) à donner au fond uni de la vidéo, ou None.
+
+    Dessiner la scène en rectangle plein écran dans libass coûte un mélange 1080p par image :
+    mesuré à ~60 % du temps de rendu d'un quiz long. Quand la vidéo de base est déjà de la
+    couleur de la scène, le rectangle devient inutile. Pas de fondu au noir entre les plans :
+    il serait visible sans le rectangle qui le recouvrait."""
+    info = presentation_info(script)
+    if info is None or info["mode"] != "motion" or fade_duration > 0:
+        return None
+    return "0x" + stage_background((script.get("quiz") or {}).get("theme"))[1:].upper()
+
 
 def presentation_info(script: dict) -> dict | None:
     if script.get("content_format") != "quiz":
@@ -78,8 +104,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in channels]
     luminance = sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
     selected_ink = "#000000" if luminance > .179 else "#ffffff"
-    light = block.get("quiz_theme") in {"minimal", "logo"}
-    background = "#eef2f6" if light else "#080e1c"
+    light = block.get("quiz_theme") in _LIGHT_THEMES
+    background = stage_background(block.get("quiz_theme"))
     rail = "#cbd5e1" if light else "#243249"
     events: list[str] = []
 
@@ -110,7 +136,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     def ring(a, b, x, y, radius, colour, extra="", portion=1.0):
         # Filled polygonal annulus: deterministic vectors, no font dependency.
         outer, inner = radius, max(1, radius - max(2, 4 * scale))
-        count = max(3, round(64 * portion))
+        count = max(3, round(RING_POINTS * portion))
         angles = [-math.pi / 2 + i / count * 2 * math.pi * portion for i in range(count + 1)]
         points = [(outer * math.cos(t), outer * math.sin(t)) for t in angles]
         points += [(inner * math.cos(t), inner * math.sin(t)) for t in reversed(angles)]
@@ -127,7 +153,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         rect(start, end, 0, top, left, bottom - top, background, layer=0)
         rect(start, end, right, top, width - right, bottom - top, background, layer=0)
         rect(start, end, left, bottom - max(2, 3 * scale), span, max(2, 3 * scale), accent)
-    else:
+    elif str(block.get("quiz_base_background") or "").lower() != background:
+        # La vidéo de base n'est pas déjà de la couleur de la scène (voir base_background_for).
         rect(start, end, 0, 0, width, height, background, layer=0)
 
     # A typographic broadcast identity. The motion belongs to entrances and
@@ -258,8 +285,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         radius = 57 * scale
         if hold > 0:
             # Each arc consumes exactly its share of the existing audio hold.
-            # 24 steps/second is enough for the small timer and bounds ASS size.
-            steps = max(1, math.ceil((end - timer_start) * 24))
+            # TIMER_STEPS_PER_SECOND bounds ASS size (the ring is most of a long quiz's subtitle weight).
+            steps = max(1, math.ceil((end - timer_start) * TIMER_STEPS_PER_SECOND))
             for j in range(steps):
                 a = timer_start + (end - timer_start) * j / steps
                 b = timer_start + (end - timer_start) * (j + 1) / steps
