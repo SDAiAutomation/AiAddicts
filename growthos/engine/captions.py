@@ -485,7 +485,9 @@ def write_ass(
         preset = {
             **preset, "single_word": False,
             "font_size": max(1, round(72 * min(width / 1080, height / 1920))),
-            "margin_v": round(height * 0.28),
+            # Portrait : sous les cartes et au-dessus des commandes de la plateforme. Paysage / carré : pas de
+            # commandes à éviter, la bande basse libère le centre pour les cartes (voir engine/quiz_motion.py).
+            "margin_v": round(height * (0.09 if width >= height else 0.28)),
         }
 
     base_fs = preset["font_size"]

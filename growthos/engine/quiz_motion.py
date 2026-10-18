@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-VERSION = "quiz-motion:v2"
+VERSION = "quiz-motion:v3"
 
 # Anneau du compte à rebours : 70 % du poids des sous-titres d'un quiz long (mesuré avec
 # scripts/measure_quiz_motion.py). 12 images/s et 48 points suffisent à l'œil pour un anneau de 100 px.
@@ -211,12 +211,27 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
 
     # Four choices get an editorial 2x2 composition; long answers and image
     # questions keep full-width rails. Both share the same stable card language.
-    question_grid = not visual and len(choices) in {2, 4} and max((len(c) for c in choices), default=0) <= 52
+    # Une réponse de plus de ~30 caractères tomberait sous 2 % de la hauteur dans une demi-largeur en vertical
+    # (mesuré avec tests/test_quiz_motion_layout.py) : pleine largeur au-delà. En paysage les cartes sont
+    # assez larges et hautes pour 52 caractères sur deux lignes.
+    question_grid = not visual and len(choices) in {2, 4} and max((len(c) for c in choices), default=0) <= (52 if landscape else 30)
     focus_reveal = phase == "reveal" and not visual
+
+    def question_rows(count: int) -> tuple[float, float, float]:
+        """(hauteur, pas, y de départ) des réponses pendant la question, sans illustration."""
+        if landscape:
+            # Le cadre est large et bas : cartes plus hautes pour que deux lignes restent lisibles.
+            return ((height * .15, height * .17, height * .405) if question_grid else
+                    (height * (.105 if count == 4 else .12), height * (.12 if count == 4 else .135), height * .40))
+        return (height * (.090 if question_grid else .055 if count == 4 else .063),
+                height * (.103 if question_grid else .066 if count == 4 else .076),
+                height * (.415 if question_grid else .375))
+
     grid = question_grid and not focus_reveal
-    row_h = height * (.040 if visual else .090 if grid else .055 if len(choices) == 4 else .063)
-    row_step = height * (.048 if visual else .103 if grid else .066 if len(choices) == 4 else .076)
-    rows_y = height * (.455 if visual else .415 if grid else .375)
+    if visual:
+        row_h, row_step, rows_y = height * .040, height * .048, height * .455
+    else:
+        row_h, row_step, rows_y = question_rows(len(choices))
     card_w = (span - 16 * scale) / 2 if grid else span
     if focus_reveal:
         # The grid folds into a compact answer key. This frees the centre for
@@ -224,10 +239,12 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         rows_y, row_h, row_step = height * .505, height * .034, height * .043
         if landscape:
             # Taller rows keep answers legible; the last row still ends above the caption band.
-            rows_y, row_h, row_step = height * .485, height * .041, height * .046
+            rows_y, row_h, row_step = height * .50, height * .05, height * .058
     question_y = height * (.224 if visual else .225 if focus_reveal else .277)
     text(start, end, block.get("quiz_question", ""), cx, question_y, 64 if visual else 46 if focus_reveal else 76,
          ink, lines=3, max_height=height * (.09 if focus_reveal else .105 if visual else .17),
+         # En paysage le compte à rebours occupe la droite de la ligne de la question.
+         max_width=span - 2 * 154 * scale if landscape and phase == "question" else span,
          origin=(cx, height * .277) if focus_reveal else (cx, question_y + height * .025) if animate else None,
          travel=350,
          extra="\\fscx135\\fscy135\\t(0,350,0.4,\\fscx100\\fscy100)" if focus_reveal else
@@ -241,10 +258,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         delay, travel = i * 65, 380
         origin = (x, y + height * .055) if animate else None
         old_card_w = (span - 16 * scale) / 2 if question_grid else span
-        old_row_h = height * (.090 if question_grid else .055 if len(choices) == 4 else .063)
-        old_step = height * (.103 if question_grid else .066 if len(choices) == 4 else .076)
+        old_row_h, old_step, old_y0 = question_rows(len(choices))
         old_x = left + (i % 2) * (old_card_w + 16 * scale) if question_grid else left
-        old_y = height * (.415 if question_grid else .375) + (i // 2 if question_grid else i) * old_step
+        old_y = old_y0 + (i // 2 if question_grid else i) * old_step
         fold = ""
         if focus_reveal:
             delay = 0
@@ -281,8 +297,11 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
 
     if phase == "question":
         timer_start = max(start, end - hold)
-        timer_y = height * .69
         radius = 57 * scale
+        # Portrait : sous les réponses. Paysage : à droite de la question (les réponses occupent la hauteur),
+        # avec le trait de temps juste sous elle.
+        timer_x, timer_y = (right - radius - 6 * scale, height * .277) if landscape else (cx, height * .69)
+        strip_y = height * (.375 if landscape else .765)
         if hold > 0:
             # Each arc consumes exactly its share of the existing audio hold.
             # TIMER_STEPS_PER_SECOND bounds ASS size (the ring is most of a long quiz's subtitle weight).
@@ -290,15 +309,15 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
             for j in range(steps):
                 a = timer_start + (end - timer_start) * j / steps
                 b = timer_start + (end - timer_start) * (j + 1) / steps
-                ring(a, b, cx, timer_y, radius, accent, portion=max(.001, 1 - j / steps))
+                ring(a, b, timer_x, timer_y, radius, accent, portion=max(.001, 1 - j / steps))
             for remaining in range(math.ceil(min(hold, duration)), 0, -1):
                 a, b = max(timer_start, end - remaining), min(end, end - remaining + 1)
-                text(a, b, remaining, cx, timer_y, 62, ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
+                text(a, b, remaining, timer_x, timer_y, 62, ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
                      extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
             # The full-width time strip provides peripheral timing without
             # shaking, flickering or moving the answers being read.
-            rect(timer_start, end, left, height * .765, span, 5 * scale, rail)
-            rect(timer_start, end, left, height * .765, span, 5 * scale, accent,
+            rect(timer_start, end, left, strip_y, span, 5 * scale, rail)
+            rect(timer_start, end, left, strip_y, span, 5 * scale, accent,
                  extra=f"\\fscx100\\t(0,{round((end - timer_start) * 1000)},\\fscx0)")
     else:
         # A high-contrast answer strip opens below the cards. A brief geometric
@@ -309,9 +328,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
             rect(start, end, left, height * .305, span, height * .115, background, layer=2)
         rect(start, end, left, hero_y - hero_h / 2, span, hero_h, accent, layer=2,
              extra="\\fscx0\\t(0,300,0.4,\\fscx100)")
-        source_y = (height * (.415 if question_grid else .375) +
-                    (correct_index // 2 if question_grid else correct_index) *
-                    height * (.103 if question_grid else .076) + height * .045) if focus_reveal else (
+        grid_h, grid_step, grid_y = question_rows(len(choices))
+        source_y = (grid_y + (correct_index // 2 if question_grid else correct_index) * grid_step +
+                    (grid_h / 2 if landscape else height * .045)) if focus_reveal else (
                     rows_y + correct_index * row_step + row_h / 2)
         answer = choices[correct_index] if 0 <= correct_index < len(choices) else ""
         text(start, end, answer, cx, hero_y, 78 if visual else 114, accent_ink, max_width=span - 60 * scale,

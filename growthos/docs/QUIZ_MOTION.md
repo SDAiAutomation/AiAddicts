@@ -21,7 +21,7 @@ La bonne réponse n'influence aucun événement de la phase question. Les entré
 
 ## Contrat et coordination
 
-`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v2` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
+`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v3` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
 
 L'intégration partagée est limitée à ce dispatch et à la liste du cache. Aucun changement de worker, DB, quota, publication ou contrat AutoEdit. À relire par le propriétaire du pipeline partagé lors de l'intégration. Déployer le moteur avant le frontend : un ancien moteur ignorerait l'option Motion choisie dans une interface plus récente.
 
@@ -59,3 +59,12 @@ Les modifications sont locales, non publiées et non déployées. Le rendu class
 | motion, fond de base de la couleur de la scène | 4 507 | 1,2 Mo | **126 s** |
 
 Le coût ne venait pas de l'anneau mais du rectangle plein écran que libass mélange à chaque image (~60 % du temps). Quand la vidéo de base est déjà de la couleur de la scène (`quiz_motion.base_background_for` : mode motion, pas de fondu au noir entre plans), l'assembleur passe cette couleur à `render_final(bg_color=…)` et marque les blocs `quiz_base_background` : le rectangle n'est plus dessiné. Image identique pixel pour pixel en thème sombre, 3/255 d'écart maximal en thème clair. Les chiffres sont indicatifs : à refaire sur le worker de production.
+
+## Mise en page par format (v3)
+
+`tests/test_quiz_motion_layout.py` analyse les événements produits pour 720×1280, 1080×1920, 1080×1080 et 1920×1080 : aucun élément hors cadre, texte de la question et des réponses ≥ 1,85 % de la hauteur, texte paysage proportionnellement aussi grand que le texte vertical. Il a trouvé deux défauts :
+
+- **Vertical** : une réponse de plus de 30 caractères dans la grille 2×2 tombait à 23 px sur 1920 de haut. La grille est désormais limitée à 30 caractères (52 en paysage) ; au-delà, rangées pleine largeur. Les réponses courtes (cas courant) sont rendues à l'identique.
+- **Paysage / carré** : des cartes trop basses pour deux lignes réduisaient les réponses à 20 px. Géométrie dédiée : cartes de 15 % de la hauteur, compte à rebours à droite de la question, trait de temps sous la question, clé de révélation plus haute, sous-titres en bande basse (9 % de marge au lieu de 28 %, il n'y a pas de commandes de plateforme à éviter).
+
+Le paysage reste une mise en page empilée (question, puis cartes) ; une vraie disposition en colonnes reste possible. `quiz_motion_version=quiz-motion:v3` permet de comparer plus tard la rétention des vidéos v2 et v3 dans les analyses.
