@@ -188,6 +188,7 @@ _QUIZ_THEME_COLOURS = {
     "logo": ("#ffffff", "#111827", "#16a34a", "#2563eb"),
     "vault": ("#17120a", "#f6ecd2", "#e0a526", "#e0a526"),
     "boss": ("#2a1760", "#ffffff", "#ffd23f", "#ffd23f"),
+    "split": ("#16286e", "#ffffff", "#ffe14d", "#ffe14d"),
 }
 _QUIZ_CARD_ALPHA = 0x1F  # carte ~88 % opaque : le fond reste devinable sans nuire à la lecture
 

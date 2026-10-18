@@ -22,6 +22,7 @@ def main() -> None:
     parser.add_argument("--theme", choices=sorted(QUIZ_THEMES), default="studio")
     parser.add_argument("--presentation", choices=["classic", "motion"], default="classic")
     parser.add_argument("--system-font", action="store_true", help="Garde Arial au lieu de la police de marque (mode motion)")
+    parser.add_argument("--choices", type=int, choices=[2, 4], default=4, help="Nombre de réponses de la première question")
     parser.add_argument("--full", action="store_true", help="Include the intro and outro (still no voiceover)")
     parser.add_argument("--resolution", choices=["1080x1920", "720x1280", "1080x1080", "1920x1080"], default="1080x1920")
     args = parser.parse_args()
@@ -31,7 +32,12 @@ def main() -> None:
     script["quiz"]["theme"] = args.theme
     script["quiz"]["presentation"] = args.presentation
     # Four choices exercise the most crowded supported layout.
-    script["quiz"]["questions"][0]["choices"].append("La Terre")
+    if args.choices == 2:
+        question = script["quiz"]["questions"][0]
+        question["choices"] = ["Mercure", "Mars"]
+        question["correct_choice"] = 0
+    else:
+        script["quiz"]["questions"][0]["choices"].append("La Terre")
     blocks = compile_quiz(script)["blocks"]
     if not args.full:
         blocks = [block for block in blocks if block["quiz_phase"] in {"question", "reveal"}]
