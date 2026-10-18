@@ -299,6 +299,10 @@ def _generate(
     # Quiz Motion : fond de base de la couleur de la scène (une teinte par partie d'un quiz long) plutôt
     # qu'un rectangle plein écran par image.
     block_backgrounds = [quiz_motion.base_background_for(data, fade_duration, block) for block in render_blocks]
+    # Police de marque (celle de la miniature) pour la mise en scène Motion ; SUBTITLE_FONT garde la priorité,
+    # et sans les fichiers de police on reste sur la police par défaut plutôt que de risquer des tailles fausses.
+    motion_scene = (quiz_motion.presentation_info(data) or {}).get("mode") == "motion"
+    brand_font = quiz_motion.BRAND_FONT if motion_scene and not os.environ.get("SUBTITLE_FONT") and quiz_motion.brand_font_available() else None
     caption_blocks = [
         ({**block, "quiz_visual_available": bool(render_image_paths[index])}
          if block.get("quiz_phase") in {"question", "reveal"} else block)
@@ -312,7 +316,7 @@ def _generate(
     ass_file = captions.write_ass(
         cues, str(work_dir / "captions.ass"), caption_style, resolution,
         blocks=caption_blocks, block_durations=render_durations,
-        centre_reserved=kinetic_typography_style,
+        centre_reserved=kinetic_typography_style, font=brand_font,
     )
     print(f"       sous-titres : style « {caption_style} »")
 
@@ -329,6 +333,7 @@ def _generate(
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
         moves=resolved_moves, fade_duration=fade_duration,
         **({"bg_colors": block_backgrounds} if any(block_backgrounds) else {}),
+        **({"fonts_dir": str(quiz_motion.FONT_DIR)} if brand_font else {}),
     )
     render_seconds = time.monotonic() - t0
     print(f"       vidéo finale rendue en {render_seconds:.1f}s")

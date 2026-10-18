@@ -8,8 +8,30 @@ the reveal. Text is escaped and fitted with the classic renderer's helpers.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 VERSION = "quiz-motion:v4"
+
+# Police de marque (celle de la miniature, engine/thumbnail.py). libass dimensionne `\fs` sur la hauteur de la
+# cellule de la police (ascendante + descendante) : à taille de code égale Poppins s'affiche ~30 % plus petit
+# qu'Arial (mesuré : capitales 53 px à 130 contre 63 px à 100). `size_k` rétablit la taille visuelle d'Arial ;
+# `pitch` est l'interligne visuel que je pose moi-même, ligne par ligne, car l'interligne natif de Poppins est trop
+# aéré (60 % de plus à capitales égales).
+BRAND_FONT = "Poppins"
+FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
+FONT_FILES = ("Poppins-Bold.ttf", "Poppins-Regular.ttf")
+FONT_PROFILES = {"Poppins": {"size_k": 1.45, "pitch": 1.12}}
+
+
+def font_profile(font: str | None) -> dict | None:
+    """Corrections de taille d'une police de marque, ou None pour la police par défaut (Arial)."""
+    return FONT_PROFILES.get(font or "")
+
+
+def brand_font_available() -> bool:
+    """Vrai si les fichiers de la police de marque sont livrés : sans eux libass retomberait sur une autre police
+    avec des tailles corrigées pour Poppins, soit 45 % trop grandes."""
+    return all((FONT_DIR / name).is_file() for name in FONT_FILES)
 
 # Anneau du compte à rebours : 70 % du poids des sous-titres d'un quiz long (mesuré avec
 # scripts/measure_quiz_motion.py). 12 images/s et 48 points suffisent à l'œil pour un anneau de 100 px.
@@ -118,7 +140,7 @@ def attach_report(script: dict, report: dict) -> None:
                                     "quizPresentation": report}
 
 
-def scene_events(block: dict, start: float, end: float, width: int, height: int) -> list[str]:
+def scene_events(block: dict, start: float, end: float, width: int, height: int, font: str | None = None) -> list[str]:
     from .captions import _ass_rgb, _dialogue, _quiz_fit_text, _QUIZ_THEME_COLOURS
 
     if end <= start:
@@ -148,6 +170,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         card = _mix_hex(background, "#ffffff", .10)
     card_border = rail if light else _mix_hex(background, "#ffffff", .24)
     events: list[str] = []
+    profile = font_profile(font)
 
     def emit(a, b, tags, content, layer=2, style="QuizPanel"):
         a, b = max(start, a), min(end, b)
@@ -199,6 +222,16 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         head, _, last = content.rpartition(r"\N")
         if head and last.strip() in {"?", "!", ":", ";", "…", "?!"}:
             content = f"{head} {last.strip()}"
+        if profile:
+            # Une ligne = un événement, à l'interligne visuel voulu (voir FONT_PROFILES).
+            parts = content.split(r"\N")
+            for index, part in enumerate(parts):
+                dy = (index - (len(parts) - 1) / 2) * fs * profile["pitch"]
+                moved = (origin[0], origin[1] + dy) if origin else None
+                tags = (f"\\an5{position(x, y + dy, moved, delay, travel)}\\fs{round(fs * profile['size_k'])}"
+                        f"\\bord0\\shad0\\b1\\q2\\1c{_ass_rgb(colour)}{extra}")
+                emit(a, b, tags, part, layer, style)
+            return
         tags = f"\\an5{position(x,y,origin,delay,travel)}\\fs{fs}\\bord0\\shad0\\b1\\q2\\1c{_ass_rgb(colour)}{extra}"
         emit(a, b, tags, content, layer, style)
 

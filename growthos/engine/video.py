@@ -8,6 +8,7 @@ quand même). Les clips sont concaténés, sous-titrés et mixés avec l'audio e
 une dernière passe.
 """
 import os
+import shutil
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -333,6 +334,7 @@ def render_final(
     aspect_ratio: str = "9:16",
     bg_color: str = DEFAULT_BG,
     bg_colors: list[str | None] | None = None,
+    fonts_dir: str | None = None,
     font: str | None = None,
     fps: int = DEFAULT_FPS,
     moves: list[str | None] | None = None,
@@ -402,6 +404,14 @@ def render_final(
         # Le style (police, contour, boîte, surlignage) est embarqué dans le
         # .ass — voir engine/captions.write_ass / `caption_style` du script.
         subtitles_filter = f"subtitles={srt.name}"
+        if fonts_dir:
+            # Police de marque : copiée à côté des sous-titres et référencée en relatif (le filtre `subtitles`
+            # mal-parse les chemins absolus Windows, voir plus haut).
+            local = srt.parent / "fonts"
+            local.mkdir(parents=True, exist_ok=True)
+            for source in Path(fonts_dir).glob("*.ttf"):
+                shutil.copyfile(source, local / source.name)
+            subtitles_filter += ":fontsdir=fonts"
     else:
         # Repli .srt : style unique historique.
         style = (
