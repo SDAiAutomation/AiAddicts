@@ -111,16 +111,19 @@ def add_countdown_sfx(
     out_path: str,
     mode: str = "automatic",
     theme: str = "studio",
+    tail_seconds: float = 0.0,
 ) -> str:
-    """Pad a narration block and mix one short beep at each countdown tick."""
+    """Pad a narration block and mix one short beep at each countdown tick.
+
+    `tail_seconds` is silence after the last tick (the pause before the reveal)."""
     if countdown_seconds <= 0 or mode == "off":
-        return pad_audio(audio_path, countdown_seconds, out_path)
+        return pad_audio(audio_path, countdown_seconds + tail_seconds, out_path)
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     frequency = _QUIZ_BEEP_FREQUENCIES.get(theme, 880)
     volume = 0.08 if mode == "subtle" else 0.16
     inputs = ["-i", str(Path(audio_path).resolve())]
-    filters = [f"[0:a]apad=pad_dur={countdown_seconds:.3f}[base]"]
+    filters = [f"[0:a]apad=pad_dur={countdown_seconds + tail_seconds:.3f}[base]"]
     labels = ["[base]"]
     for index in range(countdown_seconds):
         tick_frequency = frequency + (180 if index == countdown_seconds - 1 else 0)

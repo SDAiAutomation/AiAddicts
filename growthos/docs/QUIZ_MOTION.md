@@ -101,3 +101,10 @@ Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc
 - Coût : 4 images en plus d'un rendu ; ~13 s entre deux requêtes (limite du fournisseur), donc ~1 min de plus au pire.
 - Interface : bouton « Ajouter le fond illustré » dans la relecture de l'assistant (quiz long en Motion) et case dans l'éditeur ; le texte annonce « 4 images en plus ».
 - Non vérifié : la qualité des images réelles du fournisseur (rendu relu sur des images synthétiques de type bokeh).
+
+## Pause avant la révélation et minuteur de 7 s (v6)
+
+- Les blocs « question » des quiz Motion portent `quiz_reveal_beat_seconds` (0,5 s). Le minuteur (anneau, chiffre, trait) et les bips s'arrêtent 0,5 s avant la fin du bloc : les cartes restent figées sans compte à rebours, puis la révélation apparaît. Le silence est ajouté à l'audio du bloc (`add_countdown_sfx(..., tail_seconds)` ou `pad_audio`), donc la durée totale augmente de 0,5 s par question.
+- Le format `long` passe à 7 s de réflexion par défaut (5 s avant). Le réglage reste libre de 1 à 10 s par quiz.
+- Ce sont des choix de rythme issus de conseils de vendeurs d'outils (non mesurés par nous) ; ils ne garantissent aucune rétention. `quiz_motion_version=quiz-motion:v6` permet de comparer avec v5 dans l'analytics.
+- Les quiz Classic ne changent pas.

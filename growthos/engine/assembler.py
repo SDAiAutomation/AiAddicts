@@ -142,6 +142,7 @@ def _generate(
                     video.pad_audio(str(audio_path), extra, str(held_path))
                 rendered_audio = str(held_path)
         hold_after = float(block.get("hold_after_seconds") or 0)
+        beat = float(block.get("quiz_reveal_beat_seconds") or 0) if hold_after > 0 else 0.0
         if hold_after > 0:
             padded_path = work_dir / "audio" / f"block-{i:02d}-padded.mp3"
             if not _exists_nonempty(padded_path):
@@ -149,10 +150,10 @@ def _generate(
                 if sound_mode != "off":
                     video.add_countdown_sfx(
                         str(audio_path), tts.get_duration_seconds(str(audio_path)), int(hold_after),
-                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"),
+                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"), beat,
                     )
                 else:
-                    video.pad_audio(str(audio_path), hold_after, str(padded_path))
+                    video.pad_audio(str(audio_path), hold_after + beat, str(padded_path))
             rendered_audio = str(padded_path)
         return rendered_audio, tts.get_duration_seconds(rendered_audio), words
 
