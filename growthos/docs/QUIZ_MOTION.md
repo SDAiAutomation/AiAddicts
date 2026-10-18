@@ -108,3 +108,11 @@ Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc
 - Le format `long` passe à 7 s de réflexion par défaut (5 s avant). Le réglage reste libre de 1 à 10 s par quiz.
 - Ce sont des choix de rythme issus de conseils de vendeurs d'outils (non mesurés par nous) ; ils ne garantissent aucune rétention. `quiz_motion_version=quiz-motion:v6` permet de comparer avec v5 dans l'analytics.
 - Les quiz Classic ne changent pas.
+
+## Thème « The Vault » (premier modèle visuel)
+
+- `quiz.theme = "vault"` : noirs chauds, cartes cernées d'or, accent or. Dans le thème choisi comme dans les autres : aucune nouvelle option technique.
+- En vertical (9:16 et carré), l'en-tête devient : plaque « THE VAULT », une case par question (cadenas, ou chiffre du code pour les questions passées ; la case de la question en cours se déverrouille à la révélation) et plaque « QUESTION n / N ». Les chiffres sont décoratifs, ce n'est pas une donnée. Au-delà de 8 questions, les cases sont remplacées par le compteur discret (pas de cases illisibles).
+- En 16:9 : seule la palette change, l'en-tête reste celui du moteur. Le texte reste entièrement dynamique ; aucune image ne contient de texte.
+- Pas encore repris de la référence : décor de porte de coffre, image du sujet sur socle, anneau de minuteur segmenté. Le fond illustré (opt-in) peut apporter une image de sujet.
+- Vérifié sur un aperçu sans voix (3 questions de test) ; pas de rendu complet avec voix ni d'essai en 16:9.

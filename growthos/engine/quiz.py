@@ -27,7 +27,7 @@ QUIZ_RECIPES = {
     "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 7, "difficulty": "progressive"},
 }
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
-QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
+QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo", "vault"}
 SOUND_EFFECT_MODES = {"automatic", "subtle", "off"}
 PRESENTATION_MODES = {"classic", "motion"}
 
