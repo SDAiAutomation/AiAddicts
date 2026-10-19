@@ -39,6 +39,17 @@ class MeasuresTests(unittest.TestCase):
         self.assertIsNone(summary["meanLlmCostUsd"])
         self.assertEqual(summary["videos"], 0)
 
+    def test_token_details_and_missing_history_are_displayed(self):
+        measured = measures.explainer_row(item(inputTokens=20, outputTokens=5, cacheReadTokens=80,
+                                               cacheWriteTokens=0, cacheReadRate=0.8,
+                                               costByStepUsd={"director": 0.1, "animator": None}))
+        old = measures.explainer_row(item())
+        table = measures.render_table([measured, old])
+        self.assertIn("80.0%", table)
+        self.assertIn("director: 0.1, animator: n/d", table.replace("animator: n/d, director: 0.1", "director: 0.1, animator: n/d"))
+        self.assertIsNone(old["cacheReadRate"])
+        self.assertIn("| n/d | n/d | n/d | n/d | n/d | n/d |", table)
+
 
 if __name__ == "__main__":
     unittest.main()

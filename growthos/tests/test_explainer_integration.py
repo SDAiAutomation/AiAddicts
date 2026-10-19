@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from engine import assembler, video, visuals
 from engine.explainer import integration, timeline
+from engine.explainer.llm import Spend
 
 BLOCKS = [
     {"role": "hook", "text": "Pourquoi le ciel est bleu ?"},
@@ -41,6 +42,32 @@ class StyleChoiceTests(unittest.TestCase):
         # `prefers_motion_graphics` reste inchangée : l'exclusivité est portée par l'assembleur.
         self.assertTrue(visuals.prefers_motion_graphics("motion_graphics", ""))
         self.assertFalse(visuals.prefers_motion_graphics("explainer", ""))
+
+
+class SpendSummaryTests(unittest.TestCase):
+    def test_call_tokens_rate_and_step_cost_reach_persisted_report(self):
+        calls = [{"inputTokens": 10, "outputTokens": 4, "cacheReadTokens": 80, "cacheWriteTokens": 10},
+                 {"inputTokens": 5, "outputTokens": 6, "cacheReadTokens": 0, "cacheWriteTokens": 5}]
+        summary = integration.summarize({"spend": {"calls": calls, "byStep": {"director": 0.2}, "totalUsd": 0.2}})
+        self.assertEqual(tuple(summary[key] for key in ("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens")), (15, 10, 80, 15))
+        self.assertAlmostEqual(summary["cacheReadRate"], 80 / 110)
+        persisted = assembler._generation_cost_report({"explainer": summary})["explainer"]
+        self.assertEqual(persisted["costByStepUsd"], {"director": 0.2})
+        self.assertEqual(persisted["cacheReadTokens"], 80)
+
+    def test_missing_or_incomplete_usage_stays_unknown(self):
+        empty = integration.summarize({"spend": {"totalUsd": 0.0}})
+        partial = integration.summarize({"spend": {"calls": [{"inputTokens": 3}]}})
+        for summary in (empty, partial):
+            self.assertIsNone(summary["cacheReadRate"])
+            self.assertIsNone(summary["cacheReadTokens"])
+        self.assertIsNone(empty["inputTokens"])
+        self.assertIsNone(empty["costByStepUsd"])
+
+    def test_unknown_step_cost_does_not_become_zero(self):
+        spend = Spend()
+        spend.calls = [{"step": "director", "costUsd": None}, {"step": "director", "costUsd": 0.2}]
+        self.assertIsNone(spend.report()["byStep"]["director"])
 
 
 class VoiceReportTests(unittest.TestCase):
