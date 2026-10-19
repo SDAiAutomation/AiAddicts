@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
-from .explainer import integration as explainer_integration
+from .explainer import access as explainer_access, integration as explainer_integration
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
     math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, repo, retention,
@@ -945,6 +945,11 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
 
     # Modération avant la réservation du crédit : un contenu refusé ne coûte rien.
     moderation.check_script(data)
+
+    # Explainer (bêta admin) : le worker vérifie l'auteur lui-même, le site seul ne suffit pas (écriture directe en base,
+    # épisodes de série mis en file par SQL). Refus avant le crédit : rien à rembourser.
+    if visuals.prefers_explainer(data):
+        explainer_access.authorize(client, content_item_id)
 
     # Réservation atomique après validation, mais avant le premier appel
     # payant. Une simple lecture laisserait deux workers consommer le dernier
