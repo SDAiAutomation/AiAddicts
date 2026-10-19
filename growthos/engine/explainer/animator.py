@@ -119,7 +119,16 @@ def improve_plan(spend: llm.Spend, system: str, brief: str, code: str, issues: s
 
 def animate_all(spend: llm.Spend, jobs: list[dict], workers: int = 3) -> list[dict]:
     """`jobs` : [{brief, plan_id, duration, anchors}]. Les plans sont indépendants : ils s'animent en parallèle."""
+    if not jobs:
+        return []
     system = system_prompt()
+    def run(job: dict) -> dict:
+        return animate_plan(spend, system, job["brief"], job["plan_id"], job["duration"], job["anchors"], job.get("layout", "scene"))
+
+    # Sonnet 5.5 accepte un préfixe cacheable dès 512 tokens ; ce prompt stable contient
+    # la doc runtime et les exemples (> 2 500 mots). Le premier plan remplit le cache
+    # avant l'envoi des requêtes parallèles, sans appel Anthropic supplémentaire.
+    first = run(jobs[0])
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(jobs)))) as pool:
-        futures = [pool.submit(animate_plan, spend, system, j["brief"], j["plan_id"], j["duration"], j["anchors"], j.get("layout", "scene")) for j in jobs]
-        return [f.result() for f in futures]
+        futures = [pool.submit(run, j) for j in jobs[1:]]
+        return [first, *(f.result() for f in futures)]
