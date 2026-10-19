@@ -2,8 +2,8 @@
 
 Sans ça, `content_items.video_url` n'est qu'un chemin de fichier local à la
 machine qui a fait tourner le pipeline — personne d'autre ne peut voir la
-vidéo. Le bucket `content-videos` est public en lecture (policy côté bucket,
-voir la migration `content_videos_bucket`) ; seul service_role peut y écrire
+vidéo. Le bucket `content-videos` doit être privé après activation du correctif
+de confidentialité ; seul service_role peut y écrire
 (RLS par défaut = deny, service_role la contourne — même modèle que le reste
 du schéma, voir engine/db.py).
 """
@@ -13,10 +13,10 @@ from pathlib import Path
 
 BUCKET = "content-videos"
 
-# Un an. Les chemins sont réécrits en place (upsert) à chaque régénération ou
-# rognage : l'URL publique porte donc un `?v=<timestamp>` qui change avec le
-# contenu, ce qui rend un cache long sûr (une nouvelle version = nouvelle URL).
-_CACHE_SECONDS = "31536000"
+# Ne pas conserver une copie en cache au-delà du contrôle d'accès. Les URL
+# publiques historiques servent seulement de références stables en base ;
+# le site signe un accès temporaire après RLS, le worker s'authentifie.
+_CACHE_SECONDS = "0"
 
 
 def version_path(content_item_id: str, version: int, ext: str = "mp4") -> str:
@@ -35,7 +35,8 @@ def upload_video(client, content_item_id: str, local_path: str, version: int | N
     """Upload `local_path`. Sans `version` : sous `<content_item_id>.mp4`
     (upsert, écrase la précédente — comportement historique). Avec `version`
     (lot L2) : sous un chemin immuable `<id>/v<n>.mp4`, jamais écrasé.
-    Retourne l'URL publique. Lève une exception si l'upload échoue — à
+    Retourne une référence stable au format d'URL historique, sans jeton signé.
+    Cette référence n'autorise pas la lecture d'un bucket privé. Lève une exception si l'upload échoue — à
     l'appelant de décider s'il retombe sur le chemin local plutôt que de
     faire échouer tout le run."""
     path = version_path(content_item_id, version) if version else f"{content_item_id}.mp4"
@@ -61,6 +62,13 @@ def upload_original(client, content_item_id: str, local_path: str) -> str:
 def upload_poster(client, content_item_id: str, local_path: str) -> str:
     """Miniature JPEG sous `<content_item_id>.jpg` (voir engine/poster.py)."""
     return _upload(client, f"{content_item_id}.jpg", local_path, "image/jpeg")
+
+
+def upload_thumbnail(client, content_item_id: str, local_path: str, variant: str = "A") -> str:
+    """Miniature YouTube 1280x720 (voir engine/thumbnail.py) : la variante A sous
+    `<content_item_id>.thumbnail.jpg`, les autres sous `<id>.thumbnail-b.jpg`, `-c.jpg`."""
+    suffix = "" if variant == "A" else f"-{variant.lower()}"
+    return _upload(client, f"{content_item_id}.thumbnail{suffix}.jpg", local_path, "image/jpeg")
 
 
 def _upload(client, storage_path: str, local_path: str, content_type: str) -> str:

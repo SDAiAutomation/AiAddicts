@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from engine import quiz_motion
 from engine.captions import write_ass
 from engine.quiz import QUIZ_THEMES, compile_quiz
 
@@ -20,6 +21,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--theme", choices=sorted(QUIZ_THEMES), default="studio")
     parser.add_argument("--presentation", choices=["classic", "motion"], default="classic")
+    parser.add_argument("--system-font", action="store_true", help="Garde Arial au lieu de la police de marque (mode motion)")
+    parser.add_argument("--choices", type=int, choices=[2, 4], default=4, help="Nombre de réponses de la première question")
     parser.add_argument("--full", action="store_true", help="Include the intro and outro (still no voiceover)")
     parser.add_argument("--resolution", choices=["1080x1920", "720x1280", "1080x1080", "1920x1080"], default="1080x1920")
     args = parser.parse_args()
@@ -29,7 +32,12 @@ def main() -> None:
     script["quiz"]["theme"] = args.theme
     script["quiz"]["presentation"] = args.presentation
     # Four choices exercise the most crowded supported layout.
-    script["quiz"]["questions"][0]["choices"].append("La Terre")
+    if args.choices == 2:
+        question = script["quiz"]["questions"][0]
+        question["choices"] = ["Mercure", "Mars"]
+        question["correct_choice"] = 0
+    else:
+        script["quiz"]["questions"][0]["choices"].append("La Terre")
     blocks = compile_quiz(script)["blocks"]
     if not args.full:
         blocks = [block for block in blocks if block["quiz_phase"] in {"question", "reveal"}]
@@ -44,12 +52,13 @@ def main() -> None:
             cues.append({"start": cursor + 0.3, "end": cursor + 2.8,
                          "text": "Tu avais trouvé ?", "words": []})
         cursor += duration
-    write_ass(cues, str(output / "preview.ass"), "bold_stroke", args.resolution,
+    font = quiz_motion.BRAND_FONT if args.presentation == "motion" and not args.system_font and quiz_motion.brand_font_available() else None
+    write_ass(cues, str(output / "preview.ass"), "bold_stroke", args.resolution, font=font,
               blocks=blocks, block_durations=durations)
     subprocess.run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-f", "lavfi", "-i", f"color=c=0x070C17:s={args.resolution}:r=25:d={cursor}",
-        "-vf", "subtitles=preview.ass", "-an", "-c:v", "libx264",
+        "-vf", "subtitles=preview.ass" + (f":fontsdir={quiz_motion.FONT_DIR}" if font else ""), "-an", "-c:v", "libx264",
         "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
         "-movflags", "+faststart", "preview.mp4",
     ], cwd=output, check=True)

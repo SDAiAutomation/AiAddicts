@@ -24,7 +24,7 @@ QUIZ_RECIPES = {
     "riddle": {"kind": "riddle", "question_count": 3, "countdown_seconds": 8, "difficulty": "medium"},
     "logo": {"kind": "logo", "question_count": 5, "countdown_seconds": 5, "difficulty": "medium"},
     "impossible": {"kind": "multiple_choice", "question_count": 5, "countdown_seconds": 5, "difficulty": "hard"},
-    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 5, "difficulty": "progressive"},
+    "long": {"kind": "multiple_choice", "question_count": 25, "countdown_seconds": 7, "difficulty": "progressive"},
 }
 DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
 QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo", "vault", "boss", "split"}
@@ -61,6 +61,8 @@ def normalize_quiz(quiz: object) -> dict:
     recipe = QUIZ_RECIPES[recipe_id]
     if "illustrations" in result and not isinstance(result["illustrations"], bool):
         raise ValueError("'quiz.illustrations' doit être un booléen")
+    if "backdrops" in result and not isinstance(result["backdrops"], bool):
+        raise ValueError("'quiz.backdrops' doit être un booléen")
     result.setdefault("recipe", recipe_id)
     result.setdefault("kind", recipe["kind"])
     result.setdefault("difficulty", recipe["difficulty"])
@@ -70,6 +72,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("presentation", "classic")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
+    result.setdefault("backdrops", False)  # fond illustré (4 images) : opt-in, voir engine/quiz_backdrop.py
     if recipe_id == "long" and "illustrations" not in quiz:
         result["illustrations"] = False
     for question in result.get("questions") or []:
@@ -170,8 +173,30 @@ def _canonical(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value))
 
 
+# Mots interrogatifs ignorés ; miroir de src/lib/quiz-duplicates.ts (growthos-web) : garder les deux identiques.
+_QUESTION_WORDS = {
+    "which", "what", "that", "this", "with", "from", "have", "does", "quel", "quelle", "quels", "quelles",
+    "dans", "pour", "sont", "avec", "plus", "welche", "welcher", "welches", "cual", "cuales", "quale", "quali",
+    "qual", "quais", "esta", "este", "como", "comment", "quand", "when", "where", "wann",
+}
+# Réponses d'un vrai/faux (ou oui/non) : toutes les affirmations partagent la même « réponse ».
+_BINARY_ANSWERS = {
+    "true", "false", "yes", "no", "vrai", "faux", "oui", "non", "verdadero", "falso", "si", "wahr", "falsch",
+    "ja", "nein", "vero", "verdadeiro", "sim", "nao",
+}
+
+
+def _content_words(value: str) -> set[str]:
+    # Les nombres et dates comptent même courts : « 1998 » et « 2002 » distinguent deux questions.
+    return {word for word in _canonical(value).split()
+            if (len(word) > 3 or any(c.isdigit() for c in word)) and word not in _QUESTION_WORDS}
+
+
 def same_quiz_fact(first: dict, second: dict) -> bool:
-    """Conservative duplicate check; fact IDs catch paraphrases reliably."""
+    """Deux questions qui testent le même fait, reformulation comprise.
+
+    Même question, même identifiant de fait, quasi-même vocabulaire (85 %), ou
+    même bonne réponse avec la moitié des mots clés en commun."""
     left, right = _canonical(str(first.get("question") or "")), _canonical(str(second.get("question") or ""))
     if not left or not right:
         return False
@@ -180,9 +205,16 @@ def same_quiz_fact(first: dict, second: dict) -> bool:
     fact_left, fact_right = _canonical(str(first.get("fact") or "")), _canonical(str(second.get("fact") or ""))
     if fact_left and fact_right and fact_left == fact_right:
         return True
-    answer_left, answer_right = _canonical(str(first.get("answer") or "")), _canonical(str(second.get("answer") or ""))
-    return bool(answer_left and answer_left == answer_right and
-                SequenceMatcher(None, left, right).ratio() >= .96)
+    words_left, words_right = _content_words(left), _content_words(right)
+    smallest = min(len(words_left), len(words_right))
+    if smallest < 3:
+        return False
+    overlap = len(words_left & words_right) / smallest
+    if overlap >= .85:
+        return True
+    answer = _canonical(str(first.get("answer") or ""))
+    return bool(answer and answer not in _BINARY_ANSWERS
+                and answer == _canonical(str(second.get("answer") or "")) and overlap >= .5)
 
 
 _GENERIC_VISUAL = re.compile(r"brainloop|emblem", re.IGNORECASE)
@@ -224,8 +256,12 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
             block["quiz_presentation"] = normalized_quiz["presentation"]
             block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
             if normalized_quiz["presentation"] == "motion":
-                from .quiz_motion import VERSION
+                from .quiz_motion import REVEAL_BEAT_SECONDS, VERSION
                 block["quiz_motion_version"] = VERSION
+                if block.get("quiz_phase") == "question" and (block.get("hold_after_seconds") or 0) > 0:
+                    block["quiz_reveal_beat_seconds"] = REVEAL_BEAT_SECONDS
+                else:
+                    block.pop("quiz_reveal_beat_seconds", None)
                 block["quiz_theme"] = normalized_quiz["theme"]
             else:
                 block.pop("quiz_motion_version", None)
@@ -264,7 +300,7 @@ def compile_quiz(script: dict) -> dict:
     phrases = _PHRASES[lang]
     topic = quiz.get("topic") or result.get("niche") or _TOPIC_FALLBACK[lang]
     hook = str(quiz.get("intro") or phrases["intro"].format(topic=topic)).strip()
-    blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro"})
+    blocks.append({"role": "hook", "text": hook, "quiz_phase": "intro", "quiz_question_total": len(quiz["questions"])})
 
     letters = "ABCD"
     for number, item in enumerate(quiz["questions"], start=1):
@@ -314,7 +350,7 @@ def compile_quiz(script: dict) -> dict:
         })
 
     cta = str(quiz.get("outro") or result.get("cta") or phrases["outro"]).strip()
-    blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro"})
+    blocks.append({"role": "cta", "text": cta, "quiz_phase": "outro", "quiz_question_total": len(quiz["questions"])})
     result["blocks"] = blocks
     return _prepare_existing_quiz_blocks(result, normalized_quiz)
 

@@ -21,7 +21,7 @@ La bonne réponse n'influence aucun événement de la phase question. Les entré
 
 ## Contrat et coordination
 
-`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v1` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
+`compile_quiz` normalise le choix et le propage aux blocs, y compris les blocs déjà compilés. Le mode racine est autoritaire lors d'une recompilation. `quiz_motion_version=quiz-motion:v5` identifie le rendu sur les blocs Motion. Le nouveau module est ajouté à la liste de fichiers de `generation_cache.py` afin qu'un correctif visuel invalide les artefacts périmés, selon le mécanisme existant.
 
 L'intégration partagée est limitée à ce dispatch et à la liste du cache. Aucun changement de worker, DB, quota, publication ou contrat AutoEdit. À relire par le propriétaire du pipeline partagé lors de l'intégration. Déployer le moteur avant le frontend : un ancien moteur ignorerait l'option Motion choisie dans une interface plus récente.
 
@@ -46,3 +46,88 @@ Les aperçus locaux sont sans voix, avec durées illustratives, et ne prouvent p
 Cette V1 est une présentation animée réutilisable, pas un réalisateur IA qui invente des scènes 3D ou des diagrammes factuels pour chaque question. Aucun appel Opus, Cinetic, Remotion ou génération de musique n'est intégré. L'aperçu interactif des questions dans le frontend reste destiné à la relecture du contenu ; son texte précise que les animations sont appliquées au rendu final. Aucune amélioration de rétention n'est revendiquée.
 
 Les modifications sont locales, non publiées et non déployées. Le rendu classique reste le premier choix.
+
+## Coût de rendu (mesuré)
+
+`python scripts/measure_quiz_motion.py --render` (quiz long de 25 questions, 1920×1080, 456 s sans voix, fond uni, machine de dev à 4 cœurs) :
+
+| | événements | sous-titres | rendu FFmpeg |
+|---|---|---|---|
+| classique | 1 725 | 0,3 Mo | 177 s |
+| motion, scène en rectangle plein écran | 6 059 | 2,4 Mo | 312 s |
+| motion, anneau allégé (12 images/s, 48 points) | 4 559 | 1,2 Mo | 313 s |
+| motion, fond de base de la couleur de la scène | 4 507 | 1,2 Mo | **126 s** |
+
+Le coût ne venait pas de l'anneau mais du rectangle plein écran que libass mélange à chaque image (~60 % du temps). Quand la vidéo de base est déjà de la couleur de la scène (`quiz_motion.base_background_for` : mode motion, pas de fondu au noir entre plans), l'assembleur passe cette couleur à `render_final(bg_color=…)` et marque les blocs `quiz_base_background` : le rectangle n'est plus dessiné. Image identique pixel pour pixel en thème sombre, 3/255 d'écart maximal en thème clair. Les chiffres sont indicatifs : à refaire sur le worker de production.
+
+## Mise en page par format (v3, inchangée en v4)
+
+`tests/test_quiz_motion_layout.py` analyse les événements produits pour 720×1280, 1080×1920, 1080×1080 et 1920×1080 : aucun élément hors cadre, texte de la question et des réponses ≥ 1,85 % de la hauteur, texte paysage proportionnellement aussi grand que le texte vertical. Il a trouvé deux défauts :
+
+- **Vertical** : une réponse de plus de 30 caractères dans la grille 2×2 tombait à 23 px sur 1920 de haut. La grille est désormais limitée à 30 caractères (52 en paysage) ; au-delà, rangées pleine largeur. Les réponses courtes (cas courant) sont rendues à l'identique.
+- **Paysage / carré** : des cartes trop basses pour deux lignes réduisaient les réponses à 20 px. Géométrie dédiée : cartes de 15 % de la hauteur, compte à rebours à droite de la question, trait de temps sous la question, clé de révélation plus haute, sous-titres en bande basse (9 % de marge au lieu de 28 %, il n'y a pas de commandes de plateforme à éviter).
+
+Le paysage reste une mise en page empilée (question, puis cartes) ; une vraie disposition en colonnes reste possible. `quiz_motion_version=quiz-motion:v5` permet de comparer plus tard la rétention des vidéos v2 et v3 dans les analyses.
+
+## Design v4
+
+Constats après les rendus v3 : fond plat pendant 11 minutes, cartes de réponse bleu nuit sur presque noir (séparation faible sur un petit écran), un seul accent, lettres A–D minuscules. Hypothèses de design (aucune rétention revendiquée ; à comparer avec `quiz_motion_version` dans les analyses) :
+
+- **Fond par partie** : un quiz de 10 questions ou plus est découpé en 4 parties (marine, sarcelle, indigo, bordeaux ; variantes pastel pour les thèmes clairs). L'intro est en partie 1, la conclusion en partie 4. La teinte est la couleur de la vidéo de base de chaque bloc (`render_final(bg_colors=…)`) : aucun coût de rendu en plus. Moins de 10 questions : un seul fond.
+- **Cartes** : plus claires que la scène (10 % de blanc) avec un filet ; la lettre A–D est une pastille jaune pleine, comme sur la miniature.
+- **Anneau d'urgence** : orange pour les 2 dernières secondes d'un compte à rebours d'au moins 3 secondes.
+- **Revue avec la skill `impeccable`** (plancher de qualité) : suppression de la barre colorée sur le côté des cartes et de l'ombre dure décalée (élévation déclarée une seule fois : le filet), coche **dessinée** au lieu du glyphe `✓` (le glyphe dépend de la police de repli), barre de progression continue au-delà de 12 questions (25 segments devenaient un pointillé), tailles de question **discrètes** (76 / 64 / 54) plutôt qu'un rétrécissement continu, ponctuation jamais seule sur la dernière ligne, cartes 16:9 sur ~85 % de la hauteur, anneau du compte à rebours agrandi, révélation 16:9 plus haute. Revue en un seul contexte : le détecteur et la superposition navigateur de la skill visent du HTML, pas des images ASS.
+- **Coût du rendu des formes** (mesuré, quiz long de 25 questions, 1920×1080) : libass mélange à chaque image la boîte englobante de chaque forme, même creuse. Un contour `\bord` sur les cartes ou un cadre en tracé évidé coûtaient 60 à 70 s de rendu ; quatre fines bandes ne coûtent presque rien (140 s au total contre 312 s avant #30). À retenir pour toute nouvelle forme : préférer des bandes fines à un grand objet creux ou contouré.
+- **Police de marque (Poppins)**, celle de la miniature, pour la mise en scène Motion : `write_ass(font="Poppins")` choisi par l'assembleur quand les fichiers de `assets/fonts` sont livrés (`SUBTITLE_FONT` garde la priorité). libass dimensionne `\fs` sur la hauteur de cellule : Poppins s'affiche ~30 % plus petit qu'Arial à taille égale (capitales 53 px à `\fs` 130 contre 63 px à 100). Mesuré : `size_k` = 1,45 rétablit la taille visuelle d'Arial (légèrement en dessous des capitales pour compenser le grand œil de Poppins). L'interligne natif de Poppins est trop aéré (+60 %) : chaque ligne devient un événement posé à l'interligne visuel voulu (`pitch` 1,12). `render_final(fonts_dir=…)` copie les polices à côté des sous-titres (`fontsdir=fonts`, chemin relatif). Rendu complet 25 questions : 154 s. Hors du mode Motion, rien ne change.
+- Non fait : mise en page paysage en colonnes, visuel de sujet derrière les cartes.
+
+## Mise en page 16:9 en colonnes (v5)
+
+Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc 16:9 ; le carré garde la pile centrée) lisent en deux temps : la question mène à gauche (46 % de la largeur utile, jusqu'à 5 lignes, tailles 64 / 56 / 48), les réponses sont empilées à droite et le compte à rebours (anneau + trait de temps) reste en périphérie, sous la question.
+
+- Les réponses **ne bougent pas** à la révélation : la bonne passe au vert avec une coche, et la réponse apparaît en grand à gauche dans un panneau jaune, en partant de sa rangée.
+- Les sous-titres d'explication restent dans la colonne de gauche, sous la réponse (`write_ass` règle `MarginL` / `MarginR` du style à partir de `column_layout`) au lieu de passer sur les réponses.
+- 2, 3 ou 4 réponses : la bande de réponses (21,5 % à 92,5 % de la hauteur) est répartie, rangées de 19 % au plus, centrée verticalement.
+- Avec illustration, la géométrie en pile centrée reste (non adaptée au paysage).
+- `tests/test_quiz_motion_columns.py` : colonnes sans chevauchement, question à gauche et réponses à droite, rangées identiques entre question et révélation (2, 3, 4 réponses), une seule rangée verte, marges des sous-titres uniquement pour le motion large.
+- `quiz_motion_version=quiz-motion:v5` pour comparer avec v4 (pile centrée) dans les analyses.
+
+## Fond illustré (opt-in)
+
+`quiz.backdrops: true` (quiz long en Motion seulement ; faux par défaut, jamais activé sans choix) ajoute un fond de sujet : **une image par partie du quiz, soit 4 images**, au lieu de 25 illustrations. `engine/quiz_backdrop.py` demande à l'API d'images (qualité `low`, 16:9, « sans texte, sans personne ») une photo éditoriale du sujet par partie, puis la passe en **bichromie** aux couleurs de la partie : niveaux de gris recadrés en 1920×1080, ramenés entre la teinte de la scène et cette teinte éclaircie de 22 %. Le contraste du texte est donc borné par construction, quelle que soit l'image (testé : ≥ 4,5:1 pour toutes les parties, thèmes sombre et clair), et chaque partie garde son identité.
+
+- Les images servent de fond de base de chaque bloc (clip fixe : `render_final(static_blocks=…)`, sans Ken Burns ni vignette, bien moins cher qu'un zoompan) ; ce ne sont pas des fenêtres d'illustration (`quiz_visual_available` reste faux, la mise en page en colonnes est conservée).
+- Jamais bloquant : sans clé, ou si une génération échoue, la partie garde son fond uni. Les images sont mises en cache dans `images/quiz-backdrop-<partie>.jpg`.
+- Coût : 4 images en plus d'un rendu ; ~13 s entre deux requêtes (limite du fournisseur), donc ~1 min de plus au pire.
+- Interface : bouton « Ajouter le fond illustré » dans la relecture de l'assistant (quiz long en Motion) et case dans l'éditeur ; le texte annonce « 4 images en plus ».
+- Non vérifié : la qualité des images réelles du fournisseur (rendu relu sur des images synthétiques de type bokeh).
+
+## Pause avant la révélation et minuteur de 7 s (v6)
+
+- Les blocs « question » des quiz Motion portent `quiz_reveal_beat_seconds` (0,5 s). Le minuteur (anneau, chiffre, trait) et les bips s'arrêtent 0,5 s avant la fin du bloc : les cartes restent figées sans compte à rebours, puis la révélation apparaît. Le silence est ajouté à l'audio du bloc (`add_countdown_sfx(..., tail_seconds)` ou `pad_audio`), donc la durée totale augmente de 0,5 s par question.
+- Le format `long` passe à 7 s de réflexion par défaut (5 s avant). Le réglage reste libre de 1 à 10 s par quiz.
+- Ce sont des choix de rythme issus de conseils de vendeurs d'outils (non mesurés par nous) ; ils ne garantissent aucune rétention. `quiz_motion_version=quiz-motion:v6` permet de comparer avec v5 dans l'analytics.
+- Les quiz Classic ne changent pas.
+
+## Thème « The Vault » (premier modèle visuel)
+
+- `quiz.theme = "vault"` : noirs chauds, cartes cernées d'or, accent or. Dans le thème choisi comme dans les autres : aucune nouvelle option technique.
+- En vertical (9:16 et carré), l'en-tête devient : plaque « THE VAULT », une case par question (cadenas, ou chiffre du code pour les questions passées ; la case de la question en cours se déverrouille à la révélation) et plaque « QUESTION n / N ». Les chiffres sont décoratifs, ce n'est pas une donnée. Au-delà de 8 questions, les cases sont remplacées par le compteur discret (pas de cases illisibles).
+- En 16:9 : seule la palette change, l'en-tête reste celui du moteur. Le texte reste entièrement dynamique ; aucune image ne contient de texte.
+- Pas encore repris de la référence : décor de porte de coffre, image du sujet sur socle, anneau de minuteur segmenté. Le fond illustré (opt-in) peut apporter une image de sujet.
+- Vérifié sur un aperçu sans voix (3 questions de test) ; pas de rendu complet avec voix ni d'essai en 16:9.
+
+## Thème « Final Boss »
+
+- `quiz.theme = "boss"` : violets profonds, accent jaune, cartes crème cernées d'or avec texte sombre (le moteur sépare l'encre des cartes de celle de la scène).
+- En vertical : plaque « FINAL BOSS », pastille « n / N » et rangée de niveaux sous la pastille, au centre (coche = passé, jaune = en cours, couronne = dernier niveau, le boss). Le niveau en cours reçoit sa coche à la révélation. Au-delà de 8 niveaux, plaque et pastille seulement. La rangée est centrale : une version en marge gauche était rognée sur les Shorts (téléphones allongés). En 16:9, palette seule.
+- La finale est la **dernière question de la série** (à rendre plus difficile côté contenu, le format `long` a déjà une difficulté progressive) : aucune question ajoutée, aucun changement de validation des blocs.
+- Les libellés restent neutres en langue (« n / N »). Le rendu classique reçoit une carte violette sombre, car sa lecture suppose du texte clair.
+- Vérifié sur un aperçu sans voix (3 questions de test) ; pas de rendu complet avec voix, ni d'essai en 16:9.
+
+## Thème « Split Decision » (première étape, sans images)
+
+- `quiz.theme = "split"` : pour une question à **deux réponses en vertical**, deux camps pleine hauteur (bleu / orange, blanc dessus à au moins 4,5:1, vérifié par test), une lettre géante et la réponse dans chacun, le minuteur à la jointure, pastille « n / N » et points de progression. À la révélation, le camp juste garde sa couleur et reçoit une coche, l'autre s'assombrit. Aucune lecture de la bonne réponse avant la révélation.
+- Trois réponses ou plus, 16:9, ou question avec image : mise en page standard, palette marine/jaune.
+- **Pas encore fait :** une image par choix (deux générations par question), qui devra rester fidèle au fait posé (une illustration trompeuse sur une question factuelle est à éviter). Le bas de l'écran reste vide sans elles.
+- Correctif général : la coche dessinée n'apparaissait pas dans le rendu Motion (tracé `m` sans `l`, que libass ignore). Elle s'affiche maintenant partout (réponse juste, fin du quiz, échelle Final Boss).

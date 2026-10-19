@@ -11,10 +11,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
+from .explainer import access as explainer_access, integration as explainer_integration
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
-    math_narration, motion_profiles, originality, poster, publish_pack, quality, quiz_cover, quiz_motion, repo, retention,
-    script as script_module, shot_planning, storage, tts, versions, video, visuals, voices,
+    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, repo, retention,
+    script as script_module, shot_planning, storage, thumbnail, tts, versions, video, visuals, voices,
 )
 
 # Les appels ElevenLabs sont indépendants par bloc (I/O réseau) : quelques-uns
@@ -142,6 +143,7 @@ def _generate(
                     video.pad_audio(str(audio_path), extra, str(held_path))
                 rendered_audio = str(held_path)
         hold_after = float(block.get("hold_after_seconds") or 0)
+        beat = float(block.get("quiz_reveal_beat_seconds") or 0) if hold_after > 0 else 0.0
         if hold_after > 0:
             padded_path = work_dir / "audio" / f"block-{i:02d}-padded.mp3"
             if not _exists_nonempty(padded_path):
@@ -149,10 +151,10 @@ def _generate(
                 if sound_mode != "off":
                     video.add_countdown_sfx(
                         str(audio_path), tts.get_duration_seconds(str(audio_path)), int(hold_after),
-                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"),
+                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"), beat,
                     )
                 else:
-                    video.pad_audio(str(audio_path), hold_after, str(padded_path))
+                    video.pad_audio(str(audio_path), hold_after + beat, str(padded_path))
             rendered_audio = str(padded_path)
         return rendered_audio, tts.get_duration_seconds(rendered_audio), words
 
@@ -179,19 +181,23 @@ def _generate(
 
     openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
     quiz_format = data.get("content_format") == "quiz"
-    motion_graphics_style = not quiz_format and visuals.prefers_motion_graphics(
+    # Explainer animé (bêta admin) : testé avant les autres styles, exclusif avec eux (ni image IA ni personnage).
+    explainer_style = not quiz_format and visuals.prefers_explainer(data)
+    motion_graphics_style = not quiz_format and not explainer_style and visuals.prefers_motion_graphics(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    kinetic_typography_style = not quiz_format and not motion_graphics_style and visuals.prefers_kinetic_typography(
+    kinetic_typography_style = not quiz_format and not explainer_style and not motion_graphics_style and visuals.prefers_kinetic_typography(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    stock_footage = not motion_graphics_style and not kinetic_typography_style and visuals.prefers_stock_footage(
+    stock_footage = not explainer_style and not motion_graphics_style and not kinetic_typography_style and visuals.prefers_stock_footage(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    if motion_graphics_style:
+    if explainer_style:
+        visuals_desc = "Explainer animé (Chromium, plan par plan ; coût LLM au rapport)"
+    elif motion_graphics_style:
         visuals_desc = "motion graphics (rendu local, sans appel API)"
     elif kinetic_typography_style:
         visuals_desc = "typographie cinétique (rendu local, sans appel API) + fond uni en repli"
@@ -203,7 +209,7 @@ def _generate(
         visuals_desc = "OpenAI, une image par bloc" + (" + Pexels en repli" if pexels_key else "")
     else:
         visuals_desc = "Pexels photo par bloc" if pexels_key else "fond uni — pas de clé"
-    if openai_enabled and not stock_footage and not motion_graphics_style and not kinetic_typography_style and data.get("characters"):
+    if openai_enabled and not explainer_style and not stock_footage and not motion_graphics_style and not kinetic_typography_style and data.get("characters"):
         names = ", ".join(str(c.get("name", "?")) for c in data["characters"])
         visuals_desc += f" — fiche personnage : {names}"
     print(f"[3/5] Visuels ({visuals_desc})…")
@@ -216,7 +222,19 @@ def _generate(
     # local dans les deux cas), stock_footage n'a pas d'identité IA à casser.
     stock_selection: dict = {}
     motion_preflight: list = []
-    if motion_graphics_style:
+    backdrop_flags = [False] * n_blocks  # blocs dont l'image est un fond illustré (pas une fenêtre d'illustration)
+    explainer_report: dict | None = None
+    if explainer_style:
+        # Voix déjà synthétisée (ci-dessus) : on réutilise l'audio et les mots par bloc, on ne resynthétise rien.
+        image_paths, explainer_report = explainer_integration.generate_clips(
+            data, durations, [words for words, _duration in block_words], work_dir,
+        )
+        print(f"       Explainer : {explainer_report['plans']} plan(s), {explainer_report['fallbacks']} repli(s), "
+              f"LLM {explainer_report['llmCostUsd']} $, rendu {explainer_report['renderSeconds']} s")
+        image_reports = []
+        visual_fallbacks = []
+        style_treatment_reports = []
+    elif motion_graphics_style:
         image_paths = visuals.fetch_motion_graphics_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
             theme_overrides=data.get("motion_graphics_theme"), preflight_report=motion_preflight,
@@ -238,6 +256,14 @@ def _generate(
         image_reports = []
         visual_fallbacks = []
         style_treatment_reports = []
+        if quiz_backdrop.enabled(data):
+            # Fond illustré : une image de sujet par partie (4), en bichromie, jamais bloquant (voir quiz_backdrop).
+            backdrops = quiz_backdrop.generate(data, work_dir)
+            for index, block in enumerate(data["blocks"]):
+                path = backdrops[quiz_motion.part_index(block)]
+                if path:
+                    image_paths[index], backdrop_flags[index] = path, True
+            print(f"       fond illustré : {sum(1 for p in backdrops if p)}/{len(backdrops)} image(s)")
     else:
         image_paths, image_reports, visual_fallbacks, style_treatment_reports = visuals.fetch_block_images(
             data["blocks"], data.get("niche"), data["aspect_ratio"], work_dir, pexels_key,
@@ -262,9 +288,19 @@ def _generate(
     else:
         full_audio = video.concat_audio(audio_paths, str(full_wav))
 
+    if explainer_report:
+        # Bruitages de l'Explainer sous la voix (même réglage que le rendu de l'Explainer) ; jamais silencieux : le rapport
+        # dit s'ils sont inclus.
+        mixed = explainer_integration.mix_sfx(full_audio, explainer_report["video"], work_dir / "audio" / "full-with-sfx.wav")
+        explainer_report["sfxIncluded"] = bool(mixed)
+        if mixed:
+            full_audio = mixed
+        print(f"       bruitages Explainer : {'mixés sous la voix' if mixed else 'absents (aucune piste audio dans le MP4)'}")
+
     render_blocks = data["blocks"]
     render_durations = durations
     render_image_paths = image_paths
+    render_backdrops = backdrop_flags
     cover = (data.get("quiz") or {}).get("cover") or {}
     if data.get("content_format") == "quiz" and cover.get("enabled"):
         cover_duration = float(cover.get("duration_seconds") or 0.8)
@@ -280,26 +316,13 @@ def _generate(
         render_blocks = [cover_block, *data["blocks"]]
         render_durations = [cover_duration, *durations]
         render_image_paths = [quiz_cover.generate_cover(data, work_dir), *image_paths]
+        render_backdrops = [False, *backdrop_flags]
     cue_words = ([([], render_durations[0])] + block_words) if render_blocks is not data["blocks"] else block_words
     cues = captions.build_cues(
         cue_words,
         block_roles=[str(block.get("role") or "") for block in render_blocks],
     )
     captions.write_srt(cues, str(srt_path))  # gardé pour debug / repli
-    caption_style = captions.caption_style_or_default(data.get("caption_style"))
-    resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
-    caption_blocks = [
-        ({**block, "quiz_visual_available": bool(render_image_paths[index])}
-         if block.get("quiz_phase") in {"question", "reveal"} else block)
-        for index, block in enumerate(render_blocks)
-    ]
-    ass_file = captions.write_ass(
-        cues, str(work_dir / "captions.ass"), caption_style, resolution,
-        blocks=caption_blocks, block_durations=render_durations,
-        centre_reserved=kinetic_typography_style,
-    )
-    print(f"       sous-titres : style « {caption_style} »")
-
     # Style Identity (Phase 2) : résolu une seconde fois ici (déjà fait une
     # fois à l'intérieur de `visuals.fetch_block_images` pour les styles
     # image IA) — appel pur et bon marché, plus simple que de faire remonter
@@ -307,7 +330,33 @@ def _generate(
     style_bible = image_style_bible.resolve_style_bible(data.get("visual_style"), data.get("visual_style_prompt"))
     motion_profile = style_bible["motion_profile"]
     transition = style_bible["transition"]
-    fade_duration = 0.3 if transition == "fade" else 0.0
+    fade_duration = 0.3 if transition == "fade" and not explainer_style else 0.0   # l'Explainer a ses propres transitions
+    caption_style = captions.caption_style_or_default(data.get("caption_style"))
+    resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
+    # Quiz Motion : fond de base de la couleur de la scène (une teinte par partie d'un quiz long) plutôt
+    # qu'un rectangle plein écran par image.
+    block_backgrounds = [quiz_motion.base_background_for(data, fade_duration, block) for block in render_blocks]
+    # Police de marque (celle de la miniature) pour la mise en scène Motion ; SUBTITLE_FONT garde la priorité,
+    # et sans les fichiers de police on reste sur la police par défaut plutôt que de risquer des tailles fausses.
+    motion_scene = (quiz_motion.presentation_info(data) or {}).get("mode") == "motion"
+    brand_font = quiz_motion.BRAND_FONT if motion_scene and not os.environ.get("SUBTITLE_FONT") and quiz_motion.brand_font_available() else None
+    caption_blocks = [
+        ({**block, "quiz_visual_available": bool(render_image_paths[index]) and not render_backdrops[index]}
+         if block.get("quiz_phase") in {"question", "reveal"} else block)
+        for index, block in enumerate(render_blocks)
+    ]
+    if any(block_backgrounds):
+        caption_blocks = [
+            ({**block, "quiz_base_background": "#" + colour[2:].lower()} if colour else block)
+            for block, colour in zip(caption_blocks, block_backgrounds)
+        ]
+    ass_file = captions.write_ass(
+        cues, str(work_dir / "captions.ass"), caption_style, resolution,
+        blocks=caption_blocks, block_durations=render_durations,
+        centre_reserved=kinetic_typography_style, font=brand_font,
+    )
+    print(f"       sous-titres : style « {caption_style} »")
+
     render_shots = video.plan_shots(render_durations, render_image_paths)
     resolved_moves = motion_profiles.resolve_motion_sequence(render_shots, render_blocks, motion_profile)
     print(f"       mouvement : profil « {motion_profile} », transition « {transition} »")
@@ -319,7 +368,10 @@ def _generate(
     final_video = video.render_final(
         full_audio, ass_file, str(final_path), render_durations,
         image_paths=render_image_paths, aspect_ratio=data["aspect_ratio"],
+        static_blocks=render_backdrops if any(render_backdrops) else None,
         moves=resolved_moves, fade_duration=fade_duration,
+        **({"bg_colors": block_backgrounds} if any(block_backgrounds) else {}),
+        **({"fonts_dir": str(quiz_motion.FONT_DIR)} if brand_font else {}),
     )
     render_seconds = time.monotonic() - t0
     print(f"       vidéo finale rendue en {render_seconds:.1f}s")
@@ -370,6 +422,7 @@ def _generate(
         # Motion Graphics : synchro voix + contrôle de mise en page par bloc (liste vide sinon).
         "motion_preflight": motion_preflight,
         "quiz_presentation": quiz_report,
+        "explainer": explainer_report,
     }
     return final_video, work_dir, metrics
 
@@ -485,6 +538,32 @@ def _publish_poster(client, content_item_id: str, final_video: str, work_dir: Pa
     except Exception as exc:
         print(f"       poster non généré ({exc}) — la liste affichera une icône")
         return None
+
+
+def _publish_thumbnail(client, content_item_id: str, data: dict, work_dir: Path) -> None:
+    """Miniatures YouTube des quiz longs (voir engine/thumbnail.py).
+
+    `script.thumbnail_url` = variante A, envoyée automatiquement par la
+    publication YouTube du site ; `script.thumbnail_variants` = A, B, C pour le
+    téléchargement et le test A/B manuel de YouTube Studio. Facultatif : tout
+    échec laisse la vidéo publiable, sans miniature personnalisée, et ne lève jamais."""
+    if not thumbnail.is_long_quiz(data):
+        return
+    try:
+        built = thumbnail.build_variants_for_script(data, str(work_dir))
+        variants = []
+        for variant, info in built.items():
+            report = info["report"]
+            if report["issues"]:
+                print(f"       miniature {variant} : {', '.join(report['issues'])}")
+            variants.append({"id": variant, "axis": info["axis"],
+                             "url": storage.upload_thumbnail(client, content_item_id, info["path"], variant)})
+        data["thumbnail_variants"] = variants
+        data["thumbnail_url"] = variants[0]["url"]
+    except Exception as exc:
+        data.pop("thumbnail_url", None)
+        data.pop("thumbnail_variants", None)
+        print(f"       miniature YouTube non générée ({exc})")
 
 
 def _apply_originality_check(
@@ -689,7 +768,23 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
         stock_block = {"model": stock_planning.get("model"), "calls": stock_planning["llmCalls"],
                        "tokens": stock_planning.get("tokens")}
 
+    explainer = metrics.get("explainer")
+    explainer_block = None
+    explainer_cost = 0.0
+    if isinstance(explainer, dict):
+        # Coût LLM ESTIMÉ (tarifs de engine/explainer/llm.py) ; un modèle sans tarif connu reste inconnu, pas nul.
+        explainer_cost = round(float(explainer.get("llmCostUsd") or 0.0), 4)
+        explainer_block = {
+            "cost": explainer_cost, "costUnknown": bool(explainer.get("llmCostUnknown")), "mode": explainer.get("mode"),
+            "plans": explainer.get("plans"), "fallbacks": explainer.get("fallbacks"),
+            "renderSeconds": explainer.get("renderSeconds"), "totalSeconds": explainer.get("totalSeconds"),
+            "timingSource": explainer.get("timingSource"), "reused": bool(explainer.get("reused")),
+            "useCritic": explainer.get("useCritic"), "sfxIncluded": explainer.get("sfxIncluded"),
+        }
+
     missing: list[str] = []
+    if explainer_block and (explainer_block["costUnknown"] or explainer.get("llmCostUsd") is None):
+        missing.append("explainer")
     if script and not _script_rates():
         missing.append("script")
     if reports and priced_images < len(reports):
@@ -699,7 +794,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
     if originality_block and not _originality_rates():
         missing.append("originality")
 
-    total = round(image_cost + voice_cost + script_cost + originality_cost, 4)
+    total = round(image_cost + voice_cost + script_cost + originality_cost + explainer_cost, 4)
     limit = _cost_alert_limit()
     return {
         "currency": "USD",
@@ -708,6 +803,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
         **({"script": script} if script else {}),
         **({"originality": originality_block} if originality_block else {}),
         **({"stockPlanning": stock_block} if stock_block else {}),
+        **({"explainer": explainer_block} if explainer_block else {}),
         "totalEstimatedCost": total,
         "missingRates": missing,
         # Vrai si cette vidéo a coûté plus que le seuil d'alerte (GENERATION_COST_ALERT_USD).
@@ -725,6 +821,8 @@ def _apply_cost_report(fields: dict, metrics: dict | None) -> None:
         line += f" + script {report['script']['cost']:.3f}"
     if report.get("originality"):
         line += f" + originalité {report['originality']['cost']:.3f}"
+    if report.get("explainer"):
+        line += f" + Explainer {report['explainer']['cost']:.3f}"
     line += ")"
     if report["missingRates"]:
         line += f" — tarifs manquants : {', '.join(report['missingRates'])}"
@@ -771,6 +869,9 @@ def run(script_path: str, output_root: str = "output", voice_override: str | Non
     poster_url = _publish_poster(client, content_item_id, final_video, work_dir)
     if poster_url:
         update_fields["poster_url"] = poster_url
+    _publish_thumbnail(client, content_item_id, data, work_dir)
+    if data.get("thumbnail_url"):
+        update_fields["script"] = data
     _apply_image_report(update_fields, metrics)
     _apply_cost_report(update_fields, metrics)
     if video_url != final_video:
@@ -851,6 +952,14 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     data.setdefault("language", "fr")
     data.setdefault("content_goal", "reach")
 
+    # Modération avant la réservation du crédit : un contenu refusé ne coûte rien.
+    moderation.check_script(data)
+
+    # Explainer (bêta admin) : le worker vérifie l'auteur lui-même, le site seul ne suffit pas (écriture directe en base,
+    # épisodes de série mis en file par SQL). Refus avant le crédit : rien à rembourser.
+    if visuals.prefers_explainer(data):
+        explainer_access.authorize(client, content_item_id)
+
     # Réservation atomique après validation, mais avant le premier appel
     # payant. Une simple lecture laisserait deux workers consommer le dernier
     # crédit en même temps.
@@ -927,6 +1036,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     poster_url = _publish_poster(client, content_item_id, final_video, work_dir)
     if poster_url:
         final_fields["poster_url"] = poster_url
+    _publish_thumbnail(client, content_item_id, data, work_dir)  # `data` est déjà dans final_fields["script"]
     _apply_image_report(final_fields, metrics)
     _apply_cost_report(final_fields, metrics)
     quiz_profile = (data.get("generationMetadata") or {}).get("quizProfile")

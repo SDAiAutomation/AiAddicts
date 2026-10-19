@@ -92,7 +92,9 @@ class TestQuiz(unittest.TestCase):
 
     def test_last_question_does_not_claim_unverified_difficulty(self):
         question = QUIZ_SCRIPT["quiz"]["questions"][0]
-        questions = [{**question, "question": f"Question unique {i} ?"} for i in range(3)]
+        texts = ["Quelle planète est la plus proche du Soleil ?", "Quel satellite tourne autour de la Terre ?",
+                 "Quelle étoile éclaire notre système solaire ?"]
+        questions = [{**question, "question": text} for text in texts]
         script = {**QUIZ_SCRIPT, "language": "en", "quiz": {**QUIZ_SCRIPT["quiz"], "questions": questions}}
         questions = [b for b in compile_quiz(script)["blocks"] if b["quiz_phase"] == "question"]
         self.assertTrue(questions[0]["text"].startswith("Question 1."))
@@ -190,13 +192,48 @@ class TestQuiz(unittest.TestCase):
              {"question": "Quelle est la première planète ?", "answer": "Mercure", "fact": "planet-mercury"}, True),
             ({"question": "Which planet is closest to the Sun?", "answer": "Mercury"},
              {"question": "Which planet is closest to the sun", "answer": "Mercury"}, True),
-            ({"question": "Quelle planète est la plus proche du Soleil ?", "answer": "Mercure"},
-             {"question": "Quelle planète est la plus éloignée du Soleil ?", "answer": "Mercure"}, False),
+            ({"question": "Quelle ville a accueilli les Jeux olympiques de 2012 ?", "answer": "Londres"},
+             {"question": "Quelle ville abrite Big Ben ?", "answer": "Londres"}, False),
             ({"question": "What organ pumps blood?", "answer": "Heart"},
              {"question": "What organ filters blood?", "answer": "Kidney"}, False),
         ]
         for first, second, expected in cases:
             self.assertEqual(same_quiz_fact(first, second), expected)
+
+
+class SameQuizFactTests(unittest.TestCase):
+    BOYLE = {"question": "Which law states that pressure is inversely proportional to volume at constant temperature?",
+             "answer": "Boyle's law", "fact": "boyle law pv constant"}
+
+    def test_paraphrases_of_the_same_fact_are_detected(self):
+        from engine.quiz import same_quiz_fact
+        self.assertTrue(same_quiz_fact(self.BOYLE, dict(self.BOYLE)))
+        self.assertTrue(same_quiz_fact(self.BOYLE, {
+            "question": "At constant temperature, which gas law links pressure and volume inversely?",
+            "answer": "Boyle's law", "fact": "gaz pression volume inverse"}))
+        self.assertTrue(same_quiz_fact(self.BOYLE, {
+            "question": "What is the name of the law relating pressure and volume of a gas at fixed temperature?",
+            "answer": "Boyle's law", "fact": ""}))
+
+    def test_distinct_questions_and_true_false_are_not_flagged(self):
+        from engine.quiz import same_quiz_fact
+        self.assertFalse(same_quiz_fact(self.BOYLE, {
+            "question": "Which law relates the volume of a gas to its temperature at constant pressure?",
+            "answer": "Charles's law"}))
+        self.assertFalse(same_quiz_fact(self.BOYLE, {"question": "What is the chemical symbol for sodium?", "answer": "Na"}))
+        self.assertFalse(same_quiz_fact(
+            {"question": "Water boils at 100 degrees Celsius at sea level.", "answer": "True"},
+            {"question": "Iron rusts when exposed to water and oxygen.", "answer": "True"}))
+
+    def test_validate_quiz_rejects_a_reworded_repeat(self):
+        quiz = {"recipe": "long", "questions": [
+            {"question": q, "choices": ["Boyle's law", "Charles's law"], "correct_choice": 0}
+            for q in (self.BOYLE["question"],
+                      "At constant temperature, which gas law links pressure and volume inversely?")
+        ] + [{"question": f"Distinct subject{n} alpha{n} beta{n} gamma{n}?", "choices": [f"A{n}", f"B{n}"], "correct_choice": 0}
+             for n in range(10)]}
+        with self.assertRaisesRegex(ValueError, "répète un fait"):
+            validate_quiz(quiz)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,63 @@
+name: Explainer smoke
+
+# Test de fumée du style « Explainer animé » (growthos/engine/explainer/) : installe Chromium, rejoue le test
+# golden (le runtime doit rendre les mêmes images que le prototype), rend la vidéo de référence en MP4 et écrit le
+# coût réel de l'installation de Chromium et du rendu dans le résumé du job. Ces mesures servent à décider si
+# l'Explainer peut entrer dans le job du worker (45 min, file traitée en série).
+# Ne touche pas au worker de production : il ne se lance que sur les changements de l'Explainer.
+
+on:
+  pull_request:
+    paths:
+      - "growthos/engine/explainer/**"
+      - "growthos/tests/test_explainer_render.py"
+      - "growthos/requirements-explainer.txt"
+      - ".github/workflows/explainer-smoke.yml"
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: growthos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: growthos/requirements-explainer.txt
+
+      - name: Installer ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Installer Playwright
+        run: pip install -r requirements.txt -r requirements-explainer.txt
+
+      - name: Cache de Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('growthos/requirements-explainer.txt') }}
+
+      - name: Installer Chromium (durée mesurée)
+        run: |
+          start=$(date +%s)
+          python -m playwright install --with-deps chromium
+          echo "chromium_install_seconds=$(( $(date +%s) - start )) (cache: ${{ steps.chromium-cache.outputs.cache-hit }})" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Tests Explainer
+        run: python -m unittest tests.test_explainer_render tests.test_explainer_voiceover tests.test_explainer_pipeline -v
+
+      - name: Rendre la vidéo de référence (durée mesurée)
+        run: |
+          start=$(date +%s)
+          python -m engine.explainer.render engine/explainer/reference/voyage-message.timeline.js /tmp/voyage.mp4 | tee report.json
+          seconds=$(( $(date +%s) - start ))
+          echo "render_seconds=$seconds" | tee -a "$GITHUB_STEP_SUMMARY"
+          ffprobe -v error -show_entries format=duration -of csv=p=0 /tmp/voyage.mp4 | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$seconds" -lt 300

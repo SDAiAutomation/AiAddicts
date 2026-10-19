@@ -29,7 +29,7 @@ class MotionTimelineTests(unittest.TestCase):
         data = script.normalize_script(data)
         report = quiz_motion.build_timeline(data, [2, 4.25, 3, 1])
         self.assertEqual(report["totalDurationSeconds"], 11.05)
-        self.assertEqual(report["scenes"][1]["reflectionStartSeconds"], 6.05)
+        self.assertEqual(report["scenes"][1]["reflectionStartSeconds"], 5.55)  # 1 s de réflexion + 0,5 s de pause avant la révélation
         self.assertEqual(report["scenes"][2]["startSeconds"], 7.05)
         self.assertEqual(report["additionalProviderCalls"], 0)
         self.assertIsNone(report["renderCostUsd"])
@@ -67,6 +67,7 @@ class WorkerMotionTests(unittest.TestCase):
         stub("engine.assembler.repo.mark_generation_completed")
         stub("engine.assembler.events.organization_id_of", return_value="organization")
         events = stub("engine.assembler.events.record")
+        stub("engine.assembler.moderation.check_script")
         stub("engine.assembler.asset_store.configure")
         stub("engine.assembler.asset_store.stats", return_value={})
         stub("engine.assembler.asset_store.finish")

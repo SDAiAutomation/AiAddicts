@@ -14,6 +14,8 @@ import os
 import textwrap
 from pathlib import Path
 
+from .quiz_motion import column_layout, font_profile, uses_columns
+
 # 2-4 mots par écran (choisi avec l'utilisateur) : assez court pour bouger
 # vite, assez long pour rester lisible.
 _WORDS_PER_CUE = 3
@@ -184,9 +186,9 @@ _QUIZ_THEME_COLOURS = {
     "minimal": ("#ffffff", "#111827", "#16a34a", "#111827"),
     "photo": ("#111827", "#ffffff", "#16a34a", "#0ea5e9"),
     "logo": ("#ffffff", "#111827", "#16a34a", "#2563eb"),
-    "vault": ("#0d1b23", "#f7fafc", "#166534", "#eabf69"),
-    "boss": ("#250f19", "#fff7f7", "#166534", "#f9b4b4"),
-    "split": ("#11293a", "#ffffff", "#166534", "#8fe0e2"),
+    "vault": ("#17120a", "#f6ecd2", "#e0a526", "#e0a526"),
+    "boss": ("#2a1760", "#ffffff", "#ffd23f", "#ffd23f"),
+    "split": ("#16286e", "#ffffff", "#ffe14d", "#ffe14d"),
 }
 _QUIZ_CARD_ALPHA = 0x1F  # carte ~88 % opaque : le fond reste devinable sans nuire à la lecture
 
@@ -206,7 +208,7 @@ def _ass_header(width: int, height: int, preset: dict, font: str, quiz_theme: st
         preset["bold"], 0, 0, 0,            # Italic, Underline, StrikeOut
         100, 100, preset["spacing"], 0,     # ScaleX, ScaleY, Spacing, Angle
         preset["border_style"], preset["outline_w"], preset["shadow"],
-        2, 60, 60, preset["margin_v"], 1,   # Alignment(bottom-center), margins, Encoding
+        2, preset.get("margin_l", 60), preset.get("margin_r", 60), preset["margin_v"], 1,   # Alignment(bottom-center), margins, Encoding
     ])
     return (
         "[Script Info]\n"
@@ -236,7 +238,7 @@ def _dialogue(start: float, end: float, text: str, style: str = "Default", layer
     return f"Dialogue: {layer},{_ass_timestamp(start)},{_ass_timestamp(end)},{style},,0,0,0,,{text}"
 
 
-def _quiz_events(blocks: list[dict], durations: list[float], width: int, height: int) -> list[str]:
+def _quiz_events(blocks: list[dict], durations: list[float], width: int, height: int, font: str | None = None) -> list[str]:
     """Cartes quiz calées sur les blocs compilés, avec timer pendant le silence final."""
     events: list[str] = []
     cursor = 0.0
@@ -246,7 +248,7 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
         phase = block.get("quiz_phase")
         if block.get("quiz_presentation") == "motion" and phase in {"intro", "question", "reveal", "outro"}:
             from .quiz_motion import scene_events
-            events.extend(scene_events(block, start, end, width, height))
+            events.extend(scene_events(block, start, end, width, height, font))
             cursor = end
             continue
         if phase == "cover":
@@ -263,22 +265,22 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
             scale = min(width / 1080, height / 1920)
             # Symmetric margins keep every block centred on the screen. Stable
             # rows let the viewer locate their choice again when the answer appears.
-            left, right = round(width * 0.10), round(width * 0.88)
+            left, right = round(width * 0.08), round(width * 0.92)
             centre = width // 2
             card_width = right - left
             number = int(block.get("quiz_question_number") or 0)
             total = int(block.get("quiz_question_total") or 0)
             if number and total:
                 badge_w = round(card_width * 0.12)
-                events.append(_quiz_panel(start, end, left, round(height * 0.120), badge_w,
-                                          round(height * 0.040), accent, scale))
-                badge = f"{{\\an5\\pos({left + badge_w // 2},{round(height * 0.140)})\\fs{round(40 * scale)}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(accent))}}}{number}"
+                events.append(_quiz_panel(start, end, left, round(height * 0.105), badge_w,
+                                          round(height * 0.052), accent, scale))
+                badge = f"{{\\an5\\pos({left + badge_w // 2},{round(height * 0.131)})\\fs{round(40 * scale)}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(accent))}}}{number}"
                 events.append(_dialogue(start, end, badge, "QuizQuestion", 2))
                 progress_x = left + badge_w + round(16 * scale)
                 progress_w = right - progress_x
-                label = f"{{\\an5\\pos({progress_x + progress_w // 2},{round(height * 0.132)})\\fs{round(28 * scale)}\\bord0\\shad0\\1c{_ass_rgb(accent)}}}QUESTION {number}/{total}"
+                label = f"{{\\an5\\pos({progress_x + progress_w // 2},{round(height * 0.119)})\\fs{round(28 * scale)}\\bord0\\shad0\\1c{_ass_rgb(accent)}}}QUESTION {number}/{total}"
                 events.append(_dialogue(start, end, label, "QuizQuestion", 2))
-                progress_y, progress_h = round(height * 0.152), max(3, round(8 * scale))
+                progress_y, progress_h = round(height * 0.144), max(3, round(8 * scale))
                 events.append(_quiz_panel(start, end, progress_x, progress_y, progress_w, progress_h, card, scale))
                 events.append(_quiz_panel(start, end, progress_x, progress_y,
                                           round(progress_w * min(number / total, 1)), progress_h, accent, scale))
@@ -336,7 +338,7 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                 badge_colour = "#ffffff" if selected else accent
                 events.append(_quiz_panel(start, end, badge_x, badge_y,
                                           badge_size, badge_size, badge_colour, scale))
-                badge_text = f"{{\\an5\\pos({badge_x + badge_size // 2},{choice_y})\\fs{round(38 * scale)}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(badge_colour))}}}{letters[index]}"
+                badge_text = f"{{\\an5\\pos({badge_x + badge_size // 2},{choice_y})\\fs{round(38 * scale)}\\bord0\\shad0\\1c{_ass_rgb(correct_colour if selected else _contrast_text(accent))}}}{letters[index]}"
                 events.append(_dialogue(start, end, badge_text, "QuizQuestion", 3))
                 text_x = badge_x + badge_size + round(24 * scale)
                 right_reserve = round(72 * scale) if selected else round(28 * scale)
@@ -344,11 +346,11 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
                 # the badge on the left and the check mark (when shown) on the right.
                 half = min(centre - text_x, right - right_reserve - centre)
                 size, answer = _quiz_fit_text(choice, 2 * half, round(52 * scale), 2)
-                colour = _ass_rgb(_contrast_text(correct_colour) if selected else foreground)
+                colour = _ass_rgb("#ffffff" if selected else foreground)
                 tags = f"{{\\an5\\pos({centre},{choice_y})\\fs{size}\\bord0\\shad0\\1c{colour}\\q2}}"
                 events.append(_dialogue(start, end, tags + answer, "QuizCorrect" if selected else "QuizChoice", 2))
                 if selected:
-                    check = f"{{\\an5\\pos({right - round(38 * scale)},{choice_y})\\fs{round(42 * scale)}\\bord0\\shad0\\1c{_ass_rgb(_contrast_text(correct_colour))}}}✓"
+                    check = f"{{\\an5\\pos({right - round(38 * scale)},{choice_y})\\fs{round(42 * scale)}\\bord0\\shad0\\1c{_ass_rgb('#ffffff')}}}✓"
                     events.append(_dialogue(start, end, check, "QuizQuestion", 3))
             if phase == "question":
                 countdown = int(block.get("hold_after_seconds") or 0)
@@ -374,11 +376,9 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
 
 def _contrast_text(colour: str) -> str:
     value = colour.lstrip("#")
-    channels = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
-    linear = [channel / 12.92 if channel <= .04045 else ((channel + .055) / 1.055) ** 2.4
-              for channel in channels]
-    luminance = sum(channel * weight for channel, weight in zip(linear, (.2126, .7152, .0722)))
-    return "#000000" if (luminance + .05) / .05 >= 1.05 / (luminance + .05) else "#ffffff"
+    red, green, blue = (int(value[i:i + 2], 16) for i in (0, 2, 4))
+    luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
+    return "#111827" if luminance > 0.62 else "#ffffff"
 
 
 def _quiz_fit_text(text: str, width: int, font_size: int, max_lines: int) -> tuple[int, str]:
@@ -489,9 +489,17 @@ def write_ass(
         # and above platform controls, including with the word-pop style.
         preset = {
             **preset, "single_word": False,
-            "font_size": max(1, round(72 * min(width / 1080, height / 1920))),
-            "margin_v": round(height * 0.28),
+            # Police de marque : même taille visuelle qu'Arial (voir quiz_motion.FONT_PROFILES).
+            "font_size": max(1, round(72 * min(width / 1080, height / 1920) * (font_profile(font) or {}).get("size_k", 1.0))),
+            # Portrait : sous les cartes et au-dessus des commandes de la plateforme. Paysage / carré : pas de
+            # commandes à éviter, la bande basse libère le centre pour les cartes (voir engine/quiz_motion.py).
+            "margin_v": round(height * (0.09 if width >= height else 0.28)),
         }
+        if uses_columns(width, height) and any(b.get("quiz_presentation") == "motion" for b in (blocks or [])):
+            # Mise en page en colonnes (quiz_motion.column_layout) : les explications restent sous la réponse,
+            # dans la colonne de gauche, au lieu de passer sur les réponses empilées à droite.
+            col_left, left_w, _, _ = column_layout(width)
+            preset["margin_l"], preset["margin_r"] = round(col_left), round(width - (col_left + left_w))
 
     base_fs = preset["font_size"]
     events: list[str] = []
@@ -538,7 +546,7 @@ def write_ass(
             events.append(_dialogue(cue["start"], cue["end"], fs_prefix + text))
 
     if blocks and block_durations:
-        events = _quiz_events(blocks, block_durations, width, height) + events
+        events = _quiz_events(blocks, block_durations, width, height, font) + events
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(
