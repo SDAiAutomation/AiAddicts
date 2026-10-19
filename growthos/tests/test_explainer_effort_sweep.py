@@ -25,6 +25,12 @@ class EffortSweepTests(unittest.TestCase):
         self.assertIsNone(sweep.composer_cost(report))
         self.assertEqual(sweep.composer_cost({"spend": {"calls": []}}), None)
 
+    def test_non_finite_budget_is_rejected_before_api_call(self):
+        for value in ("nan", "inf", "-inf", "0"):
+            with self.subTest(value=value), patch.object(sweep, "run_sweep") as run, redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+                sweep.main(["--execute", "--budget-usd", value])
+            run.assert_not_called()
+
     def test_comparison_shows_both_efforts_and_fallbacks(self):
         rows = [{"effort": "low", "composerCostUsd": 0.1, "totalCostUsd": 0.3,
                  "fallbackPlans": ["p2"], "video": "low.mp4"},
