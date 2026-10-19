@@ -51,7 +51,7 @@ def system_prompt() -> str:
     return prompts.load("composer") + "\n\n# Catalogue\n\n" + catalog_text()
 
 
-def brief(storyboard: dict, windows: list[dict], anchors: dict[str, dict], narration: list[tuple[float, str]], topic: str) -> str:
+def brief(storyboard: dict, windows: list[dict], anchors: dict[str, dict], narration: list[tuple[float, str]], topic: str, language: str = "fr") -> str:
     plans = []
     for plan, win in zip(storyboard["plans"], windows):
         plans.append({
@@ -60,7 +60,10 @@ def brief(storyboard: dict, windows: list[dict], anchors: dict[str, dict], narra
             "intention": plan.get("intent"), "visuel": plan.get("visual"),
             "ancres": {a["id"]: {"mot": a["text"], "seconde": anchors[plan["id"]].get(a["id"])} for a in plan.get("anchors", [])},
         })
-    return json.dumps({"sujet": topic, "monde": storyboard.get("world", {}), "plans": plans}, ensure_ascii=False, indent=1)
+    body = {"sujet": topic, "monde": storyboard.get("world", {}), "plans": plans}
+    if (language or "fr") != "fr":
+        body = {"langue": prompts.language_note(language), **body}
+    return json.dumps(body, ensure_ascii=False, indent=1)
 
 
 def js_value(value, anchor_ids: set[str], errors: list[str], path: str = "params") -> str:
@@ -141,9 +144,9 @@ def compose_fixed(composition: dict, jobs: list[dict], workers: int = 3) -> list
 
 
 def compose_all(spend: llm.Spend, storyboard: dict, windows: list[dict], anchors: dict[str, dict], narration: list[tuple[float, str]],
-                topic: str, jobs: list[dict], workers: int = 3) -> list[dict]:
+                topic: str, jobs: list[dict], workers: int = 3, language: str = "fr") -> list[dict]:
     """Même forme de résultat que `animator.animate_all` : {id, ok, code, attempts, errors, warnings, history}."""
-    user = brief(storyboard, windows, anchors, narration, topic)
+    user = brief(storyboard, windows, anchors, narration, topic, language)
     history: dict[str, list] = {j["plan_id"]: [] for j in jobs}
     try:
         specs = _ask(spend, "composer#1", user)

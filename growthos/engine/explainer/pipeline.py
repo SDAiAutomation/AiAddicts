@@ -107,7 +107,7 @@ def refine(spend, storyboard, windows, anchors, codes, narration, total, topic, 
 
 
 def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None, voice_report: dict | None = None,
-             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, mode: str | None = None, spec: dict | None = None, log=print) -> dict:
+             voice_wav: str | None = None, budget_usd: float | None = None, do_render: bool = True, use_critic: bool = True, mode: str | None = None, spec: dict | None = None, language: str = "fr", log=print) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     # Mode « templates » : le modèle choisit des gabarits (un appel batché), il n'écrit pas de code ; pas de critique visuelle
@@ -119,7 +119,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
         raise ValueError(f"mode inconnu : {mode!r} (code | templates)")
     budget = budget_usd if budget_usd is not None else float(os.environ.get("EXPLAINER_LLM_BUDGET_USD") or llm.DEFAULT_BUDGET_USD)
     spend = llm.Spend(limit_usd=budget)
-    report: dict = {"topic": topic, "mode": mode, "runtimeVersion": RUNTIME_VERSION, "promptVersions": prompts.versions(),
+    report: dict = {"topic": topic, "language": language, "mode": mode, "runtimeVersion": RUNTIME_VERSION, "promptVersions": prompts.versions(),
                     "models": ({"director": llm.ANIMATOR_MODEL, "composer": llm.COMPOSER_MODEL} if mode == "templates"
                                else {"director": llm.DIRECTOR_MODEL, "animator": llm.ANIMATOR_MODEL}), "steps": {}}
     clock = time.monotonic()
@@ -161,7 +161,7 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
     report["durationSeconds"] = total
 
     log("[2/5] Réalisation (storyboard)…")
-    directed = {"storyboard": spec["storyboard"], "attempts": 0} if spec else director.direct(spend, topic, narration, words, total, templates_only=(mode == "templates"))
+    directed = {"storyboard": spec["storyboard"], "attempts": 0} if spec else director.direct(spend, topic, narration, words, total, templates_only=(mode == "templates"), language=language)
     storyboard = directed["storyboard"]
     report["storyboard"], report["directorAttempts"] = storyboard, directed["attempts"]
     report["anchorWarnings"] = directed.get("anchorWarnings", [])
@@ -175,14 +175,14 @@ def generate(topic: str, out_dir: str | Path, *, lines: list[str] | None = None,
         anchors[plan["id"]], missing = timeline.resolve_anchors(plan, win, words)
         unresolved += missing
         text = " ".join(narration[i][1] for i in plan["lines"])
-        brief = animator.plan_brief(plan, win["duration"], anchors[plan["id"]], text, topic, storyboard.get("bible", {}), storyboard.get("world", {}))
+        brief = animator.plan_brief(plan, win["duration"], anchors[plan["id"]], text, topic, storyboard.get("bible", {}), storyboard.get("world", {}), language)
         jobs.append({"brief": brief, "plan_id": plan["id"], "duration": win["duration"], "anchors": anchors[plan["id"]], "layout": plan.get("layout", "scene")})
     report["unresolvedAnchors"] = unresolved
 
     if mode == "templates":
         log(f"[3/5] Composition de {len(jobs)} plans (gabarits)…")
         results = (composer.compose_fixed(spec["composition"], jobs) if spec
-                   else composer.compose_all(spend, storyboard, windows, anchors, narration, topic, jobs))
+                   else composer.compose_all(spend, storyboard, windows, anchors, narration, topic, jobs, language=language))
         step("composer")
     else:
         log(f"[3/5] Animation de {len(jobs)} plans…")

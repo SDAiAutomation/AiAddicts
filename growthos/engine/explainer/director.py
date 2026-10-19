@@ -12,9 +12,10 @@ from . import llm, prompts, schema, timeline
 MAX_REPAIRS = 2
 
 
-def narration_brief(topic: str, narration: list[tuple[float, str]]) -> str:
+def narration_brief(topic: str, narration: list[tuple[float, str]], language: str = "fr") -> str:
     rows = "\n".join(f"[{i}] ({start:.1f} s) {text}" for i, (start, text) in enumerate(narration))
-    return f"Sujet de la vidéo : {topic}\n\nNarration (indice, instant de début, texte) :\n{rows}\n"
+    note = "" if (language or "fr") == "fr" else f"\n{prompts.language_note(language)}\n"
+    return f"Sujet de la vidéo : {topic}\n{note}\nNarration (indice, instant de début, texte) :\n{rows}\n"
 
 
 def anchor_problems(storyboard: dict, narration: list[tuple[float, str]], words: list[dict], total: float) -> list[str]:
@@ -25,9 +26,9 @@ def anchor_problems(storyboard: dict, narration: list[tuple[float, str]], words:
     return problems
 
 
-def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], words: list[dict], total: float, templates_only: bool = False) -> dict:
+def direct(spend: llm.Spend, topic: str, narration: list[tuple[float, str]], words: list[dict], total: float, templates_only: bool = False, language: str = "fr") -> dict:
     system = prompts.load("director") + (prompts.load("director-templates") if templates_only else "")
-    user = narration_brief(topic, narration)
+    user = narration_brief(topic, narration, language)
     last_text, problems, history = "", [], []
     for attempt in range(MAX_REPAIRS + 1):
         prompt = user if not problems else (
