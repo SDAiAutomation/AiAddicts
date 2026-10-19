@@ -149,7 +149,7 @@ class AssemblerIntegrationTests(unittest.TestCase):
         self.assertNotIn("Dialogue:", out["ass"])
         summary = out["metrics"]["explainer"]
         self.assertEqual((summary["mode"], summary["plans"], summary["fallbacks"], summary["timingSource"]), ("templates", 2, 1, "measured"))
-        self.assertEqual((summary["llmCostUsd"], summary["renderSeconds"], summary["sfxIncluded"]), (0.42, 12.3, False))
+        self.assertEqual((summary["llmCostUsd"], summary["renderSeconds"], summary["sfxIncluded"]), (0.42, 12.3, True))
         with patch.dict(os.environ, {"ELEVENLABS_USD_PER_1K_CHARS": "0.18"}):
             cost = assembler._generation_cost_report(out["metrics"])
         self.assertEqual(cost["explainer"]["cost"], 0.42)
@@ -210,6 +210,33 @@ class ReuseTests(unittest.TestCase):
             return report
         with tempfile.TemporaryDirectory() as folder, self.assertRaisesRegex(integration.ExplainerError, "estimés"):
             integration.generate_clips(script(), [1.0, 1.0, 1.0], [[]] * 3, folder, generate_fn=generate, log=lambda *_: None)
+
+
+@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg required")
+class SfxMixTests(unittest.TestCase):
+    def _mp4(self, path, *, audio):
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=10:d=2"]
+        cmd += (["-f", "lavfi", "-i", "sine=frequency=880:duration=2", "-shortest"] if audio else []) + ["-pix_fmt", "yuv420p", str(path)]
+        subprocess.run(cmd, check=True)
+
+    def test_sfx_are_mixed_under_the_voice_and_keep_its_duration(self):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            _wav(folder / "voice.wav", 2.0)
+            self._mp4(folder / "x.mp4", audio=True)
+            mixed = integration.mix_sfx(folder / "voice.wav", folder / "x.mp4", folder / "out" / "mix.wav")
+            self.assertTrue(Path(mixed).exists())
+            duration = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", mixed],
+                                            capture_output=True, text=True, check=True).stdout)
+            self.assertAlmostEqual(duration, 2.0, delta=0.15)
+
+    def test_a_video_without_audio_is_reported_not_silently_mixed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            folder = Path(folder)
+            _wav(folder / "voice.wav", 2.0)
+            self._mp4(folder / "silent.mp4", audio=False)
+            self.assertIsNone(integration.mix_sfx(folder / "voice.wav", folder / "silent.mp4", folder / "mix.wav"))
+            self.assertFalse((folder / "mix.wav").exists())
 
 
 class QueueDetectionTests(unittest.TestCase):
