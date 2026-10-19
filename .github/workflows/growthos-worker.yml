@@ -155,6 +155,9 @@ jobs:
           # (le runtime tourne réseau coupé). Mode « templates » sans critique par défaut ; réglables par
           # variables de dépôt (Settings > Secrets and variables > Actions > Variables).
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Mêmes identifiants que ADMIN_USER_IDS du site : le worker refuse l'Explainer si l'auteur du contenu n'y est
+          # pas (échec fermé : secret absent = Explainer refusé, jamais autorisé par défaut).
+          ADMIN_USER_IDS: ${{ secrets.ADMIN_USER_IDS }}
           EXPLAINER_MODE: ${{ vars.EXPLAINER_MODE || 'templates' }}
           EXPLAINER_USE_CRITIC: ${{ vars.EXPLAINER_USE_CRITIC || 'false' }}
           EXPLAINER_LLM_BUDGET_USD: ${{ vars.EXPLAINER_LLM_BUDGET_USD || '1.20' }}
