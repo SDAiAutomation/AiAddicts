@@ -30,6 +30,7 @@ DIFFICULTIES = {"easy", "medium", "hard", "progressive"}
 QUIZ_THEMES = {"studio", "arcade", "education", "sport", "pop", "minimal", "photo", "logo"}
 SOUND_EFFECT_MODES = {"automatic", "subtle", "off"}
 PRESENTATION_MODES = {"classic", "motion"}
+VERIFICATION_STATES = {"verified", "review_required", "rejected", "unverified"}
 
 
 # Phrases fixes lues par la voix off, par langue du script (défaut : français).
@@ -147,6 +148,10 @@ def validate_quiz(quiz: object) -> None:
         correct = question.get("correct_choice")
         if isinstance(correct, bool) or not isinstance(correct, int) or not (0 <= correct < len(choices)):
             raise ValueError(f"{prefix}.correct_choice doit être l'index d'une réponse existante")
+        verification = question.get("verification")
+        if verification is not None and (not isinstance(verification, dict)
+                or verification.get("status") not in VERIFICATION_STATES):
+            raise ValueError(f"{prefix}.verification.status invalide")
         countdown = question.get("countdown_seconds", DEFAULT_COUNTDOWN_SECONDS)
         if isinstance(countdown, bool) or not isinstance(countdown, int) or not (1 <= countdown <= MAX_COUNTDOWN_SECONDS):
             raise ValueError(f"{prefix}.countdown_seconds doit être compris entre 1 et {MAX_COUNTDOWN_SECONDS}")

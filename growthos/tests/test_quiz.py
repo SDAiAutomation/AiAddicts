@@ -1,7 +1,7 @@
 from copy import deepcopy
 import unittest
 
-from engine.quiz import compile_quiz, normalize_quiz, validate_quiz
+from engine.quiz import compile_quiz, normalize_quiz, same_quiz_fact, validate_quiz
 from engine.script import validate_script
 
 
@@ -164,6 +164,39 @@ class TestQuiz(unittest.TestCase):
             validate_quiz({"recipe": "logo", "questions": [{
                 "question": "Quelle marque ?", "choices": ["A", "B"], "correct_choice": 0,
             }]})
+
+    def test_verification_states_are_explicit_and_legacy_questions_still_load(self):
+        validate_quiz(QUIZ_SCRIPT["quiz"])
+        for state in ("verified", "review_required", "rejected", "unverified"):
+            quiz = deepcopy(QUIZ_SCRIPT["quiz"])
+            quiz["questions"][0]["verification"] = {"status": state}
+            validate_quiz(quiz)
+        quiz["questions"][0]["verification"] = {"status": "ok"}
+        with self.assertRaisesRegex(ValueError, "verification.status"):
+            validate_quiz(quiz)
+
+    def test_missing_choices_and_invalid_answer_indices_fail(self):
+        for patch in ({"choices": []}, {"correct_choice": 3}, {"correct_choice": True}):
+            quiz = deepcopy(QUIZ_SCRIPT["quiz"])
+            quiz["questions"][0].update(patch)
+            with self.assertRaises(ValueError):
+                validate_quiz(quiz)
+
+    def test_duplicate_fact_contract_in_french_and_english(self):
+        cases = [
+            ({"question": "Quelle planète est la plus proche du Soleil ?", "answer": "Mercure"},
+             {"question": "Quelle planète est la plus proche du soleil?", "answer": "Venus"}, True),
+            ({"question": "Quelle planète est la plus proche du Soleil ?", "answer": "Mercure", "fact": "planet-mercury"},
+             {"question": "Quelle est la première planète ?", "answer": "Mercure", "fact": "planet-mercury"}, True),
+            ({"question": "Which planet is closest to the Sun?", "answer": "Mercury"},
+             {"question": "Which planet is closest to the sun", "answer": "Mercury"}, True),
+            ({"question": "Quelle planète est la plus proche du Soleil ?", "answer": "Mercure"},
+             {"question": "Quelle planète est la plus éloignée du Soleil ?", "answer": "Mercure"}, False),
+            ({"question": "What organ pumps blood?", "answer": "Heart"},
+             {"question": "What organ filters blood?", "answer": "Kidney"}, False),
+        ]
+        for first, second, expected in cases:
+            self.assertEqual(same_quiz_fact(first, second), expected)
 
 
 if __name__ == "__main__":
