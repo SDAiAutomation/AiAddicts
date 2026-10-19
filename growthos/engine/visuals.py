@@ -235,6 +235,12 @@ def prefers_stock_footage(visual_style_id: str, visual_style_consigne: str) -> b
     return any(k in haystack for k in ("stock footage", "vidéo de stock", "footage réel", "images d'archives"))
 
 
+def prefers_explainer(script: dict) -> bool:
+    """True si le script demande le style « Explainer animé » (engine/explainer/) : un film rendu par Chromium, sans
+    image IA ni personnage. Exclusif avec les autres styles (voir `assembler._generate`)."""
+    return str((script or {}).get("visual_style") or "").strip().lower() == "explainer"
+
+
 def prefers_motion_graphics(visual_style_id: str, visual_style_consigne: str) -> bool:
     """True si le style demandé veut le rendu Motion Graphics local plutôt
     que des images IA ou du stock footage."""

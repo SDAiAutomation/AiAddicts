@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
+from .explainer import integration as explainer_integration
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
     math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, repo, retention,
@@ -180,19 +181,23 @@ def _generate(
 
     openai_enabled = bool(os.environ.get("OPENAI_API_KEY"))
     quiz_format = data.get("content_format") == "quiz"
-    motion_graphics_style = not quiz_format and visuals.prefers_motion_graphics(
+    # Explainer animé (bêta admin) : testé avant les autres styles, exclusif avec eux (ni image IA ni personnage).
+    explainer_style = not quiz_format and visuals.prefers_explainer(data)
+    motion_graphics_style = not quiz_format and not explainer_style and visuals.prefers_motion_graphics(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    kinetic_typography_style = not quiz_format and not motion_graphics_style and visuals.prefers_kinetic_typography(
+    kinetic_typography_style = not quiz_format and not explainer_style and not motion_graphics_style and visuals.prefers_kinetic_typography(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    stock_footage = not motion_graphics_style and not kinetic_typography_style and visuals.prefers_stock_footage(
+    stock_footage = not explainer_style and not motion_graphics_style and not kinetic_typography_style and visuals.prefers_stock_footage(
         (data.get("visual_style") or ""),
         (data.get("visual_style_prompt") or ""),
     )
-    if motion_graphics_style:
+    if explainer_style:
+        visuals_desc = "Explainer animé (Chromium, plan par plan ; coût LLM au rapport)"
+    elif motion_graphics_style:
         visuals_desc = "motion graphics (rendu local, sans appel API)"
     elif kinetic_typography_style:
         visuals_desc = "typographie cinétique (rendu local, sans appel API) + fond uni en repli"
@@ -204,7 +209,7 @@ def _generate(
         visuals_desc = "OpenAI, une image par bloc" + (" + Pexels en repli" if pexels_key else "")
     else:
         visuals_desc = "Pexels photo par bloc" if pexels_key else "fond uni — pas de clé"
-    if openai_enabled and not stock_footage and not motion_graphics_style and not kinetic_typography_style and data.get("characters"):
+    if openai_enabled and not explainer_style and not stock_footage and not motion_graphics_style and not kinetic_typography_style and data.get("characters"):
         names = ", ".join(str(c.get("name", "?")) for c in data["characters"])
         visuals_desc += f" — fiche personnage : {names}"
     print(f"[3/5] Visuels ({visuals_desc})…")
@@ -218,7 +223,18 @@ def _generate(
     stock_selection: dict = {}
     motion_preflight: list = []
     backdrop_flags = [False] * n_blocks  # blocs dont l'image est un fond illustré (pas une fenêtre d'illustration)
-    if motion_graphics_style:
+    explainer_report: dict | None = None
+    if explainer_style:
+        # Voix déjà synthétisée (ci-dessus) : on réutilise l'audio et les mots par bloc, on ne resynthétise rien.
+        image_paths, explainer_report = explainer_integration.generate_clips(
+            data, durations, [words for words, _duration in block_words], work_dir,
+        )
+        print(f"       Explainer : {explainer_report['plans']} plan(s), {explainer_report['fallbacks']} repli(s), "
+              f"LLM {explainer_report['llmCostUsd']} $, rendu {explainer_report['renderSeconds']} s")
+        image_reports = []
+        visual_fallbacks = []
+        style_treatment_reports = []
+    elif motion_graphics_style:
         image_paths = visuals.fetch_motion_graphics_clips(
             data["blocks"], durations, data["aspect_ratio"], work_dir,
             theme_overrides=data.get("motion_graphics_theme"), preflight_report=motion_preflight,
@@ -305,7 +321,7 @@ def _generate(
     style_bible = image_style_bible.resolve_style_bible(data.get("visual_style"), data.get("visual_style_prompt"))
     motion_profile = style_bible["motion_profile"]
     transition = style_bible["transition"]
-    fade_duration = 0.3 if transition == "fade" else 0.0
+    fade_duration = 0.3 if transition == "fade" and not explainer_style else 0.0   # l'Explainer a ses propres transitions
     caption_style = captions.caption_style_or_default(data.get("caption_style"))
     resolution = video.RESOLUTIONS.get(data["aspect_ratio"], video.RESOLUTIONS["9:16"])
     # Quiz Motion : fond de base de la couleur de la scène (une teinte par partie d'un quiz long) plutôt
@@ -397,6 +413,7 @@ def _generate(
         # Motion Graphics : synchro voix + contrôle de mise en page par bloc (liste vide sinon).
         "motion_preflight": motion_preflight,
         "quiz_presentation": quiz_report,
+        "explainer": explainer_report,
     }
     return final_video, work_dir, metrics
 
@@ -742,7 +759,23 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
         stock_block = {"model": stock_planning.get("model"), "calls": stock_planning["llmCalls"],
                        "tokens": stock_planning.get("tokens")}
 
+    explainer = metrics.get("explainer")
+    explainer_block = None
+    explainer_cost = 0.0
+    if isinstance(explainer, dict):
+        # Coût LLM ESTIMÉ (tarifs de engine/explainer/llm.py) ; un modèle sans tarif connu reste inconnu, pas nul.
+        explainer_cost = round(float(explainer.get("llmCostUsd") or 0.0), 4)
+        explainer_block = {
+            "cost": explainer_cost, "costUnknown": bool(explainer.get("llmCostUnknown")), "mode": explainer.get("mode"),
+            "plans": explainer.get("plans"), "fallbacks": explainer.get("fallbacks"),
+            "renderSeconds": explainer.get("renderSeconds"), "totalSeconds": explainer.get("totalSeconds"),
+            "timingSource": explainer.get("timingSource"), "reused": bool(explainer.get("reused")),
+            "useCritic": explainer.get("useCritic"), "sfxIncluded": explainer.get("sfxIncluded"),
+        }
+
     missing: list[str] = []
+    if explainer_block and (explainer_block["costUnknown"] or explainer.get("llmCostUsd") is None):
+        missing.append("explainer")
     if script and not _script_rates():
         missing.append("script")
     if reports and priced_images < len(reports):
@@ -752,7 +785,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
     if originality_block and not _originality_rates():
         missing.append("originality")
 
-    total = round(image_cost + voice_cost + script_cost + originality_cost, 4)
+    total = round(image_cost + voice_cost + script_cost + originality_cost + explainer_cost, 4)
     limit = _cost_alert_limit()
     return {
         "currency": "USD",
@@ -761,6 +794,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
         **({"script": script} if script else {}),
         **({"originality": originality_block} if originality_block else {}),
         **({"stockPlanning": stock_block} if stock_block else {}),
+        **({"explainer": explainer_block} if explainer_block else {}),
         "totalEstimatedCost": total,
         "missingRates": missing,
         # Vrai si cette vidéo a coûté plus que le seuil d'alerte (GENERATION_COST_ALERT_USD).
@@ -778,6 +812,8 @@ def _apply_cost_report(fields: dict, metrics: dict | None) -> None:
         line += f" + script {report['script']['cost']:.3f}"
     if report.get("originality"):
         line += f" + originalité {report['originality']['cost']:.3f}"
+    if report.get("explainer"):
+        line += f" + Explainer {report['explainer']['cost']:.3f}"
     line += ")"
     if report["missingRates"]:
         line += f" — tarifs manquants : {', '.join(report['missingRates'])}"
