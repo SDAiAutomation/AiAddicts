@@ -955,6 +955,7 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
 
     # Modération avant la réservation du crédit : un contenu refusé ne coûte rien.
     moderation.check_script(data)
+    moderation.check_integrity(data)
 
     # Explainer (bêta admin) : le worker vérifie l'auteur lui-même, le site seul ne suffit pas (écriture directe en base,
     # épisodes de série mis en file par SQL). Refus avant le crédit : rien à rembourser.
