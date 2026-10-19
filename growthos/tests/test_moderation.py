@@ -24,7 +24,7 @@ def _post(cats):
 
 class ModerationTests(unittest.TestCase):
     def setUp(self):
-        env = mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"})
+        env = mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test", "FRAUD_CHECK_ENABLED": "0"})
         env.start()
         self.addCleanup(env.stop)
         for k in ("MODERATION_ENABLED", "MODERATION_FAIL_CLOSED"):
@@ -89,3 +89,75 @@ class AssemblerHookTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _Claude:
+    def __init__(self, text):
+        self.text = text
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"content": [{"type": "text", "text": self.text}]}
+
+
+class FraudCheckTests(unittest.TestCase):
+    def setUp(self):
+        env = mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test", "OPENAI_API_KEY": "test"})
+        env.start()
+        self.addCleanup(env.stop)
+        for k in ("MODERATION_ENABLED", "MODERATION_FAIL_CLOSED", "FRAUD_CHECK_ENABLED"):
+            os.environ.pop(k, None)
+
+    def _run(self, claude_text, openai_cats=None):
+        def post(url, **k):
+            return _Claude(claude_text) if "anthropic" in url else _Resp(openai_cats or {})
+
+        return mock.patch.object(moderation.requests, "post", post)
+
+    def test_scam_howto_is_blocked_with_category(self):
+        with self._run('{"blocked": true, "category": "fraud", "reason": "mode d\'emploi"}'):
+            with self.assertRaisesRegex(moderation.ModerationError, "fraud"):
+                moderation.check_script(SCRIPT)
+
+    def test_educational_content_passes(self):
+        with self._run('```json\n{"blocked": false, "category": "none", "reason": "prévention"}\n```'):
+            moderation.check_script(SCRIPT)
+
+    def test_only_boolean_true_blocks(self):
+        with self._run('{"blocked": "true", "category": "fraud", "reason": "x"}'):
+            moderation.check_script(SCRIPT)
+
+    def test_unparsable_answer_fails_open_then_closed(self):
+        with self._run("je ne sais pas"):
+            moderation.check_script(SCRIPT)
+            os.environ["MODERATION_FAIL_CLOSED"] = "1"
+            with self.assertRaises(moderation.ModerationError):
+                moderation.check_script(SCRIPT)
+
+    def test_missing_key_fails_open_then_closed(self):
+        os.environ.pop("ANTHROPIC_API_KEY")
+        with self._run('{"blocked": false}'):
+            moderation.check_script(SCRIPT)
+            os.environ["MODERATION_FAIL_CLOSED"] = "1"
+            with self.assertRaises(moderation.ModerationError):
+                moderation.check_script(SCRIPT)
+
+    def test_disabled_makes_no_claude_call(self):
+        os.environ["FRAUD_CHECK_ENABLED"] = "0"
+        def post(url, **k):
+            if "anthropic" in url:
+                raise AssertionError("appel inattendu")
+            return _Resp({})
+        with mock.patch.object(moderation.requests, "post", post):
+            moderation.check_script(SCRIPT)
+
+    def test_openai_block_wins_before_claude_call(self):
+        def post(url, **k):
+            if "anthropic" in url:
+                raise AssertionError("Claude ne doit pas être appelé")
+            return _Resp({"hate": True})
+        with mock.patch.object(moderation.requests, "post", post):
+            with self.assertRaisesRegex(moderation.ModerationError, "hate"):
+                moderation.check_script(SCRIPT)
