@@ -3,7 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 import unittest
 
-from engine.captions import _quiz_events
+from engine.captions import _QUIZ_THEME_COLOURS, _contrast_text, _quiz_events
 from engine.quiz import compile_quiz, normalize_quiz, validate_quiz
 
 
@@ -43,7 +43,7 @@ class QuizMotionTests(unittest.TestCase):
         motion = compile_quiz(self.script)
         self.assertNotEqual(classic, fingerprint(motion, "voice"))
         self.assertIn("quiz_motion.py", _GENERATION_MODULES)
-        self.assertEqual(motion["blocks"][0]["quiz_motion_version"], "quiz-motion:v2")
+        self.assertEqual(motion["blocks"][0]["quiz_motion_version"], "quiz-motion:v3")
 
     def test_correct_answer_does_not_affect_question_frames(self):
         self.script["quiz"]["presentation"] = "motion"
@@ -53,6 +53,32 @@ class QuizMotionTests(unittest.TestCase):
             altered = _quiz_events([{**question, "quiz_correct_choice": 2}], [7], *resolution)
             self.assertEqual(original, altered)
             self.assertFalse(any(",QuizCorrect," in e or "✓" in e for e in original))
+
+    def test_all_themes_keep_answers_hidden_until_reveal(self):
+        from engine.quiz import QUIZ_THEMES
+        self.assertEqual(len(QUIZ_THEMES), 11)
+        for presentation in ("classic", "motion"):
+            for theme in QUIZ_THEMES:
+                self.script["quiz"].update({"presentation": presentation, "theme": theme})
+                question = compile_quiz(self.script)["blocks"][1]
+                baseline = _quiz_events([question], [7], 720, 1280)
+                altered = _quiz_events([{**question, "quiz_correct_choice": 2}], [7], 720, 1280)
+                self.assertEqual(baseline, altered, (presentation, theme))
+
+    def test_theme_card_and_reveal_text_contrast(self):
+        def luminance(colour):
+            channels = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in channels]
+            return sum(v * w for v, w in zip(linear, (.2126, .7152, .0722)))
+
+        def ratio(a, b):
+            upper, lower = sorted((luminance(a), luminance(b)), reverse=True)
+            return (upper + .05) / (lower + .05)
+
+        for theme, (card, ink, correct, accent) in _QUIZ_THEME_COLOURS.items():
+            self.assertGreaterEqual(ratio(card, ink), 4.5, theme)
+            self.assertGreaterEqual(ratio(correct, _contrast_text(correct)), 4.5, theme)
+            self.assertGreaterEqual(ratio(accent, _contrast_text(accent)), 4.5, theme)
 
     def test_short_narration_has_no_choice_entrance_and_timer_is_bounded(self):
         self.script["quiz"]["presentation"] = "motion"

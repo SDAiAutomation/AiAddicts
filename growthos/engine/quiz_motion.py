@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-VERSION = "quiz-motion:v2"
+VERSION = "quiz-motion:v3"
 
 
 def presentation_info(script: dict) -> dict | None:
@@ -66,16 +66,18 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     duration = end - start
     scale = min(width / 1080, height / 1920)
     cx = width / 2
-    left, right = width * .08, width * .90
+    left, right = width * .10, width * .88
     span = right - left
     # Theme remains independent of presentation. Light themes use a light stage.
-    card, ink, correct, accent = _QUIZ_THEME_COLOURS.get(block.get("quiz_theme"), _QUIZ_THEME_COLOURS["studio"])
+    theme = block.get("quiz_theme")
+    card, ink, correct, accent = _QUIZ_THEME_COLOURS.get(theme, _QUIZ_THEME_COLOURS["studio"])
     channels = [int(correct[i:i + 2], 16) / 255 for i in (1, 3, 5)]
     linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in channels]
     luminance = sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
     selected_ink = "#000000" if luminance > .179 else "#ffffff"
     light = block.get("quiz_theme") in {"minimal", "logo"}
-    background = "#eef2f6" if light else "#080e1c"
+    background = {"vault": "#07141c", "boss": "#160a10", "split": "#0d2130"}.get(
+        theme, "#eef2f6" if light else "#080e1c")
     rail = "#cbd5e1" if light else "#243249"
     events: list[str] = []
 
@@ -126,6 +128,25 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     else:
         rect(start, end, 0, 0, width, height, background, layer=0)
 
+    # Theme motifs sit behind the copy and carry no answer information.
+    if theme == "vault":
+        for x in (left - 16 * scale, right + 12 * scale):
+            rect(start, end, x, height * .20, 4 * scale, height * .50, accent,
+                 origin=(x, height * .12) if phase == "question" else None, travel=420, layer=1)
+        rect(start, end, left, height * .79, span, 3 * scale, accent, layer=1)
+    elif theme == "boss":
+        rect(start, end, left, height * .125, span, 10 * scale, accent,
+             extra="\\fscx0\\t(0,360,0.5,\\fscx100)" if phase == "question" else "", layer=1)
+        for index in range(4):
+            rect(start, end, left + index * 18 * scale, height * .79,
+                 9 * scale, 9 * scale, accent, layer=1)
+    elif theme == "split":
+        if not visual:
+            rect(start, end, width / 2, 0, width / 2, height, "#173549", layer=0)
+        for y in (height * .125, height * .79):
+            rect(start, end, cx - 18 * scale, y, 36 * scale, 4 * scale, accent,
+                 extra="\\fscx0\\t(0,360,0.5,\\fscx100)" if phase == "question" else "", layer=1)
+
     # A typographic broadcast identity. The motion belongs to entrances and
     # reveals; nothing animates the answer cards during the reflection window.
     def contrast(colour):
@@ -136,9 +157,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
     accent_ink = contrast(accent)
     # Corner crop marks create a stage without a generic box around everything.
     for x, direction in ((left, 1), (right, -1)):
-        rect(start, end, x - (20 * scale if direction < 0 else 0), height * .105,
+        rect(start, end, x - (20 * scale if direction < 0 else 0), height * .125,
              20 * scale, 3 * scale, accent)
-        rect(start, end, x, height * .105, 3 * scale, 20 * scale, accent)
+        rect(start, end, x, height * .125, 3 * scale, 20 * scale, accent)
     if phase in {"intro", "outro"}:
         title = str(block.get("quiz_topic") or "QUIZ").upper()
         settle = min(650, round(duration * 250))
@@ -201,8 +222,11 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         y = rows_y + (i // 2 if grid else i) * row_step
         x = left + (i % 2) * (card_w + 16 * scale) if grid else left
         selected = i == correct_index
-        delay, travel = i * 65, 380
-        origin = (x, y + height * .055) if animate else None
+        delay, travel = i * (80 if theme == "boss" else 55 if theme == "split" else 65), 420 if theme == "vault" else 320 if theme == "boss" else 380
+        origin = (x, y - height * .04) if animate and theme == "vault" else (
+            (x + (width * -.12 if i % 2 == 0 else width * .12), y) if animate and theme == "split" else (
+            (x + width * .12, y) if animate and theme == "boss" else (
+            (x, y + height * .055) if animate else None)))
         old_card_w = (span - 16 * scale) / 2 if question_grid else span
         old_row_h = height * (.090 if question_grid else .055 if len(choices) == 4 else .063)
         old_step = height * (.103 if question_grid else .066 if len(choices) == 4 else .076)
@@ -270,8 +294,11 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int)
         hero_h = height * (.105 if visual else .135)
         if visual:
             rect(start, end, left, height * .305, span, height * .115, background, layer=2)
+        reveal_open = "\\fscy0\\t(0,420,0.5,\\fscy100)" if theme == "vault" else (
+            "\\fscx0\\t(0,220,0.3,\\fscx100)" if theme == "boss" else
+            "\\fscx0\\t(0,300,0.4,\\fscx100)")
         rect(start, end, left, hero_y - hero_h / 2, span, hero_h, accent, layer=2,
-             extra="\\fscx0\\t(0,300,0.4,\\fscx100)")
+             extra=reveal_open)
         source_y = (height * (.415 if question_grid else .375) +
                     (correct_index // 2 if question_grid else correct_index) *
                     height * (.103 if question_grid else .076) + height * .045) if focus_reveal else (
