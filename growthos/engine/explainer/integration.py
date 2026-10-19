@@ -12,7 +12,7 @@ Aucun repli silencieux :
 
 Réglages (variables d'environnement) : `EXPLAINER_MODE` (`templates` par défaut, ou `code`), `EXPLAINER_USE_CRITIC`
 (faux par défaut), `EXPLAINER_LLM_BUDGET_USD` (plafond, lu par `pipeline.generate`).
-Les effets sonores de l'Explainer ne sont pas repris : seuls la voix, les sous-titres et la musique de la chaîne existante.
+Les bruitages de l'Explainer sont mixés sous la voix par `mix_sfx` (étape audio de l'assembleur) ; sans piste audio dans le MP4, le rapport l'écrit (`sfxIncluded: false`).
 """
 from __future__ import annotations
 
@@ -77,6 +77,24 @@ def slice_video(mp4: str | Path, durations: list[float], out_dir: str | Path) ->
     return paths
 
 
+def mix_sfx(voice_audio: str | Path, mp4: str | Path, out_wav: str | Path) -> str | None:
+    """Mixe les bruitages de l'Explainer (piste audio du MP4, aucune voix dedans) sous la voix de la chaîne, avec le même
+    réglage que `render.audio_args` : bruitages baissés quand la voix parle (sidechain), puis mixés. Renvoie le WAV mixé,
+    ou None si le MP4 n'a pas de piste audio (le rapport le dit : `sfxIncluded: false`)."""
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", str(mp4)],
+                           capture_output=True, text=True, check=True)
+    if not probe.stdout.strip():
+        return None
+    out = Path(out_wav)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    graph = ("[0:a]asplit=2[vk][vm];[1:a]volume=0.8[sfx];"
+             "[sfx][vk]sidechaincompress=threshold=0.03:ratio=10:attack=5:release=350[duck];"
+             "[duck][vm]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[mix]")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(voice_audio), "-i", str(mp4), "-filter_complex", graph,
+                    "-map", "[mix]", "-ar", "48000", "-ac", "2", str(out)], check=True)
+    return str(out)
+
+
 def summarize(report: dict) -> dict:
     """Ce que le rapport de coût du contenu garde de `explainer.report.json` (aucune valeur inconnue transformée en zéro)."""
     spend = report.get("spend") or {}
@@ -99,7 +117,7 @@ def summarize(report: dict) -> dict:
         "useCritic": bool(report.get("critic")),
         "runtimeVersion": report.get("runtimeVersion", RUNTIME_VERSION),
         "chromium": (report.get("render") or {}).get("chromium"),
-        "sfxIncluded": False,
+        "sfxIncluded": False,   # passe à True quand `mix_sfx` a mixé les bruitages (voir assembler)
         "promptVersions": report.get("promptVersions"),
     }
 
@@ -152,4 +170,5 @@ def generate_clips(data: dict, durations: list[float], block_words: list[list[di
         raise ExplainerError("Explainer : aucun MP4 produit")
     summary = summarize(report)
     summary["reused"] = reused
+    summary["video"] = str(mp4)
     return slice_video(mp4, durations, out / "blocks"), summary
