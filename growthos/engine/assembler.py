@@ -288,6 +288,15 @@ def _generate(
     else:
         full_audio = video.concat_audio(audio_paths, str(full_wav))
 
+    if explainer_report:
+        # Bruitages de l'Explainer sous la voix (même réglage que le rendu de l'Explainer) ; jamais silencieux : le rapport
+        # dit s'ils sont inclus.
+        mixed = explainer_integration.mix_sfx(full_audio, explainer_report["video"], work_dir / "audio" / "full-with-sfx.wav")
+        explainer_report["sfxIncluded"] = bool(mixed)
+        if mixed:
+            full_audio = mixed
+        print(f"       bruitages Explainer : {'mixés sous la voix' if mixed else 'absents (aucune piste audio dans le MP4)'}")
+
     render_blocks = data["blocks"]
     render_durations = durations
     render_image_paths = image_paths
