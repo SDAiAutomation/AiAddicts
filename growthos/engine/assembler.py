@@ -293,6 +293,7 @@ def _generate(
         # dit s'ils sont inclus.
         mixed = explainer_integration.mix_sfx(full_audio, explainer_report["video"], work_dir / "audio" / "full-with-sfx.wav")
         explainer_report["sfxIncluded"] = bool(mixed)
+        explainer_report["sfxMix"] = explainer_integration.sfx_mix_settings() if mixed else None
         if mixed:
             full_audio = mixed
         print(f"       bruitages Explainer : {'mixés sous la voix' if mixed else 'absents (aucune piste audio dans le MP4)'}")
@@ -779,7 +780,7 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
             "plans": explainer.get("plans"), "fallbacks": explainer.get("fallbacks"),
             "renderSeconds": explainer.get("renderSeconds"), "totalSeconds": explainer.get("totalSeconds"),
             "timingSource": explainer.get("timingSource"), "reused": bool(explainer.get("reused")),
-            "useCritic": explainer.get("useCritic"), "sfxIncluded": explainer.get("sfxIncluded"),
+            "useCritic": explainer.get("useCritic"), "sfxIncluded": explainer.get("sfxIncluded"), "sfxMix": explainer.get("sfxMix"),
         }
 
     missing: list[str] = []

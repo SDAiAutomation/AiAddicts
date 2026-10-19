@@ -239,6 +239,41 @@ class SfxMixTests(unittest.TestCase):
             self.assertFalse((folder / "mix.wav").exists())
 
 
+class SfxSettingsTests(unittest.TestCase):
+    def test_defaults_and_environment_overrides(self):
+        with patch.dict(os.environ, {"EXPLAINER_SFX_GAIN": "", "EXPLAINER_SFX_DUCK_THRESHOLD": "", "EXPLAINER_SFX_DUCK_RATIO": ""}):
+            self.assertEqual(integration.sfx_mix_settings(), {"gain": 1.6, "duck_threshold": 0.06, "duck_ratio": 4.0})
+        with patch.dict(os.environ, {"EXPLAINER_SFX_GAIN": "2.5", "EXPLAINER_SFX_DUCK_RATIO": "3"}):
+            self.assertEqual(integration.sfx_mix_settings(), {"gain": 2.5, "duck_threshold": 0.06, "duck_ratio": 3.0})
+
+    def test_invalid_values_fail_explicitly(self):
+        for name, value in (("EXPLAINER_SFX_GAIN", "fort"), ("EXPLAINER_SFX_GAIN", "50"), ("EXPLAINER_SFX_DUCK_RATIO", "0.5"), ("EXPLAINER_SFX_DUCK_THRESHOLD", "-1")):
+            with self.subTest(name=name, value=value), patch.dict(os.environ, {name: value}), self.assertRaises(integration.ExplainerError):
+                integration.sfx_mix_settings()
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg required")
+    def test_the_filter_graph_uses_the_settings(self):
+        graphs = []
+        real_run = subprocess.run
+
+        def spy(cmd, *args, **kwargs):
+            if cmd[0] == "ffmpeg" and "-filter_complex" in cmd:
+                graphs.append(cmd[cmd.index("-filter_complex") + 1])
+            return real_run(cmd, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"EXPLAINER_SFX_GAIN": "2.0"}), \
+             patch("engine.explainer.integration.subprocess.run", side_effect=spy):
+            folder = Path(folder)
+            _wav(folder / "voice.wav", 2.0)
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:r=10:d=2", "-f", "lavfi",
+                            "-i", "sine=frequency=880:duration=2", "-shortest", "-pix_fmt", "yuv420p", str(folder / "x.mp4")], check=True)
+            integration.mix_sfx(folder / "voice.wav", folder / "x.mp4", folder / "mix.wav")
+        self.assertEqual(len(graphs), 1)
+        self.assertIn("volume=2.0", graphs[0])
+        self.assertIn("threshold=0.06", graphs[0])
+        self.assertIn("ratio=4.0", graphs[0])
+
+
 class MissingDependenciesTests(unittest.TestCase):
     def test_missing_modules_give_an_actionable_message_not_a_bare_import_error(self):
         # Sans generate_fn, `generate_clips` importe le pipeline ; un module absent (esprima, playwright, anthropic) doit

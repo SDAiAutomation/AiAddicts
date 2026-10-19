@@ -77,18 +77,44 @@ def slice_video(mp4: str | Path, durations: list[float], out_dir: str | Path) ->
     return paths
 
 
+# Niveau des bruitages sous la voix. Mesuré (voix simulée à niveau de parole) : l'ancien réglage de `render.audio_args`
+# (gain 0,8, seuil 0,03, ratio 10) laissait les pics des bruitages ~17 dB sous ceux de la voix, soit inaudibles ; ce réglage
+# les place ~4 dB sous. Valeurs à confirmer à l'oreille avec la vraie voix : réglables par variables d'environnement.
+SFX_DEFAULTS = {"gain": 1.6, "duck_threshold": 0.06, "duck_ratio": 4.0}
+SFX_ENV = {"gain": "EXPLAINER_SFX_GAIN", "duck_threshold": "EXPLAINER_SFX_DUCK_THRESHOLD", "duck_ratio": "EXPLAINER_SFX_DUCK_RATIO"}
+SFX_LIMITS = {"gain": (0.1, 4.0), "duck_threshold": (0.001, 1.0), "duck_ratio": (1.0, 20.0)}
+
+
+def sfx_mix_settings() -> dict:
+    """Réglage du mixage des bruitages (défauts ci-dessus, surchargés par EXPLAINER_SFX_*). Une valeur invalide lève
+    `ExplainerError` : jamais d'ignorance silencieuse d'un réglage."""
+    settings_ = {}
+    for key, default in SFX_DEFAULTS.items():
+        raw = (os.environ.get(SFX_ENV[key]) or "").strip()
+        try:
+            value = float(raw) if raw else default
+        except ValueError:
+            raise ExplainerError(f"{SFX_ENV[key]} invalide : {raw!r} (nombre attendu)") from None
+        low, high = SFX_LIMITS[key]
+        if not low <= value <= high:
+            raise ExplainerError(f"{SFX_ENV[key]} hors limites : {value} (entre {low} et {high})")
+        settings_[key] = value
+    return settings_
+
+
 def mix_sfx(voice_audio: str | Path, mp4: str | Path, out_wav: str | Path) -> str | None:
-    """Mixe les bruitages de l'Explainer (piste audio du MP4, aucune voix dedans) sous la voix de la chaîne, avec le même
-    réglage que `render.audio_args` : bruitages baissés quand la voix parle (sidechain), puis mixés. Renvoie le WAV mixé,
-    ou None si le MP4 n'a pas de piste audio (le rapport le dit : `sfxIncluded: false`)."""
+    """Mixe les bruitages de l'Explainer (piste audio du MP4, aucune voix dedans) sous la voix de la chaîne : bruitages
+    baissés quand la voix parle (sidechain), puis mixés (réglage : `sfx_mix_settings`). Renvoie le WAV mixé, ou None si le MP4
+    n'a pas de piste audio (le rapport le dit : `sfxIncluded: false`)."""
     probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", str(mp4)],
                            capture_output=True, text=True, check=True)
     if not probe.stdout.strip():
         return None
     out = Path(out_wav)
     out.parent.mkdir(parents=True, exist_ok=True)
-    graph = ("[0:a]asplit=2[vk][vm];[1:a]volume=0.8[sfx];"
-             "[sfx][vk]sidechaincompress=threshold=0.03:ratio=10:attack=5:release=350[duck];"
+    mix = sfx_mix_settings()
+    graph = (f"[0:a]asplit=2[vk][vm];[1:a]volume={mix['gain']}[sfx];"
+             f"[sfx][vk]sidechaincompress=threshold={mix['duck_threshold']}:ratio={mix['duck_ratio']}:attack=5:release=350[duck];"
              "[duck][vm]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[mix]")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(voice_audio), "-i", str(mp4), "-filter_complex", graph,
                     "-map", "[mix]", "-ar", "48000", "-ac", "2", str(out)], check=True)
