@@ -53,8 +53,26 @@ def build_timeline(script: dict, durations: list[float]) -> dict | None:
 
 def attach_report(script: dict, report: dict) -> None:
     metadata = script.get("generationMetadata")
+    quiz = script.get("quiz") or {}
+    questions = quiz.get("questions") or []
+    outcomes = {status: 0 for status in ("verified", "review_required", "rejected", "unverified")}
+    for question in questions:
+        verification = question.get("verification") if isinstance(question, dict) else None
+        status = verification.get("status") if isinstance(verification, dict) else None
+        outcomes[status if status in outcomes else "unverified"] += 1
+    profile = {
+        "recipe": quiz.get("recipe", "quick"),
+        "theme": quiz.get("theme", "studio"),
+        "presentation": report["mode"],
+        "questionCount": len(questions),
+        "durationSec": report.get("totalDurationSeconds"),
+        "durationSource": report.get("timingSource"),
+        "verificationOutcomes": outcomes,
+        "renderingVersion": report.get("version") or "quiz-classic:legacy",
+        "estimatedGenerationCostUsd": None,
+    }
     script["generationMetadata"] = {**(metadata if isinstance(metadata, dict) else {}),
-                                    "quizPresentation": report}
+                                    "quizPresentation": report, "quizProfile": profile}
 
 
 def scene_events(block: dict, start: float, end: float, width: int, height: int) -> list[str]:
