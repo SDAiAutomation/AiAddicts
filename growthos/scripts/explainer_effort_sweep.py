@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -77,8 +78,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=Path("explainer-effort-sweep"))
     parser.add_argument("--budget-usd", type=float, default=1.20, help="budget logiciel par rendu (non garanti comme plafond de facturation)")
     args = parser.parse_args(argv)
-    if args.budget_usd <= 0:
-        parser.error("--budget-usd doit être positif")
+    if not math.isfinite(args.budget_usd) or args.budget_usd <= 0:
+        parser.error("--budget-usd doit être un nombre positif et fini")
     print(f"Budget logiciel estimé : 2 × {args.budget_usd:.2f} $ = {2 * args.budget_usd:.2f} $ ; "
           "la facture réelle peut dépasser ce budget si le dernier appel dépasse sa réserve.")
     if not args.execute:
