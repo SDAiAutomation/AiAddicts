@@ -315,9 +315,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         text(start, end, f"QUESTION {number} / {total}", cx, label_y + q_h / 2, 28, ink, lines=1, max_width=q_w - 24 * scale)
 
     def boss_ladder(number: int, total: int, phase_: str) -> None:
-        """En-tête « Final Boss » : plaque, pastille « n / N » et échelle de niveaux dans la marge gauche
-        (coche = passé, jaune = en cours, couronne = le boss, dernier niveau). Au-delà de 8 niveaux l'échelle
-        deviendrait illisible : plaque et pastille seulement."""
+        """En-tête « Final Boss » : plaque, pastille « n / N » et rangée de niveaux sous la pastille
+        (coche = passé, jaune = en cours, couronne = le boss, dernier niveau). Au-delà de 8 niveaux la rangée
+        deviendrait illisible : plaque et pastille seulement. La rangée reste au centre : les Shorts rognent
+        ~5 % de chaque bord sur les téléphones allongés (une marge à 4 % était coupée)."""
         gold, dim, deep = "#ffd23f", "#5a3fa0", "#2a1760"
         plaque_w, plaque_h = 400 * scale, 64 * scale
         frame(start, end, cx - plaque_w / 2, height * .032, plaque_w, plaque_h, max(2, 3 * scale), gold)
@@ -328,12 +329,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         text(start, end, f"{number} / {total}", cx, q_y + q_h / 2, 32, gold, lines=1, max_width=q_w - 24 * scale)
         if total > 8:
             return
-        top, bottom = height * .17, height * .36
-        step = (bottom - top) / max(1, total - 1)
-        d = min(46 * scale, step * .88)
-        x = left / 2
+        d, gap_ = 46 * scale, 16 * scale
+        x0, y = cx - (total * d + (total - 1) * gap_) / 2 + d / 2, height * .165
         for i in range(total):
-            y = top + i * step
+            x = x0 + i * (d + gap_)
             current, last = i == number - 1 and phase_ != "reveal", i == total - 1
             done = i < number - 1 or (phase_ == "reveal" and i == number - 1)
             disc = "m " + " l ".join(f"{round(d / 2 + d / 2 * math.cos(t / 20 * 2 * math.pi))} {round(d / 2 + d / 2 * math.sin(t / 20 * 2 * math.pi))}" for t in range(20))
