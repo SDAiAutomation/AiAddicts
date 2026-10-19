@@ -313,3 +313,7 @@ Le site masque l'Explainer et refuse un non-admin, mais ces refus ne suffisent p
 - auteur = `content_items.requested_by` (la base impose `requested_by = auth.uid()` aux écritures clientes, donc non usurpable) ; sinon, pour un épisode de série, `series.created_by` ;
 - migration `20261019120000_series_created_by.sql` : colonne `series.created_by`, forcée à `auth.uid()` à l'insertion et non modifiable par un client (déclencheur). Les séries existantes gardent NULL, donc refusées : aucune n'utilise l'Explainer.
 - Résidu : un membre non admin d'une organisation peut modifier le style d'une série créée par un admin ; l'épisode est alors rendu au nom de l'admin auteur. Hors périmètre ici.
+
+### 13 ter. Relever les mesures réelles
+
+`python scripts/explainer_measures.py [--limit 20] [--json]` (variables Supabase du worker) affiche, pour les vidéos `explainer` déjà générées : coût LLM estimé, mode, plans, replis, rendu Chromium, durée totale, source des timings, bruitages, avec les moyennes sur les rendus neufs (valeur inconnue = « n/d », jamais zéro). Le surcoût d'installation de Chromium n'est pas en base : il est dans le journal du worker, ligne « Installation Explainer : N s » (première exécution sans cache Playwright, puis avec cache). Tant que l'échantillon est de quelques vidéos, ce sont des ordres de grandeur.
