@@ -120,7 +120,7 @@ Les cadres larges (`quiz_motion.uses_columns` : largeur ≥ 1,3 × hauteur, donc
 ## Thème « Final Boss »
 
 - `quiz.theme = "boss"` : violets profonds, accent jaune, cartes crème cernées d'or avec texte sombre (le moteur sépare l'encre des cartes de celle de la scène).
-- En vertical : plaque « FINAL BOSS », pastille « n / N » et échelle de niveaux dans la marge gauche (coche = passé, jaune = en cours, couronne = dernier niveau, le boss). Le niveau en cours reçoit sa coche à la révélation. Au-delà de 8 niveaux, plaque et pastille seulement. En 16:9, palette seule.
+- En vertical : plaque « FINAL BOSS », pastille « n / N » et rangée de niveaux sous la pastille, au centre (coche = passé, jaune = en cours, couronne = dernier niveau, le boss). Le niveau en cours reçoit sa coche à la révélation. Au-delà de 8 niveaux, plaque et pastille seulement. La rangée est centrale : une version en marge gauche était rognée sur les Shorts (téléphones allongés). En 16:9, palette seule.
 - La finale est la **dernière question de la série** (à rendre plus difficile côté contenu, le format `long` a déjà une difficulté progressive) : aucune question ajoutée, aucun changement de validation des blocs.
 - Les libellés restent neutres en langue (« n / N »). Le rendu classique reçoit une carte violette sombre, car sa lecture suppose du texte clair.
 - Vérifié sur un aperçu sans voix (3 questions de test) ; pas de rendu complet avec voix, ni d'essai en 16:9.
