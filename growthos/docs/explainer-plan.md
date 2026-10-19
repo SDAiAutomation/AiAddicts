@@ -290,3 +290,26 @@ Décision (utilisateur + moi) : le niveau « film » de la vitrine ne vient pas 
 
 Mesure (sujet « trajet d'un message », mêmes phrases que le 1er essai, sans voix) : 9 plans (2 `room`, 1 `journey`), 1 repli, 1,01 $ de LLM, moyenne du critique **3,09** (meilleure du banc sur ce sujet). Les plans `room` et `journey` reprennent l'esthétique de la vitrine ; le repli et les plans de scène libre restent plus faibles.
 Suite prévue : plus de scènes types (autres lieux, personnages, poses), voix off le 17 (ElevenLabs), essai « premium » (agent itérant sur de vraies images) plus tard.
+
+## 13. Branchement dans Faceloop (bêta admin, 2026-10-19)
+
+Le style `visual_style: "explainer"` passe maintenant par `assembler._generate` (admin uniquement côté web, voir la PR growthos-web) :
+
+- `visuals.prefers_explainer(script)` ; `explainer_style` est testé avant les autres styles et exclusif avec eux (ni image IA, ni personnage, ni transition en fondu entre les blocs : l'Explainer a les siennes).
+- **Voix** : l'assembleur synthétise (ou relit en cache) la voix par bloc comme pour tous les styles. `engine/explainer/integration.py` en tire un `voice_report` (une ligne par bloc, décalages cumulés, silences ajoutés compris, mots en instants absolus) lisible par `timeline.narration_from_report`. La narration passée à `pipeline.generate` (`lines`) est le texte des blocs : l'Explainer ne réécrit rien. Timings toujours `measured` ; des timings estimés font échouer la génération.
+- **Appel** : `mode="templates"` et `use_critic=False` par défaut ; `EXPLAINER_MODE`, `EXPLAINER_USE_CRITIC` et `EXPLAINER_LLM_BUDGET_USD` les règlent (le worker les lit en variables de dépôt, avec ces défauts).
+- **Clips** : le MP4 est découpé en un clip silencieux par bloc (dernier image conservée si la vidéo est plus courte). Sous-titres, mixage et musique restent ceux de la chaîne ; style `off` = aucune bande. **Les bruitages de l'Explainer ne sont pas repris** (limite connue de cette bêta).
+- **Pas de repli silencieux** : un plan en échec est remplacé par la scène Pillow (`fallback.py`) et listé au rapport ; si tout l'Explainer échoue (clé, Chromium, budget, réseau), `ExplainerError` fait échouer la génération avec son motif, sans repli vers un autre style. Format 9:16 uniquement (le runtime rend en 1080 x 1920).
+- **Rapport de coût** (`generation_cost_report.explainer`) : coût LLM estimé (inconnu signalé, jamais zéro), mode, plans, replis, durée de rendu et totale, source des timings, critique utilisée, bruitages non repris. Il entre dans `totalEstimatedCost`. `explainer.report.json` reste dans le dossier de travail (`explainer/`) ; un nouveau rendu avec les mêmes entrées le réutilise (aucun appel LLM).
+- **Worker** : `scripts/queue_needs_explainer.py` ; Chromium (`playwright install --with-deps chromium`) et `requirements-explainer.txt` ne sont installés que si un contenu `explainer` est en file ; cache de `~/.cache/ms-playwright` ; `ANTHROPIC_API_KEY` en secret du dépôt (à vérifier).
+
+Mesures de cette PR (bac à sable, pas le worker GitHub) : rendu Chromium réel de 62,3 s de vidéo (7 plans, générateur déterministe, mode gabarits, sans LLM, Chromium préinstallé) en **104,2 s** (113,3 s avec la composition) ; `pip install` des dépendances (moteur + Explainer) en 17 s. Non mesuré : coût LLM réel par vidéo (aucune clé Anthropic ici ; mesures antérieures en mode code : 0,56 à 1,24 $), téléchargement et installation de Chromium sur le runner (réseau bloqué ici), voix ElevenLabs réelle. Ces trois chiffres sont à relever sur la première vidéo admin : ils sont écrits au rapport de coût et dans le journal du worker.
+
+### 13 bis. Verrou d'accès côté worker (2026-10-19)
+
+Le site masque l'Explainer et refuse un non-admin, mais ces refus ne suffisent pas : un utilisateur connecté peut écrire `content_items.script` et passer `status` à `queued` directement par l'API (colonnes laissées libres par la migration `guard_content_items_internal_columns`), et les épisodes de série sont mis en file par la fonction SQL `queue_due_series_episodes`, sans passer par le site. Le worker rend ce que dit `script.visual_style` ; c'est donc lui qui refuse (`engine/explainer/access.py`, appelé par `run_for_content_item` avant la réservation du crédit) :
+
+- l'auteur du contenu doit être dans `ADMIN_USER_IDS` (secret du worker, mêmes UUID que le site) ; **échec fermé** : secret absent ou vide = Explainer refusé ;
+- auteur = `content_items.requested_by` (la base impose `requested_by = auth.uid()` aux écritures clientes, donc non usurpable) ; sinon, pour un épisode de série, `series.created_by` ;
+- migration `20261019120000_series_created_by.sql` : colonne `series.created_by`, forcée à `auth.uid()` à l'insertion et non modifiable par un client (déclencheur). Les séries existantes gardent NULL, donc refusées : aucune n'utilise l'Explainer.
+- Résidu : un membre non admin d'une organisation peut modifier le style d'une série créée par un admin ; l'épisode est alors rendu au nom de l'admin auteur. Hors périmètre ici.

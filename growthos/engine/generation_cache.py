@@ -10,7 +10,7 @@ _GENERATION_MODULES = (
     "image_character_bible.py",
     "image_model_router.py", "image_prompt_builder.py", "image_style_bible.py",
     "openai_images.py", "quality.py", "stock_planner.py", "tts.py", "math_narration.py",
-    "kinetic_typography.py",
+    "kinetic_typography.py", "explainer/integration.py",
     "motion_graphics/animations.py", "motion_graphics/canvas.py", "motion_graphics/display_text.py", "motion_graphics/layout.py",
     "motion_graphics/preflight.py", "motion_graphics/renderer.py", "motion_graphics/scenes.py",
     "motion_graphics/schema.py", "motion_graphics/semantic.py", "motion_graphics/sync.py", "motion_graphics/theme.py", "video.py", "visuals.py",

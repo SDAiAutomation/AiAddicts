@@ -112,6 +112,36 @@ jobs:
             texlive-latex-base texlive-latex-extra texlive-fonts-recommended dvisvgm
           pip install -r requirements-manim.txt
 
+      # Style « Explainer animé » (bêta admin, engine/explainer/) : Chromium + Playwright + Anthropic. OPTIONNEL : rien
+      # n'est installé tant qu'aucun contenu `explainer` n'est en file. Les navigateurs Playwright sont mis en cache
+      # (la clé suit requirements-explainer.txt, donc la version de Playwright) ; les dépendances système restent
+      # installées à chaque passage concerné (`--with-deps`). Sans installation, une génération Explainer échoue avec
+      # un motif explicite, elle ne bascule pas vers un autre style.
+      - name: Détecter les contenus Explainer en file
+        id: explainer_queue
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/queue_needs_explainer.py
+
+      - name: Cache des navigateurs Playwright
+        if: ${{ always() && steps.explainer_queue.outputs.needs_explainer == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('growthos/requirements-explainer.txt') }}
+
+      - name: Installer Chromium et les dépendances Explainer
+        if: ${{ always() && steps.explainer_queue.outputs.needs_explainer == 'true' }}
+        run: |
+          start=$(date +%s)
+          pip install -r requirements-explainer.txt
+          python -m playwright install --with-deps chromium
+          echo "Installation Explainer : $(( $(date +%s) - start )) s"
+
       - name: Vider la file d'attente
         if: always()
         env:
@@ -121,6 +151,16 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Explainer animé (bêta admin) : clé Anthropic en secret du dépôt, jamais dans la page Chromium
+          # (le runtime tourne réseau coupé). Mode « templates » sans critique par défaut ; réglables par
+          # variables de dépôt (Settings > Secrets and variables > Actions > Variables).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Mêmes identifiants que ADMIN_USER_IDS du site : le worker refuse l'Explainer si l'auteur du contenu n'y est
+          # pas (échec fermé : secret absent = Explainer refusé, jamais autorisé par défaut).
+          ADMIN_USER_IDS: ${{ secrets.ADMIN_USER_IDS }}
+          EXPLAINER_MODE: ${{ vars.EXPLAINER_MODE || 'templates' }}
+          EXPLAINER_USE_CRITIC: ${{ vars.EXPLAINER_USE_CRITIC || 'false' }}
+          EXPLAINER_LLM_BUDGET_USD: ${{ vars.EXPLAINER_LLM_BUDGET_USD || '1.20' }}
           # Tarifs pour le suivi de coût (generation_cost_report) : sans eux
           # le rapport reste à 0 $. À garder alignés avec growthos/.env.
           IMAGE_PRICE_TEXT_IN_PER_M: "5"
