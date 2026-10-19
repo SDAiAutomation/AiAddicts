@@ -1239,6 +1239,13 @@ def analyze_integrity(script: dict, blocks: list[dict]) -> list[dict]:
     return issues
 
 
+def blocking_integrity_issues(script: dict) -> list[dict]:
+    """Défauts d'intégrité qui bloqueraient la publication (BLOCKING_CODES), sans durées ni rendu : utilisables AVANT
+    la voix, pour ne pas envoyer au fournisseur de synthèse un texte que le contrôle qualité retiendrait ensuite."""
+    issues = analyze_integrity(script, _body_blocks(script))
+    return [i for i in issues if i["code"] in BLOCKING_CODES and i.get("severity") == "high"]
+
+
 def analyze(
     script: dict,
     durations: list[float] | None = None,

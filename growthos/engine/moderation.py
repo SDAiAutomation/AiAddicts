@@ -135,3 +135,23 @@ def check_script(script: dict) -> None:
             f"d'usage de Faceloop et de nos fournisseurs ({verdict.get('category', 'n/d')}). Reformule le sujet de façon "
             "éducative (comment reconnaître et éviter) ou contacte-nous si c'est une erreur. Aucun crédit n'a été débité."
         )
+
+
+def check_integrity(script: dict) -> None:
+    """Contrôles déterministes bloquants (calcul faux, projection sans hypothèse, promesse de CTA, « garanti »,
+    texte de remplissage) AVANT la voix et le crédit. Avant, ils ne tournaient qu'après la synthèse vocale : le texte
+    était déjà parti chez le fournisseur de voix. Désactivable : INTEGRITY_PRECHECK=0. Une panne du contrôle
+    lui-même ne bloque pas la génération (le contrôle qualité d'après-rendu reste en place)."""
+    if os.environ.get("INTEGRITY_PRECHECK", "1") == "0":
+        return
+    from . import retention   # import tardif : retention importe integrity, pas l'inverse
+    try:
+        issues = retention.blocking_integrity_issues(script)
+    except Exception as exc:  # noqa: BLE001
+        print(f"       (contrôle d'intégrité avant voix indisponible, génération non bloquée : {type(exc).__name__}: {exc})")
+        return
+    if issues:
+        details = " ; ".join(i["message"] for i in issues[:4])
+        raise ModerationError(
+            f"Script à corriger avant génération : {details} Aucun crédit n'a été débité et rien n'a été envoyé au service de voix."
+        )

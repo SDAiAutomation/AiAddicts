@@ -161,3 +161,40 @@ class FraudCheckTests(unittest.TestCase):
         with mock.patch.object(moderation.requests, "post", post):
             with self.assertRaisesRegex(moderation.ModerationError, "hate"):
                 moderation.check_script(SCRIPT)
+
+
+class IntegrityPrecheckTests(unittest.TestCase):
+    def setUp(self):
+        env = mock.patch.dict(os.environ, {})
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop("INTEGRITY_PRECHECK", None)
+
+    @staticmethod
+    def _script(*texts):
+        return {"title": "t", "language": "en", "blocks": [{"text": t, "role": "cta" if i == len(texts) - 1 else "body"} for i, t in enumerate(texts)]}
+
+    def test_cta_promising_a_missing_resource_is_refused_before_voice(self):
+        script = self._script("Small amounts add up over time.", "Take action, comment 'start' if you would begin with $200 a month.")
+        with self.assertRaisesRegex(moderation.ModerationError, "Aucun crédit"):
+            moderation.check_integrity(script)
+
+    def test_unhedged_projection_is_refused(self):
+        script = self._script("Invest $200 a month in an index fund.", "That $200 a month becomes $244,000 in 30 years at 7%.")
+        with self.assertRaises(moderation.ModerationError):
+            moderation.check_integrity(script)
+
+    def test_hedged_projection_passes(self):
+        script = self._script("Invest $200 a month in an index fund.", "Say you earn a hypothetical 7%: $200 a month becomes about $244,000 in 30 years.")
+        moderation.check_integrity(script)
+
+    def test_clean_quiz_passes(self):
+        moderation.check_integrity(self._script("Which planet is the largest?", "The answer is Jupiter."))
+
+    def test_can_be_disabled(self):
+        os.environ["INTEGRITY_PRECHECK"] = "0"
+        moderation.check_integrity(self._script("Comment 'start' below."))
+
+    def test_checker_failure_does_not_block(self):
+        with mock.patch("engine.retention.blocking_integrity_issues", side_effect=ValueError("boom")):
+            moderation.check_integrity(self._script("x"))
