@@ -55,11 +55,13 @@ REFERENCES = {
 }
 
 
-def plan_brief(plan: dict, duration: float, anchors: dict[str, float], narration_text: str, topic: str, bible: dict, world: dict) -> str:
+def plan_brief(plan: dict, duration: float, anchors: dict[str, float], narration_text: str, topic: str, bible: dict, world: dict, language: str = "fr") -> str:
     anchors_txt = {a["id"]: {"mot": a["text"], "seconde": anchors.get(a["id"])} for a in plan.get("anchors", [])}
-    return json.dumps({"sujet": topic, "plan": plan["id"], "duree_s": duration, "narration_du_plan": narration_text, "intention": plan["intent"],
-                       "brief_visuel": plan["visual"], "camera": plan["camera"], "layout": plan.get("layout", "scene"), "ancres": anchors_txt, "monde": world, "bible": bible},
-                      ensure_ascii=False, indent=1)
+    body = {"sujet": topic, "plan": plan["id"], "duree_s": duration, "narration_du_plan": narration_text, "intention": plan["intent"],
+            "brief_visuel": plan["visual"], "camera": plan["camera"], "layout": plan.get("layout", "scene"), "ancres": anchors_txt, "monde": world, "bible": bible}
+    if (language or "fr") != "fr":
+        body = {"langue": prompts.language_note(language), **body}
+    return json.dumps(body, ensure_ascii=False, indent=1)
 
 
 def system_prompt() -> str:

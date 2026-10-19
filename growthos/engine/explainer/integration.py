@@ -164,8 +164,8 @@ def summarize(report: dict) -> dict:
     }
 
 
-def _inputs_hash(lines: list[str], voice_report: dict, mode: str, use_critic: bool) -> str:
-    payload = json.dumps([lines, voice_report["words"], mode, use_critic, RUNTIME_VERSION], ensure_ascii=False, sort_keys=True)
+def _inputs_hash(lines: list[str], voice_report: dict, mode: str, use_critic: bool, language: str = "fr") -> str:
+    payload = json.dumps([lines, voice_report["words"], mode, use_critic, RUNTIME_VERSION, language], ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
@@ -183,7 +183,8 @@ def generate_clips(data: dict, durations: list[float], block_words: list[list[di
     out = Path(work_dir) / "explainer"
     out.mkdir(parents=True, exist_ok=True)
     report_path, mp4 = out / "explainer.report.json", out / "explainer.mp4"
-    key = _inputs_hash(lines, voice_report, cfg["mode"], cfg["useCritic"])
+    language = str(data.get("language") or "fr").strip().lower()
+    key = _inputs_hash(lines, voice_report, cfg["mode"], cfg["useCritic"], language)
 
     report, reused = None, False
     if mp4.exists() and mp4.stat().st_size > 0 and report_path.exists():
@@ -208,7 +209,7 @@ def generate_clips(data: dict, durations: list[float], block_words: list[list[di
             generate_fn = pipeline.generate
         try:
             report = generate_fn(str(data.get("title") or data.get("topic") or ""), out, lines=lines, voice_report=voice_report,
-                                 voice_wav=None, do_render=True, use_critic=cfg["useCritic"], mode=cfg["mode"], log=log)
+                                 voice_wav=None, do_render=True, use_critic=cfg["useCritic"], mode=cfg["mode"], language=language, log=log)
         except Exception as exc:  # noqa: BLE001 — remonté avec son motif, jamais remplacé par un autre style
             raise ExplainerError(f"Explainer : {type(exc).__name__}: {str(exc)[:300]}") from exc
         if report.get("timingsAreEstimated"):
