@@ -102,9 +102,31 @@ class WorkerMotionTests(unittest.TestCase):
                 saved = update.call_args.kwargs["script"]
                 self.assertEqual(saved["quiz"]["presentation"], mode)
                 self.assertEqual(saved["generationMetadata"]["quizPresentation"]["mode"], mode)
+                profile = saved["generationMetadata"]["quizProfile"]
+                self.assertEqual(profile["presentation"], mode)
+                self.assertEqual(profile["questionCount"], 1)
+                self.assertEqual(profile["verificationOutcomes"]["unverified"], 1)
+                self.assertIsNone(profile["estimatedGenerationCostUsd"])
                 self.assertEqual(version.call_args.kwargs["script"], saved)
                 self.assertEqual(events.call_args.kwargs["quiz_presentation"]["mode"], mode)
                 self.assertEqual(publish.call_args.kwargs["version"], 2)
+
+    def test_profile_counts_verification_outcomes_and_uses_measured_duration(self):
+        data = source("motion")
+        quiz = data["quiz"]
+        quiz["questions"][0]["verification"] = {"status": "verified"}
+        quiz["questions"].append({**quiz["questions"][0], "question": "Another question?",
+                                  "verification": {"status": "review_required"}})
+        report = {"mode": "motion", "version": quiz_motion.VERSION,
+                  "totalDurationSeconds": 42.5, "timingSource": "measured_audio"}
+        quiz_motion.attach_report(data, report)
+        profile = data["generationMetadata"]["quizProfile"]
+        self.assertEqual(profile["recipe"], "quick")
+        self.assertEqual(profile["questionCount"], 2)
+        self.assertEqual(profile["durationSec"], 42.5)
+        self.assertEqual(profile["renderingVersion"], quiz_motion.VERSION)
+        self.assertEqual(profile["verificationOutcomes"], {
+            "verified": 1, "review_required": 1, "rejected": 0, "unverified": 0})
 
     def test_invalid_choice_fails_before_credit_or_render(self):
         data = source("invalid")

@@ -2,6 +2,7 @@
 import json
 import re
 import unittest
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from PIL import ImageFont
@@ -74,12 +75,13 @@ class BrandFontTests(unittest.TestCase):
 
     def test_write_ass_uses_the_font_and_scales_the_captions(self):
         block = _scene("Quelle planète ?", ["Vénus", "Mercure", "Mars", "La Terre"], "reveal")
-        with_font = write_ass([], "/tmp/font-test.ass", "bold_stroke", "1920x1080", font="Poppins", blocks=[block], block_durations=[3])
-        default = write_ass([], "/tmp/font-test-default.ass", "bold_stroke", "1920x1080", blocks=[block], block_durations=[3])
-        self.assertIn("Style: QuizQuestion,Poppins,", Path(with_font).read_text(encoding="utf-8"))
-        self.assertIn("Style: QuizQuestion,Arial,", Path(default).read_text(encoding="utf-8"))
-        style = lambda path: next(l for l in Path(path).read_text(encoding="utf-8").splitlines() if l.startswith("Style: Default,"))
-        self.assertGreater(int(style(with_font).split(",")[2]), int(style(default).split(",")[2]) * 1.3)
+        with TemporaryDirectory() as folder:
+            with_font = write_ass([], str(Path(folder) / "font-test.ass"), "bold_stroke", "1920x1080", font="Poppins", blocks=[block], block_durations=[3])
+            default = write_ass([], str(Path(folder) / "font-test-default.ass"), "bold_stroke", "1920x1080", blocks=[block], block_durations=[3])
+            self.assertIn("Style: QuizQuestion,Poppins,", Path(with_font).read_text(encoding="utf-8"))
+            self.assertIn("Style: QuizQuestion,Arial,", Path(default).read_text(encoding="utf-8"))
+            style = lambda path: next(l for l in Path(path).read_text(encoding="utf-8").splitlines() if l.startswith("Style: Default,"))
+            self.assertGreater(int(style(with_font).split(",")[2]), int(style(default).split(",")[2]) * 1.3)
 
     def test_classic_scenes_and_default_font_events_are_unchanged(self):
         block = _scene("Quelle planète ?", ["Vénus", "Mercure", "Mars", "La Terre"])

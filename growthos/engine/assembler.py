@@ -1039,6 +1039,11 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     _publish_thumbnail(client, content_item_id, data, work_dir)  # `data` est déjà dans final_fields["script"]
     _apply_image_report(final_fields, metrics)
     _apply_cost_report(final_fields, metrics)
+    quiz_profile = (data.get("generationMetadata") or {}).get("quizProfile")
+    cost_report = final_fields.get("generation_cost_report")
+    if isinstance(quiz_profile, dict) and isinstance(cost_report, dict):
+        quiz_profile["estimatedGenerationCostUsd"] = cost_report.get("totalEstimatedCost")
+        quiz_profile["generationCostMissingRates"] = cost_report.get("missingRates", [])
     if asset_reuse and isinstance(final_fields.get("generation_cost_report"), dict):
         # Ce qui a été réutilisé n'a rien coûté : le rapport de coût ne compte
         # déjà que les actifs réellement (re)générés, ceci en donne la raison.

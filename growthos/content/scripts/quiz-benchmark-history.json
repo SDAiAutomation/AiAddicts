@@ -1,0 +1,54 @@
+{
+  "title": "History dates quiz — rendering reference",
+  "niche": "history",
+  "account": "local-benchmark",
+  "language": "en",
+  "platform": "youtube",
+  "aspect_ratio": "16:9",
+  "content_format": "quiz",
+  "quiz": {
+    "topic": "history dates",
+    "recipe": "quick",
+    "illustrations": false,
+    "sound_effects": "automatic",
+    "intro": "5 history date riddles, can you score 5/5? No mistakes allowed!",
+    "outro": "Comment your score and the letter you got on question 5.",
+    "questions": [
+      {
+        "question": "When did the Berlin Wall fall?",
+        "choices": ["1989", "1991", "1987"],
+        "correct_choice": 0,
+        "explanation": "The Wall fell in 1989, a key symbol of Cold War collapse that led to German reunification the next year.",
+        "countdown_seconds": 5
+      },
+      {
+        "question": "When did the Titanic sink?",
+        "choices": ["1905", "1915", "1912"],
+        "correct_choice": 2,
+        "explanation": "Titanic struck an iceberg and sank in 1912 on her maiden voyage from Southampton to New York.",
+        "countdown_seconds": 5
+      },
+      {
+        "question": "When did the Black Death first arrive in Europe?",
+        "choices": ["1453", "1215", "1347"],
+        "correct_choice": 2,
+        "explanation": "The plague reached Europe in 1347 via Mediterranean ports, sparking the pandemic that lasted years.",
+        "countdown_seconds": 5
+      },
+      {
+        "question": "When was the Battle of Waterloo, where Napoleon was finally defeated?",
+        "choices": ["1815", "1821", "1805"],
+        "correct_choice": 0,
+        "explanation": "Waterloo occurred in 1815, ending Napoleon's rule and leading to his exile to Saint Helena.",
+        "countdown_seconds": 5
+      },
+      {
+        "question": "When did Gandhi lead the Salt March against British rule?",
+        "choices": ["1920", "1930", "1947"],
+        "correct_choice": 1,
+        "explanation": "The Salt March took place in 1930 as a nonviolent protest; it's a key moment in India's independence movement.",
+        "countdown_seconds": 5
+      }
+    ]
+  }
+}

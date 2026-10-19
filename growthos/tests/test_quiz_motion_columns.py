@@ -2,6 +2,7 @@
 import json
 import re
 import unittest
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from engine import quiz_motion
@@ -93,15 +94,16 @@ class ColumnsTests(unittest.TestCase):
         blocks = [self._blocks()["reveal"]]
         left, left_w, _, _ = quiz_motion.column_layout(1920)
 
-        def default_style(resolution, font=None, blocks=blocks):
-            path = write_ass([], "/tmp/columns-test.ass", "bold_stroke", resolution, font=font, blocks=blocks, block_durations=[3])
-            return next(l for l in Path(path).read_text(encoding="utf-8").splitlines() if l.startswith("Style: Default,")).split(",")
-        wide = default_style("1920x1080")
-        self.assertEqual((int(wide[-4]), int(wide[-3])), (round(left), round(1920 - (left + left_w))))
-        portrait = default_style("1080x1920")
-        self.assertEqual((int(portrait[-4]), int(portrait[-3])), (60, 60))
-        classic = default_style("1920x1080", blocks=[{**blocks[0], "quiz_presentation": "classic"}])
-        self.assertEqual((int(classic[-4]), int(classic[-3])), (60, 60))
+        with TemporaryDirectory() as folder:
+            def default_style(resolution, font=None, blocks=blocks):
+                path = write_ass([], str(Path(folder) / "columns-test.ass"), "bold_stroke", resolution, font=font, blocks=blocks, block_durations=[3])
+                return next(l for l in Path(path).read_text(encoding="utf-8").splitlines() if l.startswith("Style: Default,")).split(",")
+            wide = default_style("1920x1080")
+            self.assertEqual((int(wide[-4]), int(wide[-3])), (round(left), round(1920 - (left + left_w))))
+            portrait = default_style("1080x1920")
+            self.assertEqual((int(portrait[-4]), int(portrait[-3])), (60, 60))
+            classic = default_style("1920x1080", blocks=[{**blocks[0], "quiz_presentation": "classic"}])
+            self.assertEqual((int(classic[-4]), int(classic[-3])), (60, 60))
 
     def test_illustrated_questions_keep_the_centred_stack(self):
         block = {**self._blocks()["question"], "quiz_visual_available": True}
