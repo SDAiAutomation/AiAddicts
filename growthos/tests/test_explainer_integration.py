@@ -239,6 +239,29 @@ class SfxMixTests(unittest.TestCase):
             self.assertFalse((folder / "mix.wav").exists())
 
 
+class MissingDependenciesTests(unittest.TestCase):
+    def test_missing_modules_give_an_actionable_message_not_a_bare_import_error(self):
+        # Sans generate_fn, `generate_clips` importe le pipeline ; un module absent (esprima, playwright, anthropic) doit
+        # dire que l'étape d'installation du worker a été ignorée, pas seulement « No module named ».
+        import builtins
+        real_import = builtins.__import__
+
+        def blocked(name, *args, **kwargs):
+            if name == "esprima" or (name.endswith("pipeline") and "explainer" in name):
+                raise ModuleNotFoundError("No module named 'esprima'", name="esprima")
+            return real_import(name, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.dict(sys.modules, {k: v for k, v in sys.modules.items() if "explainer.pipeline" not in k}), \
+             patch("builtins.__import__", side_effect=blocked):
+            sys.modules.pop("engine.explainer.pipeline", None)
+            with self.assertRaises(integration.ExplainerError) as caught:
+                integration.generate_clips(script(), [1.0, 1.0, 1.0], [[]] * 3, folder, log=lambda *_: None)
+        message = str(caught.exception)
+        self.assertIn("esprima", message)
+        self.assertIn("EXPLAINER_ALWAYS_INSTALL", message)
+
+
 class QueueDetectionTests(unittest.TestCase):
     def test_only_explainer_scripts_trigger_the_install(self):
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -247,6 +270,20 @@ class QueueDetectionTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
         self.assertTrue(detector.is_explainer({"visual_style": "explainer"}))
+        # La détection compte ce qu'elle lit (ligne du journal du worker) et ne dit « vrai » que s'il y a un explainer.
+        from unittest.mock import Mock
+        rows = [{"script": {"visual_style": "explainer"}}, {"script": {"visual_style": "motion_graphics"}}, {"script": None}]
+        query = Mock()
+        for name in ("select", "in_", "limit"):
+            getattr(query, name).return_value = query
+        query.execute.return_value = Mock(data=rows)
+        client = Mock()
+        client.table.return_value = query
+        with patch("engine.db.get_service_client", return_value=client):
+            self.assertTrue(detector.queue_needs_explainer())
+        query.execute.return_value = Mock(data=rows[1:])
+        with patch("engine.db.get_service_client", return_value=client):
+            self.assertFalse(detector.queue_needs_explainer())
         for other in ({"visual_style": "motion_graphics"}, {}, None, "explainer", {"visual_style": None}):
             self.assertFalse(detector.is_explainer(other), other)
 

@@ -154,7 +154,14 @@ def generate_clips(data: dict, durations: list[float], block_words: list[list[di
             report = None
     if report is None:
         if generate_fn is None:
-            from . import pipeline   # import tardif : Playwright et Anthropic ne sont requis que pour ce style
+            try:
+                from . import pipeline   # import tardif : Playwright, Anthropic et esprima ne sont requis que pour ce style
+            except ImportError as exc:
+                raise ExplainerError(
+                    f"Explainer : dépendances non installées ({exc.name or exc}). L'étape « Installer Chromium et les dépendances "
+                    "Explainer » du worker a été ignorée (contenu non détecté en file) : relancer la génération, ou définir la variable "
+                    "de dépôt EXPLAINER_ALWAYS_INSTALL = true."
+                ) from exc
 
             generate_fn = pipeline.generate
         try:
