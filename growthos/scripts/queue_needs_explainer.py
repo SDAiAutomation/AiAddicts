@@ -18,20 +18,24 @@ def is_explainer(script) -> bool:
 
 
 def queue_needs_explainer() -> bool:
+    """Vrai si au moins un contenu en file (queued / generating) demande l'Explainer. Écrit le décompte au journal : la
+    ligne « N contenu(x) en file, M explainer » permet de voir, dans l'étape du worker, ce que la détection a lu."""
     from engine import db
 
     client = db.get_service_client()
     rows = (
         client.table("content_items").select("script").in_("status", ["queued", "generating"]).limit(200).execute().data
-    )
-    return any(is_explainer(row.get("script")) for row in rows or [])
+    ) or []
+    explainers = sum(1 for row in rows if is_explainer(row.get("script")))
+    print(f"{len(rows)} contenu(x) en file, {explainers} explainer")
+    return explainers > 0
 
 
 def main() -> int:
     try:
         needed = queue_needs_explainer()
     except Exception as exc:  # noqa: BLE001 — jamais bloquant
-        print(f"détection impossible ({str(exc)[:160]}) : pas d'installation Explainer", file=sys.stderr)
+        print(f"détection impossible ({type(exc).__name__}: {str(exc)[:200]}) : installation Explainer selon EXPLAINER_ALWAYS_INSTALL seulement", file=sys.stderr)
         needed = False
     line = f"needs_explainer={'true' if needed else 'false'}"
     print(line)

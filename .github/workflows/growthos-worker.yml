@@ -24,7 +24,13 @@ name: GrowthOS worker
 on:
   schedule:
     - cron: "7,17,27,37,47,57 * * * *"
-  workflow_dispatch: {} # déclenchement manuel depuis l'onglet Actions, pour tester sans attendre
+  workflow_dispatch:
+    inputs:
+      install_explainer:
+        description: "Installer Chromium et les dépendances Explainer même si aucun contenu Explainer n'est détecté en file"
+        type: boolean
+        default: false
+  # déclenchement manuel depuis l'onglet Actions, pour tester sans attendre
 
 # Réveils fréquents (site + horloge Supabase /api/cron/tick toutes les 10 min) :
 # un seul passage à la fois, les suivants attendent au lieu de s'empiler en
@@ -116,7 +122,9 @@ jobs:
       # n'est installé tant qu'aucun contenu `explainer` n'est en file. Les navigateurs Playwright sont mis en cache
       # (la clé suit requirements-explainer.txt, donc la version de Playwright) ; les dépendances système restent
       # installées à chaque passage concerné (`--with-deps`). Sans installation, une génération Explainer échoue avec
-      # un motif explicite, elle ne bascule pas vers un autre style.
+      # un motif explicite, elle ne bascule pas vers un autre style. Filet de sécurité si la détection se trompe :
+      # variable de dépôt EXPLAINER_ALWAYS_INSTALL = true (installe à chaque passage), ou case « install_explainer » d'un
+      # déclenchement manuel.
       - name: Détecter les contenus Explainer en file
         id: explainer_queue
         if: ${{ always() }}
@@ -128,14 +136,14 @@ jobs:
         run: python scripts/queue_needs_explainer.py
 
       - name: Cache des navigateurs Playwright
-        if: ${{ always() && steps.explainer_queue.outputs.needs_explainer == 'true' }}
+        if: ${{ always() && (steps.explainer_queue.outputs.needs_explainer == 'true' || vars.EXPLAINER_ALWAYS_INSTALL == 'true' || inputs.install_explainer == true) }}
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('growthos/requirements-explainer.txt') }}
 
       - name: Installer Chromium et les dépendances Explainer
-        if: ${{ always() && steps.explainer_queue.outputs.needs_explainer == 'true' }}
+        if: ${{ always() && (steps.explainer_queue.outputs.needs_explainer == 'true' || vars.EXPLAINER_ALWAYS_INSTALL == 'true' || inputs.install_explainer == true) }}
         run: |
           start=$(date +%s)
           pip install -r requirements-explainer.txt
