@@ -169,6 +169,10 @@ jobs:
           EXPLAINER_MODE: ${{ vars.EXPLAINER_MODE || 'templates' }}
           EXPLAINER_USE_CRITIC: ${{ vars.EXPLAINER_USE_CRITIC || 'false' }}
           EXPLAINER_LLM_BUDGET_USD: ${{ vars.EXPLAINER_LLM_BUDGET_USD || '1.20' }}
+          # Niveau des bruitages sous la voix (vide = défauts du moteur, voir engine/explainer/integration.py).
+          EXPLAINER_SFX_GAIN: ${{ vars.EXPLAINER_SFX_GAIN }}
+          EXPLAINER_SFX_DUCK_THRESHOLD: ${{ vars.EXPLAINER_SFX_DUCK_THRESHOLD }}
+          EXPLAINER_SFX_DUCK_RATIO: ${{ vars.EXPLAINER_SFX_DUCK_RATIO }}
           # Tarifs pour le suivi de coût (generation_cost_report) : sans eux
           # le rapport reste à 0 $. À garder alignés avec growthos/.env.
           IMAGE_PRICE_TEXT_IN_PER_M: "5"
