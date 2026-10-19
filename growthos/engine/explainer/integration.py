@@ -124,6 +124,16 @@ def mix_sfx(voice_audio: str | Path, mp4: str | Path, out_wav: str | Path) -> st
 def summarize(report: dict) -> dict:
     """Ce que le rapport de coût du contenu garde de `explainer.report.json` (aucune valeur inconnue transformée en zéro)."""
     spend = report.get("spend") or {}
+    calls = spend.get("calls") or []
+    def token_total(key: str) -> int | None:
+        values = [call.get(key) for call in calls]
+        return sum(values) if values and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in values) else None
+
+    input_tokens = token_total("inputTokens")
+    output_tokens = token_total("outputTokens")
+    cache_read_tokens = token_total("cacheReadTokens")
+    cache_write_tokens = token_total("cacheWriteTokens")
+    denominator = None if any(v is None for v in (input_tokens, cache_read_tokens, cache_write_tokens)) else input_tokens + cache_read_tokens + cache_write_tokens
     plans = report.get("plans") or []
     fallbacks = report.get("fallbacks") or []
     steps = report.get("steps") or {}
@@ -132,6 +142,12 @@ def summarize(report: dict) -> dict:
         "llmCostUsd": spend.get("totalUsd"),
         "llmCostUnknown": bool(spend.get("unknownCost")),
         "llmBudgetUsd": spend.get("limitUsd"),
+        "inputTokens": input_tokens,
+        "outputTokens": output_tokens,
+        "cacheReadTokens": cache_read_tokens,
+        "cacheWriteTokens": cache_write_tokens,
+        "costByStepUsd": spend.get("byStep"),
+        "cacheReadRate": cache_read_tokens / denominator if denominator else None,
         "plans": len(plans),
         "fallbacks": len(fallbacks),
         "fallbackPlans": [{"plan": f.get("plan"), "reason": (f.get("reason") or [])[:2]} for f in fallbacks],

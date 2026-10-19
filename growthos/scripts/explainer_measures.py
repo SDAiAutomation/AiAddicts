@@ -26,6 +26,9 @@ def explainer_row(item: dict) -> dict | None:
         "id": item.get("id"), "title": item.get("title"), "updatedAt": item.get("updated_at"),
         "mode": block.get("mode"), "plans": block.get("plans"), "fallbacks": block.get("fallbacks"),
         "llmCostUsd": block.get("cost") if not block.get("costUnknown") else None,
+        "inputTokens": block.get("inputTokens"), "outputTokens": block.get("outputTokens"),
+        "cacheReadTokens": block.get("cacheReadTokens"), "cacheWriteTokens": block.get("cacheWriteTokens"),
+        "cacheReadRate": block.get("cacheReadRate"), "costByStepUsd": block.get("costByStepUsd"),
         "renderSeconds": block.get("renderSeconds"), "totalSeconds": block.get("totalSeconds"),
         "timingSource": block.get("timingSource"), "sfxIncluded": block.get("sfxIncluded"), "reused": block.get("reused"),
         "totalEstimatedCost": report.get("totalEstimatedCost"), "missingRates": report.get("missingRates") or [],
@@ -59,6 +62,15 @@ def render_table(rows: list[dict]) -> str:
     for r in rows:
         lines.append(f"| {str(r['id'])[:8]} | {fmt(r['mode'])} | {fmt(r['plans'])} | {fmt(r['fallbacks'])} | {fmt(r['llmCostUsd'])} | "
                      f"{fmt(r['renderSeconds'])} | {fmt(r['totalSeconds'])} | {fmt(r['timingSource'])} | {fmt(r['sfxIncluded'])} |")
+    lines += ["", "| vidéo | entrée | sortie | cache lu | cache écrit | taux cache | coût par étape ($) |",
+              "|---|---|---|---|---|---|---|"]
+    for r in rows:
+        steps = r["costByStepUsd"]
+        step_text = ", ".join(f"{key}: {fmt(value)}" for key, value in sorted(steps.items())) if isinstance(steps, dict) and steps else "n/d"
+        rate = r["cacheReadRate"]
+        lines.append(f"| {str(r['id'])[:8]} | {fmt(r['inputTokens'])} | {fmt(r['outputTokens'])} | "
+                     f"{fmt(r['cacheReadTokens'])} | {fmt(r['cacheWriteTokens'])} | "
+                     f"{fmt(f'{rate:.1%}' if rate is not None else None)} | {step_text} |")
     s = summarize(rows)
     lines += ["", f"{s['videos']} vidéo(s), dont {s['freshRenders']} rendu(s) neuf(s) ; moyennes sur les rendus neufs : "
                   f"LLM {fmt(s['meanLlmCostUsd'], ' $')}, rendu {fmt(s['meanRenderSeconds'], ' s')}, total {fmt(s['meanTotalSeconds'], ' s')}, "

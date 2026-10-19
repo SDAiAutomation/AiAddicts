@@ -781,6 +781,9 @@ def _generation_cost_report(metrics: dict | None) -> dict | None:
             "renderSeconds": explainer.get("renderSeconds"), "totalSeconds": explainer.get("totalSeconds"),
             "timingSource": explainer.get("timingSource"), "reused": bool(explainer.get("reused")),
             "useCritic": explainer.get("useCritic"), "sfxIncluded": explainer.get("sfxIncluded"), "sfxMix": explainer.get("sfxMix"),
+            "inputTokens": explainer.get("inputTokens"), "outputTokens": explainer.get("outputTokens"),
+            "cacheReadTokens": explainer.get("cacheReadTokens"), "cacheWriteTokens": explainer.get("cacheWriteTokens"),
+            "costByStepUsd": explainer.get("costByStepUsd"), "cacheReadRate": explainer.get("cacheReadRate"),
         }
 
     missing: list[str] = []

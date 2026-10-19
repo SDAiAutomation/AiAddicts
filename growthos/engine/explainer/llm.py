@@ -76,9 +76,11 @@ class Spend:
         return entry
 
     def report(self) -> dict:
-        by_step: dict[str, float] = {}
+        by_step: dict[str, float | None] = {}
         for c in self.calls:
-            by_step[c["step"]] = round(by_step.get(c["step"], 0.0) + (c["costUsd"] or 0.0), 4)
+            previous = by_step.get(c["step"], 0.0)
+            cost = c["costUsd"]
+            by_step[c["step"]] = None if previous is None or cost is None else round(previous + cost, 4)
         return {"limitUsd": self.limit_usd, "totalUsd": self.total_usd, "unknownCost": self.has_unknown_cost,
                 "byStep": by_step, "calls": self.calls, "pricesAreEstimates": True}
 
