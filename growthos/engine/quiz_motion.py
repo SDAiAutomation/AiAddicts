@@ -45,8 +45,11 @@ _LIGHT_THEMES = {"minimal", "logo"}
 # Un quiz long est découpé en 4 parties, chacune avec sa teinte de fond : sur 11 minutes, un fond qui ne change
 # jamais est la première source de monotonie. Teintes très sombres (ou très claires), le texte garde son contraste.
 PARTS = 4
+FIVE_LEVEL_PARTS = 5
 MIN_QUESTIONS_FOR_PARTS = 10
-_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
+_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")
+_FIVE_LEVEL_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14", "#142619")
+_FIVE_LEVEL_TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0", "#e8f4e9")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
 _TINTS_BOSS = ("#150a33", "#190c3b", "#12082c", "#1d0b34")  # violets profonds du « Final Boss »
 _TINTS_SPLIT = ("#0a1030", "#0b1234", "#091029", "#0c1133")  # marine : seulement derrière les deux camps
@@ -72,23 +75,27 @@ def column_layout(width: int) -> tuple[float, float, float, float]:
 
 
 def part_index(block: dict) -> int:
-    """Partie (0 à 3) d'un bloc ; toujours 0 pour un quiz de moins de 10 questions."""
+    """Zero-based visual round; five only for explicitly opted-in 50-question quizzes."""
     total = int(block.get("quiz_question_total") or 0)
     if total < MIN_QUESTIONS_FOR_PARTS:
         return 0
+    parts = FIVE_LEVEL_PARTS if total == 50 and block.get("quiz_chapter_total") == 5 else PARTS
     phase = block.get("quiz_phase")
     if phase == "intro":
         return 0
     if phase == "outro":
-        return PARTS - 1
+        return parts - 1
     number = max(1, int(block.get("quiz_question_number") or 1))
-    return min(PARTS - 1, (number - 1) * PARTS // total)
+    return min(parts - 1, (number - 1) * parts // total)
 
 
-def stage_background(theme: str | None, part: int = 0) -> str:
-    """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
+def stage_background(theme: str | None, part: int = 0, parts: int = PARTS) -> str:
+    """Five-level palette is opt-in; existing four-part colours stay identical."""
     tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_BOSS if theme == "boss" else _TINTS_SPLIT if theme == "split" else _TINTS_DARK
-    return tints[max(0, min(PARTS - 1, part))]
+    if parts == FIVE_LEVEL_PARTS:
+        tints = (_FIVE_LEVEL_TINTS_LIGHT if theme in _LIGHT_THEMES
+                 else (*tints, _mix_hex(tints[-1], "#197a47", .25)))
+    return tints[max(0, min(len(tints) - 1, part))]
 
 
 def base_background_for(script: dict, fade_duration: float, block: dict | None = None) -> str | None:
@@ -104,7 +111,7 @@ def base_background_for(script: dict, fade_duration: float, block: dict | None =
     if block is not None and block.get("quiz_phase") not in _SCENE_PHASES:
         return None
     part = part_index(block) if block is not None else 0
-    return "0x" + stage_background((script.get("quiz") or {}).get("theme"), part)[1:].upper()
+    return "0x" + stage_background((script.get("quiz") or {}).get("theme"), part, FIVE_LEVEL_PARTS if (script.get("quiz") or {}).get("chapter_mode") == "five_levels" else PARTS)[1:].upper()
 
 
 def _mix_hex(first: str, second: str, amount: float) -> str:
@@ -198,7 +205,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     luminance = sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
     selected_ink = "#000000" if luminance > .179 else "#ffffff"
     light = block.get("quiz_theme") in _LIGHT_THEMES
-    background = stage_background(block.get("quiz_theme"), part_index(block))
+    background = stage_background(block.get("quiz_theme"), part_index(block), FIVE_LEVEL_PARTS if block.get("quiz_chapter_total") == 5 else PARTS)
     rail = "#cbd5e1" if light else "#243249"
     if not light:
         # Cartes plus claires que la scène (le bleu nuit du thème se fondait dans le fond) et cernées d'un
