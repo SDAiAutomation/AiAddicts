@@ -125,6 +125,16 @@ class TestQuiz(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "entre 1 et 7"):
             validate_quiz({"questions": [dict(item) for _ in range(8)]})
 
+    def test_long_quiz_chapter_metadata(self):
+        from growthos.engine.quiz import quiz_chapter
+        chapters = [quiz_chapter(i, 25) for i in range(1, 26)]
+        self.assertEqual([c["quiz_chapter_number"] for c in chapters],
+                         [1] * 7 + [2] * 6 + [3] * 6 + [4] * 6)
+        self.assertEqual([i for i, c in enumerate(chapters, 1) if c["quiz_chapter_start"]],
+                         [1, 8, 14, 20])
+        self.assertEqual(quiz_chapter(1, 5), {})
+        self.assertEqual(quiz_chapter(0, 25), {})
+
     def test_long_quiz_compiles_without_standard_script_limits(self):
         questions = [{"question": f"What does biology concept {i} describe?", "choices": [f"Fact {i}", "Other"],
                       "correct_choice": 0, "explanation": f"This is explanation {i}."} for i in range(25)]
