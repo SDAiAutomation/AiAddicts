@@ -82,6 +82,8 @@ def part_index(block: dict) -> int:
     if phase == "outro":
         return PARTS - 1
     number = max(1, int(block.get("quiz_question_number") or 1))
+    if int(block.get("quiz_chapter_total") or 0) == 5:
+        return min(PARTS - 1, (number - 1) * PARTS // total)
     return min(PARTS - 1, (number - 1) * PARTS // total)
 
 
@@ -480,7 +482,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     # A compact round label reuses existing scene timing; no extra audio or render blocks.
     chapter = int(block.get("quiz_chapter_number") or 0)
     chapter_total = int(block.get("quiz_chapter_total") or 0)
-    if chapter_total == PARTS and 1 <= chapter <= chapter_total:
+    if chapter_total in {PARTS, 5} and 1 <= chapter <= chapter_total:
         chapter_start = bool(block.get("quiz_chapter_start")) and phase == "question"
         text(start, end, f"ROUND {chapter} / {chapter_total}", cx, height * .075,
              25, accent, lines=1, max_width=span * .6,
