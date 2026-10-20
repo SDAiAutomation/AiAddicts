@@ -477,6 +477,13 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     tend = end - beat
     animate = phase == "question" and duration - hold - beat >= 1.0
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
+    # A compact round label reuses existing scene timing; no extra audio or render blocks.
+    chapter = int(block.get("quiz_chapter_number") or 0)
+    chapter_total = int(block.get("quiz_chapter_total") or 0)
+    if chapter_total == PARTS and 1 <= chapter <= chapter_total:
+        text(start, end, f"ROUND {chapter} / {chapter_total}", cx, height * .075,
+             25, accent, lines=1, max_width=span * .6)
+
     if (block.get("quiz_theme") == "split" and not landscape and not visual and len(choices) == 2
             and phase in {"question", "reveal"}):
         split_scene(choices, number, total, correct_index, hold, tend)
