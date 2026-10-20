@@ -145,6 +145,20 @@ class TestQuiz(unittest.TestCase):
         self.assertFalse(compiled["quiz"]["illustrations"])
         validate_script(compiled)
 
+    def test_five_level_chapter_boundaries_and_opt_in(self):
+        from engine.quiz import quiz_chapter
+        chapters = [quiz_chapter(i, 50, "five_levels") for i in range(1, 51)]
+        self.assertEqual([c["quiz_chapter_number"] for c in chapters],
+                         [1] * 10 + [2] * 10 + [3] * 10 + [4] * 10 + [5] * 10)
+        self.assertEqual([i for i, c in enumerate(chapters, 1) if c["quiz_chapter_start"]],
+                         [1, 11, 21, 31, 41])
+        self.assertEqual(quiz_chapter(50, 50)["quiz_chapter_total"], 4)
+        with self.assertRaisesRegex(ValueError, "exactement 50"):
+            validate_quiz({"recipe": "long", "chapter_mode": "five_levels",
+                           "questions": [{"question": f"Unique question {i}?",
+                                          "choices": [f"Answer {i}", "Other"], "correct_choice": 0}
+                                         for i in range(25)]})
+
     def test_long_quiz_50_questions_compiles_and_51_rejected(self):
         questions = [{"question": f"Which unique element number {i} is described?",
                       "choices": [f"Element {i}", f"Alternative {i}"],
