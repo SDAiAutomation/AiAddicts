@@ -116,13 +116,13 @@ class ChapterCardTests(unittest.TestCase):
         self.assertNotIn("LEAK", "\n".join(quiz_motion.scene_events(block, 0, 2, 1080, 1920)))
 
 
-def timeline(card=1.5, question=9.0, reveal=3.0, cards=True):
+def timeline(card=1.5, question=9.0, reveal=3.0, cards=True, intro=2):
     scenes, t = [], 0.0
     def add(phase, number=None, chapter=None, length=1.0):
         nonlocal t
         scenes.append({"phase": phase, "question_number": number, "chapter_number": chapter, "start": t, "end": t + length})
         t += length
-    add("intro", length=2)
+    add("intro", length=intro)
     for n in range(1, 51):
         if cards and n % 10 == 1:
             add("chapter", chapter=(n - 1) // 10 + 1, length=card)
@@ -160,6 +160,47 @@ class ChapterSegmentTests(unittest.TestCase):
         segments = quiz_chapter_export.chapter_segments(quiz_chapter_export.scenes_from_timeline(report, data["blocks"]))
         self.assertEqual(len(segments), 5)
         self.assertTrue(all(s["has_card"] for s in segments))
+
+
+class YoutubeTimestampTests(unittest.TestCase):
+    def segments(self):
+        return quiz_chapter_export.chapter_segments(timeline())
+
+    def test_lines_follow_measured_chapters(self):
+        # A 2 s intro cannot be a YouTube chapter (10 s minimum): it merges into the first level, which starts at 0:00.
+        text = quiz_chapter_export.youtube_timestamps(self.segments(), ("Easy", "Medium", "Hard", "Expert", "Genius"))
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "0:00 Level 1: Easy")
+        self.assertEqual(lines[1], "2:03 Level 2: Medium")  # 2 s intro + (1.5 s card + 10 x 12 s) = 123.5 s, measured not estimated
+        self.assertEqual(len(lines), 5)
+
+    def test_a_long_enough_intro_keeps_its_own_chapter(self):
+        segments = quiz_chapter_export.chapter_segments(timeline(intro=12))
+        lines = quiz_chapter_export.youtube_timestamps(segments, ("Easy", "Medium", "Hard", "Expert", "Genius")).splitlines()
+        self.assertEqual(lines[:2], ["0:00 Intro", "0:12 Level 1: Easy"])
+        self.assertEqual(len(lines), 6)
+
+    def test_refuses_chapters_youtube_would_reject(self):
+        short = self.segments()
+        short[2] = {**short[2], "end": short[2]["start"] + 5}
+        with self.assertRaises(ValueError):
+            quiz_chapter_export.youtube_timestamps(short, ("a",) * 5)
+        with self.assertRaises(ValueError):
+            quiz_chapter_export.youtube_timestamps(self.segments()[:4], ("a",) * 5)
+
+    def test_report_carries_chapters_and_timestamps_for_five_level_quizzes_only(self):
+        data = compile_quiz(script())
+        report = quiz_motion.build_timeline(data, [4.0 if b["quiz_phase"] != "question" else 9.0 for b in data["blocks"]])
+        quiz_motion.attach_report(data, report)
+        stored = data["generationMetadata"]["quizPresentation"]
+        self.assertEqual(len(stored["chapters"]), 5)
+        self.assertTrue(stored["youtubeTimestamps"].startswith("0:00 Level 1: Easy\n"))
+        self.assertIn("Level 3: Hard", stored["youtubeTimestamps"])
+        legacy = script(mode="legacy")
+        legacy["quiz"]["questions"] = legacy["quiz"]["questions"][:25]
+        compiled = compile_quiz(legacy)
+        quiz_motion.attach_report(compiled, quiz_motion.build_timeline(compiled, [4.0 if b["quiz_phase"] != "question" else 9.0 for b in compiled["blocks"]]))
+        self.assertNotIn("chapters", compiled["generationMetadata"]["quizPresentation"])
 
 
 class ShortPlanTests(unittest.TestCase):

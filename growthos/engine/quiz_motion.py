@@ -263,6 +263,18 @@ def attach_report(script: dict, report: dict) -> None:
         "renderingVersion": report.get("version") or "quiz-classic:legacy",
         "estimatedGenerationCostUsd": None,
     }
+    if quiz.get("chapter_mode") == "five_levels":
+        # Chapitres mesurés (jamais estimés) et lignes de chapitres YouTube ; absents si la timeline n'est pas mesurée.
+        try:
+            from . import quiz as quiz_module
+            from .quiz_chapter_export import chapter_segments, scenes_from_timeline, youtube_timestamps
+            segments = chapter_segments(scenes_from_timeline(report, script.get("blocks") or []))
+            lang = script.get("language") if script.get("language") in quiz_module._CHAPTER_TITLES else "fr"
+            word = {"fr": "Niveau", "en": "Level", "es": "Nivel", "de": "Stufe", "it": "Livello", "pt": "Nível"}[lang]
+            report = {**report, "chapters": [{**s, "start": round(s["start"], 3), "end": round(s["end"], 3)} for s in segments],
+                      "youtubeTimestamps": youtube_timestamps(segments, quiz_module._CHAPTER_TITLES[lang], word)}
+        except (ValueError, KeyError, TypeError):
+            pass
     script["generationMetadata"] = {**(metadata if isinstance(metadata, dict) else {}),
                                     "quizPresentation": report, "quizProfile": profile}
 

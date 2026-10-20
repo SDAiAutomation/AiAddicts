@@ -79,3 +79,28 @@ def chapter_segments(scenes: list[dict]) -> list[dict]:
     if len(segments) != 5 or number != 50 or last_phase != "reveal":
         raise ValueError("five-level quiz requires five complete chapters")
     return segments
+
+
+def _stamp(seconds: float) -> str:
+    total = int(seconds + 1e-6)
+    hours, rest = divmod(total, 3600)
+    return f"{hours}:{rest // 60:02d}:{rest % 60:02d}" if hours else f"{rest // 60}:{rest % 60:02d}"
+
+
+def youtube_timestamps(segments: list[dict], names: tuple[str, ...] | list[str], level_word: str = "Level", intro_label: str = "Intro") -> str:
+    """YouTube chapter lines from MEASURED chapter spans. YouTube needs the first stamp at 0:00, at least three
+    stamps and chapters of at least 10 s: anything else is refused rather than published as a broken description."""
+    if len(segments) != 5 or len(names) != 5:
+        raise ValueError("five chapters and five names are required")
+    lines = [f"0:00 {intro_label}"]
+    previous = 0.0
+    for segment in segments:
+        start = float(segment["start"])
+        if start - previous < 10 and previous > 0 or segment["end"] - start < 10:
+            raise ValueError("YouTube chapters must last at least 10 seconds")
+        lines.append(f"{_stamp(start)} {level_word} {segment['chapter']}: {names[segment['chapter'] - 1]}")
+        previous = start
+    if float(segments[0]["start"]) < 10:
+        lines.pop(0)  # the first chapter already starts at (almost) 0:00 : keep a single 0:00 line
+        lines[0] = f"0:00 {lines[0].split(' ', 1)[1]}"
+    return "\n".join(lines)
