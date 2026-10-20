@@ -156,7 +156,10 @@ def _generate(
                 else:
                     video.pad_audio(str(audio_path), hold_after + beat, str(padded_path))
             rendered_audio = str(padded_path)
-        return rendered_audio, tts.get_duration_seconds(rendered_audio), words
+        # Quiz : durée DÉCODÉE (celle que concat_audio assemble) ; la durée d'en-tête mp3 dérive d'~25 ms par bloc,
+        # soit ~3 s sur les ~107 blocs d'un quiz de 50 questions.
+        measure = tts.get_playback_duration_seconds if data.get("content_format") == "quiz" else tts.get_duration_seconds
+        return rendered_audio, measure(rendered_audio), words
 
     step(f"Voix off (ElevenLabs, {n_blocks} bloc(s))")
     t0 = time.monotonic()
