@@ -489,7 +489,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     chapter_total = int(block.get("quiz_chapter_total") or 0)
     if chapter_total in {PARTS, 5} and 1 <= chapter <= chapter_total:
         chapter_start = bool(block.get("quiz_chapter_start")) and phase == "question"
-        text(start, end, f"ROUND {chapter} / {chapter_total}", cx, height * .075,
+        chapter_label = str(block.get("quiz_chapter_label") or "").strip()
+        round_title = f"{chapter_label}  {chapter} / {chapter_total}" if chapter_total == 5 and chapter_label else f"ROUND {chapter} / {chapter_total}"
+        text(start, end, round_title, cx, height * .075,
              25, accent, lines=1, max_width=span * .6,
              origin=(cx - 42 * scale, height * .075) if chapter_start else None,
              travel=420)
