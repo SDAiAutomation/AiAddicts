@@ -259,8 +259,11 @@ def quiz_chapter(number: int, total: int, mode: str = "legacy") -> dict:
     parts = 5 if mode == "five_levels" and total == 50 else 4
     chapter = min(parts, ((number - 1) * parts) // total + 1)
     previous = min(parts, ((number - 2) * parts) // total + 1) if number > 1 else 0
-    return {"quiz_chapter_number": chapter, "quiz_chapter_total": parts,
-            "quiz_chapter_start": chapter != previous}
+    metadata = {"quiz_chapter_number": chapter, "quiz_chapter_total": parts,
+                "quiz_chapter_start": chapter != previous}
+    if parts == 5:
+        metadata["quiz_chapter_label"] = ("EASY", "MEDIUM", "HARD", "EXPERT", "GENIUS")[chapter - 1]
+    return metadata
 
 
 def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
