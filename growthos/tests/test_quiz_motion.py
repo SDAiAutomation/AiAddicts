@@ -11,6 +11,18 @@ class QuizMotionTests(unittest.TestCase):
     def setUp(self):
         self.script = json.loads((Path(__file__).resolve().parents[1] / "content/scripts/exemple-quiz.json").read_text(encoding="utf-8"))
 
+    def test_five_level_visual_palettes_and_legacy_compatibility(self):
+        from engine import quiz_motion
+        five = [{"quiz_phase": "question", "quiz_question_total": 50,
+                 "quiz_question_number": n, "quiz_chapter_total": 5}
+                for n in (1, 10, 11, 20, 21, 30, 31, 40, 41, 50)]
+        self.assertEqual([quiz_motion.part_index(b) for b in five],
+                         [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
+        colours = [quiz_motion.stage_background("studio", i, 5) for i in range(5)]
+        self.assertEqual(len(set(colours)), 5)
+        self.assertEqual(quiz_motion.stage_background("studio", 0), "#080e1c")
+        self.assertEqual(quiz_motion.stage_background("studio", 3), "#1f0c14")
+
     def test_long_quiz_round_label_uses_chapter_metadata(self):
         from engine import quiz_motion
         self.script["quiz"]["presentation"] = "motion"
