@@ -99,6 +99,8 @@ def validate_quiz(quiz: object) -> None:
         raise ValueError("quiz.chapter_mode invalide")
     if quiz["chapter_mode"] == "five_levels" and (quiz["recipe"] != "long" or len(quiz.get("questions") or []) != 50):
         raise ValueError("quiz.chapter_mode five_levels exige exactement 50 questions long")
+    if quiz["chapter_mode"] == "five_levels" and quiz["difficulty"] != "progressive":
+        raise ValueError("quiz.chapter_mode five_levels exige difficulty progressive")
     cover = quiz.get("cover")
     if not isinstance(cover, dict) or not isinstance(cover.get("enabled"), bool):
         raise ValueError("'quiz.cover.enabled' doit être un booléen")
