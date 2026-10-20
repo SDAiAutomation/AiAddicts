@@ -7,6 +7,8 @@ on:
       - 'growthos/engine/quiz_motion.py'
       - 'growthos/tests/test_quiz.py'
       - 'growthos/tests/test_quiz_motion.py'
+      - 'growthos/engine/quiz_chapter_export.py'
+      - 'growthos/tests/test_quiz_chapter_export.py'
       - '.github/workflows/quiz-chapter-tests.yml'
   workflow_dispatch:
 
@@ -30,4 +32,4 @@ jobs:
         run: python -m py_compile engine/quiz.py engine/quiz_motion.py
       - name: Run offline quiz regression tests
         working-directory: growthos
-        run: python -m unittest discover -s tests -p 'test_quiz.py' -v && python -m unittest discover -s tests -p 'test_quiz_motion.py' -v
+        run: python -m unittest discover -s tests -p 'test_quiz.py' -v && python -m unittest discover -s tests -p 'test_quiz_motion.py' -v && python -m unittest discover -s tests -p 'test_quiz_chapter_export.py' -v
