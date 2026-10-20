@@ -20,6 +20,7 @@ _VARIANTS = (
     "a wide atmospheric scene of the subject",
     "a still life of characteristic tools and materials of the subject",
     "a dramatic moody close-up with strong directional light",
+    "a richly textured symbolic scene of advanced discovery",
 )
 _PROMPT = (
     "Editorial photograph evoking the subject of a general-knowledge quiz about {topic}: {variant}. "
@@ -53,7 +54,8 @@ def generate(script: dict, work_dir: Path) -> list[str | None]:
     topic = str(quiz.get("topic") or script.get("title") or "general knowledge")
     light = theme in quiz_motion._LIGHT_THEMES
     results: list[str | None] = []
-    for part in range(quiz_motion.PARTS):
+    parts = quiz_motion.FIVE_LEVEL_PARTS if quiz.get("chapter_mode") == "five_levels" else quiz_motion.PARTS
+    for part in range(parts):
         out = Path(work_dir) / "images" / f"quiz-backdrop-{part}.jpg"
         if out.exists() and out.stat().st_size > 0:
             results.append(str(out))
@@ -66,7 +68,7 @@ def generate(script: dict, work_dir: Path) -> list[str | None]:
             results.append(None)
             continue
         try:
-            results.append(duotone(raw, str(out), quiz_motion.stage_background(theme, part), light))
+            results.append(duotone(raw, str(out), quiz_motion.stage_background(theme, part, parts), light))
         except Exception as exc:  # image illisible : le fond uni reste
             print(f"       fond illustré {part + 1} inutilisable ({exc})")
             results.append(None)
