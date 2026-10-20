@@ -152,6 +152,8 @@ class TestQuiz(unittest.TestCase):
                          [1] * 10 + [2] * 10 + [3] * 10 + [4] * 10 + [5] * 10)
         self.assertEqual([i for i, c in enumerate(chapters, 1) if c["quiz_chapter_start"]],
                          [1, 11, 21, 31, 41])
+        self.assertEqual([chapters[i]["quiz_chapter_label"] for i in (0, 10, 20, 30, 40)],
+                         ["EASY", "MEDIUM", "HARD", "EXPERT", "GENIUS"])
         self.assertEqual(quiz_chapter(50, 50)["quiz_chapter_total"], 4)
         with self.assertRaisesRegex(ValueError, "exactement 50"):
             validate_quiz({"recipe": "long", "chapter_mode": "five_levels",
