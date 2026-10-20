@@ -136,8 +136,11 @@ def validate_script(data: dict) -> None:
     if not isinstance(blocks, list) or not blocks:
         raise ValueError("'blocks' doit être une liste non vide")
     long_quiz = content_format == quiz.QUIZ_FORMAT and (data.get("quiz") or {}).get("recipe") == "long"
-    block_limit = max(MAX_BLOCKS, 2 * quiz.MAX_LONG_QUESTIONS + 2) if long_quiz else MAX_BLOCKS
-    char_limit = max(MAX_SCRIPT_CHARS, 12000) if long_quiz else MAX_SCRIPT_CHARS
+    # Intro + outro + 2 blocs par question (+ 5 cartes de chapitre en mode cinq niveaux).
+    block_limit = max(MAX_BLOCKS, 2 * quiz.MAX_LONG_QUESTIONS + 2 + 5) if long_quiz else MAX_BLOCKS
+    # 50 questions lues + réponses expliquées dépassent 12 000 caractères (~290 par question) : plafond dédié, borné.
+    five_levels = long_quiz and (data.get("quiz") or {}).get("chapter_mode") == "five_levels"
+    char_limit = max(MAX_SCRIPT_CHARS, 24000 if five_levels else 12000) if long_quiz else MAX_SCRIPT_CHARS
     if len(blocks) > block_limit:
         raise ValueError(
             f"script trop long : {len(blocks)} blocs (maximum {block_limit}) — "

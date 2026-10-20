@@ -10,7 +10,7 @@ QUIZ_FORMAT = "quiz"
 QUIZ_KINDS = {"multiple_choice", "true_false", "riddle", "logo", "image"}
 MIN_QUESTIONS = 1
 MAX_QUESTIONS = 7
-MAX_LONG_QUESTIONS = 30
+MAX_LONG_QUESTIONS = 50
 MIN_CHOICES = 2
 MAX_CHOICES = 4
 DEFAULT_COUNTDOWN_SECONDS = 5
@@ -43,6 +43,21 @@ _PHRASES = {
     "it": {"last": "Ultima domanda.", "intro": "Metti alla prova le tue conoscenze su {topic}.", "question": "Domanda {n}.", "answer": "La risposta corretta era {letter}, {answer}.", "outro": "Quante ne hai indovinate?"},
     "pt": {"last": "Última pergunta.", "intro": "Teste os teus conhecimentos sobre {topic}.", "question": "Pergunta {n}.", "answer": "A resposta certa era {letter}, {answer}.", "outro": "Quantas acertaste?"},
 }
+# Cartes de chapitre (quiz 50 questions, mode cinq niveaux) : courte annonce parlée, jamais superposée à une question.
+CHAPTER_LABELS = ("EASY", "MEDIUM", "HARD", "EXPERT", "GENIUS")
+_CHAPTER_TITLES = {
+    "fr": ("Facile", "Moyen", "Difficile", "Expert", "Génie"),
+    "en": ("Easy", "Medium", "Hard", "Expert", "Genius"),
+    "es": ("Fácil", "Medio", "Difícil", "Experto", "Genio"),
+    "de": ("Leicht", "Mittel", "Schwer", "Experte", "Genie"),
+    "it": ("Facile", "Medio", "Difficile", "Esperto", "Genio"),
+    "pt": ("Fácil", "Médio", "Difícil", "Especialista", "Génio"),
+}
+_CHAPTER_PHRASE = {
+    "fr": "Niveau {n} sur 5 : {title}.", "en": "Level {n} of 5: {title}.", "es": "Nivel {n} de 5: {title}.",
+    "de": "Stufe {n} von 5: {title}.", "it": "Livello {n} di 5: {title}.", "pt": "Nível {n} de 5: {title}.",
+}
+QUESTIONS_PER_CHAPTER = 10
 _TOPIC_FALLBACK = {"fr": "ce sujet", "en": "this topic", "es": "este tema", "de": "dieses Thema", "it": "questo argomento", "pt": "este tema"}
 
 
@@ -70,6 +85,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("theme", "studio")
     result.setdefault("sound_effects", "automatic")
     result.setdefault("presentation", "classic")
+    result.setdefault("chapter_mode", "legacy")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
     result.setdefault("backdrops", False)  # fond illustré (4 images) : opt-in, voir engine/quiz_backdrop.py
@@ -94,6 +110,12 @@ def validate_quiz(quiz: object) -> None:
         raise ValueError(f"'quiz.sound_effects' invalide (attendu : {sorted(SOUND_EFFECT_MODES)})")
     if not isinstance(quiz.get("presentation"), str) or quiz["presentation"] not in PRESENTATION_MODES:
         raise ValueError(f"'quiz.presentation' invalide (attendu : {sorted(PRESENTATION_MODES)})")
+    if quiz.get("chapter_mode") not in {"legacy", "five_levels"}:
+        raise ValueError("quiz.chapter_mode invalide")
+    if quiz["chapter_mode"] == "five_levels" and (quiz["recipe"] != "long" or len(quiz.get("questions") or []) != 50):
+        raise ValueError("quiz.chapter_mode five_levels exige exactement 50 questions long")
+    if quiz["chapter_mode"] == "five_levels" and quiz["difficulty"] != "progressive":
+        raise ValueError("quiz.chapter_mode five_levels exige difficulty progressive")
     cover = quiz.get("cover")
     if not isinstance(cover, dict) or not isinstance(cover.get("enabled"), bool):
         raise ValueError("'quiz.cover.enabled' doit être un booléen")
@@ -247,11 +269,68 @@ def _quiz_visual_prompt(question: str, scene: str = "") -> str:
     )
 
 
+def quiz_chapter(number: int, total: int, mode: str = "legacy") -> dict:
+    """Opt-in five equal rounds; legacy four-round output stays unchanged."""
+    if total < 10 or not 1 <= number <= total:
+        return {}
+    parts = 5 if mode == "five_levels" and total == 50 else 4
+    chapter = min(parts, ((number - 1) * parts) // total + 1)
+    previous = min(parts, ((number - 2) * parts) // total + 1) if number > 1 else 0
+    metadata = {"quiz_chapter_number": chapter, "quiz_chapter_total": parts,
+                "quiz_chapter_start": chapter != previous}
+    if parts == 5:
+        metadata["quiz_chapter_label"] = ("EASY", "MEDIUM", "HARD", "EXPERT", "GENIUS")[chapter - 1]
+    return metadata
+
+
+def has_chapter_cards(quiz: dict) -> bool:
+    """Chapter title scenes exist only for opted-in five-level quizzes shown with Motion."""
+    return quiz.get("chapter_mode") == "five_levels" and quiz.get("presentation") == "motion"
+
+
+def chapter_card_block(chapter: int, language: str | None) -> dict:
+    lang = language if language in _CHAPTER_TITLES else "fr"
+    title = _CHAPTER_TITLES[lang][chapter - 1]
+    first = (chapter - 1) * QUESTIONS_PER_CHAPTER + 1
+    return {
+        "role": "point",
+        "text": _CHAPTER_PHRASE[lang].format(n=chapter, title=title),
+        "quiz_phase": "chapter",
+        "quiz_chapter_number": chapter, "quiz_chapter_total": 5,
+        "quiz_chapter_label": CHAPTER_LABELS[chapter - 1], "quiz_chapter_title": title,
+        "quiz_first_question": first, "quiz_last_question": first + QUESTIONS_PER_CHAPTER - 1,
+        "quiz_question_total": 50,
+    }
+
+
+def _with_chapter_cards(blocks: list[dict], quiz: dict, language: str | None) -> list[dict]:
+    """Drop any saved chapter card, then insert one before the first question of each chapter (idempotent)."""
+    kept = [b for b in blocks if b.get("quiz_phase") != "chapter"]
+    if not has_chapter_cards(quiz):
+        return kept
+    result: list[dict] = []
+    for block in kept:
+        number = int(block.get("quiz_question_number") or 0)
+        if block.get("quiz_phase") == "question" and number % QUESTIONS_PER_CHAPTER == 1:
+            result.append(chapter_card_block((number - 1) // QUESTIONS_PER_CHAPTER + 1, language))
+        result.append(block)
+    return result
+
+
 def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
     """Upgrade web-authored quiz blocks to the current visual contract."""
     result = deepcopy(script)
     result["quiz"] = normalized_quiz
+    if isinstance(result.get("blocks"), list):
+        result["blocks"] = _with_chapter_cards([b for b in result["blocks"] if isinstance(b, dict)],
+                                               normalized_quiz, result.get("language"))
     for block in result.get("blocks") or []:
+        if block.get("quiz_phase") in {"question", "reveal"}:
+            block.update(quiz_chapter(int(block.get("quiz_question_number") or 0), len(normalized_quiz.get("questions") or []), normalized_quiz.get("chapter_mode", "legacy")))
+            if block.get("quiz_phase") == "reveal":
+                block["quiz_chapter_start"] = False
+        elif block.get("quiz_phase") in {"intro", "outro"} and normalized_quiz.get("chapter_mode") == "five_levels":
+            block["quiz_chapter_total"] = 5
         if block.get("quiz_phase"):
             block["quiz_presentation"] = normalized_quiz["presentation"]
             block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
@@ -317,6 +396,7 @@ def compile_quiz(script: dict) -> dict:
             "quiz_phase": "question",
             "quiz_question_number": number,
             "quiz_question_total": len(quiz["questions"]),
+            **quiz_chapter(number, len(quiz["questions"]), quiz.get("chapter_mode", "legacy")),
             "quiz_kind": quiz["kind"],
             "quiz_theme": quiz["theme"],
             "quiz_sound_effects": quiz["sound_effects"],
@@ -362,11 +442,18 @@ def validate_motion_blocks(script: dict) -> None:
         return
     blocks = script.get("blocks") or []
     questions = quiz.get("questions") or []
-    expected = ["intro", *[p for _ in questions for p in ("question", "reveal")], "outro"]
+    expected = ["intro"]
+    for index in range(len(questions)):
+        if has_chapter_cards(quiz) and index % QUESTIONS_PER_CHAPTER == 0:
+            expected.append("chapter")
+        expected += ["question", "reveal"]
+    expected.append("outro")
     if [b.get("quiz_phase") for b in blocks] != expected:
         raise ValueError("Quiz Motion : blocs incomplets ou hors ordre ; recompiler les questions.")
     for number, item in enumerate(questions, 1):
-        for offset in (number * 2 - 1, number * 2):
+        # Each chapter card sits before its first question and shifts later blocks by one.
+        shift = (number - 1) // QUESTIONS_PER_CHAPTER + 1 if has_chapter_cards(quiz) else 0
+        for offset in (number * 2 - 1 + shift, number * 2 + shift):
             block = blocks[offset]
             expected_fields = {
                 "quiz_question": str(item["question"]).strip(),
@@ -381,5 +468,5 @@ def validate_motion_blocks(script: dict) -> None:
                 raise ValueError(f"Quiz Motion : temps de réflexion incohérent pour la question {number}.")
             if block["quiz_phase"] == "reveal" and block.get("hold_after_seconds", 0) != 0:
                 raise ValueError(f"Quiz Motion : pause inattendue dans la révélation {number}.")
-    if any(b.get("hold_after_seconds", 0) != 0 for b in (blocks[0], blocks[-1])):
+    if any(b.get("hold_after_seconds", 0) != 0 for b in blocks if b.get("quiz_phase") in {"intro", "outro", "chapter"}):
         raise ValueError("Quiz Motion : pause inattendue dans l'ouverture ou la conclusion.")

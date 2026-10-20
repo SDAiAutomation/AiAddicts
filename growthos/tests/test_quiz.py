@@ -125,6 +125,16 @@ class TestQuiz(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "entre 1 et 7"):
             validate_quiz({"questions": [dict(item) for _ in range(8)]})
 
+    def test_long_quiz_chapter_metadata(self):
+        from engine.quiz import quiz_chapter
+        chapters = [quiz_chapter(i, 25) for i in range(1, 26)]
+        self.assertEqual([c["quiz_chapter_number"] for c in chapters],
+                         [1] * 7 + [2] * 6 + [3] * 6 + [4] * 6)
+        self.assertEqual([i for i, c in enumerate(chapters, 1) if c["quiz_chapter_start"]],
+                         [1, 8, 14, 20])
+        self.assertEqual(quiz_chapter(1, 5), {})
+        self.assertEqual(quiz_chapter(0, 25), {})
+
     def test_long_quiz_compiles_without_standard_script_limits(self):
         questions = [{"question": f"What does biology concept {i} describe?", "choices": [f"Fact {i}", "Other"],
                       "correct_choice": 0, "explanation": f"This is explanation {i}."} for i in range(25)]
@@ -134,6 +144,55 @@ class TestQuiz(unittest.TestCase):
         self.assertEqual(len(compiled["blocks"]), 52)
         self.assertFalse(compiled["quiz"]["illustrations"])
         validate_script(compiled)
+
+    def test_five_level_chapter_boundaries_and_opt_in(self):
+        from engine.quiz import quiz_chapter
+        chapters = [quiz_chapter(i, 50, "five_levels") for i in range(1, 51)]
+        self.assertEqual([c["quiz_chapter_number"] for c in chapters],
+                         [1] * 10 + [2] * 10 + [3] * 10 + [4] * 10 + [5] * 10)
+        self.assertEqual([i for i, c in enumerate(chapters, 1) if c["quiz_chapter_start"]],
+                         [1, 11, 21, 31, 41])
+        self.assertEqual([chapters[i]["quiz_chapter_label"] for i in (0, 10, 20, 30, 40)],
+                         ["EASY", "MEDIUM", "HARD", "EXPERT", "GENIUS"])
+        self.assertEqual(quiz_chapter(50, 50)["quiz_chapter_total"], 4)
+        with self.assertRaisesRegex(ValueError, "exactement 50"):
+            validate_quiz({"recipe": "long", "chapter_mode": "five_levels",
+                           "questions": [{"question": f"Unique question {i}?",
+                                          "choices": [f"Answer {i}", "Other"], "correct_choice": 0}
+                                         for i in range(25)]})
+
+    def test_five_level_compiled_blocks_have_single_chapter_entries(self):
+        questions = [{"question": f"Which unique term {i} is correct?",
+                      "choices": [f"Term {i}", f"Alternative {i}"],
+                      "correct_choice": 0} for i in range(1, 51)]
+        source = {**QUIZ_SCRIPT, "quiz": {"recipe": "long", "topic": "terms",
+                                         "chapter_mode": "five_levels",
+                                         "questions": questions}}
+        compiled = compile_quiz(source)
+        blocks = compiled["blocks"]
+        self.assertEqual(blocks[0]["quiz_chapter_total"], 5)
+        self.assertEqual(blocks[-1]["quiz_chapter_total"], 5)
+        starts = [(b["quiz_question_number"], b["quiz_phase"]) for b in blocks
+                  if b.get("quiz_chapter_start")]
+        self.assertEqual(starts, [(1, "question"), (11, "question"),
+                                  (21, "question"), (31, "question"),
+                                  (41, "question")])
+        self.assertEqual(blocks[-2]["quiz_chapter_number"], 5)
+
+    def test_long_quiz_50_questions_compiles_and_51_rejected(self):
+        questions = [{"question": f"Which unique element number {i} is described?",
+                      "choices": [f"Element {i}", f"Alternative {i}"],
+                      "correct_choice": 0} for i in range(1, 51)]
+        source = {**QUIZ_SCRIPT, "quiz": {"recipe": "long", "topic": "elements",
+                                         "questions": questions}}
+        validate_script(source)
+        compiled = compile_quiz(source)
+        self.assertEqual(len(compiled["blocks"]), 102)
+        self.assertEqual(compiled["blocks"][-2]["quiz_question_number"], 50)
+        with self.assertRaisesRegex(ValueError, "entre 10 et 50"):
+            validate_quiz({**source["quiz"], "questions": questions + [
+                {"question": "Extra distinct fact 51?", "choices": ["Extra 51", "No"],
+                 "correct_choice": 0}]})
 
     def test_rejects_previous_fact_and_reworded_question(self):
         source = {"questions": [{"question": "Which organelle makes ATP?", "choices": ["Mitochondrion", "Nucleus"],

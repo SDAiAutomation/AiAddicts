@@ -1,0 +1,68 @@
+name: Quiz chapter checks
+
+on:
+  pull_request:
+    paths:
+      - 'growthos/engine/quiz*.py'
+      - 'growthos/engine/captions.py'
+      - 'growthos/engine/tts.py'
+      - 'growthos/engine/assembler.py'
+      - 'growthos/engine/repo.py'
+      - 'growthos/engine/script.py'
+      - 'growthos/worker.py'
+      - 'growthos/tests/test_quiz*.py'
+      - 'growthos/supabase/migrations/*quiz*.sql'
+      - 'growthos/supabase/tests/quiz_chapter_exports/**'
+      - '.github/workflows/quiz-chapter-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quiz-chapter-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: FFmpeg with libass (real-render tests skip without it)
+        run: ffmpeg -hide_banner -filters | grep -E ' subtitles ' || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - name: Install engine dependencies
+        working-directory: growthos
+        run: python -m pip install -r requirements.txt
+      - name: Compile quiz modules
+        working-directory: growthos
+        run: python -m py_compile engine/quiz.py engine/quiz_motion.py engine/quiz_shorts.py engine/quiz_export_job.py engine/quiz_chapter_export.py worker.py
+      - name: Run offline quiz regression tests (no provider call)
+        working-directory: growthos
+        run: python -m unittest discover -s tests -p 'test_quiz*.py' -v
+
+  quiz-export-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replay the export migration twice on a throwaway database and run the RLS scenario
+        working-directory: growthos/supabase/tests/quiz_chapter_exports
+        run: ./run.sh 2>&1 | tee /tmp/qce.out
+      - name: Assert the scenario outcomes
+        run: |
+          grep -q "other_org_rows" /tmp/qce.out
+          test "$(grep -c 'ERROR:  permission denied for table quiz_chapter_exports' /tmp/qce.out)" = 3
+          grep -q "ERROR:  forbidden" /tmp/qce.out
+          grep -q "violates check constraint \"series_quiz_chapter_mode_shape\"" /tmp/qce.out

@@ -45,8 +45,11 @@ _LIGHT_THEMES = {"minimal", "logo"}
 # Un quiz long est découpé en 4 parties, chacune avec sa teinte de fond : sur 11 minutes, un fond qui ne change
 # jamais est la première source de monotonie. Teintes très sombres (ou très claires), le texte garde son contraste.
 PARTS = 4
+FIVE_LEVEL_PARTS = 5
 MIN_QUESTIONS_FOR_PARTS = 10
-_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")  # marine, sarcelle, indigo, bordeaux
+_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14")
+_FIVE_LEVEL_TINTS_DARK = ("#080e1c", "#071a1f", "#130d26", "#1f0c14", "#142619")
+_FIVE_LEVEL_TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0", "#e8f4e9")  # marine, sarcelle, indigo, bordeaux
 _TINTS_LIGHT = ("#eef2f6", "#e8f4f2", "#f1eefa", "#fbeef0")
 _TINTS_BOSS = ("#150a33", "#190c3b", "#12082c", "#1d0b34")  # violets profonds du « Final Boss »
 _TINTS_SPLIT = ("#0a1030", "#0b1234", "#091029", "#0c1133")  # marine : seulement derrière les deux camps
@@ -56,7 +59,12 @@ URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
 URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y atteint que ~2,6:1, #c2410c ~5:1
 # Coche dessinée dans une boîte de 100 x 100 (aucun glyphe unicode : il dépend de la police de repli).
 _CHECK_POINTS = ((8, 54), (22, 40), (40, 58), (78, 18), (92, 32), (40, 86))
-_SCENE_PHASES = {"intro", "question", "reveal", "outro"}
+_SCENE_PHASES = {"intro", "chapter", "question", "reveal", "outro"}
+
+# Identité de chaque niveau du quiz 50 questions : teinte (sur fond sombre / clair) et nom de mise en scène.
+# Les contrastes sont vérifiés par test (>= 4,5:1 sur la teinte du fond de la partie).
+LEVEL_ACCENTS_DARK = ("#4ade80", "#fbbf24", "#fb7a3c", "#c084fc", "#ffd23f")
+LEVEL_ACCENTS_LIGHT = ("#166534", "#854d0e", "#c2410c", "#7e22ce", "#92400e")
 
 
 def uses_columns(width: int, height: int) -> bool:
@@ -72,23 +80,29 @@ def column_layout(width: int) -> tuple[float, float, float, float]:
 
 
 def part_index(block: dict) -> int:
-    """Partie (0 à 3) d'un bloc ; toujours 0 pour un quiz de moins de 10 questions."""
+    """Zero-based visual round; five only for explicitly opted-in 50-question quizzes."""
     total = int(block.get("quiz_question_total") or 0)
     if total < MIN_QUESTIONS_FOR_PARTS:
         return 0
+    parts = FIVE_LEVEL_PARTS if total == 50 and block.get("quiz_chapter_total") == 5 else PARTS
     phase = block.get("quiz_phase")
     if phase == "intro":
         return 0
     if phase == "outro":
-        return PARTS - 1
+        return parts - 1
+    if phase == "chapter":
+        return max(0, min(parts - 1, int(block.get("quiz_chapter_number") or 1) - 1))
     number = max(1, int(block.get("quiz_question_number") or 1))
-    return min(PARTS - 1, (number - 1) * PARTS // total)
+    return min(parts - 1, (number - 1) * parts // total)
 
 
-def stage_background(theme: str | None, part: int = 0) -> str:
-    """Couleur de la scène Motion (#rrggbb) ; les thèmes clairs ont une scène claire."""
+def stage_background(theme: str | None, part: int = 0, parts: int = PARTS) -> str:
+    """Five-level palette is opt-in; existing four-part colours stay identical."""
     tints = _TINTS_LIGHT if theme in _LIGHT_THEMES else _TINTS_VAULT if theme == "vault" else _TINTS_BOSS if theme == "boss" else _TINTS_SPLIT if theme == "split" else _TINTS_DARK
-    return tints[max(0, min(PARTS - 1, part))]
+    if parts == FIVE_LEVEL_PARTS:
+        tints = (_FIVE_LEVEL_TINTS_LIGHT if theme in _LIGHT_THEMES
+                 else (*tints, _mix_hex(tints[-1], "#197a47", .25)))
+    return tints[max(0, min(len(tints) - 1, part))]
 
 
 def base_background_for(script: dict, fade_duration: float, block: dict | None = None) -> str | None:
@@ -104,12 +118,89 @@ def base_background_for(script: dict, fade_duration: float, block: dict | None =
     if block is not None and block.get("quiz_phase") not in _SCENE_PHASES:
         return None
     part = part_index(block) if block is not None else 0
-    return "0x" + stage_background((script.get("quiz") or {}).get("theme"), part)[1:].upper()
+    return "0x" + stage_background((script.get("quiz") or {}).get("theme"), part, FIVE_LEVEL_PARTS if (script.get("quiz") or {}).get("chapter_mode") == "five_levels" else PARTS)[1:].upper()
 
 
 def _mix_hex(first: str, second: str, amount: float) -> str:
     a, b = (tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) for c in (first, second))
     return "#" + "".join(f"{round(x + (y - x) * amount):02x}" for x, y in zip(a, b))
+
+
+def _chapter_scene(block: dict, start: float, end: float, width: int, height: int, *, emit_tools: tuple, ctx: dict) -> None:
+    """Carte de chapitre du quiz 50 questions : un niveau = une entrée distincte, même repère visuel.
+
+    Commun : numéro du niveau, nom du niveau, plage de questions, cinq repères de progression. Spécifique :
+    EASY rebondit avec des confettis, MEDIUM glisse avec deux barres, HARD claque avec un éclair, EXPERT dessine
+    un cadre fin et resserre ses lettres, GENIUS ferme un cadre cinéma avec des rayons. Toute l'animation tient
+    dans les premières ~600 ms ; le texte reste lisible pendant l'annonce parlée (la carte dure autant que la voix)."""
+    rect, frame, text, _check = emit_tools
+    scale, cx, span, ink, rail, light = ctx["scale"], ctx["cx"], ctx["span"], ctx["ink"], ctx["rail"], ctx["light"]
+    left, right, landscape = ctx["left"], ctx["right"], ctx["landscape"]
+    level = max(1, min(5, int(block.get("quiz_chapter_number") or 1)))
+    acc = (LEVEL_ACCENTS_LIGHT if light else LEVEL_ACCENTS_DARK)[level - 1]
+    duration = end - start
+    settle = max(200, min(620, round(duration * 250)))
+    title = str(block.get("quiz_chapter_title") or block.get("quiz_chapter_label") or "").upper()
+    first, last = int(block.get("quiz_first_question") or 0), int(block.get("quiz_last_question") or 0)
+    title_y, kicker_y, range_y, pips_y = height * .47, height * .31, height * .60, height * .72
+    big = 170 if landscape else 190
+    fx = f"\\fscx{{}}\\fscy{{}}\\t(0,{settle},0.4,\\fscx100\\fscy100)"
+
+    # Repères communs (apparition simple, sans mouvement perpétuel).
+    text(start, end, f"{level} / 5", cx, kicker_y, 54, acc, lines=1, max_width=span * .5, extra="\\fad(120,0)")
+    if first and last:
+        text(start, end, f"{first} – {last}", cx, range_y, 52, ink, lines=1, max_width=span * .6, extra="\\fad(200,0)")
+    pip, gap = 30 * scale, 22 * scale
+    row_w = 5 * pip + 4 * gap
+    for i in range(5):
+        x = cx - row_w / 2 + i * (pip + gap)
+        done_or_now = i < level
+        size = pip * (1.45 if i == level - 1 else 1)
+        rect(start, end, x - (size - pip) / 2, pips_y - (size - pip) / 2, size, size, acc if done_or_now else rail,
+             origin=(x - (size - pip) / 2, pips_y + 24 * scale), delay=i * 50, travel=300)
+
+    if level == 1:  # EASY : rebond chaleureux + confettis
+        text(start, end, title, cx, title_y, big, ink, lines=1, max_width=span * .92,
+             origin=(cx, title_y + height * .05), travel=settle, extra=fx.format(60, 60))
+        rect(start, end, left, height * .385, span, height * .012 + 4 * scale, acc, extra=f"\\fscx0\\t(0,{settle},0.4,\\fscx100)")
+        for j in range(8):
+            dx = (j - 3.5) * span * .12
+            rect(start, min(end, start + .7), cx + dx, title_y - height * .20, 14 * scale, 14 * scale,
+                 (acc, "#fbbf24" if not light else "#854d0e", ink)[j % 3], origin=(cx, title_y), travel=520,
+                 layer=3, extra="\\fad(0,250)")
+    elif level == 2:  # MEDIUM : glissement + deux barres qui se croisent
+        text(start, end, title, cx, title_y, big, ink, lines=1, max_width=span * .92,
+             origin=(cx + span * .35, title_y), travel=settle)
+        rect(start, end, left, height * .385, span / 2, 10 * scale, acc, origin=(left - span * .3, height * .385), travel=settle)
+        rect(start, end, cx, height * .545, span / 2, 10 * scale, acc, origin=(cx + span * .3, height * .545), travel=settle)
+    elif level == 3:  # HARD : claquement + éclair
+        flash_end = min(end, start + .28)
+        rect(start, flash_end, 0, 0, width, height, acc, layer=4, extra="\\alpha&H70&\\t(0,280,\\alpha&HFF&)")
+        text(start, end, title, cx, title_y, big, ink, lines=1, max_width=span * .92,
+             extra=f"\\fscx230\\fscy230\\t(0,{round(settle * .6)},0.3,\\fscx100\\fscy100)\\fad(0,0)")
+        for j in range(3):
+            rect(start, end, left + j * span * .08, height * .385 - j * 0, span * (.5 - j * .1), (14 - 3 * j) * scale, acc,
+                 origin=(left - span * .25, height * .385), delay=j * 70, travel=settle)
+    elif level == 4:  # EXPERT : cadre fin + lettres qui se resserrent
+        frame(start, end, left, height * .17, span, height * .66, max(2, 2 * scale), acc, layer=1, extra="\\fad(300,0)")
+        text(start, end, title, cx, title_y, big * .92, ink, lines=1, max_width=span * .86,
+             extra=f"\\fsp40\\t(0,{round(settle * 1.6)},0.5,\\fsp4)\\fad(200,0)")
+        for sign in (-1, 1):
+            rect(start, end, cx + (0 if sign > 0 else -span * .3), height * .385, span * .3, 3 * scale, acc,
+                 extra=f"\\fscx0\\t(0,{settle},0.4,\\fscx100)")
+    else:  # GENIUS : cadre cinéma, rayons, poussée lente
+        bar = height * .12
+        rect(start, end, 0, 0, width, bar, "#000000" if not light else ink, origin=(0, -bar), travel=settle, layer=3)
+        rect(start, end, 0, height - bar, width, bar, "#000000" if not light else ink, origin=(0, height), travel=settle, layer=3)
+        frame(start, end, left, height * .17, span, height * .66, max(3, 4 * scale), acc, layer=1, extra="\\fad(300,0)")
+        frame(start, end, left + 14 * scale, height * .17 + 14 * scale, span - 28 * scale, height * .66 - 28 * scale,
+              max(1, 1.5 * scale), acc, layer=1, extra="\\fad(500,0)")
+        for i in range(16):
+            angle = i * 22.5
+            rect(start, min(end, start + 1.1), cx - 3 * scale, title_y - 330 * scale, 6 * scale, 40 * scale, acc,
+                 extra=f"\\org({round(cx)},{round(title_y)})\\frz{angle - 30}\\t(0,{settle * 2},0.4,\\frz{angle})\\fad(0,400)")
+        text(start, end, title, cx, title_y, big, acc, lines=1, max_width=span * .86,
+             extra=f"\\fscx90\\fscy90\\t(0,{max(1, round(duration * 1000))},\\fscx104\\fscy104)\\fad(250,0)")
 
 
 def presentation_info(script: dict) -> dict | None:
@@ -172,6 +263,18 @@ def attach_report(script: dict, report: dict) -> None:
         "renderingVersion": report.get("version") or "quiz-classic:legacy",
         "estimatedGenerationCostUsd": None,
     }
+    if quiz.get("chapter_mode") == "five_levels":
+        # Chapitres mesurés (jamais estimés) et lignes de chapitres YouTube ; absents si la timeline n'est pas mesurée.
+        try:
+            from . import quiz as quiz_module
+            from .quiz_chapter_export import chapter_segments, scenes_from_timeline, youtube_timestamps
+            segments = chapter_segments(scenes_from_timeline(report, script.get("blocks") or []))
+            lang = script.get("language") if script.get("language") in quiz_module._CHAPTER_TITLES else "fr"
+            word = {"fr": "Niveau", "en": "Level", "es": "Nivel", "de": "Stufe", "it": "Livello", "pt": "Nível"}[lang]
+            report = {**report, "chapters": [{**s, "start": round(s["start"], 3), "end": round(s["end"], 3)} for s in segments],
+                      "youtubeTimestamps": youtube_timestamps(segments, quiz_module._CHAPTER_TITLES[lang], word)}
+        except (ValueError, KeyError, TypeError):
+            pass
     script["generationMetadata"] = {**(metadata if isinstance(metadata, dict) else {}),
                                     "quizPresentation": report, "quizProfile": profile}
 
@@ -198,7 +301,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     luminance = sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
     selected_ink = "#000000" if luminance > .179 else "#ffffff"
     light = block.get("quiz_theme") in _LIGHT_THEMES
-    background = stage_background(block.get("quiz_theme"), part_index(block))
+    background = stage_background(block.get("quiz_theme"), part_index(block), FIVE_LEVEL_PARTS if block.get("quiz_chapter_total") == 5 else PARTS)
     rail = "#cbd5e1" if light else "#243249"
     if not light:
         # Cartes plus claires que la scène (le bleu nuit du thème se fondait dans le fond) et cernées d'un
@@ -415,6 +518,9 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     # Preserve the illustration as a real window; never substitute invented
     # factual diagrams for a supplied image/logo question.
     visual = bool(block.get("quiz_visual_available")) and phase in {"question", "reveal"}
+    # Mise en page « Short » (9:16, voir engine/quiz_shorts.py) : plus grande, réponses pleine largeur empilées,
+    # minuteur entre la question et les réponses, tout au-dessus de la zone recouverte par l'interface de la plateforme.
+    short = block.get("quiz_layout") == "short" and not landscape and not visual
     columns = uses_columns(width, height) and not visual
     if visual:
         top, bottom = height * .29, height * .435
@@ -435,6 +541,12 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         return "#080e1c" if sum(c * w for c, w in zip(linear, (.2126, .7152, .0722))) > .179 else "#ffffff"
 
     accent_ink = contrast(accent)
+    if phase == "chapter":
+        _chapter_scene(block, start, end, width, height, emit_tools=(rect, frame, text, check), ctx={
+            "scale": scale, "cx": cx, "left": left, "right": right, "span": span, "ink": ink, "rail": rail,
+            "light": light, "background": background, "landscape": landscape})
+        return events
+
     # Corner crop marks create a stage without a generic box around everything.
     vault_header = (vault or boss) and not landscape and phase in {"question", "reveal"}
     split_on = block.get("quiz_theme") == "split" and not landscape and not visual and len(block.get("quiz_choices") or []) == 2
@@ -477,6 +589,18 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     tend = end - beat
     animate = phase == "question" and duration - hold - beat >= 1.0
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
+    # A compact round label reuses existing scene timing; no extra audio or render blocks.
+    chapter = int(block.get("quiz_chapter_number") or 0)
+    chapter_total = int(block.get("quiz_chapter_total") or 0)
+    if chapter_total in {PARTS, 5} and 1 <= chapter <= chapter_total:
+        chapter_start = bool(block.get("quiz_chapter_start")) and phase == "question"
+        chapter_label = str(block.get("quiz_chapter_label") or "").strip()
+        round_title = f"{chapter_label}  {chapter} / {chapter_total}" if chapter_total == 5 and chapter_label else f"ROUND {chapter} / {chapter_total}"
+        text(start, end, round_title, cx, height * .075,
+             36 if short else 25, accent, lines=1, max_width=span * (.8 if short else .6),
+             origin=(cx - 42 * scale, height * .075) if chapter_start else None,
+             travel=420)
+
     if (block.get("quiz_theme") == "split" and not landscape and not visual and len(choices) == 2
             and phase in {"question", "reveal"}):
         split_scene(choices, number, total, correct_index, hold, tend)
@@ -490,7 +614,15 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         text(start, end, f"{number:02d}", number_x, height * .145, 74, ink, lines=1, max_width=span * .18)
         text(start, end, f"/ {total:02d}", total_x, height * .15, 30, accent, lines=1, max_width=span * .13)
         gap = 7 * scale
-        if total > 12:
+        view_first, view_last = int(block.get("quiz_view_first") or 0), int(block.get("quiz_view_last") or 0)
+        if 1 <= view_first <= number <= view_last <= total and view_last - view_first + 1 <= 12:
+            # Short d'un chapitre : la barre suit la progression DANS le chapitre (10 segments), le numéro reste global.
+            count = view_last - view_first + 1
+            segment = (span * .46 - (count - 1) * gap) / count
+            for i in range(count):
+                rect(start, end, right - span * .46 + i * (segment + gap), height * .146,
+                     segment, 7 * scale, accent if view_first + i <= number else rail)
+        elif total > 12:
             # Au-delà de 12 questions, 25 segments deviennent un pointillé illisible : une barre continue.
             rect(start, end, right - span * .46, height * .146, span * .46, 7 * scale, rail)
             rect(start, end, right - span * .46, height * .146, span * .46 * number / total, 7 * scale, accent)
@@ -590,11 +722,13 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     # Une réponse de plus de ~30 caractères tomberait sous 2 % de la hauteur dans une demi-largeur en vertical
     # (mesuré avec tests/test_quiz_motion_layout.py) : pleine largeur au-delà. En paysage les cartes sont
     # assez larges et hautes pour 52 caractères sur deux lignes.
-    question_grid = not visual and len(choices) in {2, 4} and max((len(c) for c in choices), default=0) <= (52 if landscape else 30)
+    question_grid = not visual and not short and len(choices) in {2, 4} and max((len(c) for c in choices), default=0) <= (52 if landscape else 30)
     focus_reveal = phase == "reveal" and not visual
 
     def question_rows(count: int) -> tuple[float, float, float]:
         """(hauteur, pas, y de départ) des réponses pendant la question, sans illustration."""
+        if short:
+            return height * .078, height * .088, height * .475
         if landscape:
             # Le cadre est large et bas : cartes plus hautes pour que deux lignes restent lisibles.
             # Les cartes occupent la hauteur disponible sous la question (jusqu'à ~85 %) : un cadre 16:9 dont
@@ -618,10 +752,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         if landscape:
             # Taller rows keep answers legible; the last row still ends above the caption band.
             rows_y, row_h, row_step = height * .56, height * .06, height * .07
-    question_y = height * (.224 if visual else .225 if focus_reveal else .277)
+    question_y = height * (.224 if visual else .225 if focus_reveal else .275 if short else .277)
     text(start, end, block.get("quiz_question", ""), cx, question_y, 64 if visual else 46 if focus_reveal else 76,
-         ink, lines=3, max_height=height * (.09 if focus_reveal else .105 if visual else .17),
-         steps=None if visual or focus_reveal else (76, 64, 54),
+         ink, lines=3 if not short else 4, max_height=height * (.09 if focus_reveal else .105 if visual else .15 if short else .17),
+         steps=None if visual or focus_reveal else (84, 76, 66, 58) if short else (76, 64, 54),
          # En paysage le compte à rebours occupe la droite de la ligne de la question.
          max_width=span - 2 * 168 * scale if landscape and phase == "question" else span,
          origin=(cx, height * .277) if focus_reveal else (cx, question_y + height * .025) if animate else None,
@@ -683,7 +817,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         if focus_reveal:
             answer_origin = (old_x + old_card_w / 2 + (0 if question_grid else 22 * scale),
                              old_y + old_row_h * (.61 if question_grid else .5))
-        text(start, end, choice, answer_x, answer_y, (54 if grid else 50) if landscape and not focus_reveal else 43 if grid else 44,
+        text(start, end, choice, answer_x, answer_y, (54 if grid else 50) if landscape and not focus_reveal else 43 if grid else 54 if short and not focus_reveal else 44,
              selected_ink if selected else card_ink, max_width=card_w - (44 if grid else 150) * scale,
              max_height=row_h * (.52 if grid else .86),
              origin=answer_origin, delay=delay, travel=travel,
@@ -696,8 +830,10 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         urgent_from = None
         # Portrait : sous les réponses. Paysage : à droite de la question (les réponses occupent la hauteur),
         # avec le trait de temps juste sous elle.
-        timer_x, timer_y = (right - radius - 6 * scale, height * .277) if landscape else (cx, height * .69)
-        strip_y = height * (.375 if landscape else .765)
+        if short:
+            radius = 68 * scale
+        timer_x, timer_y = (right - radius - 6 * scale, height * .277) if landscape else (cx, height * (.395 if short else .69))
+        strip_y = height * (.375 if landscape else .452 if short else .765)
         if hold > 0:
             # Each arc consumes exactly its share of the existing audio hold.
             # TIMER_STEPS_PER_SECOND bounds ASS size (the ring is most of a long quiz's subtitle weight).

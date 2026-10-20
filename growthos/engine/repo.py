@@ -225,6 +225,24 @@ def fail_trim(client, content_item_id: str, error: str) -> None:
     )
 
 
+# --- Exports verticaux par chapitre (quiz 50), voir engine/quiz_export_job.py -------------------------
+# La réclamation est atomique côté SQL (claim_quiz_chapter_export : skip locked + reprise des jobs orphelins).
+
+
+def claim_quiz_chapter_export(client) -> dict | None:
+    rows = client.rpc("claim_quiz_chapter_export").execute().data
+    return rows[0] if rows else None
+
+
+def finish_quiz_chapter_export(client, export_id: str, fields: dict) -> None:
+    client.table("quiz_chapter_exports").update(
+        {**fields, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", export_id).execute()
+
+
+def fail_quiz_chapter_export(client, export_id: str, error: str) -> None:
+    finish_quiz_chapter_export(client, export_id, {"status": "failed", "error": error[:500]})
+
+
 def update_content_item(client, content_item_id: str, **fields) -> None:
     fields.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
     client.table("content_items").update(fields).eq("id", content_item_id).execute()

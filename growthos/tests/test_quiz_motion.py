@@ -11,6 +11,33 @@ class QuizMotionTests(unittest.TestCase):
     def setUp(self):
         self.script = json.loads((Path(__file__).resolve().parents[1] / "content/scripts/exemple-quiz.json").read_text(encoding="utf-8"))
 
+    def test_five_level_visual_palettes_and_legacy_compatibility(self):
+        from engine import quiz_motion
+        five = [{"quiz_phase": "question", "quiz_question_total": 50,
+                 "quiz_question_number": n, "quiz_chapter_total": 5}
+                for n in (1, 10, 11, 20, 21, 30, 31, 40, 41, 50)]
+        self.assertEqual([quiz_motion.part_index(b) for b in five],
+                         [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
+        colours = [quiz_motion.stage_background("studio", i, 5) for i in range(5)]
+        self.assertEqual(len(set(colours)), 5)
+        self.assertEqual(quiz_motion.stage_background("studio", 0), "#080e1c")
+        self.assertEqual(quiz_motion.stage_background("studio", 3), "#1f0c14")
+
+    def test_long_quiz_round_label_uses_chapter_metadata(self):
+        from engine import quiz_motion
+        self.script["quiz"]["presentation"] = "motion"
+        block = compile_quiz(self.script)["blocks"][1]
+        # Rendering uses metadata, not a guessed difficulty label.
+        long_block = {**block, "quiz_question_total": 25,
+                      "quiz_chapter_number": 2, "quiz_chapter_total": quiz_motion.PARTS}
+        events = _quiz_events([long_block], [7], 1920, 1080)
+        self.assertTrue(any("ROUND 2 / 4" in event for event in events))
+        five_block = {**long_block, "quiz_chapter_total": 5, "quiz_chapter_label": "EXPERT"}
+        five_events = _quiz_events([five_block], [7], 1920, 1080)
+        self.assertTrue(any("EXPERT" in event and "2 / 5" in event for event in five_events))
+        short_events = _quiz_events([block], [7], 1920, 1080)
+        self.assertFalse(any("ROUND 2 / 4" in event for event in short_events))
+
     def test_old_scripts_keep_identical_classic_events(self):
         compiled = compile_quiz(self.script)
         self.assertEqual(normalize_quiz(self.script["quiz"])["presentation"], "classic")

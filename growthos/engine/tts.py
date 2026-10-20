@@ -167,3 +167,20 @@ def get_duration_seconds(audio_path: str) -> float:
             "(apt install ffmpeg / brew install ffmpeg / winget install ffmpeg)"
         ) from exc
     return float(json.loads(result.stdout)["format"]["duration"])
+
+
+def get_playback_duration_seconds(audio_path: str) -> float:
+    """Duration of the audio AS DECODED (what `concat_audio` actually joins).
+
+    `get_duration_seconds` reads the container header, which for mp3 includes the ~25 ms encoder delay that the
+    decoder drops. Summed over the ~107 blocks of a 50-question quiz that is ~3 s of drift between the scene
+    timeline (built from durations) and the concatenated audio. Quiz blocks therefore use this value."""
+    rate = 44100
+    try:
+        result = subprocess.run(["ffmpeg", "-v", "error", "-i", audio_path, "-f", "s16le", "-ac", "1", "-ar", str(rate), "-"],
+                                capture_output=True, check=True, timeout=120)
+    except FileNotFoundError as exc:
+        raise RuntimeError("'ffmpeg' introuvable — installe ffmpeg") from exc
+    if not result.stdout:
+        return get_duration_seconds(audio_path)
+    return len(result.stdout) / 2 / rate
