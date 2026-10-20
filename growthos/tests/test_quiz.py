@@ -145,6 +145,21 @@ class TestQuiz(unittest.TestCase):
         self.assertFalse(compiled["quiz"]["illustrations"])
         validate_script(compiled)
 
+    def test_long_quiz_50_questions_compiles_and_51_rejected(self):
+        questions = [{"question": f"Which unique element number {i} is described?",
+                      "choices": [f"Element {i}", f"Alternative {i}"],
+                      "correct_choice": 0} for i in range(1, 51)]
+        source = {**QUIZ_SCRIPT, "quiz": {"recipe": "long", "topic": "elements",
+                                         "questions": questions}}
+        validate_script(source)
+        compiled = compile_quiz(source)
+        self.assertEqual(len(compiled["blocks"]), 102)
+        self.assertEqual(compiled["blocks"][-2]["quiz_question_number"], 50)
+        with self.assertRaisesRegex(ValueError, "entre 10 et 50"):
+            validate_quiz({**source["quiz"], "questions": questions + [
+                {"question": "Extra distinct fact 51?", "choices": ["Extra 51", "No"],
+                 "correct_choice": 0}]})
+
     def test_rejects_previous_fact_and_reworded_question(self):
         source = {"questions": [{"question": "Which organelle makes ATP?", "choices": ["Mitochondrion", "Nucleus"],
                                  "correct_choice": 0, "fact": "mitochondria ATP"}],
