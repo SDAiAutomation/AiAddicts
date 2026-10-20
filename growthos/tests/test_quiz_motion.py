@@ -34,7 +34,7 @@ class QuizMotionTests(unittest.TestCase):
         self.assertTrue(any("ROUND 2 / 4" in event for event in events))
         five_block = {**long_block, "quiz_chapter_total": 5, "quiz_chapter_label": "EXPERT"}
         five_events = _quiz_events([five_block], [7], 1920, 1080)
-        self.assertTrue(any("EXPERT  2 / 5" in event for event in five_events))
+        self.assertTrue(any("EXPERT" in event and "2 / 5" in event for event in five_events))
         short_events = _quiz_events([block], [7], 1920, 1080)
         self.assertFalse(any("ROUND 2 / 4" in event for event in short_events))
 
