@@ -179,7 +179,7 @@ class QuizMotionTests(unittest.TestCase):
         urgent_bgr = "&H00" + urgent[4:6] + urgent[2:4] + urgent[0:2]
         urgent_events = [e for e in events if urgent_bgr.upper() in e.upper()]
         self.assertTrue(urgent_events)
-        self.assertTrue(all(float(e.split(",")[1].split(":")[2]) >= 12 - 5 + 3 - 1e-6 for e in urgent_events if e.count(" l ") > 40))
+        self.assertTrue(all(float(e.split(",")[1].split(":")[2]) >= 12 - 5 + 3 - 1e-6 for e in urgent_events if e.count(" l ") > 40 and "\\an7" in e))  # l'anneau principal ; les pulses (\an5) sont testés à part
         # Sur une scène claire, l'orange est assombri pour rester à 3:1 au moins.
         def contrast(first, second):
             def lum(colour):
@@ -230,6 +230,41 @@ class QuizMotionTests(unittest.TestCase):
         events = _quiz_events([{**question, "hold_after_seconds": 5}], [12], 1920, 1080)
         rings = [e for e in events if e.count(" l ") > 40]
         self.assertLessEqual(len(rings), 5 * 12 + 1)
+
+    def test_countdown_effects_pulse_every_second_and_escalate_colour_in_the_last_three(self):
+        from engine import quiz_motion
+        self.script["quiz"]["presentation"] = "motion"
+        question = compile_quiz(self.script)["blocks"][1]
+        events = _quiz_events([{**question, "hold_after_seconds": 5}], [12], 1920, 1080)
+        pulses = [e for e in events if "\\an5" in e and "\\p1" in e and "\\t(0,550" in e]
+        self.assertEqual(len(pulses), 5)  # one expanding ring per second of the countdown
+        def bgr(colour):
+            c = colour.lstrip("#")
+            return ("&H00" + c[4:6] + c[2:4] + c[0:2]).upper()
+        joined = "\n".join(pulses).upper()
+        for colour in (quiz_motion.WARN_COLOUR, quiz_motion.URGENT_COLOUR, quiz_motion.DANGER_COLOUR):
+            self.assertIn(bgr(colour), joined)
+        self.assertTrue(any("\\frz-10" in e for e in events), "the last three digits wobble")
+        self.assertTrue(any("\\alpha&H90&\\t(0,500" in e for e in events), "red border pulses in the last two seconds")
+
+    def test_short_countdown_has_no_effects(self):
+        self.script["quiz"]["presentation"] = "motion"
+        question = compile_quiz(self.script)["blocks"][1]
+        events = _quiz_events([{**question, "hold_after_seconds": 2}], [12], 1920, 1080)
+        self.assertFalse(any("\\t(0,550" in e for e in events))
+        self.assertFalse(any("\\frz-10" in e for e in events))
+
+    def test_reveal_is_green_with_flash_and_confetti_and_question_starts_with_a_wipe(self):
+        from engine import quiz_motion
+        self.script["quiz"]["presentation"] = "motion"
+        compiled = compile_quiz(self.script)
+        question, reveal = compiled["blocks"][1], compiled["blocks"][2]
+        reveal_events = _quiz_events([reveal], [6], 1920, 1080)
+        confetti = [e for e in reveal_events if "\\frz" in e and "\\t(500,900" in e]
+        self.assertEqual(len(confetti), 18)
+        self.assertTrue(any("\\t(0,350,\\alpha&HFF&)" in e for e in reveal_events), "green flash")
+        wipes = [e for e in _quiz_events([{**question, "hold_after_seconds": 5}], [12], 1920, 1080) if "\\move(-" in e and "\\t(300,420" in e]
+        self.assertEqual(len(wipes), 1)
 
     def test_short_narration_has_no_choice_entrance_and_timer_is_bounded(self):
         self.script["quiz"]["presentation"] = "motion"

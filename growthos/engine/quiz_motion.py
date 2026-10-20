@@ -57,6 +57,9 @@ SPLIT_LEFT, SPLIT_RIGHT = "#1740c9", "#cf3e14"  # bleu / orange ; blanc dessus :
 _TINTS_VAULT = ("#0b0906", "#0d0a06", "#0a0806", "#0e0a07")  # noirs chauds : le coffre-fort ; l'or (accent) porte le reste
 URGENT_COLOUR = "#f97316"  # les 2 dernières secondes du compte à rebours
 URGENT_COLOUR_LIGHT = "#c2410c"  # même rôle sur scène claire : #f97316 n'y atteint que ~2,6:1, #c2410c ~5:1
+# Compte à rebours : calme, puis jaune (3 s), orange (2 s), rouge (1 s). Variantes sombres pour les scènes claires.
+WARN_COLOUR, WARN_COLOUR_LIGHT = "#facc15", "#854d0e"
+DANGER_COLOUR, DANGER_COLOUR_LIGHT = "#ef4444", "#b91c1c"
 # Coche dessinée dans une boîte de 100 x 100 (aucun glyphe unicode : il dépend de la police de repli).
 _CHECK_POINTS = ((8, 54), (22, 40), (40, 58), (78, 18), (92, 32), (40, 86))
 _SCENE_PHASES = {"intro", "chapter", "question", "reveal", "outro"}
@@ -395,6 +398,68 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         path = "m " + " l ".join(f"{round(px)} {round(py)}" for px, py in points)
         emit(a, b, f"\\an7\\pos({round(x)},{round(y)})\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}{extra}", path + "{\\p0}", 2)
 
+    def timer_colour(left, default):
+        """Couleur du compte à rebours selon le temps restant : `default`, puis jaune, orange et rouge."""
+        if left <= 1:
+            return DANGER_COLOUR_LIGHT if light else DANGER_COLOUR
+        if left <= 2:
+            return URGENT_COLOUR_LIGHT if light else URGENT_COLOUR
+        if left <= 3.5:
+            return WARN_COLOUR_LIGHT if light else WARN_COLOUR
+        return default
+
+    def tick_extra(remaining):
+        """Rebond du chiffre à chaque seconde ; les trois dernières basculent et claquent plus fort."""
+        if remaining <= 3:
+            return "\\fscx190\\fscy190\\frz-10\\t(0,120,0.5,\\fscx100\\fscy100\\frz8)\\t(120,240,\\frz0)"
+        return "\\fscx160\\fscy160\\t(0,200,0.4,\\fscx100\\fscy100)"
+
+    def tick_fx(remaining, a, x, y, radius, colour):
+        """Un anneau fin qui se dilate et s'efface à chaque seconde (une seule forme, ~0,5 s)."""
+        if end - a < .2:
+            return
+        inner = max(1, radius - max(2, 3 * scale))
+        pts = [(radius * math.cos(i / 28 * 2 * math.pi), radius * math.sin(i / 28 * 2 * math.pi)) for i in range(29)]
+        pts += [(inner * math.cos(i / 28 * 2 * math.pi), inner * math.sin(i / 28 * 2 * math.pi)) for i in range(28, -1, -1)]
+        path = "m " + " l ".join(f"{round(px)} {round(py)}" for px, py in pts)
+        grow = 200 if remaining <= 3 else 160
+        emit(a, min(end, a + .55), f"\\an5\\pos({round(x)},{round(y)})\\p1\\bord0\\shad0\\1c{_ass_rgb(colour)}\\alpha&H70&"
+             f"\\t(0,550,\\fscx{grow}\\fscy{grow}\\alpha&HFF&)", path + "{\\p0}", 2)
+
+    def time_up_frame(a, b):
+        """Les deux dernières secondes : un cadre rouge qui pulse sur les bords de l'écran (quatre bandes fines)."""
+        if b - a < .5:
+            return
+        frame(a, b, 0, 0, width, height, max(6, 9 * scale), DANGER_COLOUR_LIGHT if light else DANGER_COLOUR, layer=5,
+              extra="\\alpha&H90&\\t(0,500,\\alpha&H30&)\\t(500,1000,\\alpha&H90&)\\t(1000,1500,\\alpha&H30&)\\t(1500,2000,\\alpha&H90&)")
+
+    def wipe():
+        """Balayage de couleur à chaque nouvelle question (~0,4 s, une forme) : la scène change, on le sent."""
+        if end - start < 1.2:
+            return
+        w_, skew = width * .32, height * .22
+        path = f"m {round(skew)} 0 l {round(w_ + skew)} 0 {round(w_)} {height} 0 {height}"
+        emit(start, start + .42, f"\\an7\\move({-round(w_ + skew)},0,{width},0,0,400)\\p1\\bord0\\shad0\\1c{_ass_rgb(accent)}"
+             "\\t(300,420,\\alpha&HFF&)", path + "{\\p0}", 6)
+
+    def reveal_flash():
+        """Flash vert très bref derrière la scène à la révélation."""
+        rect(start, min(end, start + .35), 0, 0, width, height, correct, layer=0, extra="\\alpha&H88&\\t(0,350,\\alpha&HFF&)")
+
+    def confetti(x, y, spread, count=18):
+        """Explosion de confettis (carrés qui tournent) : vert, couleur d'accent et encre, ~0,9 s."""
+        if end - start < .3:
+            return
+        palette = (correct, accent, ink)
+        for i in range(count):
+            angle = i * 360 / count + (i % 2) * 9
+            distance = spread * (.55 + .45 * ((i * 7) % 5) / 4)
+            size = (8 + (i % 3) * 3) * scale
+            tx = x + distance * math.cos(math.radians(angle))
+            ty = y + distance * math.sin(math.radians(angle)) * .7
+            rect(start, min(end, start + .95), tx, ty, size, size, palette[i % 3], origin=(x, y), travel=620, layer=4,
+                 extra=f"\\frz{angle}\\t(0,800,\\frz{angle + 220})\\t(500,900,\\alpha&HFF&)")
+
     def vault_slots(number: int, total: int, phase_: str) -> None:
         """En-tête « The Vault » : plaque, une case par question (chiffre du code ou cadenas) et plaque de question.
         Les chiffres sont décoratifs (un code de coffre, pas une donnée) ; la case de la question se déverrouille
@@ -588,6 +653,8 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     beat = max(0.0, float(block.get("quiz_reveal_beat_seconds") or 0)) if phase == "question" else 0.0
     tend = end - beat
     animate = phase == "question" and duration - hold - beat >= 1.0
+    if animate:
+        wipe()  # même condition que l'entrée des cartes : une narration trop courte reste sans mouvement
     correct_index = int(block.get("quiz_correct_choice") or 0) if phase == "reveal" else -1
     # A compact round label reuses existing scene timing; no extra audio or render blocks.
     chapter = int(block.get("quiz_chapter_number") or 0)
@@ -682,39 +749,39 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         if phase == "question":
             radius = 64 * scale
             ring_y = height * .79
-            urgent_from = tend - 2 if hold >= 3 else None
+            fun = hold >= 3  # compte à rebours trop court : pas d'effets
             if hold > 0:
                 timer_start = max(start, tend - hold)
                 steps_n = max(1, math.ceil((tend - timer_start) * TIMER_STEPS_PER_SECOND))
                 for j in range(steps_n):
                     a = timer_start + (tend - timer_start) * j / steps_n
                     b = timer_start + (tend - timer_start) * (j + 1) / steps_n
-                    ring(a, b, left_cx, ring_y, radius, (URGENT_COLOUR_LIGHT if light else URGENT_COLOUR)
-                         if urgent_from is not None and a >= urgent_from else accent, portion=max(.001, 1 - j / steps_n))
+                    ring(a, b, left_cx, ring_y, radius, timer_colour(tend - a, accent) if fun else accent,
+                         portion=max(.001, 1 - j / steps_n))
                 for remaining in range(math.ceil(min(hold, duration)), 0, -1):
                     a, b = max(timer_start, tend - remaining), tend - remaining + 1
-                    text(a, b, remaining, left_cx, ring_y, 62, (URGENT_COLOUR_LIGHT if light else URGENT_COLOUR)
-                         if urgent_from is not None and remaining <= 2 else ink, max_width=radius * 1.5, lines=1,
-                         style="QuizTimer", extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+                    text(a, b, remaining, left_cx, ring_y, 62, timer_colour(remaining, ink) if fun else ink,
+                         max_width=radius * 1.5, lines=1, style="QuizTimer",
+                         extra=tick_extra(remaining) if fun else "\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+                    if fun:
+                        tick_fx(remaining, a, left_cx, ring_y, radius, timer_colour(remaining, accent))
+                if fun:
+                    time_up_frame(tend - 2, tend)
                 strip_y = height * .915
                 rect(timer_start, tend, col_left, strip_y, left_w, 5 * scale, rail)
                 rect(timer_start, tend, col_left, strip_y, left_w, 5 * scale, accent,
                      extra=f"\\fscx100\\t(0,{round((tend - timer_start) * 1000)},\\fscx0)")
         else:
             hero_y, hero_h = height * .525, height * .27
-            rect(start, end, col_left, hero_y - hero_h / 2, left_w, hero_h, accent, layer=2,
+            reveal_flash()
+            rect(start, end, col_left, hero_y - hero_h / 2, left_w, hero_h, correct, layer=2,
                  extra="\\fscx0\\t(0,300,0.4,\\fscx100)")
             answer = choices[correct_index] if 0 <= correct_index < len(choices) else ""
             source_y = rows_top + max(0, correct_index) * (row_h + row_gap) + row_h / 2
-            text(start, end, answer, left_cx, hero_y, 84, accent_ink, max_width=left_w - 80 * scale, lines=3,
+            text(start, end, answer, left_cx, hero_y, 84, selected_ink, max_width=left_w - 80 * scale, lines=3,
                  max_height=hero_h * .80, origin=(col_x, source_y), travel=min(380, round(duration * 250)),
                  extra="\\fscx78\\fscy78\\t(0,380,0.4,\\fscx100\\fscy100)", steps=(84, 72, 60, 52))
-            burst_end = min(end, start + .48)
-            for direction in (-1, 1):
-                for j in range(3):
-                    rect(start, burst_end, left_cx + direction * (left_w / 2 - 12 * scale), hero_y + (j - 1) * 18 * scale,
-                         5 * scale, 5 * scale, accent, origin=(left_cx + direction * left_w * .3, hero_y), travel=350,
-                         layer=3, extra="\\fad(0,160)")
+            confetti(left_cx, hero_y, left_w * .62)
         return events
 
     # Four choices get an editorial 2x2 composition; long answers and image
@@ -826,8 +893,7 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
     if phase == "question":
         timer_start = max(start, tend - hold)
         radius = (64 if landscape else 57) * scale
-        urgent_colour = URGENT_COLOUR_LIGHT if light else URGENT_COLOUR
-        urgent_from = None
+        fun = hold >= 3  # compte à rebours trop court : pas d'effets
         # Portrait : sous les réponses. Paysage : à droite de la question (les réponses occupent la hauteur),
         # avec le trait de temps juste sous elle.
         if short:
@@ -838,17 +904,20 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
             # Each arc consumes exactly its share of the existing audio hold.
             # TIMER_STEPS_PER_SECOND bounds ASS size (the ring is most of a long quiz's subtitle weight).
             steps = max(1, math.ceil((tend - timer_start) * TIMER_STEPS_PER_SECOND))
-            # Les 2 dernières secondes préviennent le spectateur (orange) ; pas pour un compte à rebours trop court.
-            urgent_from = tend - 2 if hold >= 3 else None
+            # Jaune à 3 s, orange à 2 s, rouge à 1 s, anneau qui pulse chaque seconde ; pas pour un compte à rebours trop court.
             for j in range(steps):
                 a = timer_start + (tend - timer_start) * j / steps
                 b = timer_start + (tend - timer_start) * (j + 1) / steps
-                ring(a, b, timer_x, timer_y, radius, urgent_colour if urgent_from is not None and a >= urgent_from else accent,
+                ring(a, b, timer_x, timer_y, radius, timer_colour(tend - a, accent) if fun else accent,
                      portion=max(.001, 1 - j / steps))
             for remaining in range(math.ceil(min(hold, duration)), 0, -1):
                 a, b = max(timer_start, tend - remaining), tend - remaining + 1
-                text(a, b, remaining, timer_x, timer_y, 62, urgent_colour if urgent_from is not None and remaining <= 2 else ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
-                     extra="\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+                text(a, b, remaining, timer_x, timer_y, 62, timer_colour(remaining, ink) if fun else ink, max_width=radius * 1.5, lines=1, style="QuizTimer",
+                     extra=tick_extra(remaining) if fun else "\\fscx125\\fscy125\\t(0,160,0.4,\\fscx100\\fscy100)")
+                if fun:
+                    tick_fx(remaining, a, timer_x, timer_y, radius, timer_colour(remaining, accent))
+            if fun:
+                time_up_frame(tend - 2, tend)
             # The full-width time strip provides peripheral timing without
             # shaking, flickering or moving the answers being read.
             rect(timer_start, tend, left, strip_y, span, 5 * scale, rail)
@@ -861,22 +930,16 @@ def scene_events(block: dict, start: float, end: float, width: int, height: int,
         hero_h = height * (.105 if visual else .17 if landscape else .135)
         if visual:
             rect(start, end, left, height * .305, span, height * .115, background, layer=2)
-        rect(start, end, left, hero_y - hero_h / 2, span, hero_h, accent, layer=2,
+        reveal_flash()
+        rect(start, end, left, hero_y - hero_h / 2, span, hero_h, correct, layer=2,
              extra="\\fscx0\\t(0,300,0.4,\\fscx100)")
         grid_h, grid_step, grid_y = question_rows(len(choices))
         source_y = (grid_y + (correct_index // 2 if question_grid else correct_index) * grid_step +
                     (grid_h / 2 if landscape else height * .045)) if focus_reveal else (
                     rows_y + correct_index * row_step + row_h / 2)
         answer = choices[correct_index] if 0 <= correct_index < len(choices) else ""
-        text(start, end, answer, cx, hero_y, 78 if visual else 114, accent_ink, max_width=span - 60 * scale,
+        text(start, end, answer, cx, hero_y, 78 if visual else 114, selected_ink, max_width=span - 60 * scale,
              max_height=hero_h * .80, origin=(cx, source_y), travel=min(380, round(duration * 250)),
              extra="\\fscx78\\fscy78\\t(0,380,0.4,\\fscx100\\fscy100)")
-        burst_end = min(end, start + .48)
-        for direction in (-1, 1):
-            for j in range(3):
-                x = cx + direction * (span / 2 - 12 * scale)
-                y = hero_y + (j - 1) * 18 * scale
-                rect(start, burst_end, x, y, 5 * scale, 5 * scale, accent,
-                     origin=(cx + direction * span * .3, hero_y), travel=350, layer=3,
-                     extra="\\fad(0,160)")
+        confetti(cx, hero_y, span * .45)
     return events
