@@ -18,6 +18,7 @@ Garanties :
 import hashlib
 import json
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -99,31 +100,40 @@ def _save_file(kind: str, key: str, src: Path, estimated_cost: float | None, pro
         return False
     client, item_id = ctx["client"], ctx["item_id"]
     path = f"{item_id}/{kind}/{key}{src.suffix}"
-    try:
-        client.storage.from_(BUCKET).upload(
-            path, str(src.resolve()), file_options={"upsert": "true", "content-type": _content_type(src)}
+    # Une sauvegarde qui échoue en silence laisse un trou dans le cache (constat sur un quiz de 50 : 7 voix sur 107 et
+    # 12 timings absents), et les exports par chapitre en dépendent : trois essais avant d'abandonner.
+    for attempt in range(1, 4):
+        try:
+            return _upload_and_register(client, ctx, item_id, kind, key, src, path, estimated_cost, provider)
+        except Exception as exc:
+            print(f"       (actif {kind} non conservé, essai {attempt}/3 : {exc})")
+            if attempt < 3:
+                time.sleep(attempt)
+    return False
+
+
+def _upload_and_register(client, ctx, item_id, kind, key, src, path, estimated_cost, provider) -> bool:
+    client.storage.from_(BUCKET).upload(
+        path, str(src.resolve()), file_options={"upsert": "true", "content-type": _content_type(src)}
+    )
+    row = (
+        client.table(TABLE)
+        .upsert(
+            {
+                "content_item_id": item_id,
+                "kind": kind,
+                "input_hash": key,
+                "storage_path": path,
+                "bytes": src.stat().st_size,
+                "estimated_cost": estimated_cost,
+                "provider": provider,
+                "last_used_at": datetime.now(timezone.utc).isoformat(),
+            },
+            on_conflict="content_item_id,kind,input_hash",
         )
-        row = (
-            client.table(TABLE)
-            .upsert(
-                {
-                    "content_item_id": item_id,
-                    "kind": kind,
-                    "input_hash": key,
-                    "storage_path": path,
-                    "bytes": src.stat().st_size,
-                    "estimated_cost": estimated_cost,
-                    "provider": provider,
-                    "last_used_at": datetime.now(timezone.utc).isoformat(),
-                },
-                on_conflict="content_item_id,kind,input_hash",
-            )
-            .execute()
-            .data
-        )
-    except Exception as exc:
-        print(f"       (actif {kind} non conservé : {exc})")
-        return False
+        .execute()
+        .data
+    )
     with _lock:
         if row:
             ctx["rows"][(kind, key)] = row[0]
@@ -154,6 +164,17 @@ def restore_voice(key: str, audio_path: Path, words_path: Path) -> bool:
         return True
     for leftover in (audio_path, words_path):
         leftover.unlink(missing_ok=True)
+    return False
+
+
+def restore_voice_audio(key: str, audio_path: Path) -> bool:
+    """Restaure SEULEMENT l'audio d'un bloc (le timing mot à mot manque ou n'a pas été conservé)."""
+    if _ctx is None:
+        return False
+    if _restore_file("voice", key, audio_path):
+        _count("voice", "reused")
+        return True
+    audio_path.unlink(missing_ok=True)
     return False
 
 
