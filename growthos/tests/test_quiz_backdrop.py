@@ -76,7 +76,10 @@ class BackdropTests(unittest.TestCase):
         self.assertIn("chemistry", prompt)
         for banned in ("No text", "no people", "no logos"):
             self.assertIn(banned.lower(), prompt.lower())
-        self.assertEqual(len(quiz_backdrop._VARIANTS), quiz_motion.PARTS)
+        # Quatre variantes pour le mode historique, une cinquième réservée au mode cinq niveaux.
+        self.assertEqual(len(quiz_backdrop._VARIANTS), quiz_motion.FIVE_LEVEL_PARTS)
+        self.assertGreaterEqual(len(quiz_backdrop._VARIANTS), quiz_motion.PARTS)
+        self.assertEqual(len(set(quiz_backdrop._VARIANTS)), len(quiz_backdrop._VARIANTS))
 
 
 if __name__ == "__main__":
