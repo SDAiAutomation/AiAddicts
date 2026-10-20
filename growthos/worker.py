@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from engine import assembler, autoedit, autoedit_repo, autoedit_run, db, events, repo, trim
+from engine import assembler, autoedit, autoedit_repo, autoedit_run, db, events, quiz_export_job, quiz_shorts, repo, trim
 
 if sys.platform == "win32":
     # La console Windows garde son ancien codepage (cp1252/cp850) par défaut,
@@ -73,6 +73,27 @@ def process_trim(client) -> bool:
     return True
 
 
+def process_quiz_export(client) -> bool:
+    """Réclame et traite un export vertical de chapitre (quiz 50 questions). Priorité après la génération :
+    c'est un rendu optionnel, le master d'abord. Un échec marque la ligne `failed` sans toucher au master."""
+    row = repo.claim_quiz_chapter_export(client)
+    if not row:
+        return False
+    print(f"\n=== Export chapitre {row['chapter']} de {row['content_item_id']} ===")
+    try:
+        fields = quiz_export_job.process(client, row)
+        repo.finish_quiz_chapter_export(client, row["id"], fields)
+        print(f"=== OK export chapitre {row['chapter']} ({len(fields['outputs'])} fichier(s)) ===")
+    except quiz_shorts.ExportError as exc:
+        print(f"=== ÉCHEC export {row['id']} : {exc} ===")
+        repo.fail_quiz_chapter_export(client, row["id"], str(exc))
+    except Exception as exc:
+        print(f"=== ÉCHEC export {row['id']} : {type(exc).__name__}: {exc} ===")
+        traceback.print_exc()
+        repo.fail_quiz_chapter_export(client, row["id"], "L'export a échoué ; réessaie dans quelques minutes.")
+    return True
+
+
 def process_autoedit(client) -> bool:
     """Réclame et traite un job AutoEdit (expérimental, AUTOEDIT_ENABLED=true).
     Retourne True si un job a été traité, False si la file était vide ou la
@@ -98,7 +119,7 @@ def process_one(client) -> bool:
 
     item = repo.claim_queued_item(client)
     if not item:
-        return process_autoedit(client)
+        return process_quiz_export(client) or process_autoedit(client)
 
     content_item_id = item["id"]
     print(f"\n=== Génération {content_item_id} ===")

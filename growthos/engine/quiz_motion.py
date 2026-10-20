@@ -64,7 +64,7 @@ _SCENE_PHASES = {"intro", "chapter", "question", "reveal", "outro"}
 # Identité de chaque niveau du quiz 50 questions : teinte (sur fond sombre / clair) et nom de mise en scène.
 # Les contrastes sont vérifiés par test (>= 4,5:1 sur la teinte du fond de la partie).
 LEVEL_ACCENTS_DARK = ("#4ade80", "#fbbf24", "#fb7a3c", "#c084fc", "#ffd23f")
-LEVEL_ACCENTS_LIGHT = ("#15803d", "#a16207", "#c2410c", "#7e22ce", "#92400e")
+LEVEL_ACCENTS_LIGHT = ("#166534", "#854d0e", "#c2410c", "#7e22ce", "#92400e")
 
 
 def uses_columns(width: int, height: int) -> bool:
@@ -166,7 +166,7 @@ def _chapter_scene(block: dict, start: float, end: float, width: int, height: in
         for j in range(8):
             dx = (j - 3.5) * span * .12
             rect(start, min(end, start + .7), cx + dx, title_y - height * .20, 14 * scale, 14 * scale,
-                 (acc, "#fbbf24" if not light else "#a16207", ink)[j % 3], origin=(cx, title_y), travel=520,
+                 (acc, "#fbbf24" if not light else "#854d0e", ink)[j % 3], origin=(cx, title_y), travel=520,
                  layer=3, extra="\\fad(0,250)")
     elif level == 2:  # MEDIUM : glissement + deux barres qui se croisent
         text(start, end, title, cx, title_y, big, ink, lines=1, max_width=span * .92,

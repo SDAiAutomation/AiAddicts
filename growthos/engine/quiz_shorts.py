@@ -44,6 +44,25 @@ def audio_path(work_dir: Path, index: int, block: dict) -> Path:
     return Path(work_dir) / "audio" / name
 
 
+def ensure_padded_audio(block: dict, raw_path: Path, padded_path: Path) -> Path:
+    """Narration + silent reflection window (with countdown ticks) for a block with `hold_after_seconds`.
+
+    Single source of truth shared by the master render (engine/assembler.py) and the chapter exports, so both
+    produce the same audio from the same narration."""
+    padded_path = Path(padded_path)
+    if padded_path.exists() and padded_path.stat().st_size > 0:
+        return padded_path
+    hold = float(block.get("hold_after_seconds") or 0)
+    beat = float(block.get("quiz_reveal_beat_seconds") or 0) if hold > 0 else 0.0
+    mode = str(block.get("quiz_sound_effects") or "off")
+    if mode != "off":
+        video.add_countdown_sfx(str(raw_path), tts.get_duration_seconds(str(raw_path)), int(hold), str(padded_path),
+                                mode, str(block.get("quiz_theme") or "studio"), beat)
+    else:
+        video.pad_audio(str(raw_path), hold + beat, str(padded_path))
+    return padded_path
+
+
 def _chapter_blocks(data: dict) -> dict[int, list[int]]:
     """Master block indices (0-based) per chapter: card first, then its question/reveal pairs."""
     chapters: dict[int, list[int]] = {n: [] for n in range(1, 6)}

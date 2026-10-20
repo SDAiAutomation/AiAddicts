@@ -1,0 +1,9 @@
+insert into accounts values ('a0000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-00000000000a'),('a0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000b');
+insert into organization_members values ('00000000-0000-0000-0000-00000000000a','11111111-1111-1111-1111-111111111111','editor'),
+ ('00000000-0000-0000-0000-00000000000a','22222222-2222-2222-2222-222222222222','viewer'),
+ ('00000000-0000-0000-0000-00000000000b','33333333-3333-3333-3333-333333333333','owner');
+insert into content_versions(id) values ('c0000000-0000-0000-0000-000000000001'),('c0000000-0000-0000-0000-000000000002');
+insert into content_items(id,account_id,status,video_url,script,current_version_id) values
+ ('d0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000001','video','u','{"content_format":"quiz","quiz":{"chapter_mode":"five_levels","presentation":"motion"}}','c0000000-0000-0000-0000-000000000001'),
+ ('d0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000001','video','u','{"content_format":"quiz","quiz":{"chapter_mode":"legacy","presentation":"motion"}}',null),
+ ('d0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000001','queued',null,'{"content_format":"quiz","quiz":{"chapter_mode":"five_levels","presentation":"motion"}}',null);

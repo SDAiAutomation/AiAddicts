@@ -14,7 +14,7 @@ from typing import Callable
 from .explainer import access as explainer_access, integration as explainer_integration
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
-    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, repo, retention,
+    math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, quiz_shorts, repo, retention,
     script as script_module, shot_planning, storage, thumbnail, tts, versions, video, visuals, voices,
 )
 
@@ -30,6 +30,12 @@ MIN_MONETIZABLE_DURATION_S = 60.0
 
 def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
+
+
+def voice_text_for(data: dict, block: dict) -> str:
+    """Texte réellement envoyé à la synthèse vocale (partagé avec l'export des chapitres : même clé de cache)."""
+    is_french_math = str(data.get("language", "fr")).startswith("fr") and "math" in str(data.get("niche", "")).lower()
+    return math_narration.for_voice(block["text"]) if is_french_math else block["text"]
 
 
 def _generate(
@@ -101,8 +107,7 @@ def _generate(
     def _synthesize_block(i: int, block: dict) -> tuple[str, float, list[dict]]:
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
         words_path = work_dir / "audio" / f"block-{i:02d}.words.json"
-        is_french_math = str(data.get("language", "fr")).startswith("fr") and "math" in str(data.get("niche", "")).lower()
-        voice_text = math_narration.for_voice(block["text"]) if is_french_math else block["text"]
+        voice_text = voice_text_for(data, block)
         # Cache d'actifs (lot L1) : clé = texte + voix + réglages de synthèse.
         # Un bloc dont ces entrées n'ont pas changé garde sa voix et son timing.
         voice_key = asset_store.make_key(
@@ -146,15 +151,7 @@ def _generate(
         beat = float(block.get("quiz_reveal_beat_seconds") or 0) if hold_after > 0 else 0.0
         if hold_after > 0:
             padded_path = work_dir / "audio" / f"block-{i:02d}-padded.mp3"
-            if not _exists_nonempty(padded_path):
-                sound_mode = str(block.get("quiz_sound_effects") or "off")
-                if sound_mode != "off":
-                    video.add_countdown_sfx(
-                        str(audio_path), tts.get_duration_seconds(str(audio_path)), int(hold_after),
-                        str(padded_path), sound_mode, str(block.get("quiz_theme") or "studio"), beat,
-                    )
-                else:
-                    video.pad_audio(str(audio_path), hold_after + beat, str(padded_path))
+            quiz_shorts.ensure_padded_audio(block, audio_path, padded_path)
             rendered_audio = str(padded_path)
         # Quiz : durée DÉCODÉE (celle que concat_audio assemble) ; la durée d'en-tête mp3 dérive d'~25 ms par bloc,
         # soit ~3 s sur les ~107 blocs d'un quiz de 50 questions.
