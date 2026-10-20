@@ -159,6 +159,24 @@ class TestQuiz(unittest.TestCase):
                                           "choices": [f"Answer {i}", "Other"], "correct_choice": 0}
                                          for i in range(25)]})
 
+    def test_five_level_compiled_blocks_have_single_chapter_entries(self):
+        questions = [{"question": f"Which unique term {i} is correct?",
+                      "choices": [f"Term {i}", f"Alternative {i}"],
+                      "correct_choice": 0} for i in range(1, 51)]
+        source = {**QUIZ_SCRIPT, "quiz": {"recipe": "long", "topic": "terms",
+                                         "chapter_mode": "five_levels",
+                                         "questions": questions}}
+        compiled = compile_quiz(source)
+        blocks = compiled["blocks"]
+        self.assertEqual(blocks[0]["quiz_chapter_total"], 5)
+        self.assertEqual(blocks[-1]["quiz_chapter_total"], 5)
+        starts = [(b["quiz_question_number"], b["quiz_phase"]) for b in blocks
+                  if b.get("quiz_chapter_start")]
+        self.assertEqual(starts, [(1, "question"), (11, "question"),
+                                  (21, "question"), (31, "question"),
+                                  (41, "question")])
+        self.assertEqual(blocks[-2]["quiz_chapter_number"], 5)
+
     def test_long_quiz_50_questions_compiles_and_51_rejected(self):
         questions = [{"question": f"Which unique element number {i} is described?",
                       "choices": [f"Element {i}", f"Alternative {i}"],
