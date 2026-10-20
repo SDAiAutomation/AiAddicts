@@ -126,7 +126,7 @@ class TestQuiz(unittest.TestCase):
             validate_quiz({"questions": [dict(item) for _ in range(8)]})
 
     def test_long_quiz_chapter_metadata(self):
-        from growthos.engine.quiz import quiz_chapter
+        from engine.quiz import quiz_chapter
         chapters = [quiz_chapter(i, 25) for i in range(1, 26)]
         self.assertEqual([c["quiz_chapter_number"] for c in chapters],
                          [1] * 7 + [2] * 6 + [3] * 6 + [4] * 6)
