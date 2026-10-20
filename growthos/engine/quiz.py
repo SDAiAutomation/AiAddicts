@@ -70,6 +70,7 @@ def normalize_quiz(quiz: object) -> dict:
     result.setdefault("theme", "studio")
     result.setdefault("sound_effects", "automatic")
     result.setdefault("presentation", "classic")
+    result.setdefault("chapter_mode", "legacy")
     result.setdefault("cover", {"enabled": False})
     result.setdefault("illustrations", True)
     result.setdefault("backdrops", False)  # fond illustré (4 images) : opt-in, voir engine/quiz_backdrop.py
@@ -94,6 +95,10 @@ def validate_quiz(quiz: object) -> None:
         raise ValueError(f"'quiz.sound_effects' invalide (attendu : {sorted(SOUND_EFFECT_MODES)})")
     if not isinstance(quiz.get("presentation"), str) or quiz["presentation"] not in PRESENTATION_MODES:
         raise ValueError(f"'quiz.presentation' invalide (attendu : {sorted(PRESENTATION_MODES)})")
+    if quiz.get("chapter_mode") not in {"legacy", "five_levels"}:
+        raise ValueError("quiz.chapter_mode invalide")
+    if quiz["chapter_mode"] == "five_levels" and (quiz["recipe"] != "long" or len(quiz.get("questions") or []) != 50):
+        raise ValueError("quiz.chapter_mode five_levels exige exactement 50 questions long")
     cover = quiz.get("cover")
     if not isinstance(cover, dict) or not isinstance(cover.get("enabled"), bool):
         raise ValueError("'quiz.cover.enabled' doit être un booléen")
@@ -247,13 +252,14 @@ def _quiz_visual_prompt(question: str, scene: str = "") -> str:
     )
 
 
-def quiz_chapter(number: int, total: int) -> dict:
-    """Four stable visual chapters without unverified difficulty labels."""
+def quiz_chapter(number: int, total: int, mode: str = "legacy") -> dict:
+    """Opt-in five equal rounds; legacy four-round output stays unchanged."""
     if total < 10 or not 1 <= number <= total:
         return {}
-    chapter = min(4, ((number - 1) * 4) // total + 1)
-    previous = min(4, ((number - 2) * 4) // total + 1) if number > 1 else 0
-    return {"quiz_chapter_number": chapter, "quiz_chapter_total": 4,
+    parts = 5 if mode == "five_levels" and total == 50 else 4
+    chapter = min(parts, ((number - 1) * parts) // total + 1)
+    previous = min(parts, ((number - 2) * parts) // total + 1) if number > 1 else 0
+    return {"quiz_chapter_number": chapter, "quiz_chapter_total": parts,
             "quiz_chapter_start": chapter != previous}
 
 
@@ -263,7 +269,7 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
     result["quiz"] = normalized_quiz
     for block in result.get("blocks") or []:
         if block.get("quiz_phase") in {"question", "reveal"}:
-            block.update(quiz_chapter(int(block.get("quiz_question_number") or 0), len(normalized_quiz.get("questions") or [])))
+            block.update(quiz_chapter(int(block.get("quiz_question_number") or 0), len(normalized_quiz.get("questions") or []), normalized_quiz.get("chapter_mode", "legacy")))
         if block.get("quiz_phase"):
             block["quiz_presentation"] = normalized_quiz["presentation"]
             block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
@@ -329,7 +335,7 @@ def compile_quiz(script: dict) -> dict:
             "quiz_phase": "question",
             "quiz_question_number": number,
             "quiz_question_total": len(quiz["questions"]),
-            **quiz_chapter(number, len(quiz["questions"])),
+            **quiz_chapter(number, len(quiz["questions"]), quiz.get("chapter_mode", "legacy")),
             "quiz_kind": quiz["kind"],
             "quiz_theme": quiz["theme"],
             "quiz_sound_effects": quiz["sound_effects"],
