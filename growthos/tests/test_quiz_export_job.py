@@ -1,4 +1,5 @@
 """Job worker des exports de chapitre : cache audio, isolation, échecs sans effet sur le master."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,30 +46,70 @@ class RestoreAudioTests(unittest.TestCase):
         self.data = {**compile_quiz(script()), "voice_id": "voice-1"}
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, True))
+        patcher = mock.patch.object(quiz_export_job.quiz_shorts, "ensure_padded_audio")
+        self.padded = patcher.start()
+        self.addCleanup(patcher.stop)
+        duration = mock.patch.object(quiz_export_job.tts, "get_duration_seconds", return_value=4.0)
+        duration.start()
+        self.addCleanup(duration.stop)
 
-    def test_cache_miss_fails_without_synthesizing(self):
-        with mock.patch.object(quiz_export_job.asset_store, "restore_voice", return_value=False), \
-                mock.patch.object(quiz_export_job.tts, "synthesize_with_timestamps") as synth:
-            with self.assertRaisesRegex(quiz_shorts.ExportError, "cache"):
-                quiz_export_job.restore_audio(self.data, self.tmp)
-            synth.assert_not_called()
+    @staticmethod
+    def _write(audio, words=None):
+        audio.write_bytes(b"mp3")
+        if words is not None:
+            words.write_text("[]")
+        return True
+
+    def run_restore(self, full=lambda k, a, w: True, audio_only=lambda k, a: False, synth=None, env=None):
+        synth = synth or mock.Mock(side_effect=lambda text, voice, out, key: (Path(out).write_bytes(b"mp3"), [{"text": "x", "start": 0, "end": 1}])[1])
+        with mock.patch.object(quiz_export_job.asset_store, "restore_voice", side_effect=lambda k, a, w: self._write(a, w) if full(k, a, w) else False), \
+                mock.patch.object(quiz_export_job.asset_store, "restore_voice_audio", side_effect=lambda k, a: self._write(a) if audio_only(k, a) else False), \
+                mock.patch.object(quiz_export_job.asset_store, "save_voice") as save, \
+                mock.patch.object(quiz_export_job.tts, "synthesize_with_timestamps", synth), \
+                mock.patch.dict(quiz_export_job.os.environ, env if env is not None else {"ELEVENLABS_API_KEY": "k"}):
+            return quiz_export_job.restore_audio(self.data, self.tmp), synth, save
+
+    def test_complete_cache_synthesizes_nothing(self):
+        stats, synth, save = self.run_restore()
+        self.assertEqual(stats, {"restored": 107, "approximate_words": 0, "synthesized": 0})
+        synth.assert_not_called()
+        self.assertEqual(self.padded.call_count, 50)  # one reflection window per question block
 
     def test_missing_voice_id_is_refused(self):
         with self.assertRaises(quiz_shorts.ExportError):
             quiz_export_job.restore_audio({**self.data, "voice_id": None}, self.tmp)
 
-    def test_cached_audio_is_restored_and_padded_blocks_rebuilt(self):
-        def restore(key, audio, words):
-            audio.write_bytes(b"mp3")
-            words.write_text("[]")
-            return True
-        keys = []
-        with mock.patch.object(quiz_export_job.asset_store, "restore_voice", side_effect=lambda k, a, w: (keys.append(k), restore(k, a, w))[1]), \
-                mock.patch.object(quiz_shorts, "ensure_padded_audio") as padded:
-            quiz_export_job.restore_audio(self.data, self.tmp)
-        self.assertEqual(len(keys), len(self.data["blocks"]))
-        self.assertEqual(len(set(keys)), len({b["text"] for b in self.data["blocks"]}))  # key follows the text
-        self.assertEqual(padded.call_count, 50)  # one reflection window per question block
+    def test_audio_without_timings_gets_even_timings_and_costs_nothing(self):
+        stats, synth, _ = self.run_restore(full=lambda k, a, w: False, audio_only=lambda k, a: True)
+        self.assertEqual(stats["approximate_words"], 107)
+        synth.assert_not_called()
+        words = json.loads((self.tmp / "audio" / "block-02.words.json").read_text())
+        self.assertEqual(len(words), len(self.data["blocks"][1]["text"].split()))
+        self.assertAlmostEqual(words[-1]["end"], 4.0, delta=0.05)
+
+    def test_only_the_missing_blocks_are_synthesized_and_cached(self):
+        calls = {"n": 0}
+        def full(key, audio, words):
+            calls["n"] += 1
+            return calls["n"] > 7  # the first seven blocks have no cached voice (the real case: 100 of 107 cached)
+        stats, synth, save = self.run_restore(full=full)
+        self.assertEqual(stats["synthesized"], 7)
+        self.assertEqual(stats["restored"], 100)
+        self.assertEqual(synth.call_count, 7)
+        self.assertEqual(save.call_count, 7)  # cached, so the next export reuses the very same voice
+
+    def test_too_many_missing_voices_fail_instead_of_spending(self):
+        with self.assertRaisesRegex(quiz_shorts.ExportError, "régénère"):
+            self.run_restore(full=lambda k, a, w: False)  # all 107 missing: over the bound
+        synth = mock.Mock()
+        with self.assertRaises(quiz_shorts.ExportError):
+            self.run_restore(full=lambda k, a, w: False, synth=synth)
+        synth.assert_not_called()
+
+    def test_missing_voice_without_a_provider_key_is_an_actionable_error(self):
+        seen = []
+        with self.assertRaisesRegex(quiz_shorts.ExportError, "indisponible"):
+            self.run_restore(full=lambda k, a, w: (seen.append(k), len(seen) > 3)[1], env={})
 
 
 class ProcessTests(unittest.TestCase):

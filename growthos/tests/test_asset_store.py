@@ -198,5 +198,29 @@ class TestSceneImagesAreOnlyRepaidWhenTheirInputsChange(unittest.TestCase):
         self.assertEqual(image_stats, {"reused": 2, "generated": 1})
 
 
+class AssetSaveRetryTests(unittest.TestCase):
+    def test_a_transient_save_failure_is_retried_then_succeeds_and_gives_up_after_three(self):
+        with tempfile.TemporaryDirectory() as folder:
+            src = Path(folder) / "a.mp3"
+            src.write_bytes(b"x")
+            attempts = {"n": 0}
+
+            def flaky(*_args, **_kwargs):
+                attempts["n"] += 1
+                if attempts["n"] < 3:
+                    raise RuntimeError("storage hiccup")
+                return True
+
+            ctx = {"client": object(), "item_id": "i", "rows": {}, "used": set()}
+            with patch.object(asset_store, "_ctx", ctx), patch.object(asset_store, "_upload_and_register", side_effect=flaky), \
+                    patch.object(asset_store.time, "sleep"):
+                self.assertTrue(asset_store._save_file("voice", "k", src, None, None))
+                self.assertEqual(attempts["n"], 3)
+            with patch.object(asset_store, "_ctx", ctx), patch.object(asset_store, "_upload_and_register", side_effect=RuntimeError("down")) as upload, \
+                    patch.object(asset_store.time, "sleep"):
+                self.assertFalse(asset_store._save_file("voice", "k", src, None, None))
+                self.assertEqual(upload.call_count, 3)  # bounded, never blocking the generation
+
+
 if __name__ == "__main__":
     unittest.main()
