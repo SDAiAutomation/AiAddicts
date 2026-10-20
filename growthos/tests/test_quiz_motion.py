@@ -11,6 +11,18 @@ class QuizMotionTests(unittest.TestCase):
     def setUp(self):
         self.script = json.loads((Path(__file__).resolve().parents[1] / "content/scripts/exemple-quiz.json").read_text(encoding="utf-8"))
 
+    def test_long_quiz_round_label_uses_chapter_metadata(self):
+        from engine import quiz_motion
+        self.script["quiz"]["presentation"] = "motion"
+        block = compile_quiz(self.script)["blocks"][1]
+        # Rendering uses metadata, not a guessed difficulty label.
+        long_block = {**block, "quiz_question_total": 25,
+                      "quiz_chapter_number": 2, "quiz_chapter_total": quiz_motion.PARTS}
+        events = _quiz_events([long_block], [7], 1920, 1080)
+        self.assertTrue(any("ROUND 2 / 4" in event for event in events))
+        short_events = _quiz_events([block], [7], 1920, 1080)
+        self.assertFalse(any("ROUND 2 / 4" in event for event in short_events))
+
     def test_old_scripts_keep_identical_classic_events(self):
         compiled = compile_quiz(self.script)
         self.assertEqual(normalize_quiz(self.script["quiz"])["presentation"], "classic")
