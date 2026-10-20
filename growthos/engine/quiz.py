@@ -270,6 +270,10 @@ def _prepare_existing_quiz_blocks(script: dict, normalized_quiz: dict) -> dict:
     for block in result.get("blocks") or []:
         if block.get("quiz_phase") in {"question", "reveal"}:
             block.update(quiz_chapter(int(block.get("quiz_question_number") or 0), len(normalized_quiz.get("questions") or []), normalized_quiz.get("chapter_mode", "legacy")))
+            if block.get("quiz_phase") == "reveal":
+                block["quiz_chapter_start"] = False
+        elif block.get("quiz_phase") in {"intro", "outro"} and normalized_quiz.get("chapter_mode") == "five_levels":
+            block["quiz_chapter_total"] = 5
         if block.get("quiz_phase"):
             block["quiz_presentation"] = normalized_quiz["presentation"]
             block["quiz_topic"] = str(normalized_quiz.get("topic") or "QUIZ")
