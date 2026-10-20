@@ -82,8 +82,6 @@ def part_index(block: dict) -> int:
     if phase == "outro":
         return PARTS - 1
     number = max(1, int(block.get("quiz_question_number") or 1))
-    if int(block.get("quiz_chapter_total") or 0) == 5:
-        return min(PARTS - 1, (number - 1) * PARTS // total)
     return min(PARTS - 1, (number - 1) * PARTS // total)
 
 
