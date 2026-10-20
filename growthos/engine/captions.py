@@ -246,7 +246,7 @@ def _quiz_events(blocks: list[dict], durations: list[float], width: int, height:
     for block, duration in zip(blocks, durations):
         start, end = cursor, cursor + max(float(duration), 0.0)
         phase = block.get("quiz_phase")
-        if block.get("quiz_presentation") == "motion" and phase in {"intro", "question", "reveal", "outro"}:
+        if block.get("quiz_presentation") == "motion" and phase in {"intro", "chapter", "question", "reveal", "outro"}:
             from .quiz_motion import scene_events
             events.extend(scene_events(block, start, end, width, height, font))
             cursor = end
@@ -445,7 +445,7 @@ def _without_question_cues(cues: list[dict], blocks: list[dict], durations: list
     cursor = 0.0
     for block, duration in zip(blocks, durations):
         end = cursor + max(float(duration), 0.0)
-        if block.get("quiz_phase") in {"cover", "question"}:
+        if block.get("quiz_phase") in {"cover", "chapter", "question"}:
             spans.append((cursor, end))
         cursor = end
     if not spans:
@@ -493,7 +493,7 @@ def write_ass(
             "font_size": max(1, round(72 * min(width / 1080, height / 1920) * (font_profile(font) or {}).get("size_k", 1.0))),
             # Portrait : sous les cartes et au-dessus des commandes de la plateforme. Paysage / carré : pas de
             # commandes à éviter, la bande basse libère le centre pour les cartes (voir engine/quiz_motion.py).
-            "margin_v": round(height * (0.09 if width >= height else 0.28)),
+            "margin_v": round(height * (0.09 if width >= height else 0.22 if any(b.get("quiz_layout") == "short" for b in (blocks or [])) else 0.28)),
         }
         if uses_columns(width, height) and any(b.get("quiz_presentation") == "motion" for b in (blocks or [])):
             # Mise en page en colonnes (quiz_motion.column_layout) : les explications restent sous la réponse,
