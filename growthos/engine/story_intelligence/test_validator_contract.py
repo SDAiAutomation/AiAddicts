@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from .validator import validate_storyboard
+from growthos.engine.story_intelligence.validator import validate_storyboard
 
 FIXTURE = Path(__file__).parent / "fixtures" / "validator_contract.json"
 
