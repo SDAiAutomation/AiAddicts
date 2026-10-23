@@ -1,0 +1,61 @@
+"""Explicit, opt-in voice pilot. Never runs from the production pipeline.
+
+Usage (from repository root):
+  python -m growthos.engine.story_intelligence.voice_pilot --story path/to/story.json --output /tmp/story-voice --neo-voice-id VOICE_ID --orion-voice-id VOICE_ID --generate
+
+Without --generate this prints a safe preview and makes no paid requests.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+from .validator import validate_storyboard
+from .audio_adapter import prepare_aligned_storyboard
+
+
+def run(story_path: str, output_dir: str, voice_ids: dict[str, str], *, generate: bool = False) -> dict:
+    story = json.loads(Path(story_path).read_text(encoding="utf-8"))
+    errors = validate_storyboard(story)
+    if errors:
+        raise ValueError("Invalid storyboard: " + "; ".join(errors))
+    speakers = {shot["speaker_id"] for shot in story["shots"]}
+    missing = speakers - set(voice_ids)
+    if generate and (missing or any(not voice_ids[sid].strip() for sid in speakers)):
+        raise ValueError("Missing voice ID(s) for: " + ", ".join(sorted(missing or speakers)))
+    if not generate:
+        return {"mode": "preview", "paid_requests": 0, "shot_count": len(story["shots"]), "speaker_ids": sorted(speakers), "target_duration_s": story["target_duration_s"]}
+    if not os.environ.get("ELEVENLABS_API_KEY"):
+        raise RuntimeError("ELEVENLABS_API_KEY is required; no requests made")
+    from growthos.engine.tts import synthesize_with_timestamps
+    directory = Path(output_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    audio_paths = {}
+    for shot in story["shots"]:
+        shot_id = shot["id"]
+        path = directory / (shot_id + ".mp3")
+        # Do not write API keys or voice IDs to reports.
+        synthesize_with_timestamps(shot["dialogue"], voice_ids[shot["speaker_id"]], str(path))
+        audio_paths[shot_id] = str(path)
+    aligned, report = prepare_aligned_storyboard(story, audio_paths)
+    (directory / "aligned_storyboard.json").write_text(json.dumps(aligned, ensure_ascii=False, indent=2), encoding="utf-8")
+    (directory / "timing_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"mode": "generated", "shot_count": len(story["shots"]), "report": report, "output_dir": str(directory)}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Opt-in Faceloop Story Intelligence voice pilot")
+    parser.add_argument("--story", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--neo-voice-id", default="")
+    parser.add_argument("--orion-voice-id", default="")
+    parser.add_argument("--generate", action="store_true", help="Explicitly allow paid ElevenLabs TTS calls")
+    args = parser.parse_args()
+    result = run(args.story, args.output, {"neo": args.neo_voice_id, "orion": args.orion_voice_id}, generate=args.generate)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
