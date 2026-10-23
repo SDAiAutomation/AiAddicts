@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 
 def validate_storyboard(story: dict) -> list[str]:
@@ -35,8 +36,8 @@ def validate_storyboard(story: dict) -> list[str]:
             errors.append(f"shots[{i}] must be an object")
             continue
         sid = shot.get("id")
-        if not isinstance(sid, str) or not sid.strip():
-            errors.append(f"shots[{i}].id must be a nonempty string")
+        if not isinstance(sid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", sid):
+            errors.append(f"shots[{i}].id must be a safe 1–64 character identifier")
         else:
             shot_ids.append(sid)
         duration = shot.get("duration_s")
