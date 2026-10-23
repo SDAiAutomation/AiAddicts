@@ -57,10 +57,25 @@ class StoryCompileTests(unittest.TestCase):
         e = sc.estimate(make())
         self.assertEqual((e["shots"], e["images"], e["voice_characters"], e["estimated"]), (3, 3, len("Pourquoi ?") + len("Écoute.") + len("Merci."), True))
 
-    def test_not_wired_into_script_normalization(self):
+    def test_script_normalization_compiles_story_and_validation_accepts_it(self):
         from growthos.engine import script
-        s = make()
+        out = script.normalize_script(make())
+        self.assertEqual(len(out["blocks"]), 3)
+        script.validate_script(out)
+
+    def test_script_normalization_refuses_unrenderable_story_before_any_paid_step(self):
+        from growthos.engine import script
+        s = make(); s["story"]["characters"][0]["voice_id"] = ""
+        with self.assertRaises(ValueError):
+            script.normalize_script(s)
+
+    def test_other_formats_are_untouched_by_story_wiring(self):
+        from growthos.engine import script
+        s = {"content_format": "standard", "title": "t", "niche": "n", "account": "a",
+             "blocks": [{"role": "hook", "text": "Salut"}]}
         self.assertIs(script.normalize_script(s), s)
+        with self.assertRaises(ValueError):
+            script.validate_script({**s, "content_format": "bogus"})
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from . import quiz, retention, shot_planning
+from . import quiz, retention, shot_planning, story_compile
 
 ALLOWED_ROLES = {"hook", "point", "cta"}
 # `shotType`/`visualPurpose` (optional, per block) — voir engine/shot_planning.py.
@@ -60,7 +60,8 @@ def load_script(path: str) -> dict:
 
 def normalize_script(data: dict) -> dict:
     """Compile les formats spécialisés vers le contrat de blocs historique."""
-    return quiz.compile_quiz(data)
+    # Story : lève ValueError (storyboard invalide, voix ou apparence manquante) AVANT toute synthèse ou image payante.
+    return story_compile.compile_story(quiz.compile_quiz(data))
 
 
 def validate_script(data: dict) -> None:
@@ -125,8 +126,8 @@ def validate_script(data: dict) -> None:
         _validate_characters(characters)
 
     content_format = data.get("content_format", "standard")
-    if content_format not in {"standard", quiz.QUIZ_FORMAT}:
-        raise ValueError("'content_format' invalide (attendu : 'standard' ou 'quiz')")
+    if content_format not in {"standard", quiz.QUIZ_FORMAT, story_compile.STORY_FORMAT}:
+        raise ValueError("'content_format' invalide (attendu : 'standard', 'quiz' ou 'story')")
     if content_format == quiz.QUIZ_FORMAT:
         quiz.validate_quiz(data.get("quiz"))
 
