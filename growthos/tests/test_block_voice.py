@@ -1,6 +1,6 @@
 import unittest
 
-from growthos.engine import assembler
+from engine import assembler
 
 
 class BlockVoiceTests(unittest.TestCase):
