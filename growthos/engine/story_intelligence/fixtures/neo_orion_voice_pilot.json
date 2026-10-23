@@ -1,0 +1,36 @@
+{
+  "schema_version": "0.1.0",
+  "id": "wow-neo-orion-voice-test-001",
+  "title": "Le courage de dire non — dialogue test",
+  "language": "fr",
+  "genre": "educational",
+  "target_duration_s": 12,
+  "characters": [
+    {
+      "id": "neo",
+      "species": "fox",
+      "voice_profile": "young_warm_expressive"
+    },
+    {
+      "id": "orion",
+      "species": "owl",
+      "voice_profile": "older_soft_deep"
+    }
+  ],
+  "shots": [
+    {
+      "id": "shot_01",
+      "speaker_id": "neo",
+      "dialogue": "Orion… pourquoi j’ai si peur de dire non aux autres ?",
+      "emotion": "worried",
+      "duration_s": 7
+    },
+    {
+      "id": "shot_02",
+      "speaker_id": "orion",
+      "dialogue": "Peut-être parce que tu as peur de les décevoir.",
+      "emotion": "empathetic",
+      "duration_s": 5
+    }
+  ]
+}
