@@ -17,6 +17,16 @@ class VoicePilotTests(unittest.TestCase):
             "shots": [{"id": "s1", "speaker_id": "neo", "dialogue": "Bonjour", "duration_s": 5}]
         }), encoding="utf-8")
 
+    def test_preview_with_existing_catalog_voice(self):
+        output = Path(self.temp.name) / "catalog_output"
+        result = run(str(self.story), str(output), {"neo": "existing_voice"}, catalog=[{"id": "existing_voice", "name": "Corentin"}], generate=False)
+        self.assertEqual(result["paid_requests"], 0)
+        self.assertFalse(output.exists())
+
+    def test_disabled_catalog_voice_fails_before_api(self):
+        with self.assertRaisesRegex(ValueError, "unavailable"):
+            run(str(self.story), str(Path(self.temp.name) / "output"), {"neo": "existing_voice"}, catalog=[{"id": "existing_voice", "enabled": False}], generate=False)
+
     def test_preview_never_generates_audio(self):
         output = Path(self.temp.name) / "output"
         result = run(str(self.story), str(output), {}, generate=False)
