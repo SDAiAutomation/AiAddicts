@@ -32,6 +32,16 @@ def _exists_nonempty(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
+def block_voice_id(data: dict, block: dict, default: str) -> str:
+    """Voix d'un bloc. Seul le format `story` (un personnage = une voix) peut en imposer une par bloc ; pour tous les
+    autres formats un `voice_id` de bloc est ignoré, donc Standard et Quiz gardent une seule voix par vidéo."""
+    if data.get("content_format") == "story":
+        voice = block.get("voice_id")
+        if isinstance(voice, str) and voice.strip():
+            return voice.strip()
+    return default
+
+
 def voice_text_for(data: dict, block: dict) -> str:
     """Texte réellement envoyé à la synthèse vocale (partagé avec l'export des chapitres : même clé de cache)."""
     is_french_math = str(data.get("language", "fr")).startswith("fr") and "math" in str(data.get("niche", "")).lower()
@@ -108,10 +118,11 @@ def _generate(
         audio_path = work_dir / "audio" / f"block-{i:02d}.mp3"
         words_path = work_dir / "audio" / f"block-{i:02d}.words.json"
         voice_text = voice_text_for(data, block)
+        block_voice = block_voice_id(data, block, voice_id)
         # Cache d'actifs (lot L1) : clé = texte + voix + réglages de synthèse.
         # Un bloc dont ces entrées n'ont pas changé garde sa voix et son timing.
         voice_key = asset_store.make_key(
-            kind="voice", text=voice_text, voice_id=voice_id,
+            kind="voice", text=voice_text, voice_id=block_voice,
             model=tts.TTS_MODEL_ID, settings=tts.TTS_VOICE_SETTINGS,
         )
         if _exists_nonempty(audio_path) and words_path.exists():
@@ -121,10 +132,10 @@ def _generate(
             print(f"[2/5] Voix off {i}/{n_blocks} — réutilisée (entrées identiques)")
             words = json.loads(words_path.read_text(encoding="utf-8"))
         else:
-            print(f"[2/5] Voix off {i}/{n_blocks} (voix {voice_id})…")
+            print(f"[2/5] Voix off {i}/{n_blocks} (voix {block_voice})…")
             # Timing mot par mot (pas juste l'audio) : sert aux sous-titres
             # animés par groupes de mots, voir captions.build_cues.
-            words = tts.synthesize_with_timestamps(voice_text, voice_id, str(audio_path), api_key)
+            words = tts.synthesize_with_timestamps(voice_text, block_voice, str(audio_path), api_key)
             synthesized_chars.append(len(voice_text))
             words_path.write_text(json.dumps(words, ensure_ascii=False), encoding="utf-8")
             rate = _voice_rate_per_1k_chars()

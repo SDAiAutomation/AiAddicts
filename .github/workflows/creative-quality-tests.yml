@@ -14,6 +14,7 @@ on:
       - 'growthos/engine/assembler.py'
       - 'growthos/tests/test_creative_quality.py'
       - 'growthos/tests/test_render_preflight.py'
+      - 'growthos/tests/test_block_voice.py'
       - '.github/workflows/creative-quality-tests.yml'
   workflow_dispatch:
 
@@ -30,7 +31,7 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Run offline quality tests
         working-directory: growthos
-        run: python -m unittest discover -s tests -p 'test_creative_quality.py' -v && python -m unittest discover -s tests -p 'test_render_preflight.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_persistence.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_writer.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_integration.py' -v
+        run: python -m unittest discover -s tests -p 'test_creative_quality.py' -v && python -m unittest discover -s tests -p 'test_render_preflight.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_persistence.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_writer.py' -v && python -m unittest discover -s tests -p 'test_creative_quality_integration.py' -v && python -m unittest discover -s tests -p 'test_block_voice.py' -v
       - name: Compile changed Python modules
         working-directory: growthos
         run: python -m py_compile engine/creative_quality.py engine/render_preflight.py engine/creative_quality_persistence.py engine/creative_quality_writer.py engine/assembler.py creative_quality_cli.py
