@@ -14,13 +14,16 @@ from pathlib import Path
 
 from .validator import validate_storyboard
 from .audio_adapter import prepare_aligned_storyboard
+from .voice_catalog import resolve_character_voices
 
 
-def run(story_path: str, output_dir: str, voice_ids: dict[str, str], *, generate: bool = False, max_paid_shots: int = 2) -> dict:
+def run(story_path: str, output_dir: str, voice_ids: dict[str, str], *, generate: bool = False, max_paid_shots: int = 2, catalog: list[dict] | None = None) -> dict:
     story = json.loads(Path(story_path).read_text(encoding="utf-8"))
     errors = validate_storyboard(story)
     if errors:
         raise ValueError("Invalid storyboard: " + "; ".join(errors))
+    if catalog is not None:
+        voice_ids = resolve_character_voices(story, catalog, voice_ids)
     speakers = {shot["speaker_id"] for shot in story["shots"]}
     missing = speakers - set(voice_ids)
     if generate and (missing or any(not voice_ids[sid].strip() for sid in speakers)):
@@ -51,12 +54,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Opt-in Faceloop Story Intelligence voice pilot")
     parser.add_argument("--story", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--neo-voice-id", default="")
-    parser.add_argument("--orion-voice-id", default="")
+    parser.add_argument("--neo-voice-id", default="", help="Legacy pilot shortcut")
+    parser.add_argument("--orion-voice-id", default="", help="Legacy pilot shortcut")
+    parser.add_argument("--voice-selections", help="JSON file mapping character IDs to existing catalog voice IDs")
+    parser.add_argument("--voice-catalog", help="JSON file with authorized, tenant-scoped catalog entries")
     parser.add_argument("--generate", action="store_true", help="Explicitly allow paid ElevenLabs TTS calls")
     parser.add_argument("--max-paid-shots", type=int, default=2, help="Maximum number of paid TTS calls allowed (default: 2)")
     args = parser.parse_args()
-    result = run(args.story, args.output, {"neo": args.neo_voice_id, "orion": args.orion_voice_id}, generate=args.generate, max_paid_shots=args.max_paid_shots)
+    if bool(args.voice_selections) != bool(args.voice_catalog):
+        parser.error("--voice-selections and --voice-catalog must be provided together")
+    if args.voice_selections:
+        selections = json.loads(Path(args.voice_selections).read_text(encoding="utf-8"))
+        catalog = json.loads(Path(args.voice_catalog).read_text(encoding="utf-8"))
+    else:
+        selections = {"neo": args.neo_voice_id, "orion": args.orion_voice_id}
+        catalog = None
+    result = run(args.story, args.output, selections, generate=args.generate, max_paid_shots=args.max_paid_shots, catalog=catalog)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
