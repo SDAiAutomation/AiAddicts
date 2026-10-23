@@ -16,7 +16,7 @@ from .validator import validate_storyboard
 from .audio_adapter import prepare_aligned_storyboard
 
 
-def run(story_path: str, output_dir: str, voice_ids: dict[str, str], *, generate: bool = False) -> dict:
+def run(story_path: str, output_dir: str, voice_ids: dict[str, str], *, generate: bool = False, max_paid_shots: int = 2) -> dict:
     story = json.loads(Path(story_path).read_text(encoding="utf-8"))
     errors = validate_storyboard(story)
     if errors:
@@ -25,6 +25,8 @@ def run(story_path: str, output_dir: str, voice_ids: dict[str, str], *, generate
     missing = speakers - set(voice_ids)
     if generate and (missing or any(not voice_ids[sid].strip() for sid in speakers)):
         raise ValueError("Missing voice ID(s) for: " + ", ".join(sorted(missing or speakers)))
+    if generate and (isinstance(max_paid_shots, bool) or not isinstance(max_paid_shots, int) or max_paid_shots < 1 or len(story["shots"]) > max_paid_shots):
+        raise ValueError("Paid generation shot limit exceeded; increase --max-paid-shots explicitly")
     if not generate:
         return {"mode": "preview", "paid_requests": 0, "shot_count": len(story["shots"]), "speaker_ids": sorted(speakers), "target_duration_s": story["target_duration_s"]}
     if not os.environ.get("ELEVENLABS_API_KEY"):
@@ -52,8 +54,9 @@ def main() -> None:
     parser.add_argument("--neo-voice-id", default="")
     parser.add_argument("--orion-voice-id", default="")
     parser.add_argument("--generate", action="store_true", help="Explicitly allow paid ElevenLabs TTS calls")
+    parser.add_argument("--max-paid-shots", type=int, default=2, help="Maximum number of paid TTS calls allowed (default: 2)")
     args = parser.parse_args()
-    result = run(args.story, args.output, {"neo": args.neo_voice_id, "orion": args.orion_voice_id}, generate=args.generate)
+    result = run(args.story, args.output, {"neo": args.neo_voice_id, "orion": args.orion_voice_id}, generate=args.generate, max_paid_shots=args.max_paid_shots)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
