@@ -38,6 +38,21 @@ class VoicePilotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run(str(self.story), str(Path(self.temp.name) / "output"), {}, generate=False)
 
+    def test_paid_shot_cap_blocks_before_api(self):
+        data = json.loads(self.story.read_text(encoding="utf-8"))
+        data["target_duration_s"] = 10
+        data["shots"].append({"id": "s2", "speaker_id": "neo", "dialogue": "Merci", "duration_s": 5})
+        self.story.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "shot limit"):
+            run(str(self.story), str(Path(self.temp.name) / "output"), {"neo": "test_voice"}, generate=True, max_paid_shots=1)
+
+    def test_unsafe_shot_id_rejected(self):
+        data = json.loads(self.story.read_text(encoding="utf-8"))
+        data["shots"][0]["id"] = "../outside"
+        self.story.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "safe"):
+            run(str(self.story), str(Path(self.temp.name) / "output"), {}, generate=False)
+
 
 if __name__ == "__main__":
     unittest.main()
