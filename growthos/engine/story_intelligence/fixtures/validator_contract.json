@@ -1,0 +1,404 @@
+{
+ "_comment": "Contrat de validation Story Studio partagé. Copie identique dans growthos-web (scripts/fixtures/story-validator-contract.json). Référence : growthos/engine/story_intelligence/validator.py. Modifier les deux copies ensemble.",
+ "cases": [
+  {
+   "name": "valid_minimal",
+   "valid": true,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "valid_two_speakers",
+   "valid": true,
+   "story": {
+    "target_duration_s": 7.5,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     },
+     {
+      "id": "s2",
+      "speaker_id": "b",
+      "dialogue": "Bonjour",
+      "duration_s": 4.5
+     }
+    ]
+   }
+  },
+  {
+   "name": "valid_sum_within_tolerance",
+   "valid": true,
+   "story": {
+    "target_duration_s": 3.04,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "sum_outside_tolerance",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3.06,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "negative_target",
+   "valid": false,
+   "story": {
+    "target_duration_s": -1,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "string_target",
+   "valid": false,
+   "story": {
+    "target_duration_s": "3",
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "zero_duration_shot",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 0
+     }
+    ]
+   }
+  },
+  {
+   "name": "boolean_duration_shot",
+   "valid": false,
+   "story": {
+    "target_duration_s": 1,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "x",
+      "duration_s": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown_speaker",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "zz",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "blank_dialogue",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "   ",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "duplicate_shot_ids",
+   "valid": false,
+   "story": {
+    "target_duration_s": 6,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     },
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "unsafe_shot_id",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a",
+      "name": "A"
+     },
+     {
+      "id": "b",
+      "name": "B"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s 1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "duplicate_character_ids",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a"
+     },
+     {
+      "id": "a"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "character_without_id",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "name": "A"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "empty_characters",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [],
+    "shots": [
+     {
+      "id": "s1",
+      "speaker_id": "a",
+      "dialogue": "Salut",
+      "duration_s": 3
+     }
+    ]
+   }
+  },
+  {
+   "name": "empty_shots",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a"
+     }
+    ],
+    "shots": []
+   }
+  },
+  {
+   "name": "shot_not_object",
+   "valid": false,
+   "story": {
+    "target_duration_s": 3,
+    "characters": [
+     {
+      "id": "a"
+     }
+    ],
+    "shots": [
+     null
+    ]
+   }
+  }
+ ]
+}
