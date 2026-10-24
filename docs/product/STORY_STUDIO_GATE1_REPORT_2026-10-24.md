@@ -37,3 +37,10 @@ Livrable : `experiments/story_gate1/pip_gate2_dialogue_540x960.mp4` (14,78 s, 24
 - **Coût** : ≈ 0,195 USD estimé d'images au total sur 5 USD (≈ 0,09 USD pour ce Gate : personnage 2, variantes de bouche, essais masqués inutiles). Aucun service payant supplémentaire. Rendu Godot ≈ 13-20 s pour 355 images, sans GPU.
 - **Défauts honnêtes** : marionnette encore raide (bras tubulaires, poses peu variées), pas de bruitage ni de musique, les mains de Rosette croisent parfois le réveil, la couche de maquillage « cheek lines » du visage de Rosette reste un peu visible, résolution 540×960.
 - **Décision proposée** : GO pour Gate 3 (15-30 s, ≥ 3 plans, deux personnages récurrents) si le résultat te paraît acceptable ; la priorité artistique reste d'améliorer le mouvement du corps et d'ajouter décors et plans.
+
+### Gate 2 — mise à jour : voix ElevenLabs (via la clé Faceloop, décision chef de projet)
+Livrable : `experiments/story_gate1/pip_gate2_dialogue_elevenlabs_540x960.mp4` (10,08 s, 24 fps, 540×960, avec audio). Remplace les voix provisoires Windows.
+- **Voix** : Pip = « Corentin (GrowthOS) » (voix française de Faceloop), Rosette = « Matilda » (voix multilingue), modèle `eleven_multilingual_v2` comme `growthos/engine/tts.py` (stability 0,4 et style 0,35 pour un peu plus de jeu que le défaut produit).
+- **Coût [OBS]** : **115 caractères** consommés sur un plafond de 3 000 fixé pour le test (compte Creator : 30 043 / 121 032 utilisés avant l'appel, lu sur l'API d'abonnement). Journal : `out/eleven_ledger.json`.
+- **Durées mesurées** : 2,42 s / 2,46 s / 1,90 s ; piste et vidéo de 10,080 s.
+- **Lip-sync** : l'API `with-timestamps` fournit l'alignement par caractère ; voyelles ouvertes (a, e, i…) → bouche ouverte, voyelles arrondies (o, u, ou) → ronde, b/m/p/f/v → fermée, les silences de l'enveloppe audio forcent la bouche fermée. Toujours à juger à l'oreille et à l'œil par l'utilisateur.
