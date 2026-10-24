@@ -13,13 +13,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import contract, timeline as timeline_lib
+from . import contract, shotplan, timeline as timeline_lib
 
-# rig_v1 (prototype scene) knows two characters and a six-line story; pack id -> rig role
+# rig_v1 draws two characters (one per pack); pack id -> rig role
 RIG_ROLES = {"pip_v1": "pip", "rosette_v1": "ros"}
-RIG_V1_SPEAKERS = ("ros", "pip", "ros", "pip", "ros", "pip")
 RIG_V1_CATALOG = {
-    "settings": ["clock_shop", "factory_alley", "cafe_terrace"], "props": ["alarm_clock"],
+    "settings": sorted(shotplan.BACKGROUNDS), "props": ["alarm_clock"],
     "packs": sorted(RIG_ROLES), "music": ["ragtime_a"],
 }
 CHARS_PER_SECOND = 14.0   # measured on the prototype French lines (276 characters, about 19 s of speech)
@@ -72,26 +71,25 @@ def _progress(ports: "Ports", label: str) -> None:
         print(f"       (suivi d'avancement non mis à jour : {type(exc).__name__})")
 
 
+def rig_roles(story: dict) -> dict:
+    """character id -> rig role for the characters whose pack the scene can draw (others are absent)."""
+    return {c["id"]: RIG_ROLES[c["pack_id"]] for c in story["characters"] if c["pack_id"] in RIG_ROLES}
+
+
 def rig_v1_layout_errors(story: dict) -> list:
-    """The packaged scene is the prototype's: two known packs and the six-line ros/pip/ros/pip/ros/pip exchange."""
+    """What the packaged scene can draw: characters from the two known packs, at most one per rig role, and one shot per
+    spoken line (the scene's shots are the story's shots)."""
     errors = []
-    roles = {}
+    seen = {}
     for c in story["characters"]:
         role = RIG_ROLES.get(c["pack_id"])
         if role is None:
             errors.append(f"pack {c['pack_id']!r} is not supported by rig_v1")
-        roles[c["id"]] = role
-    speakers = tuple(roles.get(s["speaker_id"]) for s in story["shots"])
-    if speakers != RIG_V1_SPEAKERS:
-        errors.append("rig_v1 currently supports only the six-line prototype exchange (ros, pip, ros, pip, ros, pip)")
+        elif role in seen:
+            errors.append(f"characters {seen[role]!r} and {c['id']!r} both use the {role!r} rig; rig_v1 draws one character per pack")
+        else:
+            seen[role] = c["id"]
     return errors
-
-
-def rig_v1_rings(tl: dict) -> list:
-    """Windows in which the clock rings: it follows the shopkeeper (line 3-4) and chases Pip after the last line."""
-    lines = tl["lines"]
-    return [[round(lines[2]["start"] + 0.35, 3), round(lines[3]["start"] - 0.1, 3)],
-            [round(lines[5]["start"] + 0.2, 3), round(tl["total"] - 0.6, 3)]]
 
 
 def estimated_video_seconds(tts_chars: int) -> float:
@@ -142,7 +140,7 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
                           "alignment": info["alignment"], "envelope": info["envelope"]})
             wavs.append(wav)
         tl = timeline_lib.build_timeline(lines)
-        tl["rings"] = rig_v1_rings(tl)
+        tl["shots"] = shotplan.build_shot_plan(story, tl, rig_roles(story))
         _progress(ports, "Animation")
         rendered = ports.render(tl, workdir / "render")
         _progress(ports, "Mixage audio")

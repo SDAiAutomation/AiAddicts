@@ -15,7 +15,7 @@ STORY_VERSION = 2
 ANIMATION_SCHEMA_VERSION = 1
 
 MOODS = ("neutral", "worry", "angry", "surprise", "joy", "puzzled", "panic")
-GESTURES = ("idle", "accuse", "defend", "wring", "indignant", "clutch_head", "point", "hands_on_hips", "shrug", "wave")
+GESTURES = ("idle", "accuse", "defend", "wring", "indignant", "clutch_head", "point", "hands_on_hips", "shrug", "wave", "run_away")
 SHOT_TYPES = ("wide", "medium", "close_up", "insert")
 CAMERA_MOVES = ("static", "push_in", "pull_out", "pan_left", "pan_right")
 TRANSITIONS = ("cut", "fade")

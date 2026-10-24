@@ -1,7 +1,7 @@
 extends Node2D
-# rig_v1 (packaged from the Gate 3c prototype): reads ONLY a pack directory and a timeline file given on the command line.
+# rig_v1 (packaged from the Gate 3c prototype; acting and framing now come from the shot plan): reads ONLY a pack directory and a timeline file given on the command line.
 # Usage: godot --path <this dir> main.tscn -- --pack=<dir> --timeline=<file>. Nothing else is read; no network, no user text is evaluated.
-# NOTE: the shot layout (8 shots, per-line gestures) is the prototype story's; a contract-driven scene is a later PR.; cuts, subtitles, rings derive from timeline.json. Two original characters (Pip, Rosette), dialogue driven by measured audio (timeline.json), mouths from the audio envelope.
+# The timeline carries `shots` (one per spoken line): setting, framing, who stands where, mood, gesture, props.; cuts, subtitles, rings derive from timeline.json. Two original characters (Pip, Rosette), dialogue driven by measured audio (timeline.json), mouths from the audio envelope.
 # Same puppet technique as scene2.gd, with per-character anchors so a new character is data, not code.
 
 const FPS := 24.0
@@ -62,7 +62,7 @@ func _ready() -> void:
 			return
 		T[n] = ImageTexture.create_from_image(img)
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(TIMELINE_PATH))
-	if typeof(parsed) != TYPE_DICTIONARY or not parsed.has("lines") or not parsed.has("total") or not parsed.has("subs") or not parsed.has("rings"):
+	if typeof(parsed) != TYPE_DICTIONARY or not parsed.has("lines") or not parsed.has("total") or not parsed.has("subs") or not parsed.has("shots") or parsed["shots"].is_empty():
 		_fail("invalid timeline file", 4)
 		return
 	TL = parsed
@@ -321,105 +321,9 @@ func walk_pose(C: Dictionary, ph: float, amp: float) -> Dictionary:
 func hip_y(who: String) -> float:
 	return FEET_Y - float(CH[who]["ground"]) * K
 
-func line_index(who_line_t: float) -> int:
-	var L: Array = TL["lines"]
-	var idx := -1
-	for i in range(L.size()):
-		if who_line_t >= float(L[i]["start"]) - 0.05:
-			idx = i
-	return idx
-
-# Acting: one hand-built gesture set per spoken line, plus listening poses. All targets are native pixels of the character.
-func act_raw(who: String, t: float) -> Dictionary:
-	var C: Dictionary = CH[who]
-	var L: Array = TL["lines"]
-	var li := line_index(t)
-	var speaking: bool = li >= 0 and L[li]["who"] == who and t < float(L[li]["end"]) + 0.15
-	var e := smooth_env(who)
-	var P := {}
-	var tt: float = t - float(L[maxi(li, 0)]["start"])
-	if speaking:
-		P["bob"] = 3.0 * e
-		P["squash"] = 1.0 - 0.04 * e
-		if who == "ros":
-			match li:
-				0:  # accusing: right arm points at Pip, left hand on hip
-					P["wrist_r"] = Vector2(1290, 780 + 18.0 * sin(tt * 7.0) * e); P["bend_r"] = -45.0
-					P["wrist_l"] = Vector2(370, 1070); P["bend_l"] = 70.0
-					P["lean"] = 0.07; P["tilt"] = 0.04 * sin(tt * 4.0) * e
-				2:  # hand on chin, other hand points down at the clock
-					P["wrist_l"] = Vector2(490, 760); P["bend_l"] = 55.0
-					P["wrist_r"] = Vector2(1040, 1300); P["bend_r"] = -30.0
-					P["tilt"] = -0.05
-				_:  # indignant: fists shaking, torso pumping
-					P["wrist_l"] = Vector2(215, 1010 + 26.0 * sin(tt * 13.0) * e); P["bend_l"] = 70.0
-					P["wrist_r"] = Vector2(820, 1010 - 26.0 * sin(tt * 13.0) * e); P["bend_r"] = -70.0
-					P["lean"] = 0.1 + 0.03 * sin(tt * 8.0) * e
-					P["squash"] = 1.0 - 0.07 * absf(sin(tt * 6.5)) * e
-					P["tilt"] = 0.06 * sin(tt * 9.0)
-		else:
-			match li:
-				1:  # defending: palms up, shaking
-					P["wrist_l"] = Vector2(300 + 26.0 * sin(tt * 9.0) * e, 640); P["bend_l"] = 35.0
-					P["wrist_r"] = Vector2(725 - 26.0 * sin(tt * 9.0) * e, 640); P["bend_r"] = -35.0
-					P["lean"] = -0.05; P["tilt"] = 0.06 * sin(tt * 5.0) * e
-				3:  # wringing hands
-					P["wrist_l"] = Vector2(470 + 28.0 * sin(tt * 10.0), 885); P["bend_l"] = 30.0
-					P["wrist_r"] = Vector2(555 - 28.0 * sin(tt * 10.0), 870); P["bend_r"] = -30.0
-					P["lean"] = 0.1
-				_:  # realising: hand to forehead, then both hands clutch the head
-					var k := ease_io(seg(tt, 1.0, 1.5))
-					P["wrist_l"] = Vector2(300, 930).lerp(Vector2(380, 500), k); P["bend_l"] = 40.0
-					P["wrist_r"] = Vector2(725, 930).lerp(Vector2(640, 490), k)
-					P["bend_r"] = -40.0
-					P["lean"] = -0.08 * k
-	else:
-		# listening: small reactions that echo the other character's line
-		if who == "pip":
-			P["wrist_l"] = Vector2(440, 905); P["bend_l"] = 30.0
-			P["wrist_r"] = Vector2(585, 895); P["bend_r"] = -30.0
-			P["lean"] = -0.04
-		else:
-			P["wrist_l"] = Vector2(250, 990); P["bend_l"] = 45.0
-			P["wrist_r"] = Vector2(785, 990); P["bend_r"] = -45.0
-	return P
-
-func act(who: String, t: float) -> Dictionary:
-	var P := act_raw(who, t)
-	var L: Array = TL["lines"]
-	var li := line_index(t)
-	var cur: String = L[li]["who"] if li >= 0 else ""
-	var tt: float = t - float(L[maxi(li, 0)]["start"])
-	var mood := "neutral"
-	if who == "ros":
-		if cur == "ros":
-			mood = "puzzled" if li == 2 else "angry"
-		else:
-			mood = "puzzled" if li in [1, 3] else ("surprise" if li == 5 else "neutral")
-	else:
-		if cur == "pip":
-			mood = "worry" if li == 1 else ("joy" if li == 3 else ("surprise" if tt < 1.4 else "panic"))
-		else:
-			mood = "surprise" if (li == 0 and tt < 1.2) else "worry"
-	P["mood"] = mood
-	P["e"] = smooth_env(who)
-	return smooth_pose(who, P)
-
 func merge_into(dst: Dictionary, src: Dictionary) -> void:
 	for k in src:
 		dst[k] = src[k]
-
-# ---------- shots (cut points derive from the measured audio) ----------
-func clock_x_at(t: float) -> float:
-	var L: Array = TL["lines"]
-	var x := lerpf(320.0, 215.0, ease_io(seg(t, L[2]["start"] + 0.35, L[2]["start"] + 1.3)))
-	return x
-
-func ring_at(t: float) -> float:
-	for r in TL["rings"]:
-		if t >= r[0] and t < r[1]:
-			return minf(1.0, minf((t - r[0]) * 6.0, (r[1] - t) * 6.0))
-	return 0.0
 
 func smooth_env(who: String) -> float:
 	var e := 0.0
@@ -433,131 +337,217 @@ func smooth_env(who: String) -> float:
 				e += 1.0 if m[mini(i, m.length() - 1)] != "c" else 0.0
 	return e / 5.0
 
+# ---------- shots, driven by TL["shots"] (the shot plan built by the engine from the validated contract) ----------
+const SIDE_X := {"left": 165.0, "center": 320.0, "right": 465.0}
+const HAT_LOSS_AT := {"clutch_head": 1.2, "run_away": 0.6}
+
+func shot_index_at(t: float) -> int:
+	var S: Array = TL["shots"]
+	var idx := 0
+	for i in range(S.size()):
+		if t >= float(S[i]["start"]):
+			idx = i
+	return idx
+
+func actor_of(sh: Dictionary, role: String) -> Variant:
+	for a in sh["actors"]:
+		if a["role"] == role:
+			return a
+	return null
+
+func facing_flip(a: Dictionary) -> float:
+	return 1.0 if a["facing"] == "right" else -1.0
+
+# screen direction (+1 right, -1 left) from this actor toward the other one in the shot (its own facing when alone)
+func dir_to_other(sh: Dictionary, a: Dictionary) -> float:
+	for o in sh["actors"]:
+		if o["role"] != a["role"]:
+			var dx: float = float(SIDE_X[o["side"]]) - float(SIDE_X[a["side"]])
+			if absf(dx) > 1.0:
+				return 1.0 if dx > 0.0 else -1.0
+	return facing_flip(a)
+
+func arm(P: Dictionary, right: bool, target: Vector2, bend: float) -> void:
+	P["wrist_r" if right else "wrist_l"] = target
+	P["bend_r" if right else "bend_l"] = -absf(bend) if right else absf(bend)
+
+func rest_pose(role: String) -> Dictionary:
+	if role == "pip":
+		return {"wrist_l": Vector2(440, 905), "bend_l": 30.0, "wrist_r": Vector2(585, 895), "bend_r": -30.0, "lean": -0.04}
+	return {"wrist_l": Vector2(250, 990), "bend_l": 45.0, "wrist_r": Vector2(785, 990), "bend_r": -45.0}
+
+# Gesture library: hand targets are native pixels relative to the character's own anchors, so one gesture fits both packs.
+# `dn` is the native direction (+1 = native right arm) that points toward the other actor.
+func gesture_pose(role: String, g: String, dn: float, tt: float, e: float) -> Dictionary:
+	var C: Dictionary = CH[role]
+	var hip: Vector2 = C["hip"]
+	var neck: Vector2 = C["neck"]
+	var P := rest_pose(role)
+	var right := dn > 0.0
+	var sh: Vector2 = C["sh_r"] if right else C["sh_l"]
+	match g:
+		"accuse":
+			arm(P, right, sh + Vector2(580.0 * dn, 18.0 * sin(tt * 7.0) * e), 45.0)
+			arm(P, not right, hip + Vector2(-147.0 * dn, -80.0), 70.0)
+			P["lean"] = 0.07
+			P["tilt"] = 0.04 * sin(tt * 4.0) * e
+		"point":
+			arm(P, right, sh + Vector2(330.0 * dn, 420.0), 30.0)
+			arm(P, not right, neck + Vector2(-20.0 * dn, 70.0), 55.0)
+			P["tilt"] = -0.05
+		"defend":
+			arm(P, false, neck + Vector2(-212.0 + 26.0 * sin(tt * 9.0) * e, 10.0), 35.0)
+			arm(P, true, neck + Vector2(213.0 - 26.0 * sin(tt * 9.0) * e, 10.0), 35.0)
+			P["lean"] = -0.05
+			P["tilt"] = 0.06 * sin(tt * 5.0) * e
+		"wring":
+			arm(P, false, hip + Vector2(-42.0 + 28.0 * sin(tt * 10.0), -100.0), 30.0)
+			arm(P, true, hip + Vector2(43.0 - 28.0 * sin(tt * 10.0), -115.0), 30.0)
+			P["lean"] = 0.1
+		"indignant":
+			arm(P, false, hip + Vector2(-302.0, -140.0 + 26.0 * sin(tt * 13.0) * e), 70.0)
+			arm(P, true, hip + Vector2(303.0, -140.0 - 26.0 * sin(tt * 13.0) * e), 70.0)
+			P["lean"] = 0.1 + 0.03 * sin(tt * 8.0) * e
+			P["squash"] = 1.0 - 0.07 * absf(sin(tt * 6.5)) * e
+			P["tilt"] = 0.06 * sin(tt * 9.0)
+		"clutch_head":
+			var k := ease_io(seg(tt, 0.5, 1.0))
+			var rl: Vector2 = P["wrist_l"]
+			var rr: Vector2 = P["wrist_r"]
+			arm(P, false, rl.lerp(neck + Vector2(-132.0, -136.0), k), 40.0)
+			arm(P, true, rr.lerp(neck + Vector2(128.0, -156.0), k), 40.0)
+			P["lean"] = -0.08 * k
+		"hands_on_hips":
+			arm(P, false, hip + Vector2(-147.0, -80.0), 80.0)
+			arm(P, true, hip + Vector2(147.0, -80.0), 80.0)
+			P["lean"] = 0.06
+		"shrug":
+			arm(P, false, hip + Vector2(-260.0, -230.0), 50.0)
+			arm(P, true, hip + Vector2(260.0, -230.0), 50.0)
+			P["squash"] = 0.97
+			P["tilt"] = 0.05 * sin(tt * 3.0)
+		"wave":
+			arm(P, true, neck + Vector2(330.0, -60.0 + 40.0 * sin(tt * 8.0)), 40.0)
+	return P
+
+func act(role: String, t: float) -> Dictionary:
+	var sh: Dictionary = TL["shots"][shot_index_at(t)]
+	var a: Variant = actor_of(sh, role)
+	var e := smooth_env(role)
+	var P: Dictionary
+	var mood := "neutral"
+	if a == null:
+		P = rest_pose(role)
+	else:
+		var tt: float = t - float(sh["start"])
+		var g: String = a["gesture"]
+		if g == "run_away" and tt < 0.9:
+			g = "clutch_head"
+		P = gesture_pose(role, g, dir_to_other(sh, a) * facing_flip(a), tt, e)
+		mood = a["mood"]
+		if sh["speaker"] == role:
+			P["bob"] = 3.0 * e
+			P["squash"] = float(P.get("squash", 1.0)) - 0.04 * e
+	P["mood"] = mood
+	P["e"] = e
+	return smooth_pose(role, P)
+
+# time at which Pip's hat comes off (it never comes back), or a huge number
+func hat_loss_time() -> float:
+	var best := 1.0e9
+	for sh in TL["shots"]:
+		var a: Variant = actor_of(sh, "pip")
+		if a != null and HAT_LOSS_AT.has(a["gesture"]):
+			best = minf(best, float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]]))
+	return best
+
+func actor_x_at(sh: Dictionary, a: Dictionary, t: float) -> float:
+	var x: float = SIDE_X[a["side"]]
+	if a["gesture"] == "run_away":
+		var tt: float = t - float(sh["start"])
+		var span: float = maxf(float(sh["end"]) - float(sh["start"]) - 0.9, 0.5)
+		x += facing_flip(a) * 480.0 * ease_io(seg(tt, 0.9, 0.9 + span))
+	return x
+
+# the alarm clock follows the actor that carries it: beside them, or chasing them when they run away
+func prop_state(sh: Dictionary, t: float) -> Dictionary:
+	for a in sh["actors"]:
+		if "alarm_clock" in a["props"]:
+			var ax := actor_x_at(sh, a, t)
+			if a["gesture"] == "run_away" and t - float(sh["start"]) > 0.9:
+				return {"vis": true, "x": ax - facing_flip(a) * 150.0, "ring": 1.0, "move": 1.0}
+			return {"vis": true, "x": SIDE_X[a["side"]] + dir_to_other(sh, a) * 130.0, "ring": 1.0, "move": 0.0}
+	return {"vis": false, "x": 320.0, "ring": 0.0, "move": 0.0}
+
+func shot_camera(sh: Dictionary, t: float, prop: Dictionary) -> Transform2D:
+	var u := seg(t, float(sh["start"]), float(sh["end"]))
+	var c: Dictionary = sh["camera"]
+	var zoom := lerpf(float(c["zoom_from"]), float(c["zoom_to"]), ease_io(u))
+	zoom *= 1.0 + 0.012 * maxf(smooth_env("ros"), smooth_env("pip"))
+	var centre := Vector2(320, 560)
+	var st: String = sh["shot_type"]
+	var sp: String = sh["speaker"]
+	var sa: Variant = actor_of(sh, sp)
+	if st == "medium":
+		var sx := 0.0
+		for a in sh["actors"]:
+			sx += actor_x_at(sh, a, t)
+		centre = Vector2(sx / maxf(float(sh["actors"].size()), 1.0), 600)
+	elif st == "close_up" and sa != null:
+		centre = Vector2(actor_x_at(sh, sa, t) + 10.0 * facing_flip(sa), hip_y(sp) - (170.0 if sp == "pip" else 215.0))
+		zoom *= 0.95 + 0.05 * ease_back(seg(t, float(sh["start"]), float(sh["start"]) + 0.25))
+	elif st == "insert" and prop["vis"]:
+		centre = Vector2(float(prop["x"]), FEET_Y - 60.0)
+	if c["move"] == "pan_left":
+		centre.x -= 40.0 * (u - 0.5) * 2.0
+	elif c["move"] == "pan_right":
+		centre.x += 40.0 * (u - 0.5) * 2.0
+	return cam_xf(zoom, centre)
+
+func draw_actor(sh: Dictionary, a: Dictionary, t: float, cam: Transform2D) -> void:
+	var role: String = a["role"]
+	var P: Dictionary = POSES[role].duplicate()
+	var tt: float = t - float(sh["start"])
+	var flip := facing_flip(a)
+	P["cam"] = cam
+	P["flip"] = flip
+	P["pos"] = Vector2(actor_x_at(sh, a, t), hip_y(role))
+	if role == "pip":
+		var lost := hat_loss_time()
+		if t > lost:
+			P["hat_off"] = true
+			var hu := seg(t - lost, 0.0, 1.2)
+			if hu < 1.0:
+				P["hat_world"] = Vector2(P["pos"].x + 18.0 * hu, hip_y(role) - 300.0 - 260.0 * sin(PI * hu * 0.5) + 360.0 * hu * hu)
+				P["hat_rot"] = hu * 8.0
+	if a["gesture"] == "run_away":
+		if tt < 0.9:
+			var ant := ease_io(seg(tt, 0.55, 0.9))
+			P["squash"] = 1.0 - 0.13 * ant
+			P["lean"] = -0.15 * ant
+		else:
+			merge_into(P, walk_pose(CH[role], t * 17.0, 1.6))
+			P["lean"] = 0.22
+	draw_puppet(role, P)
+
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, W, H), Color.BLACK)
 	var t := frame / FPS
+	var sh: Dictionary = TL["shots"][shot_index_at(t)]
 	POSES = {"ros": act("ros", t), "pip": act("pip", t)}
-	var L: Array = TL["lines"]
-	var cuts: Array = [0.0]
-	for i in range(1, L.size()):
-		cuts.append((float(L[i - 1]["end"]) + float(L[i]["start"])) * 0.5)
-	var run0: float = float(L[5]["end"]) - 0.3
-	var total: float = float(TL["total"])
-	cuts.append(run0 + 0.25)           # 6: alley chase
-	cuts.append(total - 1.7)           # 7: cafe
-	cuts.append(total)
-	var idx := 0
-	for i in range(cuts.size() - 1):
-		if t >= cuts[i]:
-			idx = i
-	var a: float = cuts[idx]
-	var b: float = cuts[idx + 1]
-	match idx:
-		0: shot_wide(t, a, b, 0)
-		1: shot_close("pip", t, a, b)
-		2: shot_wide(t, a, b, 2)
-		3: shot_close("pip", t, a, b)
-		4: shot_close("ros", t, a, b)
-		5: shot_wide(t, a, b, 5)
-		6: shot_chase(t, a, b)
-		_: shot_cafe(t, a, b)
+	var prop := prop_state(sh, t)
+	var cam := shot_camera(sh, t, prop)
+	draw_world(cam, t, sh["background"], float(prop["ring"]), float(prop["x"]), float(prop["move"]), bool(prop["vis"]))
+	var order: Array = sh["actors"].duplicate()
+	order.sort_custom(func(p, q): return float(SIDE_X[p["side"]]) < float(SIDE_X[q["side"]]))
+	for a in order:
+		draw_actor(sh, a, t, cam)
+	if sh["transition_in"] == "fade":
+		var f := 1.0 - seg(t, float(sh["start"]), float(sh["start"]) + 0.3)
+		if f > 0.0:
+			draw_set_transform_matrix(Transform2D.IDENTITY)
+			draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, f))
 	overlays(t)
-
-func shot_wide(t: float, a: float, b: float, k: int) -> void:
-	var u := seg(t, a, b)
-	var zoom := lerpf(1.0, 1.08, ease_io(u))
-	var ctr := Vector2(320, 560)
-	if k == 2:
-		zoom = lerpf(1.55, 1.45, ease_io(u)); ctr = Vector2(250, 600)
-	elif k == 5:
-		zoom = lerpf(1.2, 1.5, ease_io(u)); ctr = Vector2(380, 560)
-	zoom *= 1.0 + 0.012 * maxf(smooth_env("ros"), smooth_env("pip"))
-	var cam := cam_xf(zoom, ctr)
-	draw_world(cam, t, "bg_shop", ring_at(t), clock_x_at(t))
-	var R := pose("ros")
-	R["cam"] = cam; R["pos"] = Vector2(165, hip_y("ros")); R["flip"] = 1.0
-	draw_puppet("ros", R)
-	var Q := pose("pip")
-	Q["cam"] = cam; Q["flip"] = -1.0
-	var enter := ease_io(seg(t, 0.0, 0.6)) if k == 0 else 1.0
-	Q["pos"] = Vector2(lerpf(580.0, 465.0, enter), hip_y("pip"))
-	if enter < 1.0:
-		merge_into(Q, walk_pose(CH["pip"], t * 11.0, 1.0))
-		Q["head_key"] = "c"
-	elif k != 5:
-		Q["head_key"] = "worry"
-	if k == 5:
-		var L: Array = TL["lines"]
-		var tt: float = t - float(L[5]["start"])
-		if tt > 1.55:
-			var hu := seg(tt, 1.55, 2.75)
-			Q["hat_world"] = Vector2(465.0 + 18.0 * hu, hip_y("pip") - 300.0 - 260.0 * sin(PI * hu * 0.5) + 360.0 * hu * hu)
-			Q["hat_rot"] = hu * 8.0
-			Q["hat_off"] = true
-		var run0: float = float(L[5]["end"]) - 0.3
-		var ant := ease_io(seg(t, run0 - 0.35, run0))
-		Q["squash"] = 1.0 - 0.13 * ant
-		Q["lean"] = -0.15 * ant
-	draw_puppet("pip", Q)
-
-func shot_close(who: String, t: float, a: float, b: float) -> void:
-	var u := seg(t, a, b)
-	var punch := ease_back(seg(t, a, a + 0.25))
-	var is_pip := who == "pip"
-	var e := smooth_env(who)
-	var zoom := (lerpf(2.2, 2.7, ease_io(u)) if is_pip else lerpf(1.8, 2.25, ease_io(u))) * (0.95 + 0.05 * punch) * (1.0 + 0.015 * e)
-	var hp := Vector2(465 if is_pip else 165, hip_y(who))
-	var cam := cam_xf(zoom, Vector2(hp.x - (10.0 if is_pip else -10.0), hp.y - (170.0 if is_pip else 215.0)))
-	draw_world(cam, t, "bg_shop", ring_at(t), clock_x_at(t))
-	var P := pose(who)
-	P["cam"] = cam; P["pos"] = hp; P["flip"] = -1.0 if is_pip else 1.0
-	P["head_pop"] = 1.0 + 0.05 * e
-	if is_pip:
-		P["head_key"] = mouth_of("pip") if e > 0.0 else "worry"
-	draw_puppet(who, P)
-
-func shot_chase(t: float, a: float, b: float) -> void:
-	var u := seg(t, a, b)
-	var cam := cam_xf(1.0, Vector2(320, 560))
-	var px := lerpf(-90.0, 720.0, ease_io(u))
-	var cx := lerpf(-250.0, 560.0, ease_io(clampf(u * 1.08 - 0.08, 0.0, 1.0)))
-	draw_world(cam, t, "bg_alley", 1.0, cx, 1.0)
-	var Q := {"cam": cam, "flip": 1.0, "pos": Vector2(px, hip_y("pip")), "lean": 0.22, "head_key": "o", "hat_off": true}
-	merge_into(Q, walk_pose(CH["pip"], t * 17.0, 1.6))
-	Q["sweat"] = 1.0
-	Q["mood"] = "panic"
-	draw_puppet("pip", Q)
-
-func shot_cafe(t: float, a: float, b: float) -> void:
-	var u := seg(t, a, b)
-	var cam := cam_xf(lerpf(1.1, 1.0, u), Vector2(320, 560))
-	var settle := ease_io(seg(t, a, a + 0.6))
-	draw_world(cam, t, "bg_cafe", 1.0 - 0.8 * ease_io(seg(t, a + 0.9, a + 1.4)), lerpf(60.0, 330.0, ease_io(seg(t, a, a + 0.7))), 1.0 - settle)
-	var Q := {"cam": cam, "flip": -1.0, "pos": Vector2(lerpf(-60.0, 470.0, ease_io(seg(t, a - 0.1, a + 0.35))), hip_y("pip")), "hat_off": true, "head_key": "o"}
-	var w := seg(t, a - 0.1, a + 0.35)
-	Q["mood"] = "panic" if w < 1.0 else "worry"
-	Q["sweat"] = 1.0
-	if w < 1.0:
-		merge_into(Q, walk_pose(CH["pip"], t * 17.0, 1.4))
-		Q["flip"] = 1.0
-		Q["lean"] = 0.2
-	else:
-		var pant := sin(t * 14.0)
-		Q["bob"] = 2.5 * pant
-		Q["wrist_l"] = Vector2(300, 930 + 20.0 * pant); Q["wrist_r"] = Vector2(725, 930 + 20.0 * pant)
-		Q["head_key"] = "worry"
-		Q["lean"] = 0.12
-	draw_puppet("pip", Q)
-	var R := {"cam": cam, "flip": 1.0, "pos": Vector2(lerpf(-120.0, 150.0, ease_io(seg(t, a + 0.6, a + 1.2))), hip_y("ros")), "head_key": "r"}
-	R["mood"] = "angry"
-	if seg(t, a + 0.6, a + 1.2) < 1.0:
-		merge_into(R, walk_pose(CH["ros"], t * 12.0, 0.9))
-	else:
-		R["wrist_l"] = Vector2(300, 1080); R["bend_l"] = 80.0
-		R["wrist_r"] = Vector2(735, 1080); R["bend_r"] = -80.0
-		R["head_key"] = "c"
-		R["lean"] = 0.06
-	draw_puppet("ros", R)
 
 # ---------- faces drawn in code: any mood, gaze, blink and mouth shape on a faceless generated base ----------
 const MOODS := {

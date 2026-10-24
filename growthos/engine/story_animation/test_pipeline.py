@@ -94,17 +94,32 @@ class RefusalsHappenBeforeAnyCredit(unittest.TestCase):
             pipeline.run({"content_format": "story"}, h.ports(), Path("x"))
         self.assertNoMoney(h)
 
-    def test_unsupported_layout_and_pack(self):
+    def test_two_characters_on_the_same_rig_are_refused(self):
         h, s = Harness(), script()
-        s["story"]["shots"] = s["story"]["shots"][:3]
-        with self.assertRaises(pipeline.AnimationUnavailable):
+        s["story"]["characters"][0]["pack_id"] = "rosette_v1"  # both characters would be drawn as the same rig
+        with self.assertRaisesRegex(pipeline.AnimationUnavailable, "both use"):
             h.run(s)
         self.assertNoMoney(h)
-        h2, s2 = Harness(), script()
-        s2["story"]["characters"][0]["pack_id"] = "rosette_v1"  # speaker pattern no longer matches
-        with self.assertRaises(pipeline.AnimationUnavailable):
-            h2.run(s2)
-        self.assertNoMoney(h2)
+
+    def test_a_pack_outside_the_catalog_is_refused_by_the_contract(self):
+        h, s = Harness(), script()
+        s["story"]["characters"][0]["pack_id"] = "other_account_pack"
+        with self.assertRaises(ValueError):
+            h.run(s)
+        self.assertNoMoney(h)
+
+    def test_any_number_of_shots_is_accepted(self):
+        for count in (1, 3, 4):
+            h, s = Harness(), script()
+            s["story"]["shots"] = s["story"]["shots"][:count]
+            captured = {}
+            ports = h.ports()
+            ports.render = lambda tl, workdir: captured.update(tl) or SimpleNamespace(video_path=Path("s.mp4"))
+            with self.subTest(count=count):
+                pipeline.run(s, ports, Path("x"))
+                self.assertEqual(len(captured["shots"]), count)
+                self.assertEqual(h.calls.count("synthesize"), count)
+                self.assertEqual(h.refunds, 0)
 
     def test_authorization_denied(self):
         h = Harness(fail="authorize")
@@ -210,10 +225,12 @@ class SuccessPath(unittest.TestCase):
         ports = h.ports()
         ports.render = lambda tl, workdir: captured.update(tl) or SimpleNamespace(video_path=Path("s.mp4"))
         pipeline.run(script(), ports, Path("x"))
-        for key in ("fps", "total", "lines", "subs", "rings"):
+        for key in ("fps", "total", "lines", "subs", "shots"):
             self.assertIn(key, captured)
-        self.assertEqual([l["who"] for l in captured["lines"]], list(pipeline.RIG_V1_SPEAKERS))
-        self.assertEqual(len(captured["rings"]), 2)
+        self.assertEqual([l["who"] for l in captured["lines"]], ["ros", "pip", "ros", "pip", "ros", "pip"])
+        self.assertEqual([s["speaker"] for s in captured["shots"]], [l["who"] for l in captured["lines"]])
+        self.assertEqual(captured["shots"][0]["start"], 0.0)
+        self.assertEqual(captured["shots"][-1]["end"], captured["total"])
 
     def test_estimates_are_conservative_numbers(self):
         self.assertAlmostEqual(pipeline.estimated_video_seconds(280), 280 / 14 + 3.1)

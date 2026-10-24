@@ -39,7 +39,7 @@
       "character_id": "pip",
       "side": "right",
       "facing": "left",
-      "mood": "neutral",
+      "mood": "surprise",
       "gesture_id": "idle",
       "props": [
        "alarm_clock"
@@ -81,7 +81,7 @@
       "character_id": "pip",
       "side": "right",
       "facing": "left",
-      "mood": "neutral",
+      "mood": "worry",
       "gesture_id": "idle",
       "props": [
        "alarm_clock"
@@ -123,24 +123,27 @@
    },
    {
     "id": "s6",
-    "setting_id": "clock_shop",
+    "setting_id": "street",
     "shot_type": "wide",
     "speaker_id": "pip",
     "dialogue": "Alors... c'est moi qui suis en retard ! Mon déjeuner !",
     "actors": [
      {
-      "character_id": "pip",
-      "side": "right",
-      "facing": "left",
-      "mood": "panic",
-      "gesture_id": "clutch_head"
-     },
-     {
       "character_id": "ros",
       "side": "left",
       "facing": "right",
-      "mood": "neutral",
-      "gesture_id": "idle"
+      "mood": "angry",
+      "gesture_id": "hands_on_hips"
+     },
+     {
+      "character_id": "pip",
+      "side": "center",
+      "facing": "right",
+      "mood": "panic",
+      "gesture_id": "run_away",
+      "props": [
+       "alarm_clock"
+      ]
      }
     ]
    }

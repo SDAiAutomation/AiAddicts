@@ -158,14 +158,186 @@
    "end": 19.148
   }
  ],
- "rings": [
-  [
-   7.494,
-   9.159
-  ],
-  [
-   16.057,
-   20.968
-  ]
+ "shots": [
+  {
+   "index": 0,
+   "start": 0.0,
+   "end": 4.204,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "wide",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.0,
+    "zoom_to": 1.08
+   },
+   "speaker": "ros",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "angry",
+     "gesture": "accuse",
+     "props": []
+    },
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "surprise",
+     "gesture": "idle",
+     "props": [
+      "alarm_clock"
+     ]
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 1,
+   "start": 4.204,
+   "end": 6.969,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "close_up",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 2.2,
+    "zoom_to": 2.7
+   },
+   "speaker": "pip",
+   "actors": [
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "worry",
+     "gesture": "defend",
+     "props": []
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 2,
+   "start": 6.969,
+   "end": 9.084,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "medium",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.25,
+    "zoom_to": 1.35
+   },
+   "speaker": "ros",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "puzzled",
+     "gesture": "point",
+     "props": []
+    },
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "worry",
+     "gesture": "idle",
+     "props": [
+      "alarm_clock"
+     ]
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 3,
+   "start": 9.084,
+   "end": 11.199,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "close_up",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 2.2,
+    "zoom_to": 2.7
+   },
+   "speaker": "pip",
+   "actors": [
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "joy",
+     "gesture": "wring",
+     "props": []
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 4,
+   "start": 11.199,
+   "end": 15.682,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "close_up",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.8,
+    "zoom_to": 2.25
+   },
+   "speaker": "ros",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "angry",
+     "gesture": "indignant",
+     "props": []
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 5,
+   "start": 15.682,
+   "end": 21.568,
+   "setting": "street",
+   "background": "bg_street",
+   "shot_type": "wide",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.0,
+    "zoom_to": 1.08
+   },
+   "speaker": "pip",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "angry",
+     "gesture": "hands_on_hips",
+     "props": []
+    },
+    {
+     "role": "pip",
+     "side": "center",
+     "facing": "right",
+     "mood": "panic",
+     "gesture": "run_away",
+     "props": [
+      "alarm_clock"
+     ]
+    }
+   ],
+   "transition_in": "cut"
+  }
  ]
 }

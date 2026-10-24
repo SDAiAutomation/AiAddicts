@@ -50,7 +50,7 @@ def _run(cmd: list[str], timeout_s: float, env: dict) -> subprocess.CompletedPro
 def _validate_timeline(timeline: dict) -> None:
     if not isinstance(timeline, dict):
         raise RenderError("timeline must be an object")
-    for key in ("fps", "total", "lines", "subs", "rings"):
+    for key in ("fps", "total", "lines", "subs", "shots"):
         if key not in timeline:
             raise RenderError(f"timeline.{key} is missing")
     total = timeline["total"]
