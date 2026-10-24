@@ -15,11 +15,13 @@ from typing import Callable
 
 from . import contract, quality as quality_lib, shotplan, timeline as timeline_lib
 
+# looks the scene can print the same drawings in (scene.gd LOOKS); the first one is the reference look and the default
+STYLES = ("noir_1930", "sepia_1930", "cyanotype_1930")
 # rig_v1 draws two characters (one per pack); pack id -> rig role
 RIG_ROLES = {"pip_v1": "pip", "rosette_v1": "ros"}
 RIG_V1_CATALOG = {
     "settings": sorted(shotplan.BACKGROUNDS), "props": ["alarm_clock"],
-    "packs": sorted(RIG_ROLES), "music": ["ragtime_a"],
+    "packs": sorted(RIG_ROLES), "music": ["ragtime_a"], "styles": list(STYLES),
 }
 CHARS_PER_SECOND = 14.0   # measured on the prototype French lines (276 characters, about 19 s of speech)
 FIXED_SECONDS = 3.1       # lead-in, pauses and payoff tail
@@ -142,6 +144,7 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
             wavs.append(wav)
         tl = timeline_lib.build_timeline(lines)
         tl["shots"] = shotplan.build_shot_plan(story, tl, rig_roles(story))
+        tl["style"] = story.get("style_id") or STYLES[0]
         _progress(ports, "Animation")
         rendered = ports.render(tl, workdir / "render")
         _progress(ports, "Mixage audio")

@@ -40,6 +40,15 @@ var T := {}
 var TL := {}
 var vignette: GradientTexture2D
 
+# Looks: a tint multiplied over the finished frame (black stays black, white takes the colour of the paper), plus the
+# strength of the film effects. Same drawings, different print. "noir_1930" is the reference look and changes nothing.
+const LOOKS := {
+	"noir_1930": {"tint": Color(1.0, 1.0, 1.0), "grain": 1.0, "vignette": 1.0},
+	"sepia_1930": {"tint": Color(1.0, 0.86, 0.64), "grain": 1.25, "vignette": 1.15},
+	"cyanotype_1930": {"tint": Color(0.62, 0.84, 1.0), "grain": 1.1, "vignette": 1.1},
+}
+var LOOK: Dictionary = LOOKS["noir_1930"]
+
 func _fail(msg: String, code: int) -> void:
 	push_error(msg)
 	get_tree().quit(code)
@@ -66,6 +75,16 @@ func _ready() -> void:
 		_fail("invalid timeline file", 4)
 		return
 	TL = parsed
+	var style_id := String(TL.get("style", "noir_1930"))
+	LOOK = LOOKS[style_id] if LOOKS.has(style_id) else LOOKS["noir_1930"]
+	if LOOK["tint"] != Color(1.0, 1.0, 1.0):
+		var tint := ColorRect.new()
+		tint.size = Vector2(W, H)
+		tint.color = LOOK["tint"]
+		var mat := CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
+		tint.material = mat
+		add_child(tint)
 	var g := Gradient.new()
 	g.offsets = PackedFloat32Array([0.45, 1.0])
 	g.colors = PackedColorArray([Color(0, 0, 0, 0), Color(0, 0, 0, 0.55)])
@@ -276,8 +295,8 @@ func draw_world(cam: Transform2D, t: float, bg: String, ring: float, clock_x: fl
 
 func overlays(t: float) -> void:
 	draw_set_transform_matrix(Transform2D.IDENTITY)
-	draw_texture_rect(vignette, Rect2(0, 0, W, H), false)
-	var fl := 0.04 * sin(frame * 5.7) + 0.02 * sin(frame * 13.1)
+	draw_texture_rect(vignette, Rect2(0, 0, W, H), false, Color(1, 1, 1, clampf(float(LOOK["vignette"]) - 0.0, 0.0, 1.0)))
+	var fl := (0.04 * sin(frame * 5.7) + 0.02 * sin(frame * 13.1)) * float(LOOK["grain"])
 	draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, clampf(0.05 + fl, 0.0, 1.0)) if fl > 0 else Color(1, 1, 1, clampf(-fl, 0.0, 1.0)))
 	for i in 90:
 		var k := frame * 131.0 + i * 17.0

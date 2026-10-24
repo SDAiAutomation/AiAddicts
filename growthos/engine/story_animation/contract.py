@@ -36,7 +36,7 @@ MAX_TTS_CHARS = 4000
 
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-_STORY_KEYS = {"version", "animation_schema_version", "language", "characters", "shots", "music_id", "budget"}
+_STORY_KEYS = {"version", "animation_schema_version", "language", "characters", "shots", "music_id", "style_id", "budget"}
 _CHARACTER_KEYS = {"id", "name", "voice_id", "pack_id"}
 _SHOT_KEYS = {"id", "setting_id", "shot_type", "camera", "speaker_id", "dialogue", "actors", "transition_in", "intent", "duration_s"}
 _CAMERA_KEYS = {"move", "zoom_from", "zoom_to"}
@@ -92,7 +92,7 @@ def _text_ok(value, limit) -> bool:
 
 def validate_animation_story(story: dict, catalog: dict | None = None) -> list[str]:
     """Actionable errors (empty list = valid). `catalog` is the server-side allow-list:
-    {"settings": [...], "props": [...], "packs": [...], "music": [...]}; without it only the structure is checked."""
+    {"settings": [...], "props": [...], "packs": [...], "music": [...], "styles": [...]}; without it only the structure is checked."""
     if not isinstance(story, dict):
         return ["story must be an object"]
     errors: list[str] = []
@@ -113,6 +113,9 @@ def validate_animation_story(story: dict, catalog: dict | None = None) -> list[s
     music = story.get("music_id")
     if music is not None and (not _is_id(music) or not allowed("music", music)):
         errors.append("story.music_id is not an allowed catalog id")
+    style = story.get("style_id")
+    if style is not None and (not _is_id(style) or not allowed("styles", style)):
+        errors.append("story.style_id is not an allowed catalog id")
 
     characters = story.get("characters")
     ids: list[str] = []
