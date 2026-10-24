@@ -18,3 +18,11 @@ Date : 2026-10-24. Statut : **en attente de jugement visuel de l'utilisateur**. 
 
 ## DÃ©cision proposÃ©e
 **GO conditionnel pour Gate 2 sur la piste rig 2D seulement si tu juges le style acceptable.** Si le niveau Â« rÃ©fÃ©rences Â» est exigÃ©, il faut tester la piste imageâ†’vidÃ©o (coÃ»t Ã  chiffrer, accord requis) ou prÃ©voir un illustrateur pour les assets.
+
+## Gate 1B — mêmes animations, art généré par l'API OpenAI de Faceloop (2026-10-24)
+Livrable : `experiments/story_gate1/pip_gate1b_540x960.mp4` (7,04 s, 24 fps, 540×960, sans audio). Même scénario et même caméra que Gate 1.
+
+- **Chaîne** : 7 images `gpt-image-1-mini` qualité basse (fiche personnage sur fond vert, 3 expressions dont 1 rejetée par la modération, décor d'usine, réveil à visage) ? détourage local (`art/key.py`) ? découpe en pièces (`art/cut.py` : tête ×3 expressions, torse, gants, chaussures, chapeau, réveil) ? montage en marionnette dans Godot (`scene2.gd`) : bras et jambes en lignes d'encre étirables, pièces dessinées pour le reste, calotte du crâne reconstruite en code (le chapeau la masquait dans l'image source), parallaxe, fumée, grain, vignettage.
+- **Coût** : ˜ 0,105 USD estimé (table interne du dépôt, non vérifiée en direct) sur 5 USD autorisés. Rendu Godot : ˜ 6-8 s pour 169 images, sans GPU.
+- **Verdict visuel [OBS]** : très net progrès sur le style et le décor par rapport à Gate 1. Défauts restants : yeux et bouches ne sont que 3 têtes fixes (pas de lip-sync réel), pas de gros plan de corps entier, bras tubulaires un peu rigides, petites aspérités à la jonction calotte/tête, le réveil ne suit pas le personnage du regard, pas de bruitage.
+- **Limites** : résolution 540×960 seulement ; dérive de design entre les têtes générées (moustache perdue sans consigne explicite) ; la modération d'OpenAI a refusé 3 requêtes de variantes ; droits d'usage commercial des images non vérifiés ; les sprites générés ne sont pas committés (`sprites/` ignoré) tant que l'utilisateur n'a pas validé.
