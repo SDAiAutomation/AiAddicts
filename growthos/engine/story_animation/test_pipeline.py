@@ -4,10 +4,12 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from growthos.engine.story_animation import pipeline
+from growthos.engine.story_animation import pipeline, quality
 from growthos.engine.story_animation.test_timeline_lib import alignment, loud
 
 FIXTURE = Path(__file__).parent / "fixtures" / "rig_v1_story.json"
+BLOCKING_PROBLEM = quality.Problem("resolution", quality.BLOCKING, "resolution 540x960 is not 1080x1920", "Résolution inattendue (540×960).")
+REVIEW_PROBLEM = quality.Problem("black", quality.REVIEW, "black frames between 5s and 6s", "Image noire entre 5s et 6s.")
 
 
 def script():
@@ -20,6 +22,7 @@ class Harness:
     def __init__(self, fail=None, reserve=True, ready=None, quality=None, refund_raises=False, event_raises=False, progress_raises=False):
         self.calls, self.fail, self.refunds = [], fail, 0
         self.progress_raises = progress_raises
+        self.published_review = None
         self.reserve, self.ready_problems, self.quality_problems = reserve, ready or [], quality or []
         self.refund_raises, self.event_raises = refund_raises, event_raises
 
@@ -60,10 +63,14 @@ class Harness:
             render=lambda tl, workdir: self.step("render", SimpleNamespace(video_path=Path("silent.mp4"))),
             mix=lambda rendered, starts, tl, out: self.step("mix", Path("final.mp4")),
             check_quality=lambda final: (self.calls.append("quality"), self.quality_problems)[1],
-            publish=lambda final, tl: self.step("publish", {"video_url": "https://example.test/v1.mp4", "content_item_id": "item"}),
+            publish=self.on_publish,
             catalog=pipeline.RIG_V1_CATALOG,
             progress=self.on_progress,
         )
+
+    def on_publish(self, final, tl, review):
+        self.published_review = review
+        return self.step("publish", {"video_url": "https://example.test/v1.mp4", "content_item_id": "item"})
 
     def on_progress(self, label):
         self.calls.append("progress:" + label)
@@ -167,8 +174,15 @@ class FailuresAfterReservationRefundExactlyOnce(unittest.TestCase):
             self.assertLess(h.calls.index("reserve"), h.calls.index("refund"))
             self.assertNotIn("event:generation_completed", h.calls)
 
-    def test_quality_rejection_refunds(self):
-        h = Harness(quality=["black frames between 5s and 6s"])
+    def test_a_broken_clip_is_refunded_and_not_published(self):
+        h = Harness(quality=[BLOCKING_PROBLEM])
+        with self.assertRaises(pipeline.QualityRejected):
+            h.run()
+        self.assertEqual(h.refunds, 1)
+        self.assertNotIn("publish", h.calls)
+
+    def test_blocking_wins_over_review(self):
+        h = Harness(quality=[REVIEW_PROBLEM, BLOCKING_PROBLEM])
         with self.assertRaises(pipeline.QualityRejected):
             h.run()
         self.assertEqual(h.refunds, 1)
@@ -187,6 +201,31 @@ class FailuresAfterReservationRefundExactlyOnce(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "render broke"):
             h.run()
         self.assertEqual(h.refunds, 1)
+
+
+class ReviewState(unittest.TestCase):
+    def test_review_findings_deliver_the_clip_for_a_human_look_and_keep_the_credit(self):
+        h = Harness(quality=[REVIEW_PROBLEM])
+        result = h.run()
+        self.assertEqual(h.refunds, 0)
+        self.assertTrue(result["needs_review"])
+        self.assertEqual(h.published_review, [REVIEW_PROBLEM])
+        self.assertIn("event:generation_completed", h.calls)
+
+    def test_a_clean_clip_is_not_flagged(self):
+        h = Harness()
+        result = h.run()
+        self.assertFalse(result["needs_review"])
+        self.assertEqual(h.published_review, [])
+
+    def test_fields_written_for_each_state(self):
+        self.assertEqual(quality.review_fields([]), {"status": "video", "quality_flags": []})
+        fields = quality.review_fields([REVIEW_PROBLEM])
+        self.assertEqual(fields["status"], "quality_check")
+        self.assertEqual(fields["quality_flags"], ["Image noire entre 5s et 6s."])
+        self.assertNotIn("quality_score", fields)  # nothing is invented
+        many = quality.review_fields([REVIEW_PROBLEM] * 20)
+        self.assertEqual(len(many["quality_flags"]), 8)
 
 
 class SuccessPath(unittest.TestCase):

@@ -68,7 +68,7 @@ Alertes recommandées (à créer, aujourd'hui inexistantes) : ≥ 2 échecs anim
 | Crédit non rendu après un échec | Le remboursement est idempotent : relancer `refund_generation_credit(<id>)` n'inscrit qu'une fois. Vérifier la requête crédits ci-dessus ; en cas d'écart, corriger par une ligne `credits_ledger` explicite, jamais en modifiant le solde à la main. |
 | Item resté `generating` | Il est remis en file au bout de 15 min sans battement ; si le worker est mort, la reprise ne débite pas deux fois (réservation idempotente). |
 | Quota ElevenLabs épuisé | Les jobs échouent avant le rendu (erreur du fournisseur) et remboursent ; désactiver le flag le temps de recharger. |
-| Qualité refusée (`QualityRejected`) | Le crédit est remboursé et l'auteur voit le motif. Un état « à revoir » dédié reste à décider. |
+| Qualité | Deux niveaux (`engine/story_animation/quality.py`). **Bloquant** (durée image/son incohérente, résolution ou cadence inattendues, fichier > 40 Mio, mesure absente) : clip non livré, crédit remboursé, motif sur l'élément. **À revoir** (image noire ou figée hors fondus, son saturé ou presque inaudible) : le clip est **livré** dans l'état existant `quality_check` avec ses `quality_flags` en français (coup d'œil humain avant publication, publication automatique de série bloquée), le crédit est conservé ; `quality_score` reste nul (aucune note inventée). |
 | Fuite suspectée de secret | Le sous-processus Godot reçoit un environnement filtré (variables contenant KEY, SECRET, TOKEN, PASSWORD, CREDENTIAL retirées) ; vérifier les journaux (ni dialogues complets ni URL signées) puis faire tourner les clés concernées. |
 
 ## 7. Retour arrière

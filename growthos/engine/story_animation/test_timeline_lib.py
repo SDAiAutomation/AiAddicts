@@ -172,6 +172,28 @@ class QualityTests(unittest.TestCase):
                 problems = quality.check_media({**GOOD, key: value}, EXPECTED)
                 self.assertTrue(any(word in p for p in problems), problems)
 
+    def test_severity_decides_between_refund_and_human_review(self):
+        blocking_cases = {"audio_duration_s": 30.0, "width": 540, "fps": 30.0, "size_bytes": 50 * 1048576}
+        for key, value in blocking_cases.items():
+            with self.subTest(key):
+                problems = quality.judge_media({**GOOD, key: value}, EXPECTED)
+                self.assertTrue(problems)
+                self.assertTrue(all(p.severity == quality.BLOCKING for p in problems), problems)
+        review_cases = {"black": [(5.0, 5.5)], "freeze": [(8.0, 9.5)], "max_volume_db": 0.0, "mean_volume_db": -50.0}
+        for key, value in review_cases.items():
+            with self.subTest(key):
+                problems = quality.judge_media({**GOOD, key: value}, EXPECTED)
+                self.assertEqual([p.severity for p in problems], [quality.REVIEW])
+
+    def test_every_problem_has_an_author_facing_french_text(self):
+        everything = {**GOOD, "audio_duration_s": 10.0, "width": 540, "fps": 30.0, "size_bytes": 50 * 1048576, "black": [(5.0, 5.5)],
+                      "freeze": [(8.0, 9.5)], "max_volume_db": 0.0, "mean_volume_db": -50.0}
+        problems = quality.judge_media(everything, EXPECTED)
+        self.assertEqual({p.kind for p in problems}, {"duration", "resolution", "fps", "size", "black", "freeze", "clipping", "silence"})
+        for p in problems:
+            self.assertTrue(p.text_fr.endswith("."), p)
+            self.assertNotEqual(p.text, p.text_fr)
+
     def test_short_black_or_freeze_is_tolerated(self):
         self.assertEqual(quality.check_media({**GOOD, "black": [(5.0, 5.1)], "freeze": [(8.0, 8.5)]}, EXPECTED), [])
 

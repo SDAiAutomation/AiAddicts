@@ -989,17 +989,20 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
 
     def check_quality(final: Path) -> list:
         report = sa_measure.measure(final)
-        return sa_quality.check_media(report, {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS})
+        return sa_quality.judge_media(report, {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS})
 
-    def publish(final: Path, timeline: dict) -> dict:
+    def publish(final: Path, timeline: dict, review: list) -> dict:
         version_number = None
         try:
             version_number = versions.next_version_number(client, content_item_id)
         except Exception as exc:  # noqa: BLE001 - same fallback as the legacy path
             print(f"       (historique de versions indisponible : {exc})")
         video_url = _publish_video(client, content_item_id, str(final), require_remote=True, version=version_number)
-        fields = {"status": "video", "script": script, "video_url": video_url, "error": None, "generation_step": None,
-                  "trim_start": 0, "trim_end": None, "trim_status": None, "original_video_url": None}
+        # review-level findings deliver the clip in the existing `quality_check` state (a human looks before publication,
+        # series auto-publication stays blocked); nothing is invented for `quality_score`, which stays null
+        fields = {"script": script, "video_url": video_url, "error": None, "generation_step": None,
+                  "trim_start": 0, "trim_end": None, "trim_status": None, "original_video_url": None,
+                  **sa_quality.review_fields(review)}
         if version_number:
             version_id = versions.record_version(client, content_item_id, version_number, "generation", video_url,
                                                  script=script, duration_seconds=timeline["total"])

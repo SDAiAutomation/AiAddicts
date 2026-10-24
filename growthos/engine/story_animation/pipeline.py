@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import contract, shotplan, timeline as timeline_lib
+from . import contract, quality as quality_lib, shotplan, timeline as timeline_lib
 
 # rig_v1 draws two characters (one per pack); pack id -> rig role
 RIG_ROLES = {"pip_v1": "pip", "rosette_v1": "ros"}
@@ -42,7 +42,8 @@ class InsufficientCredits(AnimationError):
 
 
 class QualityRejected(AnimationError):
-    """The rendered clip failed automatic checks; the credit is refunded."""
+    """The rendered clip is unusable (blocking problems); the credit is refunded. Review-level problems do NOT raise:
+    the clip is delivered in the existing `quality_check` state."""
 
 
 @dataclass
@@ -57,8 +58,8 @@ class Ports:
     synthesize: Callable[[str, str, Path], dict]                # (text, voice_id, wav path) -> {duration_s, alignment, envelope}
     render: Callable[[dict, Path], object]                      # (timeline, workdir) -> RenderResult
     mix: Callable[[object, list, dict, Path], Path]             # (render result, [(wav, start)], timeline, out path) -> final clip
-    check_quality: Callable[[Path], list]                       # problems, empty = pass
-    publish: Callable[[Path, dict], dict]                       # (final clip, timeline) -> {"video_url": ..., ...}
+    check_quality: Callable[[Path], list]                       # [quality.Problem]; empty = pass
+    publish: Callable[[Path, dict, list], dict]                 # (final clip, timeline, review problems) -> {"video_url": ..., ...}
     progress: Callable[[str], None] = lambda label: None        # best-effort step label for the library page
     catalog: dict = field(default_factory=dict)
     usd_per_1k_chars: float = 0.3                               # estimate only; never an invoice
@@ -146,11 +147,13 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
         _progress(ports, "Mixage audio")
         final = ports.mix(rendered, [(w, line["start"]) for w, line in zip(wavs, tl["lines"])], tl, workdir / "final.mp4")
         _progress(ports, "Contrôle qualité")
-        quality = ports.check_quality(final)
-        if quality:
-            raise QualityRejected("the rendered clip needs review: " + "; ".join(quality[:4]))
+        problems = ports.check_quality(final)
+        blocking = [p for p in problems if p.severity == quality_lib.BLOCKING]
+        if blocking:
+            raise QualityRejected("the rendered clip is unusable: " + "; ".join(p.text for p in blocking[:4]))
+        review = [p for p in problems if p.severity == quality_lib.REVIEW]
         _progress(ports, "Publication")
-        published = ports.publish(final, tl)
+        published = ports.publish(final, tl, review)
     except Exception:
         try:
             ports.refund_credit()
@@ -158,7 +161,9 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
             print(f"       (remboursement du crédit non appliqué : {type(refund_error).__name__})")
         raise
     try:
-        ports.record_event("generation_completed", renderer="rig_v1", duration_s=tl["total"])
+        ports.record_event("generation_completed", renderer="rig_v1", duration_s=tl["total"],
+                           status="quality_check" if review else "video")
     except Exception as exc:  # noqa: BLE001 - the video is delivered; never turn it into a failure
         print(f"       (événement de fin non enregistré : {type(exc).__name__})")
-    return {"video_url": published.get("video_url"), "timeline_total_s": tl["total"], **{k: v for k, v in published.items() if k != "video_url"}}
+    return {"video_url": published.get("video_url"), "timeline_total_s": tl["total"], "needs_review": bool(review),
+            **{k: v for k, v in published.items() if k != "video_url"}}
