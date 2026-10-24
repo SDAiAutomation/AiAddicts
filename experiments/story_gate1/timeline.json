@@ -1,0 +1,30 @@
+{
+ "fps": 24,
+ "total": 14.776,
+ "lines": [
+  {
+   "who": "ros",
+   "text": "Monsieur Pip, votre réveil sonne encore !",
+   "start": 0.5,
+   "dur": 3.999,
+   "end": 4.499,
+   "mouth": "cccoooooccccoooccccooooccccccccccccccccccrroooooooooocccooooooocccoooorrccccccccccccccccccccccccc"
+  },
+  {
+   "who": "pip",
+   "text": "Impossible, madame ! Je l'ai réglé hier !",
+   "start": 4.899,
+   "dur": 4.229,
+   "end": 9.128,
+   "mouth": "ccooooooocccooooooooocccoooooooorrrrcccccccccccccccccccrrroooooorrrrrroooooooooorrcccccccccccccccccccc"
+  },
+  {
+   "who": "ros",
+   "text": "Alors pourquoi il vous poursuit ?",
+   "start": 9.528,
+   "dur": 3.048,
+   "end": 12.576,
+   "mouth": "ccccooooooccccccccccccooorrrooorrrrrcccooccccccccrrrcccccccccccccccccccccc"
+  }
+ ]
+}

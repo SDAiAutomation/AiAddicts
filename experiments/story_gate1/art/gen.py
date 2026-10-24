@@ -1,4 +1,4 @@
-"""Capped OpenAI image helper for the Gate 1B test. Key is read from a private file outside the repo.
+﻿"""Capped OpenAI image helper for the Gate 1B test. Key is read from a private file outside the repo.
 usage: gen.py OUT.png "prompt" [--q low|medium] [--size 1024x1536] [--bg transparent|opaque] [--ref IMG.png]
 Every call appends to out/cost_ledger.json and refuses to run past CAP_USD (estimates from the repo's image_model_router table)."""
 import argparse, base64, json, os, sys, urllib.request, uuid
@@ -42,14 +42,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out"); ap.add_argument("prompt")
     ap.add_argument("--q", default="low"); ap.add_argument("--size", default="1024x1536")
-    ap.add_argument("--bg", default="opaque"); ap.add_argument("--ref")
+    ap.add_argument("--bg", default="opaque"); ap.add_argument("--ref"); ap.add_argument("--mask")
     a = ap.parse_args()
     est = COST[a.q]
     if spent() + est > CAP_USD:
         sys.exit(f"cap reached: spent {spent():.3f} + {est} > {CAP_USD}")
     fields = {"model": MODEL, "prompt": a.prompt, "quality": a.q, "size": a.size, "background": a.bg, "output_format": "png"}
     if a.ref:
-        body, ctype = multipart(fields, {"image": (os.path.basename(a.ref), open(a.ref, "rb").read())})
+        files = {"image": (os.path.basename(a.ref), open(a.ref, "rb").read())}
+        if a.mask:
+            files["mask"] = (os.path.basename(a.mask), open(a.mask, "rb").read())
+        body, ctype = multipart(fields, files)
         url = "https://api.openai.com/v1/images/edits"
     else:
         body, ctype, url = json.dumps(fields).encode(), "application/json", "https://api.openai.com/v1/images/generations"

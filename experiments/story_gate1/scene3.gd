@@ -1,0 +1,381 @@
+﻿extends Node2D
+# Gate 2: two original characters (Pip, Rosette), dialogue driven by measured audio (timeline.json), mouths from the audio envelope.
+# Same puppet technique as scene2.gd, with per-character anchors so a new character is data, not code.
+
+const FPS := 24.0
+const W := 540.0
+const H := 960.0
+const K := 0.28
+const FEET_Y := 800.0
+const INK := Color(0.03, 0.03, 0.04)
+
+# native anchors per character (pixels of the 1024x1536 source) + sprite names
+const CH := {
+	"pip": {
+		"hip": Vector2(512, 985), "neck": Vector2(512, 636), "sh_l": Vector2(405, 705), "sh_r": Vector2(620, 705),
+		"hip_l": Vector2(455, 975), "hip_r": Vector2(572, 975), "wr_l": Vector2(300, 930), "wr_r": Vector2(725, 930),
+		"an_l": Vector2(445, 1240), "an_r": Vector2(587, 1240), "shoe_l": Vector2(210, 8), "shoe_r": Vector2(77, 8),
+		"glove_l": Vector2(150, 13), "glove_r": Vector2(95, 13), "torso_o": Vector2(385, 636), "head_o": Vector2(265, 262),
+		"ground": 445.0, "arm_w": 58.0, "leg_w": 55.0, "dome": true,
+		"t_torso": "torso", "t_gl": "glove_l", "t_gr": "glove_r", "t_sl": "shoe_l", "t_sr": "shoe_r",
+		"head": {"c": "head_neutral", "o": "head_talk", "r": "head_o", "worry": "head_worried"},
+	},
+	"ros": {
+		"hip": Vector2(517, 1150), "neck": Vector2(490, 690), "sh_l": Vector2(310, 780), "sh_r": Vector2(710, 780),
+		"hip_l": Vector2(420, 1150), "hip_r": Vector2(618, 1150), "wr_l": Vector2(275, 940), "wr_r": Vector2(755, 940),
+		"an_l": Vector2(448, 1255), "an_r": Vector2(592, 1255), "shoe_l": Vector2(223, 20), "shoe_r": Vector2(67, 20),
+		"glove_l": Vector2(107, 13), "glove_r": Vector2(97, 16), "torso_o": Vector2(285, 690), "head_o": Vector2(150, 140),
+		"ground": 250.0, "arm_w": 56.0, "leg_w": 58.0, "dome": false,
+		"t_torso": "ros_torso", "t_gl": "ros_glove_l", "t_gr": "ros_glove_r", "t_sl": "ros_shoe_l", "t_sr": "ros_shoe_r",
+		"head": {"c": "ros_head_blank", "o": "ros_head_blank", "r": "ros_head_blank", "worry": "ros_head_blank"}, "mouth_at": Vector2(-50, -105),
+	},
+}
+
+var frame := 0
+var T := {}
+var TL := {}
+var vignette: GradientTexture2D
+
+func _ready() -> void:
+	for n in ["hat", "torso", "glove_l", "glove_r", "shoe_l", "shoe_r", "head_neutral", "head_talk", "head_worried", "head_o", "clock", "bg_alley",
+			"ros_torso", "ros_glove_l", "ros_glove_r", "ros_shoe_l", "ros_shoe_r", "ros_head_blank"]:
+		T[n] = ImageTexture.create_from_image(Image.load_from_file("res://sprites/%s.png" % n))
+	TL = JSON.parse_string(FileAccess.get_file_as_string("res://timeline.json"))
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.45, 1.0])
+	g.colors = PackedColorArray([Color(0, 0, 0, 0), Color(0, 0, 0, 0.55)])
+	vignette = GradientTexture2D.new()
+	vignette.gradient = g
+	vignette.fill = GradientTexture2D.FILL_RADIAL
+	vignette.fill_from = Vector2(0.5, 0.5)
+	vignette.fill_to = Vector2(1.0, 0.85)
+	vignette.width = 270
+	vignette.height = 480
+
+func _process(_d: float) -> void:
+	if frame / FPS >= TL["total"]:
+		get_tree().quit()
+		return
+	queue_redraw()
+	frame += 1
+
+# ---------- helpers ----------
+func ease_io(x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+func ease_back(x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	return 1.0 + 2.9 * pow(x - 1.0, 3.0) + 1.9 * pow(x - 1.0, 2.0)
+
+func seg(t: float, a: float, b: float) -> float:
+	return clampf((t - a) / (b - a), 0.0, 1.0)
+
+func boil(i: float, amp := 1.0) -> Vector2:
+	var k := floorf(frame / 2.0)
+	return Vector2(sin(k * 7.13 + i * 3.71), cos(k * 5.31 + i * 2.17)) * amp
+
+func cam_xf(zoom: float, c: Vector2, par := 1.0) -> Transform2D:
+	c = Vector2(clampf(c.x, 270.0 / zoom, 640.0 - 270.0 / zoom), clampf(c.y, 480.0 / zoom, 960.0 - 480.0 / zoom))
+	var cc := c * par + Vector2(320, 480) * (1.0 - par)
+	return Transform2D(0.0, Vector2(zoom, zoom), 0.0, Vector2(W, H) * 0.5 - cc * zoom)
+
+func bez(a: Vector2, b: Vector2, bend: float, n := 16) -> PackedVector2Array:
+	var d := b - a
+	var perp := Vector2(-d.y, d.x).normalized()
+	var c := (a + b) * 0.5 + perp * bend
+	var pts := PackedVector2Array()
+	for i in n + 1:
+		var u := float(i) / n
+		pts.append(a.lerp(c, u).lerp(c.lerp(b, u), u))
+	return pts
+
+func spr(cam: Transform2D, tex: Texture2D, pivot: Vector2, wp: Vector2, ang: float, sx: float, sy: float, seed_: float) -> void:
+	var a := ang + sin(floorf(frame / 2.0) * 3.1 + seed_) * 0.006
+	draw_set_transform_matrix(cam * Transform2D(a, Vector2(sx, sy), 0.0, wp + boil(seed_, 0.55)))
+	draw_texture(tex, -pivot)
+
+func hose(cam: Transform2D, a: Vector2, b: Vector2, bend: float, w: float, seed_: float) -> void:
+	draw_set_transform_matrix(cam)
+	var pts := bez(a, b, bend)
+	for i in pts.size():
+		pts[i] += boil(seed_ + i, 0.35)
+	draw_polyline(pts, INK, w, true)
+	draw_circle(pts[0], w * 0.5, INK)
+	draw_circle(pts[pts.size() - 1], w * 0.5, INK)
+
+# mouth class of a character at the current frame: "c" closed, "o" open, "r" round (from the measured audio)
+func mouth_of(who: String) -> String:
+	var t := frame / FPS
+	for l in TL["lines"]:
+		if l["who"] == who and t >= l["start"] and t < l["end"]:
+			var i := int((t - l["start"]) * FPS)
+			var m: String = l["mouth"]
+			return m[mini(i, m.length() - 1)]
+	return "c"
+
+func speaker_now() -> String:
+	var t := frame / FPS
+	for l in TL["lines"]:
+		if t >= l["start"] and t < l["end"]:
+			return l["who"]
+	return ""
+
+# mouths drawn in head-local native units so the face never drifts: c closed smile, o open, r/worry round
+func draw_mouth(xf_: Transform2D, at: Vector2, key: String) -> void:
+	draw_set_transform_matrix(xf_)
+	if key == "c":
+		var pts := PackedVector2Array()
+		for i in 21:
+			var u := lerpf(-1.0, 1.0, i / 20.0)
+			pts.append(at + Vector2(u * 100.0, -15.0 + 30.0 * (1.0 - u * u)))
+		draw_polyline(pts, INK, 7.0, true)
+	elif key == "o":
+		var m := PackedVector2Array()
+		var tg := PackedVector2Array()
+		for i in 28:
+			var an := TAU * i / 28.0
+			m.append(at + Vector2(0, 8) + Vector2(cos(an) * 64.0, sin(an) * 50.0))
+			tg.append(at + Vector2(0, 32) + Vector2(cos(an) * 38.0, sin(an) * 17.0))
+		draw_colored_polygon(m, INK)
+		draw_colored_polygon(tg, Color(0.82, 0.08, 0.08))
+	else:
+		var m := PackedVector2Array()
+		for i in 24:
+			var an := TAU * i / 24.0
+			m.append(at + Vector2(0, 5) + Vector2(cos(an) * 24.0, sin(an) * 30.0))
+		draw_colored_polygon(m, INK)
+
+# ---------- character ----------
+func draw_puppet(who: String, P: Dictionary) -> void:
+	var C: Dictionary = CH[who]
+	var cam: Transform2D = P["cam"]
+	var flip: float = P.get("flip", 1.0)
+	var rot: float = P.get("lean", 0.0) * flip
+	var sqy: float = P.get("squash", 1.0)
+	var sqx: float = 1.0 / sqy
+	var hip: Vector2 = C["hip"]
+	var hipw: Vector2 = P["pos"] + Vector2(0, -P.get("bob", 0.0))
+	var rw := func(n: Vector2) -> Vector2:
+		return hipw + (Vector2((n.x - hip.x) * flip * sqx, (n.y - hip.y) * sqy) * K).rotated(rot)
+	var fw := func(n: Vector2) -> Vector2:
+		return hipw + Vector2((n.x - hip.x) * flip, (n.y - hip.y) * sqy) * K
+	var ground: float = P.get("ground", FEET_Y)
+	draw_set_transform_matrix(cam)
+	var sh := PackedVector2Array()
+	for i in 24:
+		var an := TAU * i / 24.0
+		sh.append(Vector2(P["pos"].x + cos(an) * 74.0, ground + 4 + sin(an) * 10))
+	draw_colored_polygon(sh, Color(0, 0, 0, 0.28))
+	var al: Vector2 = P.get("ankle_l", C["an_l"])
+	var ar: Vector2 = P.get("ankle_r", C["an_r"])
+	hose(cam, fw.call(C["hip_l"]), fw.call(al), -6.0 * flip, C["leg_w"] * K, 1.0)
+	hose(cam, fw.call(C["hip_r"]), fw.call(ar), -6.0 * flip, C["leg_w"] * K, 2.0)
+	var fa: float = P.get("foot_ang", 0.0) * flip
+	spr(cam, T[C["t_sl"]], C["shoe_l"], fw.call(al), fa, K * flip, K * sqy, 3.0)
+	spr(cam, T[C["t_sr"]], C["shoe_r"], fw.call(ar), fa, K * flip, K * sqy, 4.0)
+	var wl: Vector2 = P.get("wrist_l", C["wr_l"])
+	var wr: Vector2 = P.get("wrist_r", C["wr_r"])
+	var bl: float = P.get("bend_l", 10.0)
+	var br: float = P.get("bend_r", -10.0)
+	hose(cam, rw.call(C["sh_l"]), rw.call(wl), bl * flip, C["arm_w"] * K, 5.0)
+	hose(cam, rw.call(C["sh_r"]), rw.call(wr), br * flip, C["arm_w"] * K, 6.0)
+	spr(cam, T[C["t_torso"]], hip - C["torso_o"], hipw, rot, K * flip * sqx, K * sqy, 7.0)
+	# head
+	var neck_w: Vector2 = rw.call(C["neck"])
+	var pop: float = P.get("head_pop", 1.0)
+	var hang: float = rot + P.get("tilt", 0.0) * flip
+	var key: String = P.get("head_key", mouth_of(who))
+	var hp: Vector2 = C["head_o"]
+	var neck: Vector2 = C["neck"]
+	if C["dome"]:
+		draw_set_transform_matrix(cam * Transform2D(hang, Vector2(K * flip * pop, K * pop), 0.0, neck_w))
+		var dome := PackedVector2Array()
+		var ctr := Vector2(4, -246.0)
+		for i in range(0, 41):
+			var an := lerpf(PI + 0.56, TAU - 0.56, float(i) / 40.0)
+			dome.append(ctr + Vector2(cos(an), sin(an)) * 233.0)
+		var cap := dome.duplicate()
+		cap.append(Vector2(dome[40].x, -336.0)); cap.append(Vector2(dome[0].x, -336.0))
+		draw_colored_polygon(cap, Color(1, 1, 1))
+		draw_polyline(dome, INK, 13.0, true)
+	spr(cam, T[C["head"][key]], neck - hp, neck_w, hang, K * flip * pop, K * pop, 8.0)
+	if C.has("mouth_at"):
+		draw_mouth(cam * Transform2D(hang, Vector2(K * flip * pop, K * pop), 0.0, neck_w), C["mouth_at"], key)
+	if C["dome"]:
+		if P.has("hat_world"):
+			spr(cam, T["hat"], Vector2(184, 183), P["hat_world"], P.get("hat_rot", 0.0), K * flip, K, 9.0)
+		else:
+			var top := neck_w + Vector2(0, -(neck.y - 238.0) * K * pop).rotated(hang)
+			spr(cam, T["hat"], Vector2(184, 183), top + Vector2(0, P.get("hat_lift", 0.0)).rotated(hang), hang, K * flip, K, 9.0)
+	for side in [0, 1]:
+		var tgt: Vector2 = rw.call(wl if side == 0 else wr)
+		var origin: Vector2 = rw.call(C["sh_l"] if side == 0 else C["sh_r"])
+		var pts := bez(origin, tgt, (bl if side == 0 else br) * flip)
+		var dir: Vector2 = (pts[pts.size() - 1] - pts[pts.size() - 4]).normalized()
+		spr(cam, T[C["t_gl"] if side == 0 else C["t_gr"]], C["glove_l"] if side == 0 else C["glove_r"], tgt, dir.angle() - PI * 0.5, K * flip, K, 10.0 + side)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+# ---------- world ----------
+func draw_world(cam: Transform2D, t: float, ring: float, clock_x: float, hop_x := 0.0) -> void:
+	draw_set_transform_matrix(cam)
+	draw_texture(T["bg_alley"], Vector2.ZERO)
+	for ci in 2:
+		var cx := 560.0 + ci * 48.0
+		for p in 5:
+			var u := fmod(t * 0.3 + p * 0.2 + ci * 0.37, 1.0)
+			var pc := Vector2(cx + u * 70.0 + sin(u * 8.0) * 8.0, 280.0 - ci * 40.0 - u * 150.0)
+			draw_circle(pc + boil(p + ci * 9, 1.0), 12 + u * 26, Color(0.82, 0.82, 0.80, 0.55 * (1.0 - u)))
+	var base := Vector2(clock_x, FEET_Y + 6)
+	var hop: float = absf(sin(frame * 0.9)) * 14.0 * ring
+	var shake := sin(frame * 2.7) * 0.07 * ring
+	var kc := 0.2 * (1.0 + 0.04 * ring * sin(frame * 1.7))
+	spr(cam, T["clock"], Vector2(328, 780), base + Vector2(0, -hop), shake, kc, kc, 20.0)
+	if ring > 0.0:
+		draw_set_transform_matrix(cam)
+		for k in 3:
+			var rr := 78.0 + k * 13.0 + fmod(frame * 2.5, 13.0)
+			draw_arc(base + Vector2(0, -85), rr, -2.45, -0.7, 10, INK, 2.6, true)
+			draw_arc(base + Vector2(0, -85), rr, -2.45 + 3.14, -0.7 + 3.14 - 0.6, 10, INK, 2.6, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+func overlays() -> void:
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	draw_texture_rect(vignette, Rect2(0, 0, W, H), false)
+	var fl := 0.04 * sin(frame * 5.7) + 0.02 * sin(frame * 13.1)
+	draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, clampf(0.05 + fl, 0.0, 1.0)) if fl > 0 else Color(1, 1, 1, clampf(-fl, 0.0, 1.0)))
+	for i in 90:
+		var k := frame * 131.0 + i * 17.0
+		draw_rect(Rect2(fmod(k * 7.31, W), fmod(k * 3.77, H), 2, 2), Color(0, 0, 0, 0.16) if i % 3 else Color(1, 1, 1, 0.2))
+
+func walk_pose(C: Dictionary, ph: float, amp: float) -> Dictionary:
+	var a := sin(ph)
+	var b := sin(ph + PI)
+	var al: Vector2 = C["an_l"]
+	var ar: Vector2 = C["an_r"]
+	var wl: Vector2 = C["wr_l"]
+	var wr: Vector2 = C["wr_r"]
+	return {
+		"ankle_l": Vector2(al.x + a * 100.0 * amp, al.y - maxf(0.0, cos(ph)) * 85.0 * amp),
+		"ankle_r": Vector2(ar.x + b * 100.0 * amp, ar.y - maxf(0.0, cos(ph + PI)) * 85.0 * amp),
+		"wrist_l": Vector2(wl.x - b * 45.0 * amp, wl.y - absf(b) * 30.0 * amp),
+		"wrist_r": Vector2(wr.x + a * 45.0 * amp, wr.y - absf(a) * 30.0 * amp),
+		"bob": absf(cos(ph)) * 4.0 * amp, "foot_ang": 0.12 * cos(ph) * amp,
+	}
+
+func hip_y(who: String) -> float:
+	return FEET_Y - float(CH[who]["ground"]) * K
+
+# idle gesture while talking: hands rise on stressed (open) frames
+func talk_gesture(C: Dictionary, e: float, side: float) -> Dictionary:
+	var wl: Vector2 = C["wr_l"]
+	var wr: Vector2 = C["wr_r"]
+	return {"wrist_l": wl + Vector2(-30, -160) * e * (1.0 - side), "wrist_r": wr + Vector2(30, -140) * e * side}
+
+# ---------- shots ----------
+func _draw() -> void:
+	draw_rect(Rect2(0, 0, W, H), Color.BLACK)
+	var t := frame / FPS
+	var L: Array = TL["lines"]
+	var s1: float = L[0]["end"] + 0.3
+	var s2: float = L[1]["end"] + 0.3
+	if t < s1:
+		shot_two(t, 0.0, s1, "ros")
+	elif t < s2:
+		shot_pip_close(t, s1, s2)
+	else:
+		shot_end(t, s2, TL["total"])
+	overlays()
+
+func smooth_env(who: String) -> float:
+	var e := 0.0
+	for d in [-2, -1, 0, 1, 2]:
+		var f: int = frame + d
+		var t: float = f / FPS
+		for l in TL["lines"]:
+			if l["who"] == who and t >= l["start"] and t < l["end"]:
+				var i := int((t - l["start"]) * FPS)
+				var m: String = l["mouth"]
+				e += 1.0 if m[mini(i, m.length() - 1)] != "c" else 0.0
+	return e / 5.0
+
+func shot_two(t: float, a: float, b: float, _who: String) -> void:
+	var u := seg(t, a, b)
+	var zoom := lerpf(1.0, 1.1, ease_io(u))
+	var cam := cam_xf(zoom, Vector2(320, 560))
+	draw_world(cam, t, 0.0, 320.0)
+	var enter := ease_io(seg(t, 0.0, 0.5))
+	# Rosette (left, facing right) talks; Pip (right, facing left) listens, reacts at the end of the line
+	var er := smooth_env("ros")
+	var P := talk_gesture(CH["ros"], er, 1.0)
+	P["cam"] = cam
+	P["pos"] = Vector2(165, hip_y("ros"))
+	P["flip"] = 1.0
+	P["bob"] = 3.0 * er
+	P["tilt"] = 0.05 * sin(t * 4.0) * er
+	draw_puppet("ros", P)
+	var react := ease_back(seg(t, TL["lines"][0]["end"] - 0.6, TL["lines"][0]["end"] + 0.1))
+	var Q := {"cam": cam, "pos": Vector2(lerpf(560.0, 465.0, enter), hip_y("pip")), "flip": -1.0}
+	Q["head_key"] = "worry" if react > 0.3 else "c"
+	Q["head_pop"] = 1.0 + 0.1 * react
+	Q["squash"] = 1.0 - 0.04 * react
+	Q["wrist_l"] = CH["pip"]["wr_l"] + Vector2(-10, -150) * react
+	Q["wrist_r"] = CH["pip"]["wr_r"] + Vector2(10, -150) * react
+	if enter < 1.0:
+		var w := walk_pose(CH["pip"], t * 11.0, 1.0)
+		for k in w:
+			Q[k] = w[k]
+		Q["head_key"] = "c"
+	draw_puppet("pip", Q)
+
+func shot_pip_close(t: float, a: float, b: float) -> void:
+	var u := seg(t, a, b)
+	var punch := ease_back(seg(t, a, a + 0.25))
+	var zoom := lerpf(2.2, 2.7, ease_io(u)) * (0.94 + 0.06 * punch)
+	var hp := Vector2(400, hip_y("pip"))
+	var cam := cam_xf(zoom, Vector2(hp.x - 10.0, hp.y - 170.0))
+	draw_world(cam, t, 0.0, 250.0)
+	var ep := smooth_env("pip")
+	var P := talk_gesture(CH["pip"], ep, 0.5)
+	P["cam"] = cam
+	P["pos"] = hp
+	P["flip"] = -1.0
+	P["head_pop"] = 1.0 + 0.05 * ep
+	P["tilt"] = 0.08 * sin(t * 5.0) * ep
+	P["bob"] = 4.0 * ep
+	var hm := mouth_of("pip")
+	P["head_key"] = hm if ep > 0.0 else "worry"
+	draw_puppet("pip", P)
+
+func shot_end(t: float, a: float, b: float) -> void:
+	var u := seg(t, a, b)
+	var zoom := lerpf(1.25, 1.0, ease_io(u))
+	var cam := cam_xf(zoom, Vector2(lerpf(340.0, 320.0, u), 560.0))
+	var L: Array = TL["lines"]
+	var l3: float = L[2]["end"]
+	var ring := ease_io(seg(t, L[2]["start"] + 0.6, L[2]["start"] + 1.0)) * (1.0 - ease_io(seg(t, b - 0.5, b)))
+	var chase := seg(t, l3 - 0.4, b - 0.5)
+	var clock_x := lerpf(300.0, 520.0, ease_io(chase))
+	draw_world(cam, t, ring, clock_x)
+	var er := smooth_env("ros")
+	var P := talk_gesture(CH["ros"], er, 0.0)
+	P["cam"] = cam
+	P["pos"] = Vector2(165, hip_y("ros"))
+	P["flip"] = 1.0
+	P["bob"] = 3.0 * er
+	draw_puppet("ros", P)
+	var run := seg(t, l3 - 0.2, b)
+	var Q := {"cam": cam, "flip": -1.0}
+	Q["pos"] = Vector2(465.0 + 300.0 * ease_io(run), hip_y("pip"))
+	if run > 0.0:
+		var w := walk_pose(CH["pip"], t * 17.0, 1.5)
+		for k in w:
+			Q[k] = w[k]
+		Q["flip"] = 1.0
+		Q["lean"] = 0.2
+		Q["head_key"] = "o"
+	else:
+		Q["head_key"] = "worry"
+		Q["wrist_l"] = CH["pip"]["wr_l"] + Vector2(-10, -140)
+		Q["wrist_r"] = CH["pip"]["wr_r"] + Vector2(10, -140)
+	draw_puppet("pip", Q)
