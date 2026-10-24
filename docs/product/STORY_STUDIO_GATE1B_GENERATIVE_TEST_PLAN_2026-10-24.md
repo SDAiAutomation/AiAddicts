@@ -1,21 +1,27 @@
-# Story Studio — Gate 1B : test image→vidéo (décision chef de projet)
+# Story Studio — Gate 1B : art généré par l'API OpenAI déjà dans Faceloop + animation locale (révisé)
 
-Date : 2026-10-24. Statut : **plan, rien d'exécuté, 0 € dépensé**. Aucun appel payant sans accord explicite.
+Date : 2026-10-24. Statut : **plan, rien d'exécuté, 0 € dépensé**. Remplace la version « image→vidéo par fournisseur externe », écartée par l'utilisateur (pas de service dépendant supplémentaire).
 
 ## Décision
-Le rig 2D par code plafonne sous le niveau des références (cf. rapport Gate 1). Avant d'investir en Gate 2, on mesure la piste générative sur **un test borné**. Architecture visée si concluant : hybride (génératif pour plans-métaphores/inserts, rig pour dialogues récurrents).
+Le rig par code plafonnait à cause du **dessin**, pas du moteur d'animation. On garde l'animation **locale** (Godot, gratuit, déjà installé) et on remplace le dessin par des **illustrations générées avec l'API OpenAI déjà utilisée par Faceloop** (`growthos/engine/openai_images.py`, routeur `image_model_router.py`, bible de personnage `image_character_bible.py`). Aucun nouveau fournisseur, aucune vidéo générée, rendu final à coût marginal ≈ 0.
 
-## Test (un seul)
-- 1 personnage original (fiche de référence de 3 images : face, 3/4, plein pied) + 1 décor.
-- 3 plans de 4 s, 9:16 : mêmes personnage et décor, actions différentes (marche, gros plan surprise, geste vers un objet).
-- Mesures : cohérence du personnage entre les 3 plans (jugement visuel + comparaison côte à côte), qualité de mouvement, taux de rebut (nombre d'essais), coût réel par seconde utile, temps, conditions d'usage commercial.
-- **Budget plafond proposé : 10 USD**, 1er essai en 480p/brouillon. Arrêt dès que le plafond est atteint.
+## Pipeline du test
+1. **Fiche de personnage** : 1 personnage original (style cartoon années 1930 N&B + accent rouge), vues face / 3/4 / plein pied, fond uni.
+2. **Pièces détachables** : tête, corps, bras, jambes, mains, yeux/bouches (plusieurs formes) générés ou découpés sur fond uni, puis détourés localement (FFmpeg/Python, sans service).
+3. **Décors** : 2 décors en 3 couches (fond, milieu, avant-plan) pour la parallaxe.
+4. **Animation** : marionnette 2.5D dans Godot (os, déformation, visèmes, caméra, grain), même chaîne que Gate 1.
+5. **Sortie** : clip de 5-8 s, 9:16, jugé visuellement.
 
-## Candidats (à confirmer par lecture des conditions, rien n'est vérifié)
-Le catalogue Higgsfield de l'utilisateur propose Seedance 2.5 (références d'identité, mode brouillon 480p), Kling 3.0 (multi-plans, mode std/pro) et MiniMax H3. Ordres de grandeur publics, contradictoires selon les sources : ≈ 0,02-0,11 $/s (Seedance, Kling), ≈ 0,40-0,75 $/s (Veo). 12 s utiles × rebut ×2-4 ⇒ ≈ 1-10 $ **[ESTIMATION, non mesurée]**. Le solde de crédits Higgsfield est actuellement **0 (plan gratuit)** : toute génération exige un achat de crédits par l'utilisateur.
+## Budget et coût
+- Table de coûts du dépôt (estimations internes, non vérifiées en direct) : `gpt-image-1-mini` ≈ 0,015 $ (low) / 0,03 $ (medium) par image ; `gpt-image-1` ≈ 0,05 / 0,10 / 0,19 $.
+- Test : 30 à 40 images (itérations comprises) ⇒ **≈ 1 à 4 $ [ESTIMATION]**. **Plafond : 5 USD**, journal de coût par image, arrêt au plafond.
+- Brouillons en qualité `low`, versions finales seulement après validation.
 
-## Questions de droits à trancher avant toute vidéo publiée
-Propriété des sorties, usage commercial, filigrane, interdiction de revente ; lecture des conditions de chaque fournisseur retenu.
+## Prérequis sécurité
+La clé `OPENAI_API_KEY` n'existe que dans les secrets GitHub (non lisibles). Elle ne sera ni demandée dans le chat ni committée : l'utilisateur la place lui-même dans une variable d'environnement locale pour la session. Les images générées restent hors Git tant que non validées ; aucune donnée utilisateur n'est envoyée.
 
 ## Critère de décision
-GO hybride si : personnage reconnaissable sur 3 plans, mouvement sans déformation majeure sur ≥ 2/3 des plans, coût par vidéo de 60 s compatible avec le prix d'un crédit Faceloop. Sinon NO-GO génératif et retour à la piste rig avec assets illustrés par un humain.
+GO si : personnage reconnaissable sur ≥ 3 poses/plans, pièces propres à détourer, animation visuellement supérieure au Gate 1. Sinon NO-GO et retour à la discussion (illustrateur humain pour les assets).
+
+## Droits
+Vérifier les conditions d'usage commercial d'OpenAI pour les sorties d'image (déjà utilisées en production par Faceloop) ; ne jamais fournir de référence protégée en entrée.
