@@ -1,5 +1,5 @@
 # Story Studio — Master Plan (source de vérité)
-Date : 2026-10-24. État : Gate 0 bloqué tant que les références ne sont pas accessibles dans l'environnement Claude.
+Date : 2026-10-24. État : **Gate 0 livré pour validation utilisateur** (2026-10-24, rapports `STORY_STUDIO_GATE0_*`). Aucun nouveau renderer n'est écrit ; Gate 1 attend l'approbation explicite.
 
 ## Vision et résultat
 Faceloop Story Studio doit produire des courts métrages 2D animés, publiables et cohérents, pas un diaporama d'images ni des figures géométriques animées. La qualité artistique est un critère de livraison bloquant. Priorité : qualité et réutilisation des assets, puis coût, puis intégration.
@@ -9,15 +9,16 @@ Faceloop Story Studio doit produire des courts métrages 2D animés, publiables 
 - PR #72 : code expérimental offline (timeline, Pillow, tests, CI) ; renderer NO-GO artistique, ne pas fusionner.
 - Backend existant : worker, credits, TTS, stockage, compilateur de plans illustrés.
 - Frontend existant : Story Studio, éditeur, propositions IA, persistance et queue.
-- Tests CI et E2E : non confirmés.
-- Références utilisateur : deux MP4 dans bibliothèque ChatGPT, non présents dans les dépôts.
+- Tests CI et E2E : CI de la PR #72 **rouge** (ffmpeg absent du runner) ; E2E Story jamais exécuté ; tests `story_intelligence` non exécutés en Gate 0.
+- Bucket `content-videos` : **privé** (vérifié en lecture seule le 2026-10-24) ; immutabilité `upsert=true` non prouvée.
+- Références utilisateur : reçues et **analysées** (zip de transfert) ; conservées hors dépôt (public, contenu tiers).
 
 ## Tableau des phases
 | Phase | Livrable | Dépendances | Preuve requise | Gate |
 | --- | --- | --- | --- | --- |
-| A0 | Références accessibles, droit d'usage clarifié, inventaire code | MP4 utilisateur | fichiers lisibles + métadonnées | 0 |
-| A1 | Analyse plan par plan, matrice de qualité, options techniques | A0 | captures annotées + scorecard | 0 |
-| A2 | Choix moteur et budget comparés | A1 | benchmarks reproduisibles et licences | 0 |
+| A0 | Références accessibles, droit d'usage clarifié, inventaire code | MP4 utilisateur | fichiers lisibles + métadonnées | 0 — **fait** |
+| A1 | Analyse plan par plan, matrice de qualité, options techniques | A0 | captures annotées + scorecard | 0 — **fait** (planches locales + `GATE0_REFERENCE_ANALYSIS`) |
+| A2 | Choix moteur et budget comparés | A1 | benchmarks reproduisibles et licences | 0 — **comparatif fait, benchmarks reportés à Gate 1 (bake-off R vs G)** ; en attente d'approbation |
 | B1 | Personnage original et rig/asset bible | A2 | model sheet + poses/expressions | 1 |
 | B2 | Plan animé 5–8 s | B1 | vidéo regardable, vraie action/caméra | 1 |
 | C1 | Deux personnages + dialogue + visèmes audio | B2 | comparaison bouche/voix à la lecture | 2 |
@@ -52,3 +53,6 @@ Responsable produit/approbation : utilisateur. Responsable exécution : Claude C
 
 ## Premier ticket pour Claude
 Lire `STORY_STUDIO_CLAUDE_HANDOFF_2026-10-24.md` et ce plan. Vérifier les deux dépôts et PRs. Obtenir accès aux deux MP4, réaliser Gate 0 (analyse, comparaison et sélection de technologie justifiée). **Ne pas écrire un nouveau renderer avant la fin de Gate 0.**
+
+## Journal des gates
+- **Gate 0 (2026-10-24)** : analyse des références, écart avec le prototype rejeté, audit du code, comparatif, architecture, feuille de route : voir `STORY_STUDIO_GATE0_REFERENCE_ANALYSIS_2026-10-24.md` et `STORY_STUDIO_GATE0_ENGINE_AND_ARCHITECTURE_2026-10-24.md`. Décision : **GO conditionnel au bake-off Gate 1** ; **NO-GO** sur le rendu procédural Pillow et sur toute intégration produit avant Gate 3. Coût engagé : 0 $.
