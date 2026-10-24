@@ -21,6 +21,24 @@ REQUIRED_SPRITES = {
     "bg_alley": (1024, 1536), "bg_shop": (1024, 1536), "bg_street": (1024, 1536), "bg_cafe": (1024, 1536),
 }
 MAX_FILE_BYTES = 12 * 1024 * 1024
+
+# Looks printed from the base pack (a tint over the same drawings) need nothing more; a look with its own drawings names its pack here.
+BASE_PACK = "prototype_v1"
+STYLE_PACKS = {"couleur_1930": "couleur_v1"}
+
+
+def pack_id_for_style(style) -> str:
+    return STYLE_PACKS.get(style or "", BASE_PACK)
+
+
+def resolve_pack_dir(root, style) -> Path:
+    """`STORY_PACK_DIR` holds one folder per pack (<root>/<pack_id>). A root that is itself the base pack (the layout before looks
+    existed) still works for the base pack. Never builds a path from anything but the closed table above."""
+    root = Path(root)
+    pack_id = pack_id_for_style(style)
+    if pack_id == BASE_PACK and not (root / pack_id).is_dir() and (root / "bg_shop.png").is_file():
+        return root
+    return root / pack_id
 _PNG = b"\x89PNG\r\n\x1a\n"
 
 

@@ -46,8 +46,11 @@ const LOOKS := {
 	"noir_1930": {"tint": Color(1.0, 1.0, 1.0), "grain": 1.0, "vignette": 1.0},
 	"sepia_1930": {"tint": Color(1.0, 0.86, 0.64), "grain": 1.25, "vignette": 1.15},
 	"cyanotype_1930": {"tint": Color(0.62, 0.84, 1.0), "grain": 1.1, "vignette": 1.1},
+	"couleur_1930": {"tint": Color(1.0, 1.0, 1.0), "grain": 0.8, "vignette": 0.85},
 }
 var LOOK: Dictionary = LOOKS["noir_1930"]
+# Pip's bald dome is filled in code to continue his face: it takes the skin tone of the pack instead of a fixed white
+var DOME_FILL := Color(1, 1, 1)
 
 func _fail(msg: String, code: int) -> void:
 	push_error(msg)
@@ -70,6 +73,9 @@ func _ready() -> void:
 			_fail("missing or unreadable pack image: " + n, 3)
 			return
 		T[n] = ImageTexture.create_from_image(img)
+		if n == "head_blank_pip":
+			DOME_FILL = img.get_pixel(250, 30)
+			DOME_FILL.a = 1.0
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(TIMELINE_PATH))
 	if typeof(parsed) != TYPE_DICTIONARY or not parsed.has("lines") or not parsed.has("total") or not parsed.has("subs") or not parsed.has("shots") or parsed["shots"].is_empty():
 		_fail("invalid timeline file", 4)
@@ -244,7 +250,7 @@ func draw_puppet(who: String, P: Dictionary) -> void:
 			dome.append(ctr + Vector2(cos(an), sin(an)) * 233.0)
 		var cap := dome.duplicate()
 		cap.append(Vector2(dome[40].x, -336.0)); cap.append(Vector2(dome[0].x, -336.0))
-		draw_colored_polygon(cap, Color(1, 1, 1))
+		draw_colored_polygon(cap, DOME_FILL)
 		draw_polyline(dome, INK, 13.0, true)
 	spr(cam, T["head_blank_pip" if who == "pip" else "ros_head_blank2"], neck - hp, neck_w, hang, K * flip * pop, K * pop, 8.0)
 	draw_face(cam * Transform2D(hang, Vector2(K * flip * pop, K * pop), 0.0, neck_w), who, P, key)

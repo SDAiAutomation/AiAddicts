@@ -272,7 +272,7 @@ class SuccessPath(unittest.TestCase):
         self.assertEqual(captured["shots"][-1]["end"], captured["total"])
 
     def test_the_chosen_style_reaches_the_scene_and_defaults_to_the_reference_look(self):
-        for style, expected in ((None, "noir_1930"), ("sepia_1930", "sepia_1930"), ("cyanotype_1930", "cyanotype_1930")):
+        for style, expected in ((None, "noir_1930"), ("sepia_1930", "sepia_1930"), ("cyanotype_1930", "cyanotype_1930"), ("couleur_1930", "couleur_1930")):
             captured = {}
             ports = Harness().ports()
             ports.render = lambda tl, workdir: captured.update(tl) or SimpleNamespace(video_path=Path("s.mp4"))
