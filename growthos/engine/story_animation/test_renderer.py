@@ -128,6 +128,11 @@ class RenderTests(unittest.TestCase):
         with mock.patch.object(rig_v1, "_run", run), self.assertRaises(RenderError):
             rig_v1.RigV1Renderer("godot").render(timeline(), self.pack, self.work)
 
+    def test_missing_executable_is_a_render_error(self):
+        with self.assertRaises(RenderError) as ctx:
+            rig_v1._run(["definitely-not-an-installed-program-xyz"], 5, {})
+        self.assertIn("not found", str(ctx.exception))
+
     def test_timeout(self):
         def run(cmd, timeout_s, env):
             raise subprocess.TimeoutExpired(cmd, timeout_s)

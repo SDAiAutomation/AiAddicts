@@ -30,7 +30,7 @@ jobs:
       - name: System packages (virtual display, software OpenGL)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglu1-mesa libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64 || sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglu1-mesa libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2
+          sudo apt-get install -y -qq ffmpeg xvfb libgl1-mesa-dri libglu1-mesa libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64 || sudo apt-get install -y -qq ffmpeg xvfb libgl1-mesa-dri libglu1-mesa libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2
       - name: Download Godot and verify its checksum
         run: |
           base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
@@ -57,11 +57,11 @@ jobs:
           {
             echo "### Story Animation render benchmark (Ubuntu runner, software GL, placeholder pack)"
             echo ""
-            echo "Total step time: $((end-start)) s. Exit code: ${code} (0 pass, 1 quality problems, 2 render failed)."
+            echo "Total step time: $((end-start)) s. Exit code: ${code} (0 pass, 3 quality problems on placeholder art, 2 render failed)."
             echo ""
             echo '```json'
             cat result.json
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          # A render that did not happen fails the job; quality verdicts on placeholder art are informative only.
-          test "$code" -ne 2
+          # A render that did not happen (or any crash) fails the job; quality verdicts on placeholder art are informative only.
+          test "$code" -eq 0 || test "$code" -eq 3

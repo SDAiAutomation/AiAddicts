@@ -40,7 +40,10 @@ def confine(path: Path, root: Path) -> Path:
 
 def _run(cmd: list[str], timeout_s: float, env: dict) -> subprocess.CompletedProcess:
     """The single place that spawns a process (tests replace it)."""
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, env=env, check=False)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, env=env, check=False)
+    except FileNotFoundError as exc:
+        raise RenderError(f"executable not found: {Path(str(cmd[0])).name}") from exc
 
 
 def _validate_timeline(timeline: dict) -> None:

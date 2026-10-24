@@ -2,7 +2,7 @@
 
   python -m growthos.engine.story_animation.cli placeholder-pack --out DIR
   python -m growthos.engine.story_animation.cli render --timeline FILE --pack DIR --out CLIP.mp4 --godot GODOT [--audio MIX.wav] [--launcher "xvfb-run -a"]
-Prints one JSON object (timings, measurements, quality problems). Exit code 1 when the clip needs review.
+Prints one JSON object (timings, measurements, quality problems). Exit codes: 0 pass, 2 the render failed, 3 the clip needs review.
 """
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         "size_mib": round(report["size_bytes"] / 1048576, 2), "problems": problems,
     }
     print(json.dumps(summary))
-    return 0 if not problems else 1
+    return 0 if not problems else 3
 
 
 if __name__ == "__main__":
