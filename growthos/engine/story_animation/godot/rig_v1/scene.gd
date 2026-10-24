@@ -393,7 +393,7 @@ func gesture_pose(role: String, g: String, dn: float, tt: float, e: float) -> Di
 			P["tilt"] = 0.04 * sin(tt * 4.0) * e
 		"point":
 			arm(P, right, sh + Vector2(330.0 * dn, 420.0), 30.0)
-			arm(P, not right, neck + Vector2(-20.0 * dn, 70.0), 55.0)
+			arm(P, not right, hip + Vector2(-147.0 * dn, -80.0), 70.0)
 			P["tilt"] = -0.05
 		"defend":
 			arm(P, false, neck + Vector2(-212.0 + 26.0 * sin(tt * 9.0) * e, 10.0), 35.0)
@@ -430,6 +430,41 @@ func gesture_pose(role: String, g: String, dn: float, tt: float, e: float) -> Di
 			arm(P, true, neck + Vector2(330.0, -60.0 + 40.0 * sin(tt * 8.0)), 40.0)
 	return P
 
+# Body life on top of the acted gesture, so nobody freezes between gestures: breathing, weight shift, drifting hands,
+# accents on the spoken beats, and a listener who reacts to the speaker. Everything stays small enough that no hand
+# can reach the face (the gesture gallery checks every gesture for both characters).
+func add_life(role: String, P: Dictionary, t: float, tt: float, e: float, speaking: bool, mood: String) -> void:
+	var ph := 1.0 if role == "pip" else 2.3
+	var other_e := smooth_env("ros" if role == "pip" else "pip")
+	P["squash"] = float(P.get("squash", 1.0)) + 0.014 * sin(t * 2.4 + ph)
+	P["lean"] = float(P.get("lean", 0.0)) + 0.02 * sin(t * 0.9 + ph)
+	P["tilt"] = float(P.get("tilt", 0.0)) + 0.035 * sin(t * 1.3 + ph * 2.0)
+	var drift_l := Vector2(sin(t * 1.7 + ph) * 34.0, cos(t * 2.1 + ph) * 24.0)
+	var drift_r := Vector2(sin(t * 1.9 + ph + 1.7) * -34.0, cos(t * 2.3 + ph + 0.6) * 24.0)
+	if speaking:
+		# a stroke on the syllable rhythm: the head dips, the shoulders drop, the hands punctuate
+		var hit := maxf(0.0, sin(t * 7.3 + ph)) * e
+		P["bob"] = float(P.get("bob", 0.0)) + 5.0 * hit
+		P["tilt"] = float(P["tilt"]) + 0.05 * e * sin(t * 4.1 + ph)
+		P["lean"] = float(P["lean"]) + 0.025 * hit
+		drift_l += Vector2(0.0, -44.0 * hit)
+		drift_r += Vector2(0.0, -44.0 * hit)
+		P["squash"] = float(P["squash"]) + 0.09 * exp(-tt * 5.0) * sin(tt * 26.0)
+	else:
+		# listening: small nods and a lean toward the speaker while they talk
+		P["tilt"] = float(P["tilt"]) + 0.045 * other_e * sin(t * 3.7 + ph)
+		P["bob"] = float(P.get("bob", 0.0)) + 2.5 * other_e * maxf(0.0, sin(t * 3.7 + ph))
+		P["lean"] = float(P["lean"]) + 0.03 * other_e
+	if mood == "worry" or mood == "panic":
+		drift_l += Vector2(sin(t * 19.0) * 9.0, 0.0)
+		drift_r += Vector2(sin(t * 17.0 + 1.0) * 9.0, 0.0)
+	elif mood == "angry":
+		P["lean"] = float(P["lean"]) + 0.03 + 0.02 * sin(t * 6.0)
+	elif mood == "joy":
+		P["bob"] = float(P.get("bob", 0.0)) + 3.0 * absf(sin(t * 5.0 + ph))
+	P["wrist_l"] = Vector2(P["wrist_l"]) + drift_l
+	P["wrist_r"] = Vector2(P["wrist_r"]) + drift_r
+
 func act(role: String, t: float) -> Dictionary:
 	var sh: Dictionary = TL["shots"][shot_index_at(t)]
 	var a: Variant = actor_of(sh, role)
@@ -450,6 +485,7 @@ func act(role: String, t: float) -> Dictionary:
 			P["squash"] = float(P.get("squash", 1.0)) - 0.04 * e
 	P["mood"] = mood
 	P["e"] = e
+	add_life(role, P, t, t - float(sh["start"]), e, sh["speaker"] == role, mood)
 	return smooth_pose(role, P)
 
 # time at which Pip's hat comes off (it never comes back), or a huge number
@@ -498,6 +534,7 @@ func shot_camera(sh: Dictionary, t: float, prop: Dictionary) -> Transform2D:
 		zoom *= 0.95 + 0.05 * ease_back(seg(t, float(sh["start"]), float(sh["start"]) + 0.25))
 	elif st == "insert" and prop["vis"]:
 		centre = Vector2(float(prop["x"]), FEET_Y - 60.0)
+	centre += Vector2(sin(t * 0.55) * 5.0, cos(t * 0.43) * 3.5)
 	if c["move"] == "pan_left":
 		centre.x -= 40.0 * (u - 0.5) * 2.0
 	elif c["move"] == "pan_right":
