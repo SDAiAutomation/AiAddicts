@@ -16,7 +16,7 @@ from typing import Callable
 from . import contract, quality as quality_lib, shotplan, timeline as timeline_lib
 
 # looks the scene can print the same drawings in (scene.gd LOOKS); the first one is the reference look and the default
-STYLES = ("noir_1930", "sepia_1930", "cyanotype_1930")
+STYLES = ("noir_1930", "sepia_1930", "cyanotype_1930", "couleur_1930")
 # rig_v1 draws two characters (one per pack); pack id -> rig role
 RIG_ROLES = {"pip_v1": "pip", "rosette_v1": "ros"}
 RIG_V1_CATALOG = {

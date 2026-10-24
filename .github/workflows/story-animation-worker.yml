@@ -59,13 +59,15 @@ jobs:
           unzip -q godot.zip
           chmod +x "Godot_v${GODOT_VERSION}_linux.x86_64"
 
-      - name: Fetch and verify the asset pack (private bucket, SHA-256 manifest)
+      - name: Fetch and verify the asset packs (private bucket, SHA-256 manifests)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          STORY_PACK_ID: ${{ vars.STORY_PACK_ID || 'prototype_v1' }}
-        run: python -m engine.story_animation.cli fetch-pack --pack-id "$STORY_PACK_ID" --dest "$RUNNER_TEMP/story-pack"
+        run: |
+          for pack in prototype_v1 couleur_v1; do
+            python -m engine.story_animation.cli fetch-pack --pack-id "$pack" --dest "$RUNNER_TEMP/story-packs/$pack"
+          done
 
       - name: Render the queued animated jobs
         env:
@@ -78,7 +80,7 @@ jobs:
           ADMIN_USER_IDS: ${{ secrets.ADMIN_USER_IDS }}
           STORY_ANIMATION_ENABLED: 'true'
           GODOT_BIN: ${{ runner.temp }}/godot/Godot_v4.7.2-stable_linux.x86_64
-          STORY_PACK_DIR: ${{ runner.temp }}/story-pack
+          STORY_PACK_DIR: ${{ runner.temp }}/story-packs
           STORY_RENDER_LAUNCHER: 'xvfb-run -a -s "-screen 0 1280x2048x24"'
           STORY_RENDER_TIMEOUT_S: '900'
           ELEVENLABS_USD_PER_1K_CHARS: '0.18'

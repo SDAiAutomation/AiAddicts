@@ -963,7 +963,9 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
     from .story_animation import quality as sa_quality, rig_v1 as sa_rig, voices as sa_voices
 
     godot_bin = os.environ.get("GODOT_BIN", "")
-    pack_dir = Path(os.environ.get("STORY_PACK_DIR", "")) if os.environ.get("STORY_PACK_DIR") else None
+    pack_root = os.environ.get("STORY_PACK_DIR", "")
+    style_id = ((script.get("story") or {}).get("style_id")) if isinstance(script, dict) else None
+    pack_dir = sa_packs.resolve_pack_dir(pack_root, style_id) if pack_root else None
     renderer = sa_rig.RigV1Renderer(godot_bin, launcher=tuple(shlex.split(os.environ.get("STORY_RENDER_LAUNCHER", ""))))
     work = Path(output_root) / f"animated_{content_item_id}"
     organization_id = events.organization_id_of(client, content_item_id)
