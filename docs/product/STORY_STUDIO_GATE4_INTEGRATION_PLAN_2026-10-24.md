@@ -84,3 +84,14 @@ A. Contrat + validateurs Python/TS + fixtures. B. Bibliothèque chronologie/lip-
 
 ## 14. Ce que ce plan ne fait pas
 Aucune modification du worker, du frontend, de la base ou des workflows ; aucune fusion ; aucune activation. La première PR de code (A) ne sera ouverte qu'après l'accord de l'utilisateur sur ce plan et sur les décisions 1 à 4.
+
+## 15. Décisions du chef de projet (2026-10-24, mandat de l'utilisateur : « c'est toi le chef de projet »)
+| # | Décision | Justification | Réversible |
+| --- | --- | --- | --- |
+| 1 | **Droits** : bêta interne uniquement, **aucune diffusion publique** tant qu'un juriste n'a pas relu les conditions. Constat : ElevenLabs — conditions primaires lues (§1(c), §4(c)) : usage commercial autorisé sur les plans payants, l'utilisateur garde ses droits sur la sortie ; les conditions « OEM / revente de voix » sont citées mais **non lues**. OpenAI — page officielle inaccessible (403) ; sources secondaires : l'utilisateur est propriétaire de la sortie et l'usage commercial est permis sous conditions, mais **un droit d'auteur n'est pas garanti sur une image générée par IA** (donc pas de protection exclusive des personnages : la valeur de Faceloop doit venir de la continuité, du système et de la marque). Ce n'est pas un avis juridique. | Le risque est contractuel et se traite avant la diffusion, pas avant le code. | oui |
+| 2 | **Packs de personnages** : générés par l'API déjà utilisée par Faceloop, retouchés et validés par un humain, un pack = un identifiant versionné d'un catalogue serveur (`pip_v1`, `rosette_v1`). Un illustrateur humain reste l'option de montée en gamme. | 0,24 USD pour tout le prototype ; l'illustrateur n'est pas justifié avant la validation du produit. | oui |
+| 3 | **Prix en crédits** : 1 crédit par vidéo animée pendant la bêta admin, avec la politique existante (une retouche gratuite). Pas de migration SQL. Réexamen après mesure du coût réel (TTS + minutes de runner). | Évite une migration financière avant d'avoir des mesures. | oui |
+| 4 | **Godot sur le runner** : mesure obligatoire en PR C/E (installation, rendu logiciel Linux, durée, minutes facturées) ; si le coût est excessif, rendu sur un runner dédié. Aucune décision d'infrastructure avant la mesure. | Le seul chiffre disponible vient d'un PC Windows i3. | oui |
+| 5 | **Ordre de livraison** : la PR A (contrat) est ouverte maintenant car elle est pure et hors production (flag OFF, aucun module existant modifié) ; les PR B et suivantes restent à ouvrir une par une. | | oui |
+
+Sources consultées pour la décision 1 : conditions d'utilisation d'ElevenLabs (elevenlabs.io/terms-of-use, lues le 2026-10-24) ; comparatifs tiers pour OpenAI (terms.law) faute d'accès à la page officielle.
