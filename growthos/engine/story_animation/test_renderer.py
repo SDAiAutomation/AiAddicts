@@ -70,7 +70,7 @@ class HelperTests(unittest.TestCase):
 
     def test_estimate(self):
         est = rig_v1.RigV1Renderer("godot").estimate(20.0, 400)
-        self.assertEqual((est.render_seconds, est.tts_chars, est.provider_calls, est.estimated), (120.0, 400, 0, True))
+        self.assertEqual((est.render_seconds, est.tts_chars, est.provider_calls, est.estimated), (80.0, 400, 0, True))
         for args in ((0, 10), (-1, 10), (float("nan"), 10), (10, -1)):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 rig_v1.RigV1Renderer("godot").estimate(*args)

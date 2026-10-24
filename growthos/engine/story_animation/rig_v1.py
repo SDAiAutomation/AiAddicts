@@ -18,9 +18,10 @@ from .renderer import CostEstimate, RenderError, RenderResult
 
 PROJECT_DIR = Path(__file__).parent / "godot" / "rig_v1"
 WIDTH, HEIGHT, FPS = 1080, 1920, 24
-# Wall-clock render time / video time. Windows i3 laptop, no GPU: 2.2 (prototype art, idle machine) and 6.6 (placeholder pack,
-# packaged CLI, busy machine). NOT measured on Linux yet: deliberately pessimistic until the benchmark workflow reports.
-RENDER_RATIO_ESTIMATE = 6.0
+# Wall-clock (render + encode) / video time. Measured once on a stock GitHub ubuntu-latest runner, software GL under xvfb,
+# placeholder pack: 51.5 s render + 19.0 s encode for 21.6 s of video = 3.3 (workflow run 40115329358). One sample, placeholder
+# art: kept at 4.0 for margin. Windows i3 laptop: 2.2 to 8.4 depending on machine load.
+RENDER_RATIO_ESTIMATE = 4.0
 _SECRET_MARKERS = ("KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL")
 
 
