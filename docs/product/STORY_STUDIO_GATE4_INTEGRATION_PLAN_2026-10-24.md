@@ -95,3 +95,5 @@ Aucune modification du worker, du frontend, de la base ou des workflows ; aucune
 | 5 | **Ordre de livraison** : la PR A (contrat) est ouverte maintenant car elle est pure et hors production (flag OFF, aucun module existant modifié) ; les PR B et suivantes restent à ouvrir une par une. | | oui |
 
 Sources consultées pour la décision 1 : conditions d'utilisation d'ElevenLabs (elevenlabs.io/terms-of-use, lues le 2026-10-24) ; comparatifs tiers pour OpenAI (terms.law) faute d'accès à la page officielle.
+
+**Mise à jour décision 4 (mesure Linux, 2026-10-24)** : sur un runner GitHub ubuntu-latest standard (OpenGL logiciel sous xvfb, pack synthétique), le rendu de 21,6 s en 1080×1920 a pris 51,5 s + 19,0 s d'encodage (rapport 3,3), pour 4,0 Mio, verdict qualité OK (exécution 40115329358, PR C). Un seul échantillon, art synthétique : un runner dédié ne paraît pas nécessaire pour la bêta, à confirmer avec les vrais sprites et une seconde mesure. Premier essai : ffmpeg est absent du runner (corrigé dans la PR C).
