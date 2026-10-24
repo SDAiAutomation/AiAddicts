@@ -7,6 +7,8 @@ distinction.
 """
 from datetime import datetime, timedelta, timezone
 
+from .story_animation import contract as story_contract
+
 # Un item resté en 'generating' plus longtemps qu'un run normal (mesuré :
 # 30-90s pour un script de quelques blocs) n'a plus de worker vivant derrière
 # — kill, crash, coupure réseau. 15 min laisse une marge large (le job
@@ -136,14 +138,16 @@ def claim_queued_item(client) -> dict | None:
         .limit(_FAIRNESS_WINDOW)
         .execute()
     )
-    if not queued.data:
+    # Les histoires animées (story.version 2) appartiennent au worker d'animation dédié : ce worker ne les réclame jamais.
+    rows = [row for row in (queued.data or []) if not story_contract.is_animated(row.get("script"))]
+    if not rows:
         return None
 
-    chosen = queued.data[0]
+    chosen = rows[0]
     # Un seul locataire en file (cas actuel) : aucune requête de plus.
-    if len({_queued_organization(row) for row in queued.data}) > 1:
+    if len({_queued_organization(row) for row in rows}) > 1:
         try:
-            chosen = pick_fair_item(queued.data, _recently_started_organizations(client))
+            chosen = pick_fair_item(rows, _recently_started_organizations(client))
         except Exception as exc:
             # L'équité est un confort : jamais une raison de ne pas traiter la file.
             print(f"       (équité entre organisations indisponible, ordre d'arrivée : {exc})")
