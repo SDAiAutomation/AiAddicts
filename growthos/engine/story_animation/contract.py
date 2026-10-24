@@ -77,6 +77,11 @@ def _is_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _is_exactly(value, expected: int) -> bool:
+    """Equal to `expected` but never a boolean (Python's True == 1; the TypeScript mirror already rejects it)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == expected
+
+
 def _is_id(value) -> bool:
     return isinstance(value, str) and bool(_ID.fullmatch(value))
 
@@ -98,9 +103,9 @@ def validate_animation_story(story: dict, catalog: dict | None = None) -> list[s
 
     for key in sorted(set(story) - _STORY_KEYS):
         errors.append(f"story.{key} is not a known field")
-    if story.get("version") != STORY_VERSION:
+    if not _is_exactly(story.get("version"), STORY_VERSION):
         errors.append(f"story.version must be {STORY_VERSION}")
-    if story.get("animation_schema_version") != ANIMATION_SCHEMA_VERSION:
+    if not _is_exactly(story.get("animation_schema_version"), ANIMATION_SCHEMA_VERSION):
         errors.append(f"animation_schema_version {story.get('animation_schema_version')!r} is not supported (expected {ANIMATION_SCHEMA_VERSION})")
     language = story.get("language", "fr")
     if not isinstance(language, str) or not re.fullmatch(r"[a-z]{2}(-[A-Z]{2})?", language):
