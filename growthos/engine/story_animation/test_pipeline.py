@@ -271,6 +271,26 @@ class SuccessPath(unittest.TestCase):
         self.assertEqual(captured["shots"][0]["start"], 0.0)
         self.assertEqual(captured["shots"][-1]["end"], captured["total"])
 
+    def test_the_chosen_style_reaches_the_scene_and_defaults_to_the_reference_look(self):
+        for style, expected in ((None, "noir_1930"), ("sepia_1930", "sepia_1930"), ("cyanotype_1930", "cyanotype_1930")):
+            captured = {}
+            ports = Harness().ports()
+            ports.render = lambda tl, workdir: captured.update(tl) or SimpleNamespace(video_path=Path("s.mp4"))
+            s = script()
+            if style:
+                s["story"]["style_id"] = style
+            with self.subTest(style=style):
+                pipeline.run(s, ports, Path("x"))
+                self.assertEqual(captured["style"], expected)
+
+    def test_an_unknown_style_is_refused_before_any_credit(self):
+        h, s = Harness(), script()
+        s["story"]["style_id"] = "hologram"
+        with self.assertRaises(ValueError):
+            h.run(s)
+        self.assertEqual(h.calls, [])
+        self.assertEqual(h.refunds, 0)
+
     def test_estimates_are_conservative_numbers(self):
         self.assertAlmostEqual(pipeline.estimated_video_seconds(280), 280 / 14 + 3.1)
 
