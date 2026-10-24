@@ -45,8 +45,8 @@ for key, f in {"neutral": "pip_v2_key.png", "talk": "pip_talk_key.png", "worried
     meta["head_" + key] = crop(shifted, HEAD, f"head_{key}.png")
 clock = load("clock_key.png")
 meta["clock"] = crop(clock, (190, 365, 846, 1158), "clock.png")
-bg = Image.open(os.path.join(SRC, "bg_alley.png")).convert("RGB").resize((640, 960), Image.LANCZOS)
+bg = Image.open(os.path.join(SRC, "bg_alley.png")).convert("RGB")
 bg.save(os.path.join(DST, "bg_alley.png"))
-meta["bg"] = {"file": "bg_alley.png", "w": 640, "h": 960}
+meta["bg"] = {"file": "bg_alley.png", "w": 1024, "h": 1536}
 json.dump(meta, open(os.path.join(DST, "parts.json"), "w"), indent=1)
 print({k: (v["w"], v["h"]) for k, v in meta.items()})
