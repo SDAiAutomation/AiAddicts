@@ -114,6 +114,31 @@ class AnimatedWiringRefusesBeforeCredit(unittest.TestCase):
             reserve.assert_not_called()
 
 
+class HeartbeatKeepsLongRendersAlive(unittest.TestCase):
+    """repo.reclaim_stale_generating_items re-queues items idle for 15 minutes: a long render must keep touching the row."""
+
+    def run_with(self, update_side_effect=None):
+        import threading
+        import time
+        with ExitStack() as stack:
+            stack.enter_context(patch("engine.assembler._ANIMATION_HEARTBEAT_S", 0.03))
+            update = stack.enter_context(patch("engine.assembler.repo.update_content_item", side_effect=update_side_effect))
+            stack.enter_context(patch("engine.assembler.events.organization_id_of", return_value="org"))
+            stack.enter_context(patch("engine.story_animation.pipeline.run", side_effect=lambda *a, **k: time.sleep(0.3) or {"video_url": "u"}))
+            result = assembler._run_animated(Mock(), "item", animated_script(), "out", 0.0)
+        self.assertEqual(result, {"video_url": "u"})
+        self.assertFalse(any(t.name == "animation-heartbeat" for t in threading.enumerate()))
+        return update
+
+    def test_item_is_touched_repeatedly_and_the_thread_stops(self):
+        update = self.run_with()
+        self.assertGreaterEqual(update.call_count, 3)
+
+    def test_a_failing_heartbeat_never_fails_the_job(self):
+        update = self.run_with(update_side_effect=RuntimeError("db blip"))
+        self.assertGreaterEqual(update.call_count, 1)
+
+
 class WorkerFailureRecording(unittest.TestCase):
     def test_flag_off_marks_the_job_failed_without_touching_credits(self):
         with ExitStack() as stack:

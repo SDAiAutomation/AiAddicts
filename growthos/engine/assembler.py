@@ -6,6 +6,7 @@ force a clean rebuild (e.g. after editing the script text).
 """
 import json
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -950,6 +951,9 @@ def _store_creative_quality_shadow(client, content_item_id: str, data: dict,
         # Never change a successful generation into a failure due to shadow diagnostics.
         print(f"       creative quality unavailable ({type(exc).__name__}): {exc}")
 
+_ANIMATION_HEARTBEAT_S = 60.0
+
+
 def _run_animated(client, content_item_id: str, script: dict, output_root: str, t_start: float) -> dict:
     """Animated story (experimental, flag-gated, admin beta). The stages and the credit rules live in
     `story_animation.pipeline`; this function only plugs the real services into it. Imports are local so that the
@@ -1024,7 +1028,28 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
         catalog=sa_pipeline.RIG_V1_CATALOG,
         usd_per_1k_chars=float(os.environ.get("ELEVENLABS_USD_PER_1K_CHARS", "0.3")),
     )
-    result = sa_pipeline.run(script, ports, work)
+    def report_progress(label: str) -> None:
+        repo.update_content_item(client, content_item_id, generation_step=label)
+
+    ports.progress = report_progress
+    # `repo.reclaim_stale_generating_items` re-queues any item whose `updated_at` is older than 15 minutes. A render is one
+    # long subprocess that cannot report progress, so a heartbeat keeps the item alive (best effort, never fails the job).
+    stop = threading.Event()
+
+    def heartbeat() -> None:
+        while not stop.wait(_ANIMATION_HEARTBEAT_S):
+            try:
+                repo.update_content_item(client, content_item_id)
+            except Exception as exc:  # noqa: BLE001
+                print(f"       (battement de vie non enregistré : {type(exc).__name__})")
+
+    beat = threading.Thread(target=heartbeat, name="animation-heartbeat", daemon=True)
+    beat.start()
+    try:
+        result = sa_pipeline.run(script, ports, work)
+    finally:
+        stop.set()
+        beat.join(timeout=5)
     print(f"       total génération animée : {time.monotonic() - t_start:.1f}s")
     return result
 

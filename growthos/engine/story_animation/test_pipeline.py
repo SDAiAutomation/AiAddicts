@@ -17,8 +17,9 @@ def script():
 class Harness:
     """Fake ports that record calls; `fail` names the stage that raises."""
 
-    def __init__(self, fail=None, reserve=True, ready=None, quality=None, refund_raises=False, event_raises=False):
+    def __init__(self, fail=None, reserve=True, ready=None, quality=None, refund_raises=False, event_raises=False, progress_raises=False):
         self.calls, self.fail, self.refunds = [], fail, 0
+        self.progress_raises = progress_raises
         self.reserve, self.ready_problems, self.quality_problems = reserve, ready or [], quality or []
         self.refund_raises, self.event_raises = refund_raises, event_raises
 
@@ -61,7 +62,13 @@ class Harness:
             check_quality=lambda final: (self.calls.append("quality"), self.quality_problems)[1],
             publish=lambda final, tl: self.step("publish", {"video_url": "https://example.test/v1.mp4", "content_item_id": "item"}),
             catalog=pipeline.RIG_V1_CATALOG,
+            progress=self.on_progress,
         )
+
+    def on_progress(self, label):
+        self.calls.append("progress:" + label)
+        if self.progress_raises:
+            raise RuntimeError("progress broke")
 
     def run(self, s=None):
         return pipeline.run(s or script(), self.ports(), Path("unused-workdir"))
@@ -180,6 +187,19 @@ class SuccessPath(unittest.TestCase):
 
     def test_bookkeeping_error_after_publication_is_not_a_failure(self):
         h = Harness(event_raises=True)
+        result = h.run()
+        self.assertEqual(h.refunds, 0)
+        self.assertTrue(result["video_url"])
+
+    def test_progress_labels_follow_the_stages(self):
+        h = Harness()
+        h.run()
+        labels = [c for c in h.calls if c.startswith("progress:")]
+        self.assertEqual(labels, ["progress:Voix des personnages", "progress:Animation", "progress:Mixage audio",
+                                  "progress:Contrôle qualité", "progress:Publication"])
+
+    def test_a_failing_progress_report_never_fails_or_refunds_the_job(self):
+        h = Harness(progress_raises=True)
         result = h.run()
         self.assertEqual(h.refunds, 0)
         self.assertTrue(result["video_url"])

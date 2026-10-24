@@ -60,8 +60,16 @@ class Ports:
     mix: Callable[[object, list, dict, Path], Path]             # (render result, [(wav, start)], timeline, out path) -> final clip
     check_quality: Callable[[Path], list]                       # problems, empty = pass
     publish: Callable[[Path, dict], dict]                       # (final clip, timeline) -> {"video_url": ..., ...}
+    progress: Callable[[str], None] = lambda label: None        # best-effort step label for the library page
     catalog: dict = field(default_factory=dict)
     usd_per_1k_chars: float = 0.3                               # estimate only; never an invoice
+
+
+def _progress(ports: "Ports", label: str) -> None:
+    try:
+        ports.progress(label)
+    except Exception as exc:  # noqa: BLE001 - a progress label must never fail a paid job
+        print(f"       (suivi d'avancement non mis à jour : {type(exc).__name__})")
 
 
 def rig_v1_layout_errors(story: dict) -> list:
@@ -125,6 +133,7 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
         workdir = Path(workdir)
         workdir.mkdir(parents=True, exist_ok=True)
         lines, wavs = [], []
+        _progress(ports, "Voix des personnages")
         for i, shot in enumerate(shots):
             speaker = by_id[shot["speaker_id"]]
             wav = workdir / f"line{i}.wav"
@@ -134,11 +143,15 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
             wavs.append(wav)
         tl = timeline_lib.build_timeline(lines)
         tl["rings"] = rig_v1_rings(tl)
+        _progress(ports, "Animation")
         rendered = ports.render(tl, workdir / "render")
+        _progress(ports, "Mixage audio")
         final = ports.mix(rendered, [(w, line["start"]) for w, line in zip(wavs, tl["lines"])], tl, workdir / "final.mp4")
+        _progress(ports, "Contrôle qualité")
         quality = ports.check_quality(final)
         if quality:
             raise QualityRejected("the rendered clip needs review: " + "; ".join(quality[:4]))
+        _progress(ports, "Publication")
         published = ports.publish(final, tl)
     except Exception:
         try:
