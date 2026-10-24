@@ -8,6 +8,10 @@ on:
       - 'growthos/engine/assembler.py'
       - 'growthos/engine/story_animation/**'
       - 'growthos/worker.py'
+      - 'growthos/animation_worker.py'
+      - 'growthos/tests/test_animation_worker.py'
+      - '.github/workflows/story-animation-worker.yml'
+      - 'growthos/supabase/pending/story_packs_bucket.sql'
       - 'growthos/tests/test_story_animation_routing.py'
       - '.github/workflows/story-animation-worker-tests.yml'
 
@@ -37,5 +41,5 @@ jobs:
           OPENAI_API_KEY: ''
           ANTHROPIC_API_KEY: ''
         run: >
-          python -m unittest tests.test_story_animation_routing tests.test_explainer_access tests.test_moderation
+          python -m unittest tests.test_story_animation_routing tests.test_animation_worker tests.test_explainer_access tests.test_moderation
           tests.test_repo_credits tests.test_quiz_motion_backend tests.test_block_voice -v

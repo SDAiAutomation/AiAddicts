@@ -1,6 +1,8 @@
 """Local command line for the rig_v1 renderer (developer tool, not wired into the worker).
 
   python -m growthos.engine.story_animation.cli placeholder-pack --out DIR
+  python -m growthos.engine.story_animation.cli pack-manifest --dir DIR --pack-id ID [--out manifest.json]
+  python -m growthos.engine.story_animation.cli fetch-pack --pack-id ID --dest DIR      (private bucket, service role)
   python -m growthos.engine.story_animation.cli render --timeline FILE --pack DIR --out CLIP.mp4 --godot GODOT [--audio MIX.wav] [--launcher "xvfb-run -a"]
 Prints one JSON object (timings, measurements, quality problems). Exit codes: 0 pass, 2 the render failed, 3 the clip needs review.
 """
@@ -14,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import measure, packs, quality
+from . import measure, pack_fetch, packs, quality
 from .renderer import RenderError
 from .rig_v1 import FPS, HEIGHT, WIDTH, RigV1Renderer
 
@@ -24,6 +26,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
     pp = sub.add_parser("placeholder-pack", help="write a synthetic pack with the right sprite sizes")
     pp.add_argument("--out", required=True)
+    pm = sub.add_parser("pack-manifest", help="print the SHA-256 manifest of a local pack (to publish with its files)")
+    pm.add_argument("--dir", required=True)
+    pm.add_argument("--pack-id", required=True)
+    pm.add_argument("--version", type=int, default=1)
+    pm.add_argument("--out")
+    fp = sub.add_parser("fetch-pack", help="download and verify a pack from the private story-packs bucket (service role)")
+    fp.add_argument("--pack-id", required=True)
+    fp.add_argument("--dest", required=True)
     r = sub.add_parser("render", help="render a timeline with a pack")
     r.add_argument("--timeline", required=True)
     r.add_argument("--pack", required=True)
@@ -40,6 +50,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "placeholder-pack":
         packs.write_placeholder_pack(Path(args.out))
         print(json.dumps({"pack": args.out, "files": len(packs.REQUIRED_SPRITES), "problems": packs.validate_pack(Path(args.out))}))
+        return 0
+    if args.command == "pack-manifest":
+        try:
+            manifest = pack_fetch.build_manifest(Path(args.dir), args.pack_id, args.version)
+        except pack_fetch.PackError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}))
+            return 2
+        text = json.dumps(manifest, indent=1, sort_keys=True)
+        if args.out:
+            Path(args.out).write_text(text + "\n", encoding="utf-8")
+        else:
+            print(text)
+        return 0
+    if args.command == "fetch-pack":
+        from .. import db  # local import: only this command needs the database client and its secrets
+        try:
+            manifest = pack_fetch.fetch_pack(pack_fetch.storage_downloader(db.get_service_client()), args.pack_id, Path(args.dest))
+        except pack_fetch.PackError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}))
+            return 2
+        print(json.dumps({"ok": True, "pack_id": manifest["pack_id"], "version": manifest["version"], "files": len(manifest["files"])}))
         return 0
     timeline = json.loads(Path(args.timeline).read_text(encoding="utf-8"))
     renderer = RigV1Renderer(args.godot, launcher=tuple(shlex.split(args.launcher)))

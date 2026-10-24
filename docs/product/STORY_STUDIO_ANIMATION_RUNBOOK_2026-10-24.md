@@ -15,6 +15,12 @@ Le « worker » est un job GitHub Actions `ubuntu-latest` (planifié toutes les 
 | Droits d'usage commercial des images et des voix | **Bloquant avant toute diffusion** (cf. plan §15). |
 Même avec le flag activé par erreur, `ports.ready()` refuse tant que Godot ou le pack manquent, **avant** la réservation du crédit [VÉRIFIÉ par test].
 
+### 2 bis. État après R1 (préparé, **inactif**, rien d'appliqué)
+- **Workflow dédié** `.github/workflows/story-animation-worker.yml` : déclenchement manuel seulement (ni planification, ni push, ni PR), job ignoré tant que la variable de dépôt `STORY_ANIMATION_ENABLED` n'est pas `'true'`, secrets limités au nécessaire (pas de Pexels, de cron ni d'URL du site), Godot téléchargé avec vérification SHA-512, pack récupéré puis vérifié avant le rendu. Le workflow du worker principal n'est **pas modifié** et ne reçoit toujours pas le flag.
+- **`growthos/animation_worker.py`** : ne réclame que les histoires animées (`engine/story_animation/claim.py`, mise à jour conditionnée au statut `queued`), quitte immédiatement si son propre flag est éteint.
+- **Packs** : `engine/story_animation/pack_fetch.py` (manifeste SHA-256 exact, taille, liste fermée de fichiers, installation atomique, ancien pack conservé en cas d'échec) ; commandes `pack-manifest` et `fetch-pack` de la CLI ; migration **en attente** `growthos/supabase/pending/story_packs_bucket.sql` (bucket privé `story-packs`, aucune politique : accès service role seulement).
+- **Reste à faire avant toute activation** : appliquer la migration sur une branche Supabase isolée ; produire le manifeste du pack validé (`pack-manifest`) et déposer manifeste + 23 PNG dans le bucket avec la clé de service (étape manuelle revue) ; tester le workflow en le déclenchant à la main sur la branche isolée ; relecture juridique.
+
 ## 3. Activation (quand tout est prêt) — dans cet ordre, une étape à la fois
 1. Branche Supabase isolée (jamais le projet partagé Preview/Production) ; `ADMIN_USER_IDS` renseigné.
 2. Ajouter au workflow : détection d'un contenu animé en file, installation de Godot (checksum), téléchargement du pack, variables `STORY_ANIMATION_ENABLED=${{ vars.STORY_ANIMATION_ENABLED || 'false' }}` et ci-dessus. Revue humaine de ce diff (le job porte les secrets de production).
