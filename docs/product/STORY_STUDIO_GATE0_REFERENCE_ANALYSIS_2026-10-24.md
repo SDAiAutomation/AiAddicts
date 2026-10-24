@@ -1,6 +1,6 @@
 # Story Studio — Gate 0 : analyse des références et écart avec le prototype rejeté
 
-Date : 2026-10-24. Auteur : Claude Code. Statut : **analyse réellement effectuée** sur les fichiers reçus (zip `Faceloop_Story_Studio_Claude_Handoff.zip`, sha256 des MP4 conformes au `MANIFEST.json`).
+Date : 2026-10-24. Auteur : Claude Code. Relecture : les images des deux vidéos ont été revues dans une seconde session (60 vignettes à 2 s d'intervalle) ; les observations ci-dessous ont été confirmées, avec deux nuances ajoutées. Statut : **analyse réellement effectuée** sur les fichiers reçus (zip `Faceloop_Story_Studio_Claude_Handoff.zip`, sha256 des MP4 conformes au `MANIFEST.json`).
 
 > Les MP4 et captures **ne sont pas dans ce dépôt** (dépôt public, contenu tiers). Les planches de captures annotées sont conservées localement (`gate0-evidence/`, hors Git) et transmises à l'utilisateur. Ce document ne cite que des timecodes et des descriptions.
 > Convention : **[OBS]** = observé sur les images ou mesuré ; **[HYP]** = hypothèse non vérifiée. **Je n'ai pas pu écouter l'audio** : voix, intonation, justesse du lip-sync et sound design ne sont donc évalués que par mesures et par image, jamais « à l'oreille ».
@@ -27,6 +27,7 @@ Date : 2026-10-24. Auteur : Claude Code. Statut : **analyse réellement effectu�
 - Sous-titres en mots/groupes : jaune sur boîte sombre (flash-back) ou blanc sur boîte (cadre) ; légendes de lieu/date (« Washington, 1919 », « Allemagne, 1889 »).
 
 [OBS] **Cohérence** : le loup, le lapin et l'âne gardent leurs traits d'un plan à l'autre (avec de légères dérives de motif de costume/museau). Les personnages du flash-back N&B sont des **types génériques** (ouvrier à casquette, patron à haut-de-forme, banquier à moustache) qui **ne sont pas** les mêmes individus d'un plan à l'autre : seule la **cohérence de style** est maintenue. **Conséquence produit :** l'identité stricte n'est nécessaire que pour les 1-3 personnages récurrents du cadre ; le reste peut être « cohérent en style » seulement.
+[OBS, revérifié 2026-10-24 sur images toutes les 2 s] **Nuance :** dans C'est garanti, un « type » de héros N&B à tête ronde et gants blancs revient dans de nombreux plans (jeune ouvrier, puis variantes), avec dérive de détails d'un plan à l'autre. La cohérence n'est donc pas qu'une cohérence de style, mais elle n'est pas stricte non plus.
 
 ## 3. Animation
 
@@ -67,6 +68,7 @@ Durées : 100–120 s, bien plus long que le format 15–30 s de Gate 3.
 | Animation 2D traditionnelle/rig | style de dessin très maîtrisé | volume (≈ 40-60 décors et actions neufs par vidéo) incompatible avec un coût de production artisanal |
 | Hybride : images-clés IA + animation 2.5D/rig + compositing | possible pour les plans objets simples | le jeu de corps complet observé dépasse un simple parallaxe |
 
+[OBS, revérifié] Indices supplémentaires de génération : bras très étirés ou fusionnés, couverture de livre approximative, objets qui changent de forme d'un plan à l'autre. Indices compatibles avec l'hypothèse image→vidéo, **pas une preuve**.
 **Conclusion prudente :** la qualité des références est compatible avec de la **vidéo générative image→vidéo, guidée par des images de référence pour les personnages récurrents**. Rien ne permet de l'affirmer. Gate 1 testera l'hypothèse au lieu de la supposer.
 **Droits :** les designs (loup à costume rayé, lapin à nœud, âne) rappellent des archétypes de dessin animé connus. **Ne rien copier** : Gate 1 utilisera des personnages et un langage visuel originaux.
 
