@@ -1,0 +1,67 @@
+name: Story Animation render benchmark (Linux, placeholder pack)
+
+# Measures what the packaged Godot renderer costs on a stock Ubuntu runner (software GL under xvfb) so that the Gate 4
+# decision on the runner can rest on a number. Placeholder sprites only: no secrets, no paid API, no worker wiring.
+on:
+  pull_request:
+    paths:
+      - 'growthos/engine/story_animation/godot/**'
+      - 'growthos/engine/story_animation/rig_v1.py'
+      - 'growthos/engine/story_animation/packs.py'
+      - 'growthos/engine/story_animation/cli.py'
+      - '.github/workflows/story-animation-render-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: '4.7.2-stable'
+
+jobs:
+  render-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: System packages (virtual display, software OpenGL)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg xvfb libgl1-mesa-dri libglu1-mesa libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2t64 || sudo apt-get install -y -qq ffmpeg xvfb libgl1-mesa-dri libglu1-mesa libxcursor1 libxinerama1 libxi6 libxrandr2 libasound2
+      - name: Download Godot and verify its checksum
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          curl -fsSL -o godot.zip "${base}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fsSL -o sums.txt "${base}/SHA512-SUMS.txt"
+          expected=$(grep "Godot_v${GODOT_VERSION}_linux.x86_64.zip" sums.txt | head -n1 | awk '{print $1}')
+          actual=$(sha512sum godot.zip | awk '{print $1}')
+          test -n "$expected" && test "$expected" = "$actual"
+          unzip -q godot.zip
+          chmod +x "Godot_v${GODOT_VERSION}_linux.x86_64"
+          "./Godot_v${GODOT_VERSION}_linux.x86_64" --version
+      - name: Render the prototype timeline with a placeholder pack
+        run: |
+          python -m growthos.engine.story_animation.cli placeholder-pack --out "$RUNNER_TEMP/pack"
+          start=$(date +%s)
+          set +e
+          python -m growthos.engine.story_animation.cli render \
+            --timeline growthos/engine/story_animation/fixtures/prototype_timeline.json \
+            --pack "$RUNNER_TEMP/pack" --out "$RUNNER_TEMP/bench.mp4" \
+            --godot "$PWD/Godot_v${GODOT_VERSION}_linux.x86_64" --launcher 'xvfb-run -a -s "-screen 0 1280x2048x24"' --timeout 1200 | tee result.json
+          code=${PIPESTATUS[0]}
+          set -e
+          end=$(date +%s)
+          {
+            echo "### Story Animation render benchmark (Ubuntu runner, software GL, placeholder pack)"
+            echo ""
+            echo "Total step time: $((end-start)) s. Exit code: ${code} (0 pass, 3 quality problems on placeholder art, 2 render failed)."
+            echo ""
+            echo '```json'
+            cat result.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # A render that did not happen (or any crash) fails the job; quality verdicts on placeholder art are informative only.
+          test "$code" -eq 0 || test "$code" -eq 3

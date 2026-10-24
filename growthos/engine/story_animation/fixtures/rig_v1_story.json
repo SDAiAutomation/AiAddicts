@@ -1,0 +1,157 @@
+{
+ "content_format": "story",
+ "title": "Le réveil de Pip",
+ "story": {
+  "version": 2,
+  "animation_schema_version": 1,
+  "language": "fr",
+  "music_id": "ragtime_a",
+  "characters": [
+   {
+    "id": "pip",
+    "name": "Pip",
+    "voice_id": "voice_pip_1",
+    "pack_id": "pip_v1"
+   },
+   {
+    "id": "ros",
+    "name": "Madame Rosette",
+    "voice_id": "voice_ros_1",
+    "pack_id": "rosette_v1"
+   }
+  ],
+  "shots": [
+   {
+    "id": "s1",
+    "setting_id": "clock_shop",
+    "shot_type": "wide",
+    "speaker_id": "ros",
+    "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+    "actors": [
+     {
+      "character_id": "ros",
+      "side": "left",
+      "facing": "right",
+      "mood": "angry",
+      "gesture_id": "accuse"
+     },
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "surprise",
+      "gesture_id": "idle",
+      "props": [
+       "alarm_clock"
+      ]
+     }
+    ]
+   },
+   {
+    "id": "s2",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "defend"
+     }
+    ]
+   },
+   {
+    "id": "s3",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "ros",
+    "dialogue": "Alors pourquoi il me suit partout ?",
+    "actors": [
+     {
+      "character_id": "ros",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "point"
+     },
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "idle",
+      "props": [
+       "alarm_clock"
+      ]
+     }
+    ]
+   },
+   {
+    "id": "s4",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Il croit que vous êtes en retard !",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "wring"
+     }
+    ]
+   },
+   {
+    "id": "s5",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "ros",
+    "dialogue": "En retard ? Moi ? Depuis quarante ans, je suis à l'heure !",
+    "actors": [
+     {
+      "character_id": "ros",
+      "side": "left",
+      "facing": "right",
+      "mood": "angry",
+      "gesture_id": "indignant"
+     }
+    ]
+   },
+   {
+    "id": "s6",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "pip",
+    "dialogue": "Alors... c'est moi qui suis en retard ! Mon déjeuner !",
+    "actors": [
+     {
+      "character_id": "ros",
+      "side": "left",
+      "facing": "right",
+      "mood": "angry",
+      "gesture_id": "hands_on_hips"
+     },
+     {
+      "character_id": "pip",
+      "side": "center",
+      "facing": "right",
+      "mood": "panic",
+      "gesture_id": "run_away",
+      "props": [
+       "alarm_clock"
+      ]
+     }
+    ]
+   }
+  ],
+  "budget": {
+   "max_usd": 1.0,
+   "max_render_s": 600,
+   "max_tts_chars": 1200
+  }
+ }
+}

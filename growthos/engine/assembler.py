@@ -6,12 +6,14 @@ force a clean rebuild (e.g. after editing the script text).
 """
 import json
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
 from .explainer import access as explainer_access, integration as explainer_integration
+from .story_animation import contract as story_animation_contract
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
     math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, quiz_shorts, repo, retention,
@@ -949,6 +951,112 @@ def _store_creative_quality_shadow(client, content_item_id: str, data: dict,
         # Never change a successful generation into a failure due to shadow diagnostics.
         print(f"       creative quality unavailable ({type(exc).__name__}): {exc}")
 
+_ANIMATION_HEARTBEAT_S = 60.0
+
+
+def _run_animated(client, content_item_id: str, script: dict, output_root: str, t_start: float) -> dict:
+    """Animated story (experimental, flag-gated, admin beta). The stages and the credit rules live in
+    `story_animation.pipeline`; this function only plugs the real services into it. Imports are local so that the
+    legacy path never loads this code."""
+    import shlex
+    from .story_animation import measure as sa_measure, packs as sa_packs, pipeline as sa_pipeline
+    from .story_animation import quality as sa_quality, rig_v1 as sa_rig, voices as sa_voices
+
+    godot_bin = os.environ.get("GODOT_BIN", "")
+    pack_dir = Path(os.environ.get("STORY_PACK_DIR", "")) if os.environ.get("STORY_PACK_DIR") else None
+    renderer = sa_rig.RigV1Renderer(godot_bin, launcher=tuple(shlex.split(os.environ.get("STORY_RENDER_LAUNCHER", ""))))
+    work = Path(output_root) / f"animated_{content_item_id}"
+    organization_id = events.organization_id_of(client, content_item_id)
+
+    def authorize() -> None:
+        try:
+            explainer_access.authorize(client, content_item_id)
+        except explainer_access.ExplainerAccessDenied as exc:
+            raise sa_pipeline.AnimationError("Animation refusée : réservée aux administrateurs de la plateforme") from exc
+
+    def ready() -> list:
+        problems = []
+        if not godot_bin or not Path(godot_bin).is_file():
+            problems.append("GODOT_BIN is not set to an existing file")
+        if pack_dir is None:
+            problems.append("STORY_PACK_DIR is not set")
+        else:
+            problems += sa_packs.validate_pack(pack_dir)[:3]
+        return problems
+
+    def record_event(name: str, **props) -> None:
+        events.record(client, name, content_item_id, organization_id, **props)
+
+    def check_quality(final: Path) -> list:
+        report = sa_measure.measure(final)
+        return sa_quality.judge_media(report, {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS})
+
+    def publish(final: Path, timeline: dict, review: list) -> dict:
+        version_number = None
+        try:
+            version_number = versions.next_version_number(client, content_item_id)
+        except Exception as exc:  # noqa: BLE001 - same fallback as the legacy path
+            print(f"       (historique de versions indisponible : {exc})")
+        video_url = _publish_video(client, content_item_id, str(final), require_remote=True, version=version_number)
+        # review-level findings deliver the clip in the existing `quality_check` state (a human looks before publication,
+        # series auto-publication stays blocked); nothing is invented for `quality_score`, which stays null
+        fields = {"script": script, "video_url": video_url, "error": None, "generation_step": None,
+                  "trim_start": 0, "trim_end": None, "trim_status": None, "original_video_url": None,
+                  **sa_quality.review_fields(review)}
+        if version_number:
+            version_id = versions.record_version(client, content_item_id, version_number, "generation", video_url,
+                                                 script=script, duration_seconds=timeline["total"])
+            if version_id:
+                fields["current_version_id"] = version_id
+        repo.update_content_item(client, content_item_id, **fields)
+        try:
+            repo.mark_generation_completed(client, content_item_id)
+        except Exception as exc:  # noqa: BLE001 - the video is delivered; this run just is not counted
+            print(f"       (run non comptabilisé pour la politique de crédits : {exc})")
+        return {"video_url": video_url, "video": str(final), "content_item_id": content_item_id}
+
+    ports = sa_pipeline.Ports(
+        authorize=authorize,
+        moderate=moderation.check_script,
+        ready=ready,
+        estimate=renderer.estimate,
+        reserve_credit=lambda: repo.reserve_generation_credit(client, content_item_id),
+        refund_credit=lambda: repo.refund_generation_credit(client, content_item_id),
+        record_event=record_event,
+        synthesize=sa_voices.synthesize_line,
+        render=lambda timeline, workdir: renderer.render(timeline, pack_dir, workdir, float(os.environ.get("STORY_RENDER_TIMEOUT_S", "900"))),
+        mix=lambda rendered, starts, timeline, out: sa_voices.mix_and_mux(rendered.video_path, starts, timeline["total"], out),
+        check_quality=check_quality,
+        publish=publish,
+        catalog=sa_pipeline.RIG_V1_CATALOG,
+        usd_per_1k_chars=float(os.environ.get("ELEVENLABS_USD_PER_1K_CHARS", "0.3")),
+    )
+    def report_progress(label: str) -> None:
+        repo.update_content_item(client, content_item_id, generation_step=label)
+
+    ports.progress = report_progress
+    # `repo.reclaim_stale_generating_items` re-queues any item whose `updated_at` is older than 15 minutes. A render is one
+    # long subprocess that cannot report progress, so a heartbeat keeps the item alive (best effort, never fails the job).
+    stop = threading.Event()
+
+    def heartbeat() -> None:
+        while not stop.wait(_ANIMATION_HEARTBEAT_S):
+            try:
+                repo.update_content_item(client, content_item_id)
+            except Exception as exc:  # noqa: BLE001
+                print(f"       (battement de vie non enregistré : {type(exc).__name__})")
+
+    beat = threading.Thread(target=heartbeat, name="animation-heartbeat", daemon=True)
+    beat.start()
+    try:
+        result = sa_pipeline.run(script, ports, work)
+    finally:
+        stop.set()
+        beat.join(timeout=5)
+    print(f"       total génération animée : {time.monotonic() - t_start:.1f}s")
+    return result
+
+
 def run_for_content_item(content_item_id: str, output_root: str = "output") -> dict:
     """Point d'entrée worker.py : génère la vidéo d'un content_item déjà en
     base (créé par le front en status='queued', script déjà construit —
@@ -958,7 +1066,13 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     t_start = time.monotonic()
     client = db.get_service_client()
 
-    data = script_module.normalize_script(repo.get_script(client, content_item_id))
+    raw_script = repo.get_script(client, content_item_id)
+    # Animated stories (story.version 2): refused here while STORY_ANIMATION_ENABLED is OFF (nothing is reserved or
+    # sent anywhere), otherwise handled by their own pipeline. Every other script continues below, unchanged.
+    if story_animation_contract.route_for(raw_script) == "animated":
+        return _run_animated(client, content_item_id, raw_script, output_root, t_start)
+
+    data = script_module.normalize_script(raw_script)
     script_module.validate_script(data)
     data.setdefault("aspect_ratio", "9:16")
     data.setdefault("hashtags", [])

@@ -1,0 +1,45 @@
+name: Story Animation worker routing (offline)
+
+# Guards the only edit made to the shared generation path for animated stories: flag OFF refuses before any credit,
+# legacy scripts never change route, credit and refund rules hold at every stage. No secrets, no paid API, no database.
+on:
+  pull_request:
+    paths:
+      - 'growthos/engine/assembler.py'
+      - 'growthos/engine/story_animation/**'
+      - 'growthos/worker.py'
+      - 'growthos/animation_worker.py'
+      - 'growthos/tests/test_animation_worker.py'
+      - '.github/workflows/story-animation-worker.yml'
+      - 'growthos/supabase/pending/story_packs_bucket.sql'
+      - 'growthos/tests/test_story_animation_routing.py'
+      - '.github/workflows/story-animation-worker-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  routing-and-credits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: growthos/requirements.txt
+      - name: Install worker dependencies
+        working-directory: growthos
+        run: pip install -r requirements.txt
+      - name: Package tests (contract, library, renderer, pipeline credits and refunds)
+        run: python -m unittest discover -s growthos/engine/story_animation -p 'test_*.py' -v
+      - name: Worker routing and existing credit, moderation and Quiz tests
+        working-directory: growthos
+        env:
+          ELEVENLABS_API_KEY: ''
+          OPENAI_API_KEY: ''
+          ANTHROPIC_API_KEY: ''
+        run: >
+          python -m unittest tests.test_story_animation_routing tests.test_animation_worker tests.test_explainer_access tests.test_moderation
+          tests.test_repo_credits tests.test_quiz_motion_backend tests.test_block_voice -v

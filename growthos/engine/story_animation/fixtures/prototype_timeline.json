@@ -1,0 +1,343 @@
+{
+ "fps": 24,
+ "total": 21.568,
+ "lines": [
+  {
+   "who": "ros",
+   "text": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+   "start": 0.5,
+   "dur": 3.529,
+   "end": 4.029,
+   "mouth": "ccrrrroorrcccoooccccccccccccccccccccrrrrrrrooccoooorrrrrrrrcccoooooccccccoocccccccccc"
+  },
+  {
+   "who": "pip",
+   "text": "Impossible, madame ! Je l'ai réglé hier soir !",
+   "start": 4.379,
+   "dur": 2.415,
+   "end": 6.794,
+   "mouth": "cccccrrrroooooooooooooocccccooccccccrrrrrrrrrrrroocccccccc"
+  },
+  {
+   "who": "ros",
+   "text": "Alors pourquoi il me suit partout ?",
+   "start": 7.144,
+   "dur": 1.765,
+   "end": 8.909,
+   "mouth": "coorrrccccccrrrrrccccrrrcccccrrrrcccccccccc"
+  },
+  {
+   "who": "pip",
+   "text": "Il croit que vous êtes en retard !",
+   "start": 9.259,
+   "dur": 1.765,
+   "end": 11.024,
+   "mouth": "cooocccrroocccccrrrrrrrrrrrrrrooocccccccccc"
+  },
+  {
+   "who": "ros",
+   "text": "En retard ? Moi ? Depuis quarante ans, je suis à l'heure !",
+   "start": 11.374,
+   "dur": 4.133,
+   "end": 15.507,
+   "mouth": "cccccooooooooocccccccccccccccccccccrrroocccccccccccccccoocccccrrrrrrrroorrcccccrrrrrrccccccccccccccc"
+  },
+  {
+   "who": "pip",
+   "text": "Alors... c'est moi qui suis en retard ! Mon déjeuner !",
+   "start": 15.857,
+   "dur": 3.111,
+   "end": 18.968,
+   "mouth": "coorrrrrrrrccccccccccccrrrcccccrrrrrrrrrrrooooccccccccrrccooooorroocccccccc"
+  }
+ ],
+ "subs": [
+  {
+   "text": "Monsieur Pip !",
+   "start": 0.46,
+   "end": 1.609
+  },
+  {
+   "text": "Votre réveil sonne",
+   "start": 1.9,
+   "end": 2.843
+  },
+  {
+   "text": "depuis ce matin !",
+   "start": 2.863,
+   "end": 4.209
+  },
+  {
+   "text": "Impossible,",
+   "start": 4.339,
+   "end": 4.934
+  },
+  {
+   "text": "madame !",
+   "start": 4.954,
+   "end": 5.445
+  },
+  {
+   "text": "Je l'ai réglé",
+   "start": 5.465,
+   "end": 6.026
+  },
+  {
+   "text": "hier soir !",
+   "start": 6.046,
+   "end": 6.974
+  },
+  {
+   "text": "Alors pourquoi il",
+   "start": 7.104,
+   "end": 7.839
+  },
+  {
+   "text": "me suit partout ?",
+   "start": 7.859,
+   "end": 9.089
+  },
+  {
+   "text": "Il croit que",
+   "start": 9.219,
+   "end": 9.838
+  },
+  {
+   "text": "vous êtes en",
+   "start": 9.858,
+   "end": 10.244
+  },
+  {
+   "text": "retard !",
+   "start": 10.264,
+   "end": 11.204
+  },
+  {
+   "text": "En retard ?",
+   "start": 11.334,
+   "end": 12.343
+  },
+  {
+   "text": "Moi ?",
+   "start": 12.727,
+   "end": 13.354
+  },
+  {
+   "text": "Depuis quarante ans,",
+   "start": 13.575,
+   "end": 14.472
+  },
+  {
+   "text": "je suis à",
+   "start": 14.492,
+   "end": 14.89
+  },
+  {
+   "text": "l'heure !",
+   "start": 14.91,
+   "end": 15.687
+  },
+  {
+   "text": "Alors...",
+   "start": 15.817,
+   "end": 16.505
+  },
+  {
+   "text": "c'est moi qui",
+   "start": 16.525,
+   "end": 17.086
+  },
+  {
+   "text": "suis en retard !",
+   "start": 17.106,
+   "end": 17.98
+  },
+  {
+   "text": "Mon déjeuner !",
+   "start": 18.0,
+   "end": 19.148
+  }
+ ],
+ "shots": [
+  {
+   "index": 0,
+   "start": 0.0,
+   "end": 4.204,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "wide",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.0,
+    "zoom_to": 1.08
+   },
+   "speaker": "ros",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "angry",
+     "gesture": "accuse",
+     "props": []
+    },
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "surprise",
+     "gesture": "idle",
+     "props": [
+      "alarm_clock"
+     ]
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 1,
+   "start": 4.204,
+   "end": 6.969,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "close_up",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 2.2,
+    "zoom_to": 2.7
+   },
+   "speaker": "pip",
+   "actors": [
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "worry",
+     "gesture": "defend",
+     "props": []
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 2,
+   "start": 6.969,
+   "end": 9.084,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "medium",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.25,
+    "zoom_to": 1.35
+   },
+   "speaker": "ros",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "puzzled",
+     "gesture": "point",
+     "props": []
+    },
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "worry",
+     "gesture": "idle",
+     "props": [
+      "alarm_clock"
+     ]
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 3,
+   "start": 9.084,
+   "end": 11.199,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "close_up",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 2.2,
+    "zoom_to": 2.7
+   },
+   "speaker": "pip",
+   "actors": [
+    {
+     "role": "pip",
+     "side": "right",
+     "facing": "left",
+     "mood": "joy",
+     "gesture": "wring",
+     "props": []
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 4,
+   "start": 11.199,
+   "end": 15.682,
+   "setting": "clock_shop",
+   "background": "bg_shop",
+   "shot_type": "close_up",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.8,
+    "zoom_to": 2.25
+   },
+   "speaker": "ros",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "angry",
+     "gesture": "indignant",
+     "props": []
+    }
+   ],
+   "transition_in": "cut"
+  },
+  {
+   "index": 5,
+   "start": 15.682,
+   "end": 21.568,
+   "setting": "street",
+   "background": "bg_street",
+   "shot_type": "wide",
+   "camera": {
+    "move": "push_in",
+    "zoom_from": 1.0,
+    "zoom_to": 1.08
+   },
+   "speaker": "pip",
+   "actors": [
+    {
+     "role": "ros",
+     "side": "left",
+     "facing": "right",
+     "mood": "angry",
+     "gesture": "hands_on_hips",
+     "props": []
+    },
+    {
+     "role": "pip",
+     "side": "center",
+     "facing": "right",
+     "mood": "panic",
+     "gesture": "run_away",
+     "props": [
+      "alarm_clock"
+     ]
+    }
+   ],
+   "transition_in": "cut"
+  }
+ ]
+}

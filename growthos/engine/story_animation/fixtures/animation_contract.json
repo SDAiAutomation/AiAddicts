@@ -1,0 +1,4559 @@
+{
+ "catalog": {
+  "settings": [
+   "clock_shop",
+   "factory_alley",
+   "cafe_terrace"
+  ],
+  "props": [
+   "alarm_clock"
+  ],
+  "packs": [
+   "pip_v1",
+   "rosette_v1"
+  ],
+  "music": [
+   "ragtime_a"
+  ]
+ },
+ "cases": [
+  {
+   "name": "valid prototype story (structure only)",
+   "valid": true,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "valid with catalog",
+   "valid": true,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   },
+   "catalog": {
+    "settings": [
+     "clock_shop",
+     "factory_alley",
+     "cafe_terrace"
+    ],
+    "props": [
+     "alarm_clock"
+    ],
+    "packs": [
+     "pip_v1",
+     "rosette_v1"
+    ],
+    "music": [
+     "ragtime_a"
+    ]
+   }
+  },
+  {
+   "name": "valid minimal single shot",
+   "valid": true,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "legacy version 1 is not an animated story",
+   "valid": false,
+   "story": {
+    "version": 1,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "unknown animation schema version",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 2,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "animation schema version is a boolean",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": true,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "story version is a boolean",
+   "valid": false,
+   "story": {
+    "version": true,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "schema version written as 1.0 is the same number",
+   "valid": true,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1.0,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "missing animation schema version",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "unknown top-level field",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    },
+    "script": "rm -rf"
+   }
+  },
+  {
+   "name": "unknown shot field",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ],
+      "image_path": "../../secret.png"
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "path-like setting id",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "../etc/passwd",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "setting outside catalog",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "moon_base",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   },
+   "catalog": {
+    "settings": [
+     "clock_shop",
+     "factory_alley",
+     "cafe_terrace"
+    ],
+    "props": [
+     "alarm_clock"
+    ],
+    "packs": [
+     "pip_v1",
+     "rosette_v1"
+    ],
+    "music": [
+     "ragtime_a"
+    ]
+   }
+  },
+  {
+   "name": "pack outside catalog",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "other_account_pack"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   },
+   "catalog": {
+    "settings": [
+     "clock_shop",
+     "factory_alley",
+     "cafe_terrace"
+    ],
+    "props": [
+     "alarm_clock"
+    ],
+    "packs": [
+     "pip_v1",
+     "rosette_v1"
+    ],
+    "music": [
+     "ragtime_a"
+    ]
+   }
+  },
+  {
+   "name": "prop outside catalog",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "bomb"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   },
+   "catalog": {
+    "settings": [
+     "clock_shop",
+     "factory_alley",
+     "cafe_terrace"
+    ],
+    "props": [
+     "alarm_clock"
+    ],
+    "packs": [
+     "pip_v1",
+     "rosette_v1"
+    ],
+    "music": [
+     "ragtime_a"
+    ]
+   }
+  },
+  {
+   "name": "music outside catalog",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "pirated_song",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   },
+   "catalog": {
+    "settings": [
+     "clock_shop",
+     "factory_alley",
+     "cafe_terrace"
+    ],
+    "props": [
+     "alarm_clock"
+    ],
+    "packs": [
+     "pip_v1",
+     "rosette_v1"
+    ],
+    "music": [
+     "ragtime_a"
+    ]
+   }
+  },
+  {
+   "name": "unknown mood",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "furious",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "unknown gesture",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "backflip"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "unknown shot type",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "drone",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "unknown camera move",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "whip",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "zoom out of range",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 9.0
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "zoom is a boolean",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": true
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "speaker not a character",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ghost",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "speaker not on screen",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "ros",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "duplicate character ids",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "pip",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "duplicate shot ids",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "empty dialogue",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "   ",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "control character in dialogue",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "bonjour\u0007",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "dialogue longer than a shot allows",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "thirteen shots",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "x0",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x2",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x3",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x4",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x5",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x6",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x7",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x8",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x9",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x10",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x11",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x12",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 1.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "estimated duration above 60 s",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "x0",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 20.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 20.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x2",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 20.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x3",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 20.0,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "total dialogue above 1200 characters",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "x0",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x2",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "x3",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "four actors in one shot",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     },
+     {
+      "id": "c3",
+      "name": "C3",
+      "voice_id": "v3",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "c4",
+      "name": "C4",
+      "voice_id": "v4",
+      "pack_id": "pip_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "left",
+        "facing": "right",
+        "mood": "neutral",
+        "gesture_id": "idle"
+       },
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "neutral",
+        "gesture_id": "idle"
+       },
+       {
+        "character_id": "c3",
+        "side": "left",
+        "facing": "right",
+        "mood": "neutral",
+        "gesture_id": "idle"
+       },
+       {
+        "character_id": "c4",
+        "side": "left",
+        "facing": "right",
+        "mood": "neutral",
+        "gesture_id": "idle"
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "same character twice in a shot",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "neutral",
+        "gesture_id": "idle"
+       },
+       {
+        "character_id": "ros",
+        "side": "right",
+        "facing": "left",
+        "mood": "neutral",
+        "gesture_id": "idle"
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "negative duration estimate",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": -1,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "budget above the cap",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 500,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "budget unknown key",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "fr",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200,
+     "unlimited": true
+    }
+   }
+  },
+  {
+   "name": "bad language code",
+   "valid": false,
+   "story": {
+    "version": 2,
+    "animation_schema_version": 1,
+    "language": "français",
+    "music_id": "ragtime_a",
+    "characters": [
+     {
+      "id": "pip",
+      "name": "Pip",
+      "voice_id": "voice_pip_1",
+      "pack_id": "pip_v1"
+     },
+     {
+      "id": "ros",
+      "name": "Madame Rosette",
+      "voice_id": "voice_ros_1",
+      "pack_id": "rosette_v1"
+     }
+    ],
+    "shots": [
+     {
+      "id": "s1",
+      "setting_id": "clock_shop",
+      "shot_type": "wide",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 1.0,
+       "zoom_to": 1.08
+      },
+      "speaker_id": "ros",
+      "dialogue": "Monsieur Pip ! Votre réveil sonne depuis ce matin !",
+      "duration_s": 3.5,
+      "actors": [
+       {
+        "character_id": "ros",
+        "side": "left",
+        "facing": "right",
+        "mood": "angry",
+        "gesture_id": "accuse"
+       },
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "surprise",
+        "gesture_id": "idle",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "setting_id": "clock_shop",
+      "shot_type": "close_up",
+      "camera": {
+       "move": "push_in",
+       "zoom_from": 2.2,
+       "zoom_to": 2.7
+      },
+      "speaker_id": "pip",
+      "dialogue": "Impossible, madame ! Je l'ai réglé hier soir !",
+      "duration_s": 2.4,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "right",
+        "facing": "left",
+        "mood": "worry",
+        "gesture_id": "defend"
+       }
+      ]
+     },
+     {
+      "id": "s3",
+      "setting_id": "factory_alley",
+      "shot_type": "wide",
+      "transition_in": "cut",
+      "speaker_id": "pip",
+      "dialogue": "Mon déjeuner !",
+      "duration_s": 3.1,
+      "actors": [
+       {
+        "character_id": "pip",
+        "side": "center",
+        "facing": "right",
+        "mood": "panic",
+        "gesture_id": "clutch_head",
+        "props": [
+         "alarm_clock"
+        ]
+       }
+      ]
+     }
+    ],
+    "budget": {
+     "max_usd": 1.0,
+     "max_render_s": 600,
+     "max_tts_chars": 1200
+    }
+   }
+  },
+  {
+   "name": "story is a list",
+   "valid": false,
+   "story": []
+  }
+ ]
+}

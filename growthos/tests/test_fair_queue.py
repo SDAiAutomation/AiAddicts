@@ -115,6 +115,14 @@ class TestClaimQueuedItem(unittest.TestCase):
         item = repo.claim_queued_item(_FakeClient([_row("a1", "A")]))
         self.assertEqual(set(item), {"id", "script"})
 
+    def test_animated_stories_are_left_to_the_animation_worker(self):
+        animated = {"id": "anim", "script": {"content_format": "story", "story": {"version": 2}}, "accounts": {"organization_id": "A"}}
+        client = _FakeClient([animated, _row("a1", "A")])
+        self.assertEqual(self._claimed_id(client), "a1")
+        self.assertEqual([c[2]["id"] for c in client.calls if c[1]], ["a1"])
+        self.assertIsNone(repo.claim_queued_item(_FakeClient([animated])))
+        self.assertEqual([c for c in _FakeClient([animated]).calls if c[1]], [])
+
 
 if __name__ == "__main__":
     unittest.main()
