@@ -7,6 +7,7 @@ contract, with role names (`pip`, `ros`) in place of character ids because the p
 from __future__ import annotations
 
 from . import timeline as timeline_lib
+from .semantic_direction import direction
 
 # closed list the scene knows how to draw (the contract catalog may hold more ids than the scene can show)
 # setting id -> background picture of the pack. The last three reuse a picture of the pack and add procedural elements drawn by the
@@ -49,6 +50,11 @@ def narrated_beats(entry: dict, start_index: int) -> list:
     n = min(MAX_BEATS, int(duration // BEAT_SECONDS))
     if entry["speaker"] != "narrator" or duration < MIN_NARRATED_SPLIT_S or n < 2 or not entry["actors"]:
         return [dict(entry, index=start_index)]   # unchanged: the scene reads the optional focus / empty / beat keys with defaults
+    # An explicit narrative intent takes priority over mechanical camera rotation.
+    # Keep the original contract shot and duration; no extra assets or actions are fabricated.
+    semantic = direction(entry.get("intent", ""), entry["actors"], entry["speaker"])
+    if semantic is not None:
+        return [dict(entry, index=start_index, **semantic)]
     beats = []
     for k in range(n):
         spec = BEATS[k % len(BEATS)]
@@ -102,7 +108,7 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
             "index": i, "start": cuts[i], "end": cuts[i + 1], "setting": shot["setting_id"],
             "background": BACKGROUNDS.get(shot["setting_id"], "bg_shop"), "shot_type": shot["shot_type"],
             "camera": {"move": move, "zoom_from": z0, "zoom_to": z1}, "speaker": speaker, "actors": actors,
-            "transition_in": shot.get("transition_in", "cut"),
+            "transition_in": shot.get("transition_in", "cut"), "intent": shot.get("intent", ""),
         })
     expanded = []
     for entry in plan:
