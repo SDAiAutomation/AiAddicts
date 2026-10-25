@@ -108,9 +108,17 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
             "role": roles[a["character_id"]], "side": a["side"], "facing": a["facing"], "mood": a.get("mood", "neutral"),
             "gesture": a.get("gesture_id", "idle"), "props": list(a.get("props", [])),
         } for a in shot["actors"]]
+        # Frontend schema v1 scenes also carry intent; apply supported framing to
+        # dialogue shots, not just narrator beats in the extended schema.
+        semantic = direction(shot.get("intent", ""), actors, speaker)
+        if semantic is not None:
+            camera = semantic["camera"]
+            shot_type = semantic["shot_type"]
+        else:
+            shot_type = shot["shot_type"]
         plan.append({
             "index": i, "start": cuts[i], "end": cuts[i + 1], "setting": shot["setting_id"],
-            "background": BACKGROUNDS.get(shot["setting_id"], "bg_shop"), "shot_type": shot["shot_type"],
+            "background": BACKGROUNDS.get(shot["setting_id"], "bg_shop"), "shot_type": shot_type,
             "camera": {"move": move, "zoom_from": z0, "zoom_to": z1}, "speaker": speaker, "actors": actors,
             "transition_in": shot.get("transition_in", "cut"), "intent": shot.get("intent", ""),
         })
