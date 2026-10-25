@@ -15,10 +15,11 @@ import hashlib
 import json
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Callable
 
-from . import packs
+from . import packs, rig_manifest
 
 BUCKET = "story-packs"
 _PACK_ID = re.compile(r"[a-z0-9][a-z0-9_-]{0,40}")
@@ -101,6 +102,43 @@ def fetch_pack(download: Callable[[str], bytes], pack_id: str, dest: Path) -> di
         shutil.rmtree(part, ignore_errors=True)
         raise
     return manifest
+
+
+def fetch_rig_pack(download: Callable[[str], bytes], character_id: str, dest: Path) -> dict:
+    """Fetch a versioned character rig from the private bucket into a new job-local directory.
+
+    The manifest may provide geometry and hashes but never an object path. Object names
+    are built here only after strict ID validation. The destination is immutable once
+    installed, so a concurrent render cannot observe a swapped asset.
+    """
+    check_pack_id(character_id)
+    dest = Path(dest)
+    if dest.exists() or dest.is_symlink():
+        raise PackError("rig pack destination already exists")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    raw = download(f"{character_id}/rig.json")
+    if not isinstance(raw, bytes) or len(raw) > rig_manifest.MAX_MANIFEST_BYTES:
+        raise PackError("rig manifest is too large or invalid")
+    try:
+        rig = rig_manifest.validate_manifest(json.loads(raw))
+    except (UnicodeError, ValueError, rig_manifest.RigManifestError) as exc:
+        raise PackError("rig manifest is invalid") from exc
+    if rig["character_id"] != character_id:
+        raise PackError("rig manifest character id differs from pack id")
+    with tempfile.TemporaryDirectory(prefix=dest.name + ".part.", dir=dest.parent) as stage_name:
+        stage = Path(stage_name)
+        (stage / "rig.json").write_bytes(raw)
+        for asset_id, meta in rig["assets"].items():
+            data = download(f"{character_id}/{asset_id}.png")
+            if not isinstance(data, bytes) or len(data) > packs.MAX_FILE_BYTES or hashlib.sha256(data).hexdigest() != meta["sha256"]:
+                raise PackError(f"rig asset {asset_id} does not match its hash or size limit")
+            (stage / f"{asset_id}.png").write_bytes(data)
+        try:
+            rig_manifest.load_manifest(stage / "rig.json", stage)
+        except rig_manifest.RigManifestError as exc:
+            raise PackError("downloaded rig pack is invalid") from exc
+        stage.rename(dest)
+    return rig
 
 
 def storage_downloader(client) -> Callable[[str], bytes]:

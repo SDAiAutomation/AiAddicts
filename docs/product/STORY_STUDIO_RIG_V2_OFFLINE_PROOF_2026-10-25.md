@@ -5,7 +5,7 @@ The existing `rig_v1` remains the path for saved Pip/Rosette stories. This is a 
 
 ## Boundary
 
-`rig_v2.RigV2Renderer` receives a frame timeline plus a server-selected private pack root. Each character folder contains `rig.json` and PNGs named by asset ID. `rig_manifest.load_manifest` rejects unknown fields, path-like IDs, symlinks, out-of-range geometry, unsupported actions and expressions, missing assets, size mismatches and SHA-256 mismatches **before** Godot starts. No manifest can name a script, URL, command or arbitrary path. The child process uses argument arrays, a stripped environment and a timeout.
+`rig_v2.RigV2Renderer` receives a frame timeline plus a server-selected private pack root. Each character folder contains `rig.json` and PNGs named by asset ID. `rig_manifest.load_manifest` rejects unknown fields, path-like IDs, symlinks, out-of-range geometry, unsupported actions and expressions, missing assets, size mismatches and SHA-256 mismatches **before** Godot starts. `pack_fetch.fetch_rig_pack` can populate one immutable job-local folder from the existing private bucket adapter; it builds object names only from validated IDs and verifies all bytes before installation. This adapter is tested offline and **not yet called by the worker**. No manifest can name a script, URL, command or arbitrary path. The child process uses argument arrays, a stripped environment and a timeout.
 
 Godot reads only these validated files. It draws limbs from anchors and six sprite roles, then composes expressions, mouth cues, gestures, camera motion and subtitles at a fixed 24 FPS. Neither `godot/rig_v2/scene.gd` nor `rig_v2.py` contains a character-specific branch. The demonstration generator supplies three distinct sets of dimensions and anchors: a tall Pip stand-in, a broad Rosette stand-in, and Tavi the owl with a short body and wide wings. The stand-ins are **new developer drawings**, not the approved production assets. Adding Tavi changes only its manifest, sprites and timeline.
 
@@ -26,7 +26,7 @@ Representative frames were visually inspected at approximately 2, 12 and 20 seco
 
 ## Required before production
 
-1. Adapt the private pack fetcher to the new per-character manifests without weakening its closed catalog or tenant isolation.
+1. Wire the tested private character-pack fetcher into the worker's job-local pack preparation, with an approved catalog and tenant isolation review.
 2. Test production Pip/Rosette assets in the new rig and compare representative frames against the legacy renderer. Keep old projects on `rig_v1` until an explicit migration succeeds.
 3. Compile the existing measured voice timeline into this renderer's frame cues; test mouth/audio error, transitions and subtitle timing against real audio fixtures.
 4. Replace placeholder drawings with approved assets, obtain human visual review, and expand the animation repertoire based on observed story needs.
