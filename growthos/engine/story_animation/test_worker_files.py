@@ -26,9 +26,22 @@ class DedicatedWorkflow(unittest.TestCase):
         self.assertIn("group: story-animation-worker", WORKFLOW)
         self.assertIn("cancel-in-progress: false", WORKFLOW)
 
-    def test_godot_download_is_checksum_verified(self):
+    def test_godot_download_is_checked_against_a_hash_pinned_in_the_repository(self):
         self.assertIn("sha512sum godot.zip", WORKFLOW)
-        self.assertIn('test -n "$expected" && test "$expected" = "$actual"', WORKFLOW)
+        self.assertIn('test -n "$GODOT_ZIP_SHA512" && test "$GODOT_ZIP_SHA512" = "$actual"', WORKFLOW)
+        pinned = re.search(r"GODOT_ZIP_SHA512: ([0-9a-f]+)", WORKFLOW)
+        self.assertIsNotNone(pinned)
+        self.assertEqual(len(pinned.group(1)), 128)                 # a SHA-512 digest, not a placeholder
+        self.assertNotIn("SHA512-SUMS.txt\"", WORKFLOW)             # the sum is no longer fetched from the archive's own origin
+
+    def test_every_third_party_action_is_pinned_to_a_commit(self):
+        uses = re.findall(r"^\s*-?\s*uses:\s*(\S+)", WORKFLOW, re.M)
+        self.assertTrue(uses)
+        for ref in uses:
+            self.assertRegex(ref, r"@[0-9a-f]{40}$", f"{ref} must be pinned to a full commit SHA")
+
+    def test_the_job_runs_in_a_protected_environment(self):
+        self.assertIn("environment: story-animation", WORKFLOW)
 
     def test_secrets_are_limited_to_what_an_animated_job_needs(self):
         used = set(re.findall(r"secrets\.([A-Z_]+)", WORKFLOW))
