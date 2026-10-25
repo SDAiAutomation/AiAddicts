@@ -192,7 +192,8 @@
      ]
     }
    ],
-   "transition_in": "cut"
+   "transition_in": "cut",
+   "objects": []
   },
   {
    "index": 1,
@@ -217,7 +218,8 @@
      "props": []
     }
    ],
-   "transition_in": "cut"
+   "transition_in": "cut",
+   "objects": []
   },
   {
    "index": 2,
@@ -252,7 +254,8 @@
      ]
     }
    ],
-   "transition_in": "cut"
+   "transition_in": "cut",
+   "objects": []
   },
   {
    "index": 3,
@@ -277,7 +280,8 @@
      "props": []
     }
    ],
-   "transition_in": "cut"
+   "transition_in": "cut",
+   "objects": []
   },
   {
    "index": 4,
@@ -302,7 +306,8 @@
      "props": []
     }
    ],
-   "transition_in": "cut"
+   "transition_in": "cut",
+   "objects": []
   },
   {
    "index": 5,
@@ -337,7 +342,8 @@
      ]
     }
    ],
-   "transition_in": "cut"
+   "transition_in": "cut",
+   "objects": []
   }
  ]
 }

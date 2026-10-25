@@ -367,6 +367,7 @@ func overlays(t: float) -> void:
 	for i in 90:
 		var k := frame * 131.0 + i * 17.0
 		draw_rect(Rect2(fmod(k * 7.31, W), fmod(k * 3.77, H), 2, 2), Color(0, 0, 0, 0.16) if i % 3 else Color(1, 1, 1, 0.2))
+	draw_objects(t)
 	draw_cards(t)
 	for s in TL["subs"]:
 		if t >= s["start"] and t < s["end"]:
@@ -374,6 +375,90 @@ func overlays(t: float) -> void:
 	var fade := minf(clampf(t / 0.3, 0.0, 1.0), clampf((float(TL["total"]) - t) / 0.7, 0.0, 1.0))
 	if fade < 1.0:
 		draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, 1.0 - fade))
+
+# An object the narration names (a dictionary, an umbrella, a key...) appears as a sticker while it is spoken, drawn in code in the
+# same ink and the show's single red: what is said can be seen. The plan lists them per shot ({id, start, end}, absolute times).
+const OBJ_RED := Color(0.82, 0.08, 0.08)
+const OBJ_PAPER := Color(0.96, 0.95, 0.9)
+
+func draw_objects(t: float) -> void:
+	var sh: Dictionary = TL["shots"][shot_index_at(t)]
+	for o in sh.get("objects", []):
+		var a := float(o["start"])
+		var b := float(o["end"])
+		if t < a or t >= b:
+			continue
+		var pop := ease_back(seg(t, a, a + 0.25))
+		var fade := 1.0 - seg(t, b - 0.25, b)
+		var sc := lerpf(0.5, 0.84, pop)
+		var base := Transform2D(-0.07 + 0.03 * sin(t * 2.6), Vector2(sc, sc), 0.0, Vector2(W - 104.0, 350.0))
+		draw_set_transform_matrix(base)
+		draw_circle(Vector2(9, 12), 106.0, Color(0, 0, 0, 0.32 * fade))
+		draw_circle(Vector2.ZERO, 106.0, Color(OBJ_PAPER, fade))
+		draw_arc(Vector2.ZERO, 103.0, 0.0, TAU, 40, Color(INK, fade), 7.0, true)
+		draw_object_shape(String(o["id"]), base, fade, t)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+func draw_object_shape(id: String, base: Transform2D, fade: float, t: float) -> void:
+	var ink := Color(INK, fade)
+	var red := Color(OBJ_RED, fade)
+	var paper := Color(OBJ_PAPER, fade)
+	match id:
+		"book":
+			draw_rect(Rect2(-48, -62, 96, 124), red)
+			draw_rect(Rect2(-48, -62, 96, 124), ink, false, 6.0)
+			draw_rect(Rect2(-48, -62, 20, 124), ink)
+			draw_rect(Rect2(34, -54, 8, 108), paper)
+			draw_line(Vector2(-14, -22), Vector2(24, -22), paper, 6.0)
+			draw_line(Vector2(-14, -4), Vector2(16, -4), paper, 6.0)
+		"umbrella":
+			var pts := PackedVector2Array()
+			for i in 25:
+				var an := PI + PI * float(i) / 24.0
+				pts.append(Vector2(cos(an), sin(an)) * Vector2(72.0, 62.0) + Vector2(0, 8))
+			draw_colored_polygon(pts, red)
+			draw_polyline(pts, ink, 6.0, true)
+			draw_line(Vector2(-72, 8), Vector2(72, 8), ink, 6.0)
+			for x in [-36.0, 0.0, 36.0]:
+				draw_line(Vector2(x * 0.45, -54), Vector2(x, 8), ink, 3.5)
+			draw_line(Vector2(0, 8), Vector2(0, 58), ink, 8.0)
+			draw_arc(Vector2(-14, 58), 14.0, 0.0, PI, 12, ink, 8.0, true)
+			draw_line(Vector2(0, -54), Vector2(0, -68), ink, 6.0)
+		"key":
+			draw_set_transform_matrix(base * Transform2D(-0.65, Vector2.ONE, 0.0, Vector2.ZERO))
+			draw_arc(Vector2(-48, 0), 24.0, 0.0, TAU, 24, ink, 11.0, true)
+			draw_circle(Vector2(-48, 0), 9.0, red)
+			draw_rect(Rect2(-24, -6, 92, 12), ink)
+			draw_rect(Rect2(34, 4, 10, 24), ink)
+			draw_rect(Rect2(52, 4, 10, 17), ink)
+		"lines3":
+			var hs := [70.0, 100.0, 84.0]
+			for i in 3:
+				var x := -52.0 + 52.0 * i
+				draw_rect(Rect2(x - 9, 46 - hs[i], 18, hs[i]), red if i == 1 else ink)
+				draw_string(ThemeDB.fallback_font, Vector2(x - 9, 80), ["A", "B", "C"][i], HORIZONTAL_ALIGNMENT_LEFT, -1, 30, ink)
+		"stamp":
+			draw_circle(Vector2(0, -50), 22.0, ink)
+			draw_rect(Rect2(-9, -34, 18, 34), ink)
+			draw_rect(Rect2(-46, -2, 92, 22), ink)
+			draw_rect(Rect2(-50, 38, 100, 34), red, false, 6.0)
+			draw_string(ThemeDB.fallback_font, Vector2(-26, 66), "OK", HORIZONTAL_ALIGNMENT_LEFT, -1, 34, red)
+		"compass":
+			draw_circle(Vector2.ZERO, 66.0, paper)
+			draw_arc(Vector2.ZERO, 66.0, 0.0, TAU, 32, ink, 8.0, true)
+			for k in 4:
+				var d := Vector2.from_angle(PI * 0.5 * k)
+				draw_line(d * 50.0, d * 62.0, ink, 5.0)
+			var sw := 0.5 * sin(t * 2.2)
+			draw_set_transform_matrix(base * Transform2D(sw, Vector2.ONE, 0.0, Vector2.ZERO))
+			draw_colored_polygon(PackedVector2Array([Vector2(0, -52), Vector2(-13, 0), Vector2(13, 0)]), red)
+			draw_colored_polygon(PackedVector2Array([Vector2(0, 52), Vector2(-13, 0), Vector2(13, 0)]), ink)
+			draw_circle(Vector2.ZERO, 6.0, paper)
+		"coin":
+			draw_circle(Vector2.ZERO, 62.0, paper)
+			draw_arc(Vector2.ZERO, 62.0, 0.0, TAU, 32, ink, 9.0, true)
+			draw_arc(Vector2.ZERO, 46.0, 0.0, TAU, 32, ink, 3.5, true)
+			draw_string(ThemeDB.fallback_font, Vector2(-24, 28), "€", HORIZONTAL_ALIGNMENT_LEFT, -1, 84, red)
 
 # A word the narrator puts between quotation marks appears large on screen while it is spoken: something to see during the narration.
 func draw_cards(t: float) -> void:
@@ -603,6 +688,26 @@ func act(role: String, t: float) -> Dictionary:
 	add_life(role, P, t, t - float(sh["start"]), e, sh["speaker"] == role, mood)
 	return smooth_pose(role, P)
 
+# the hat is thrown up, falls under gravity, bounces once and stays on the ground (it never vanishes mid-air)
+const HAT_G := 2600.0
+const HAT_THROW := 1050.0
+const HAT_GROUND_Y := FEET_Y - 22.0
+
+func hat_fall(s: float, x0: float, y0: float) -> Vector3:
+	var disc := HAT_THROW * HAT_THROW + 2.0 * HAT_G * (HAT_GROUND_Y - y0)
+	var t1 := (HAT_THROW + sqrt(disc)) / HAT_G
+	var vx := -110.0
+	var vb := 0.32 * (HAT_G * t1 - HAT_THROW)
+	var tb := 2.0 * vb / HAT_G
+	var rest_x := x0 + vx * (t1 + tb)
+	if s < t1:
+		return Vector3(x0 + vx * s, y0 - HAT_THROW * s + 0.5 * HAT_G * s * s, 4.0 * PI * s / t1)
+	var b := s - t1
+	var rot := 4.0 * PI + 0.3
+	if b < tb:
+		return Vector3(x0 + vx * s, HAT_GROUND_Y - vb * b + 0.5 * HAT_G * b * b, rot)
+	return Vector3(rest_x, HAT_GROUND_Y, rot)
+
 # time at which Pip's hat comes off (it never comes back), or a huge number
 func hat_loss_time() -> float:
 	var best := 1.0e9
@@ -611,6 +716,17 @@ func hat_loss_time() -> float:
 		if a != null and HAT_LOSS_AT.has(a["gesture"]):
 			best = minf(best, float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]]))
 	return best
+
+# where Pip stood when the hat came off: the hat lands there, whoever is on screen afterwards
+func hat_loss_x() -> float:
+	var best := 1.0e9
+	var x := SIDE_X["right"]
+	for sh in TL["shots"]:
+		var a: Variant = actor_of(sh, "pip")
+		if a != null and HAT_LOSS_AT.has(a["gesture"]) and float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]]) < best:
+			best = float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]])
+			x = actor_x_at(sh, a, best)
+	return x
 
 func actor_x_at(sh: Dictionary, a: Dictionary, t: float) -> float:
 	var x: float = SIDE_X[a["side"]]
@@ -673,10 +789,9 @@ func draw_actor(sh: Dictionary, a: Dictionary, t: float, cam: Transform2D) -> vo
 		var lost := hat_loss_time()
 		if t > lost:
 			P["hat_off"] = true
-			var hu := seg(t - lost, 0.0, 1.2)
-			if hu < 1.0:
-				P["hat_world"] = Vector2(P["pos"].x + 18.0 * hu, hip_y(role) - 300.0 - 260.0 * sin(PI * hu * 0.5) + 360.0 * hu * hu)
-				P["hat_rot"] = hu * 8.0
+			var fall := hat_fall(t - lost, hat_loss_x(), hip_y(role) - 300.0)
+			P["hat_world"] = Vector2(fall.x, fall.y)
+			P["hat_rot"] = fall.z
 	if a["gesture"] == "run_away":
 		if tt < 0.9:
 			var ant := ease_io(seg(tt, 0.55, 0.9))
