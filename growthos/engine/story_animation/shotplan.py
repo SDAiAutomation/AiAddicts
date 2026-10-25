@@ -22,6 +22,56 @@ def default_zoom(shot_type: str, speaker_role: str) -> tuple:
     return {"wide": WIDE, "medium": MEDIUM, "insert": INSERT}[shot_type]
 
 
+BEAT_SECONDS = 4.0        # a narrated shot is cut into beats of about this length
+MIN_NARRATED_SPLIT_S = 8.0  # shorter narrated shots stay a single beat
+MAX_BEATS = 5
+# what a listener does while the narrator talks, in turn; only used where the story leaves the actor at rest (idle, neutral)
+LISTENER_POSES = {"pip": ["idle", "wring", "shrug", "idle", "wring"], "ros": ["hands_on_hips", "idle", "shrug", "hands_on_hips", "idle"]}
+REACTION_MOODS = ["puzzled", "worry", "surprise"]
+# composition of each beat, in turn: a wide establishing push, a reaction on a listener, the setting alone, a two-shot pan, a second reaction
+BEATS = [
+    {"kind": "wide", "move": "push_in", "zoom": (1.0, 1.1)},
+    {"kind": "reaction", "listener": 0},
+    {"kind": "empty", "move": "pan_right", "zoom": (1.05, 1.05)},
+    {"kind": "medium", "move": "pan_left", "zoom": (1.25, 1.35)},
+    {"kind": "reaction", "listener": 1},
+]
+
+
+def narrated_beats(entry: dict, start_index: int) -> list:
+    """Cuts one long narrator shot into visual beats (same speaker, same setting, same words): the camera and the picture change
+    every few seconds instead of one composition staying on screen. Deterministic, no new asset, nothing the author wrote is changed:
+    only actors left at rest get a listening pose, and a reaction beat gives the framed listener a mood."""
+    duration = entry["end"] - entry["start"]
+    n = min(MAX_BEATS, int(duration // BEAT_SECONDS))
+    if entry["speaker"] != "narrator" or duration < MIN_NARRATED_SPLIT_S or n < 2 or not entry["actors"]:
+        return [dict(entry, index=start_index)]   # unchanged: the scene reads the optional focus / empty / beat keys with defaults
+    beats = []
+    for k in range(n):
+        spec = BEATS[k % len(BEATS)]
+        a, b = entry["start"] + duration * k / n, entry["start"] + duration * (k + 1) / n
+        actors = [dict(x) for x in entry["actors"]]
+        for x in actors:
+            if x["gesture"] == "idle" and x["mood"] == "neutral" and x["role"] in LISTENER_POSES:
+                poses = LISTENER_POSES[x["role"]]
+                x["gesture"] = poses[k % len(poses)]
+        focus, empty = None, False
+        shot_type, move, zoom = "wide", "static", (1.0, 1.0)
+        if spec["kind"] == "reaction":
+            target = actors[spec["listener"] % len(actors)]
+            focus = target["role"]
+            target["mood"] = REACTION_MOODS[(k // 2) % len(REACTION_MOODS)]
+            shot_type, move, zoom = "close_up", "push_in", CLOSE_UP.get(focus, WIDE)
+        else:
+            shot_type, move, zoom = spec["kind"] if spec["kind"] != "empty" else "wide", spec["move"], spec["zoom"]
+            empty = spec["kind"] == "empty"
+        beats.append(dict(entry, index=start_index + k, start=round(a, 3), end=round(b, 3), shot_type=shot_type, actors=actors,
+                          camera={"move": move, "zoom_from": zoom[0], "zoom_to": zoom[1]}, focus=focus, empty=empty, beat=k,
+                          transition_in=entry["transition_in"] if k == 0 else "cut"))
+    beats[-1]["end"] = entry["end"]
+    return beats
+
+
 def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
     """`roles`: character id -> rig role. Returns [{index, start, end, setting, background, shot_type, camera, speaker, actors, transition_in}]."""
     shots = story["shots"]
@@ -51,4 +101,7 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
             "camera": {"move": move, "zoom_from": z0, "zoom_to": z1}, "speaker": speaker, "actors": actors,
             "transition_in": shot.get("transition_in", "cut"),
         })
-    return plan
+    expanded = []
+    for entry in plan:
+        expanded += narrated_beats(entry, len(expanded))
+    return expanded

@@ -197,8 +197,14 @@ class NarratorPipeline(unittest.TestCase):
                 self.assertIn("narrator", {line["who"] for line in tl["lines"]})
                 self.assertGreaterEqual(tl["total"], 60.0)
                 self.assertLessEqual(tl["total"], contract.LIMITS[2]["max_duration"])
-                self.assertEqual([s["speaker"] for s in tl["shots"]], [line["who"] for line in tl["lines"]])
+                # a long narrated line is cut into visual beats: more shots than lines, in the same order, same speaker, no gap
+                self.assertGreaterEqual(len(tl["shots"]), len(tl["lines"]))
+                self.assertEqual([s["index"] for s in tl["shots"]], list(range(len(tl["shots"]))))
+                self.assertEqual(tl["shots"][0]["start"], 0.0)
                 self.assertEqual(tl["shots"][-1]["end"], tl["total"])
+                for before, after in zip(tl["shots"], tl["shots"][1:]):
+                    self.assertAlmostEqual(before["end"], after["start"], places=3)
+                self.assertEqual({s["speaker"] for s in tl["shots"]}, {line["who"] for line in tl["lines"]})
 
     def test_a_schema_1_story_is_still_limited_to_60_s(self):
         with self.assertRaises(ValueError):
