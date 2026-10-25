@@ -34,6 +34,18 @@ class DedicatedWorkflow(unittest.TestCase):
         self.assertEqual(len(pinned.group(1)), 128)                 # a SHA-512 digest, not a placeholder
         self.assertNotIn("SHA512-SUMS.txt\"", WORKFLOW)             # the sum is no longer fetched from the archive's own origin
 
+    def test_godot_runs_in_an_empty_network_namespace_without_root_and_the_job_proves_it_first(self):
+        self.assertIn("unshare -n setpriv", WORKFLOW)
+        self.assertIn("--clear-groups xvfb-run", WORKFLOW)
+        self.assertNotIn("STORY_RENDER_LAUNCHER: ", WORKFLOW)       # only the isolated launcher written by the step may be used
+        self.assertLess(WORKFLOW.index('test "$out" = "ISOLATED uid='), WORKFLOW.index("python animation_worker.py"))
+        self.assertLess(WORKFLOW.index("Isolate the renderer"), WORKFLOW.index("Render the queued animated jobs"))
+
+    def test_the_secret_free_benchmark_renders_through_the_same_isolation(self):
+        bench = (ROOT / ".github" / "workflows" / "story-animation-render-benchmark.yml").read_text(encoding="utf-8")
+        self.assertIn("unshare -n setpriv", bench)
+        self.assertIn('--launcher "$STORY_RENDER_LAUNCHER"', bench)
+
     def test_every_third_party_action_is_pinned_to_a_commit(self):
         uses = re.findall(r"^\s*-?\s*uses:\s*(\S+)", WORKFLOW, re.M)
         self.assertTrue(uses)

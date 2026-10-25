@@ -75,6 +75,19 @@ jobs:
             python -m engine.story_animation.cli fetch-pack --pack-id "$pack" --dest "$RUNNER_TEMP/story-packs/$pack"
           done
 
+      - name: Isolate the renderer from the network (empty network namespace, no root) and prove it
+        run: |
+          launcher="sudo -E unshare -n setpriv --reuid=$(id -u) --regid=$(id -g) --clear-groups xvfb-run -a -s \"-screen 0 1280x2048x24\""
+          echo "STORY_RENDER_LAUNCHER=${launcher}" >> "$GITHUB_ENV"
+          # the same prefix must show no network and a non-root user, or the job stops before any secret-bearing step
+          out=$(sudo unshare -n setpriv --reuid=$(id -u) --regid=$(id -g) --clear-groups python3 -c "import os,socket; s=socket.socket(); s.settimeout(3)
+          try:
+              s.connect(('1.1.1.1',53)); print('REACHABLE')
+          except OSError:
+              print('ISOLATED uid=%d' % os.getuid())")
+          echo "$out"
+          test "$out" = "ISOLATED uid=$(id -u)"
+
       - name: Render the queued animated jobs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -87,7 +100,6 @@ jobs:
           STORY_ANIMATION_ENABLED: 'true'
           GODOT_BIN: ${{ runner.temp }}/godot/Godot_v4.7.2-stable_linux.x86_64
           STORY_PACK_DIR: ${{ runner.temp }}/story-packs
-          STORY_RENDER_LAUNCHER: 'xvfb-run -a -s "-screen 0 1280x2048x24"'
           STORY_RENDER_TIMEOUT_S: '900'
           ELEVENLABS_USD_PER_1K_CHARS: '0.18'
         run: python animation_worker.py --until-idle
