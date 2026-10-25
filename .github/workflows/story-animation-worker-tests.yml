@@ -29,6 +29,7 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: growthos/requirements.txt
+      - run: python -m pip install Pillow==12.2.0
       - name: Install worker dependencies
         working-directory: growthos
         run: pip install -r requirements.txt

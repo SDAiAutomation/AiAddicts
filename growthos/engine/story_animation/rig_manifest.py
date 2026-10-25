@@ -47,7 +47,7 @@ def _point(value: object) -> bool:
 
 def validate_manifest(raw: object) -> dict:
     """Return a strictly validated manifest; reject unrecognized fields and executable data."""
-    if not isinstance(raw, dict) or set(raw) != {"schema_version", "character_id", "rig_type", "canvas", "anchors", "sprites", "assets", "expressions", "actions", "mouths"}:
+    if not isinstance(raw, dict) or set(raw) != {"schema_version", "character_id", "rig_type", "canvas", "anchors", "face", "sprites", "assets", "expressions", "actions", "mouths"}:
         raise RigManifestError("rig manifest fields are invalid")
     if type(raw["schema_version"]) is not int or raw["schema_version"] != SCHEMA_VERSION:
         raise RigManifestError("unsupported rig schema version")
@@ -59,6 +59,9 @@ def validate_manifest(raw: object) -> dict:
     anchors = raw["anchors"]
     if not isinstance(anchors, dict) or set(anchors) != ANCHORS or not all(_point(p) for p in anchors.values()):
         raise RigManifestError("rig anchors are incomplete or invalid")
+    face = raw["face"]
+    if not isinstance(face, dict) or set(face) != {"eye_l", "eye_r", "mouth"} or not all(_point(p) for p in face.values()):
+        raise RigManifestError("rig face anchors are incomplete or invalid")
     sprites = raw["sprites"]
     if not isinstance(sprites, dict) or set(sprites) != SPRITES or not all(_id(asset_id) for asset_id in sprites.values()):
         raise RigManifestError("rig sprites are incomplete or invalid")
@@ -72,6 +75,9 @@ def validate_manifest(raw: object) -> dict:
             raise RigManifestError("rig asset hash is invalid")
         if not all(type(meta[k]) is int and 1 <= meta[k] <= 4096 for k in ("width", "height")) or meta["width"] * meta["height"] > MAX_PIXELS:
             raise RigManifestError("rig asset dimensions are invalid")
+    head_asset = assets[sprites["head"]]
+    if any(not 0 <= face[k][0] <= head_asset["width"] or not 0 <= face[k][1] <= head_asset["height"] for k in face):
+        raise RigManifestError("rig face anchors must lie on the head sprite")
     for key, allowed in (("expressions", EXPRESSIONS), ("actions", ACTIONS), ("mouths", MOUTHS)):
         value = raw[key]
         if not isinstance(value, list) or not value or not all(isinstance(v, str) and v in allowed for v in value) or len(value) != len(set(value)):
