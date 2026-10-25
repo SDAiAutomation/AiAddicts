@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 
 from .. import retention, script as standard_script
-from . import contract, pipeline
+from . import coherence, contract, pipeline
 
 # where each pack's character stands and faces, as in the cast of the editor (web cast.ts)
 LAYOUT = {"pip_v1": ("right", "left"), "rosette_v1": ("left", "right")}
@@ -31,6 +31,7 @@ class AdaptResult:
     script: dict                                   # {"content_format": "story", "title": ..., "story": {...}}
     errors: list = field(default_factory=list)     # contract errors (empty = the pipeline will accept it)
     retention_issues: list = field(default_factory=list)   # Standard retention diagnostics worth a human look (never blocking)
+    coherence_issues: list = field(default_factory=list)   # words that the pictures do not follow, see coherence.py (never blocking)
 
 
 def split_text(text: str, limit: int = contract.MAX_SHOT_DIALOGUE_CHARS) -> list:
@@ -118,4 +119,4 @@ def adapt(script: dict, *, narrator: dict, characters: list, duration_target_s: 
     report = retention.analyze(script)
     issues = [{"section": i.get("section"), "code": i.get("code"), "severity": i.get("severity"), "message": i.get("message")}
               for i in report.get("issues", []) if i.get("severity") in ("high", "medium", "warning")]
-    return AdaptResult({"content_format": "story", "title": script["title"], "story": story}, errors, issues)
+    return AdaptResult({"content_format": "story", "title": script["title"], "story": story}, errors, issues, coherence.review(story))
