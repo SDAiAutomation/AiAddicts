@@ -426,7 +426,7 @@
    "valid": false,
    "story": {
     "version": 2,
-    "animation_schema_version": 2,
+    "animation_schema_version": 3,
     "language": "fr",
     "music_id": "ragtime_a",
     "characters": [

@@ -19,12 +19,13 @@ from . import contract, quality as quality_lib, shotplan, timeline as timeline_l
 STYLES = ("noir_1930", "sepia_1930", "cyanotype_1930", "couleur_1930")
 # rig_v1 draws two characters (one per pack); pack id -> rig role
 RIG_ROLES = {"pip_v1": "pip", "rosette_v1": "ros"}
+NARRATOR_ROLE = "narrator"
 RIG_V1_CATALOG = {
     "settings": sorted(shotplan.BACKGROUNDS), "props": ["alarm_clock"],
     "packs": sorted(RIG_ROLES), "music": ["ragtime_a"], "styles": list(STYLES),
 }
-CHARS_PER_SECOND = 14.0   # measured on the prototype French lines (276 characters, about 19 s of speech)
-FIXED_SECONDS = 3.1       # lead-in, pauses and payoff tail
+CHARS_PER_SECOND = contract.SPEECH_CHARS_PER_SECOND_SLOW   # conservative estimate (the contract also keeps the measured fast rate)
+FIXED_SECONDS = contract.FIXED_SECONDS                     # lead-in, pauses and payoff tail
 
 
 class AnimationError(RuntimeError):
@@ -76,7 +77,11 @@ def _progress(ports: "Ports", label: str) -> None:
 
 def rig_roles(story: dict) -> dict:
     """character id -> rig role for the characters whose pack the scene can draw (others are absent)."""
-    return {c["id"]: RIG_ROLES[c["pack_id"]] for c in story["characters"] if c["pack_id"] in RIG_ROLES}
+    roles = {c["id"]: RIG_ROLES[c["pack_id"]] for c in story["characters"] if c["pack_id"] in RIG_ROLES}
+    narrator = story.get("narrator")
+    if isinstance(narrator, dict) and narrator.get("id"):
+        roles[narrator["id"]] = NARRATOR_ROLE   # a voice without a body: the scene draws the setting and the listeners
+    return roles
 
 
 def rig_v1_layout_errors(story: dict) -> list:
@@ -130,7 +135,9 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
         raise InsufficientCredits("crédits épuisés pour ce mois-ci")
     ports.record_event("generation_started", renderer="rig_v1", estimated_tts_chars=tts_chars)
     try:
-        by_id = {c["id"]: c for c in story["characters"]}
+        by_id = {c["id"]: {"voice_id": c["voice_id"], "role": RIG_ROLES[c["pack_id"]]} for c in story["characters"]}
+        if isinstance(story.get("narrator"), dict):
+            by_id[story["narrator"]["id"]] = {"voice_id": story["narrator"]["voice_id"], "role": NARRATOR_ROLE}
         workdir = Path(workdir)
         workdir.mkdir(parents=True, exist_ok=True)
         lines, wavs = [], []
@@ -139,10 +146,11 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
             speaker = by_id[shot["speaker_id"]]
             wav = workdir / f"line{i}.wav"
             info = ports.synthesize(shot["dialogue"], speaker["voice_id"], wav)
-            lines.append({"who": RIG_ROLES[speaker["pack_id"]], "text": shot["dialogue"], "duration_s": info["duration_s"],
+            lines.append({"who": speaker["role"], "text": shot["dialogue"], "duration_s": info["duration_s"],
                           "alignment": info["alignment"], "envelope": info["envelope"]})
             wavs.append(wav)
-        tl = timeline_lib.build_timeline(lines)
+        schema = story.get("animation_schema_version", contract.ANIMATION_SCHEMA_VERSION)
+        tl = timeline_lib.build_timeline(lines, max_total=contract.LIMITS[schema]["max_duration"])
         tl["shots"] = shotplan.build_shot_plan(story, tl, rig_roles(story))
         tl["style"] = story.get("style_id") or STYLES[0]
         _progress(ports, "Animation")

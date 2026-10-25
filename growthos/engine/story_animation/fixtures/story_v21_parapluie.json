@@ -1,0 +1,447 @@
+{
+ "content_format": "story",
+ "title": "Le parapluie du mardi",
+ "story": {
+  "version": 2,
+  "animation_schema_version": 2,
+  "language": "fr",
+  "duration_target_s": 90,
+  "style_id": "noir_1930",
+  "music_id": "ragtime_a",
+  "narrator": {
+   "id": "narrator",
+   "name": "Narrateur",
+   "voice_id": "voice_narr_1"
+  },
+  "characters": [
+   {
+    "id": "pip",
+    "name": "Pip",
+    "voice_id": "voice_pip_1",
+    "pack_id": "pip_v1"
+   },
+   {
+    "id": "rosette",
+    "name": "Madame Rosette",
+    "voice_id": "voice_ros_1",
+    "pack_id": "rosette_v1"
+   }
+  ],
+  "editorial": {
+   "genre": "emotion",
+   "kind": "fiction",
+   "sources": []
+  },
+  "shots": [
+   {
+    "id": "s1",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Madame Rosette, pardon. Il pleut, je n'ai pas de parapluie, et pas de quoi en acheter un.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "wring"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "pluie (effet à créer)"
+   },
+   {
+    "id": "s2",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Prenez celui-ci, Pip. Le vieux, derrière la porte. Vous me le rendrez quand vous pourrez.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "surprise",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "joy",
+      "gesture_id": "point"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s3",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Je vous le rendrai. Promis.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "wave"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s4",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Pip ne l'a pas rendu ce jour-là. Ni la semaine suivante. Les années ont passé.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "fade",
+    "nature": "fiction",
+    "intent": "fondu : passage du temps"
+   },
+   {
+    "id": "s5",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "narrator",
+    "dialogue": "Pip apprend l'horlogerie la nuit. Il n'a pas de quoi se payer un autre parapluie, alors il garde celui-là, jusqu'au jour où il peut ouvrir sa propre boutique.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "montage rapide : atelier de nuit (décor à adapter)"
+   },
+   {
+    "id": "s6",
+    "setting_id": "clock_shop",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Vingt ans plus tard, la boutique de Madame Rosette ferme. Une grande enseigne a ouvert au coin de la rue, et les clients ne viennent plus.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "boutique vide, volets à mi-hauteur (décor à adapter)"
+   },
+   {
+    "id": "s7",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "rosette",
+    "dialogue": "Voilà. Dernier jour. Dernière clé. Personne ne viendra me dire au revoir.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "worry",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s8",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Madame Rosette ? Je viens vous rendre quelque chose.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "wave"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "Pip vieilli (variante d'apparence à créer)"
+   },
+   {
+    "id": "s9",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "rosette",
+    "dialogue": "Me rendre ? Je ne vous ai jamais rien prêté, monsieur.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "shrug"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s10",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Un parapluie. Un mardi. Il pleuvait. Je vous avais promis de vous le rendre.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "point"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "surprise",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s11",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "rosette",
+    "dialogue": "Ah, un parapluie. J'en prêtais un par semaine, à l'époque. Personne ne me les rendait jamais.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "shrug"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s12",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Moi, je l'ai gardé vingt ans, pour pouvoir vous le rendre.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "retournement"
+   },
+   {
+    "id": "s13",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Je ne veux pas de charité, Pip. Je me suis toujours débrouillée seule.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "angry",
+      "gesture_id": "defend"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "résistance, enjeu émotionnel"
+   },
+   {
+    "id": "s14",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Ce n'est pas de la charité, madame. C'est une dette. Et celle-là, je tenais à la payer.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "point"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s15",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Je l'ai réparé trois fois. Et il y a autre chose, dans le manche : la clé de ma boutique, de l'autre côté de la rue. Il y a une place pour vous.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "hands_on_hips"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "surprise",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "accessoire : clé (à créer)"
+   },
+   {
+    "id": "s16",
+    "setting_id": "clock_shop",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Parfois, on oublie ce qu'on donne. Celui qui reçoit, lui, s'en souvient toute sa vie.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "phrase finale (fiction, aucune affirmation scientifique)"
+   }
+  ]
+ }
+}

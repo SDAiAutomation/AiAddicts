@@ -1,0 +1,480 @@
+{
+ "content_format": "story",
+ "title": "La ville sans mots",
+ "story": {
+  "version": 2,
+  "animation_schema_version": 2,
+  "language": "fr",
+  "duration_target_s": 90,
+  "style_id": "noir_1930",
+  "music_id": "ragtime_a",
+  "narrator": {
+   "id": "narrator",
+   "name": "Narrateur",
+   "voice_id": "voice_narr_1"
+  },
+  "characters": [
+   {
+    "id": "pip",
+    "name": "Pip",
+    "voice_id": "voice_pip_1",
+    "pack_id": "pip_v1"
+   },
+   {
+    "id": "rosette",
+    "name": "Madame Rosette",
+    "voice_id": "voice_ros_1",
+    "pack_id": "rosette_v1"
+   }
+  ],
+  "editorial": {
+   "genre": "philosophy",
+   "kind": "mixed",
+   "sources": [
+    {
+     "id": "orwell1949",
+     "title": "Nineteen Eighty-Four, annexe « The Principles of Newspeak »",
+     "author": "George Orwell",
+     "year": 1949,
+     "verification": "unverified"
+    },
+    {
+     "id": "newspeak_wiki",
+     "title": "Newspeak (synthèse)",
+     "url": "https://en.wikipedia.org/wiki/Newspeak",
+     "verification": "secondary"
+    },
+    {
+     "id": "relativity_wiki",
+     "title": "Linguistic relativity (synthèse, dont Levinson et Brown-Lenneberg)",
+     "url": "https://en.wikipedia.org/wiki/Linguistic_relativity",
+     "verification": "secondary"
+    }
+   ],
+   "disclaimer": "Histoire inventée, inspirée de l'œuvre de George Orwell. Les affirmations sur la langue et la pensée sont nuancées et à recouper."
+  },
+  "shots": [
+   {
+    "id": "s1",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Bonne nouvelle, Pip : le mot « injuste » a été retiré du dictionnaire ce matin.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "surprise",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "joy",
+      "gesture_id": "hands_on_hips"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "accroche"
+   },
+   {
+    "id": "s2",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Retiré ? Mais comment dire qu'une chose est injuste ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "wring"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s3",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "On dit « pas bon ». C'est plus simple, et moins de mots, c'est moins de disputes.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "joy",
+      "gesture_id": "accuse"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s4",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Hier, c'était « liberté ». Avant-hier, « pourquoi ».",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "panic",
+      "gesture_id": "clutch_head"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "escalade"
+   },
+   {
+    "id": "s5",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Le comité dit que ces mots-là donnent des idées, et que les idées donnent des problèmes.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "wring"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "joy",
+      "gesture_id": "accuse"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s6",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Hier, on m'a retiré ma prime. J'ai ressenti quelque chose, et je n'ai pas trouvé le mot pour le dire.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "clutch_head"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "enjeu personnel"
+   },
+   {
+    "id": "s7",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Cette ville n'existe pas. Mais l'idée vient de George Orwell. Dans l'annexe de « 1984 », il décrit le néoparler : une langue conçue pour rendre certaines pensées impossibles à exprimer.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fact",
+    "intent": "fiction inspirée de l'œuvre, nature signalée",
+    "source_ids": [
+     "orwell1949",
+     "newspeak_wiki"
+    ]
+   },
+   {
+    "id": "s8",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Mon salaire, pas bon. Le dictionnaire, pas bon. L'injustice, pas bon. Tout est pas bon, alors plus rien n'est précis.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "angry",
+      "gesture_id": "indignant"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "démonstration"
+   },
+   {
+    "id": "s9",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "rosette",
+    "dialogue": "Je ne vois pas la différence.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "shrug"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s10",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Voilà le problème : je ne peux plus vous la montrer.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "point"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "retournement"
+   },
+   {
+    "id": "s11",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "narrator",
+    "dialogue": "Que dit la recherche ? L'idée que la langue détermine entièrement la pensée est aujourd'hui largement abandonnée. Mais des expériences montrent que les mots peuvent influencer l'attention et la mémoire, de façon modeste.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fact",
+    "intent": "fait nuancé, voir sources",
+    "source_ids": [
+     "relativity_wiki"
+    ]
+   },
+   {
+    "id": "s12",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "narrator",
+    "dialogue": "Un exemple réel : en guugu yimithirr, une langue aborigène d'Australie, on indique les directions avec les points cardinaux plutôt qu'avec « à gauche » ou « devant ». Les chercheurs y voient une façon de parler qui peut orienter l'attention.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fact",
+    "intent": "exemple vérifié (Levinson), voir sources ; statut : fait + interprétation",
+    "source_ids": [
+     "relativity_wiki"
+    ]
+   },
+   {
+    "id": "s13",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Orwell nous invite surtout à remarquer ce qu'un pouvoir gagne à appauvrir les mots.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "interpretation",
+    "intent": "interprétation"
+   },
+   {
+    "id": "s14",
+    "setting_id": "clock_shop",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Alors je garde mon vieux dictionnaire.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "hands_on_hips"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s15",
+    "setting_id": "clock_shop",
+    "shot_type": "close_up",
+    "speaker_id": "rosette",
+    "dialogue": "Prêtez-moi « injuste », Pip. Je crois que j'en avais besoin.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "worry",
+      "gesture_id": "wring"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "retournement émotionnel"
+   },
+   {
+    "id": "s16",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Quel mot vous manquerait le plus ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "question finale"
+   }
+  ]
+ }
+}

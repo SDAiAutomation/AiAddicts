@@ -14,7 +14,8 @@ GAP_S = 0.35      # pause between lines
 TAIL_S = 2.6      # payoff after the last line
 
 
-def build_timeline(lines: list[dict], fps: int = 24, lead: float = LEAD_S, gap: float = GAP_S, tail: float = TAIL_S) -> dict:
+def build_timeline(lines: list[dict], fps: int = 24, lead: float = LEAD_S, gap: float = GAP_S, tail: float = TAIL_S,
+                   max_total: float = contract.MAX_DURATION_S) -> dict:
     """`lines`: [{"who", "text", "duration_s" (measured), "alignment" (TTS), "envelope" (normalised per frame)}].
     Returns {"fps", "total", "lines": [{who, text, start, dur, end, mouth}], "subs": [{text, start, end}]}."""
     if not isinstance(lines, list) or not lines:
@@ -37,8 +38,8 @@ def build_timeline(lines: list[dict], fps: int = 24, lead: float = LEAD_S, gap: 
         chunks += subtitles.chunk_words(subtitles.words_from_alignment(alignment, offset=t))
         t += dur + gap
     total = round(out_lines[-1]["end"] + tail, 3)
-    if total > contract.MAX_DURATION_S:
-        raise ValueError(f"total duration {total}s exceeds the {contract.MAX_DURATION_S:.0f}s limit")
+    if total > max_total:
+        raise ValueError(f"total duration {total}s exceeds the {max_total:.0f}s limit")
     return {"fps": fps, "total": total, "lines": out_lines, "subs": subtitles.remove_overlaps(chunks)}
 
 

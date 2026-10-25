@@ -1,0 +1,444 @@
+{
+ "content_format": "story",
+ "title": "La file",
+ "story": {
+  "version": 2,
+  "animation_schema_version": 2,
+  "language": "fr",
+  "duration_target_s": 90,
+  "style_id": "noir_1930",
+  "music_id": "ragtime_a",
+  "narrator": {
+   "id": "narrator",
+   "name": "Narrateur",
+   "voice_id": "voice_narr_1"
+  },
+  "characters": [
+   {
+    "id": "pip",
+    "name": "Pip",
+    "voice_id": "voice_pip_1",
+    "pack_id": "pip_v1"
+   },
+   {
+    "id": "rosette",
+    "name": "Madame Rosette",
+    "voice_id": "voice_ros_1",
+    "pack_id": "rosette_v1"
+   }
+  ],
+  "editorial": {
+   "genre": "psychology",
+   "kind": "mixed",
+   "sources": [
+    {
+     "id": "asch1956",
+     "title": "Studies of independence and conformity: I. A minority of one against a unanimous majority",
+     "author": "Solomon E. Asch",
+     "year": 1956,
+     "verification": "unverified"
+    },
+    {
+     "id": "asch_wiki",
+     "title": "Asch conformity experiments (synthèse)",
+     "url": "https://en.wikipedia.org/wiki/Asch_conformity_experiments",
+     "verification": "secondary"
+    }
+   ],
+   "disclaimer": "Histoire inventée. Les chiffres cités viennent des expériences de Solomon Asch (1951-1956), d'après des synthèses à recouper sur la publication d'origine."
+  },
+  "shots": [
+   {
+    "id": "s1",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Une ville imaginaire. Un mardi matin. Une porte fermée, et une file qui commence à se former.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "plan d'établissement : porte + file (décor à créer)"
+   },
+   {
+    "id": "s2",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Madame Rosette, pourquoi tout le monde fait la queue devant cette porte ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "puzzled",
+      "gesture_id": "shrug"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s3",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Aucune idée, Pip. Mais ils sont déjà quarante. Ça doit valoir le coup.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "wring"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "joy",
+      "gesture_id": "hands_on_hips"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s4",
+    "setting_id": "street",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "Alors je me mets derrière. Au cas où.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "wring"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s5",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Dix minutes plus tard, ils sont cent. Personne ne sait ce qu'il attend, mais chacun suppose que les autres le savent.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "file qui s'allonge (décor à créer)"
+   },
+   {
+    "id": "s6",
+    "setting_id": "street",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Demandez au premier de la file, Pip !",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "worry",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "surprise",
+      "gesture_id": "point"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s7",
+    "setting_id": "street",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "J'ai demandé. Il attend un ami. Depuis ce matin.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "surprise",
+      "gesture_id": "clutch_head"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "retournement"
+   },
+   {
+    "id": "s8",
+    "setting_id": "street",
+    "shot_type": "close_up",
+    "speaker_id": "rosette",
+    "dialogue": "Cent personnes pour un ami en retard ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "panic",
+      "gesture_id": "clutch_head"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s9",
+    "setting_id": "cafe_terrace",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Cette histoire est inventée. Mais le réflexe, lui, a été étudié. En 1951, le psychologue Solomon Asch montre trois lignes à des participants et leur demande laquelle est la plus longue. Les autres participants sont en réalité des complices, et ils donnent exprès une mauvaise réponse.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fact",
+    "intent": "plan de transition vers l'explication (insert à créer : trois lignes)",
+    "source_ids": [
+     "asch1956",
+     "asch_wiki"
+    ]
+   },
+   {
+    "id": "s10",
+    "setting_id": "cafe_terrace",
+    "shot_type": "medium",
+    "speaker_id": "narrator",
+    "dialogue": "Résultat : environ un tiers des réponses ont suivi le groupe, et trois participants sur quatre ont cédé au moins une fois. Mais un sur quatre n'a jamais cédé, et un seul complice donnant la bonne réponse suffisait à faire chuter la pression.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fact",
+    "intent": "chiffres secondaires : à recouper (voir sources)",
+    "source_ids": [
+     "asch1956",
+     "asch_wiki"
+    ]
+   },
+   {
+    "id": "s11",
+    "setting_id": "cafe_terrace",
+    "shot_type": "medium",
+    "speaker_id": "pip",
+    "dialogue": "Donc suivre la foule, c'est être faible ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "puzzled",
+      "gesture_id": "shrug"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s12",
+    "setting_id": "cafe_terrace",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Pas forcément. Quand on doute, copier les autres est souvent une bonne information. Les chercheurs débattent encore de la part du besoin d'avoir raison et du besoin d'appartenir.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "interpretation",
+    "intent": "interprétation, débat signalé"
+   },
+   {
+    "id": "s13",
+    "setting_id": "cafe_terrace",
+    "shot_type": "medium",
+    "speaker_id": "rosette",
+    "dialogue": "Alors, la prochaine fois ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "puzzled",
+      "gesture_id": "shrug"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction"
+   },
+   {
+    "id": "s14",
+    "setting_id": "cafe_terrace",
+    "shot_type": "close_up",
+    "speaker_id": "pip",
+    "dialogue": "On demande, à voix haute, ce qu'on attend. Un seul qui doute peut libérer tous les autres.",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "joy",
+      "gesture_id": "point"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "interpretation",
+    "intent": "interprétation de l'effet « allié »"
+   },
+   {
+    "id": "s15",
+    "setting_id": "street",
+    "shot_type": "wide",
+    "speaker_id": "narrator",
+    "dialogue": "Et vous, dans quelle file êtes-vous, sans savoir pourquoi ?",
+    "actors": [
+     {
+      "character_id": "pip",
+      "side": "right",
+      "facing": "left",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     },
+     {
+      "character_id": "rosette",
+      "side": "left",
+      "facing": "right",
+      "mood": "neutral",
+      "gesture_id": "idle"
+     }
+    ],
+    "transition_in": "cut",
+    "nature": "fiction",
+    "intent": "question finale"
+   }
+  ]
+ }
+}

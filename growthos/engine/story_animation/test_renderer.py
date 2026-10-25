@@ -142,7 +142,7 @@ class RenderTests(unittest.TestCase):
 
     def test_bad_pack_or_timeline_never_spawns_a_process(self):
         run, calls = self.fake_run()
-        bad_timelines = [{**timeline(), "total": 61}, {**timeline(), "total": float("nan")}, {**timeline(), "fps": 30},
+        bad_timelines = [{**timeline(), "total": 201}, {**timeline(), "total": float("nan")}, {**timeline(), "fps": 30},
                          {k: v for k, v in timeline().items() if k != "subs"}, []]
         with mock.patch.object(rig_v1, "_run", run):
             for tl in bad_timelines:

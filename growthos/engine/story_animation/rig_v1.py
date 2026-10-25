@@ -54,7 +54,7 @@ def _validate_timeline(timeline: dict) -> None:
         if key not in timeline:
             raise RenderError(f"timeline.{key} is missing")
     total = timeline["total"]
-    if isinstance(total, bool) or not isinstance(total, (int, float)) or not math.isfinite(total) or not 0 < total <= contract.MAX_DURATION_S:
+    if isinstance(total, bool) or not isinstance(total, (int, float)) or not math.isfinite(total) or not 0 < total <= contract.ABSOLUTE_MAX_DURATION_S:
         raise RenderError("timeline.total must be positive and within the duration limit")
     if timeline["fps"] != FPS:
         raise RenderError(f"timeline.fps must be {FPS}")

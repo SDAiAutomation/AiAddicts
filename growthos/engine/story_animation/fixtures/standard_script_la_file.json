@@ -1,0 +1,163 @@
+{
+ "title": "La file",
+ "niche": "psychologie sociale",
+ "account": "demo",
+ "platform": "tiktok",
+ "language": "fr",
+ "blocks": [
+  {
+   "role": "hook",
+   "text": "Une ville imaginaire. Un mardi matin. Une porte fermée, et une file qui commence à se former.",
+   "shotType": "wide"
+  },
+  {
+   "role": "point",
+   "text": "Madame Rosette, pourquoi tout le monde fait la queue devant cette porte ?",
+   "shotType": "medium",
+   "speaker": "pip",
+   "acting": {
+    "pip": [
+     "puzzled",
+     "shrug"
+    ],
+    "rosette": [
+     "neutral",
+     "idle"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "Aucune idée, Pip. Mais ils sont déjà quarante. Ça doit valoir le coup.",
+   "shotType": "medium",
+   "speaker": "rosette",
+   "acting": {
+    "rosette": [
+     "joy",
+     "hands_on_hips"
+    ],
+    "pip": [
+     "worry",
+     "wring"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "Alors je me mets derrière. Au cas où.",
+   "shotType": "close_up",
+   "speaker": "pip",
+   "acting": {
+    "pip": [
+     "worry",
+     "wring"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "Dix minutes plus tard, ils sont cent. Personne ne sait ce qu'il attend, mais chacun suppose que les autres le savent.",
+   "shotType": "wide"
+  },
+  {
+   "role": "point",
+   "text": "Demandez au premier de la file, Pip !",
+   "shotType": "medium",
+   "speaker": "rosette",
+   "acting": {
+    "rosette": [
+     "surprise",
+     "point"
+    ],
+    "pip": [
+     "worry",
+     "idle"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "J'ai demandé. Il attend un ami. Depuis ce matin.",
+   "shotType": "close_up",
+   "speaker": "pip",
+   "acting": {
+    "pip": [
+     "surprise",
+     "clutch_head"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "Cent personnes pour un ami en retard ?",
+   "shotType": "close_up",
+   "speaker": "rosette",
+   "acting": {
+    "rosette": [
+     "panic",
+     "clutch_head"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "Cette histoire est inventée. Mais le réflexe, lui, a été étudié. En 1951, le psychologue Solomon Asch montre trois lignes à des participants et leur demande laquelle est la plus longue. Les autres participants sont en réalité des complices, et ils donnent exprès une mauvaise réponse.",
+   "shotType": "wide"
+  },
+  {
+   "role": "point",
+   "text": "Résultat : environ un tiers des réponses ont suivi le groupe, et trois participants sur quatre ont cédé au moins une fois. Mais un sur quatre n'a jamais cédé, et un seul complice donnant la bonne réponse suffisait à faire chuter la pression.",
+   "shotType": "medium"
+  },
+  {
+   "role": "point",
+   "text": "Donc suivre la foule, c'est être faible ?",
+   "shotType": "medium",
+   "speaker": "pip",
+   "acting": {
+    "pip": [
+     "puzzled",
+     "shrug"
+    ],
+    "rosette": [
+     "neutral",
+     "idle"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "Pas forcément. Quand on doute, copier les autres est souvent une bonne information. Les chercheurs débattent encore de la part du besoin d'avoir raison et du besoin d'appartenir.",
+   "shotType": "wide"
+  },
+  {
+   "role": "point",
+   "text": "Alors, la prochaine fois ?",
+   "shotType": "medium",
+   "speaker": "rosette",
+   "acting": {
+    "rosette": [
+     "puzzled",
+     "shrug"
+    ]
+   }
+  },
+  {
+   "role": "point",
+   "text": "On demande, à voix haute, ce qu'on attend. Un seul qui doute peut libérer tous les autres.",
+   "shotType": "close_up",
+   "speaker": "pip",
+   "acting": {
+    "pip": [
+     "joy",
+     "point"
+    ]
+   }
+  },
+  {
+   "role": "cta",
+   "text": "Et vous, dans quelle file êtes-vous, sans savoir pourquoi ?",
+   "shotType": "wide"
+  }
+ ]
+}

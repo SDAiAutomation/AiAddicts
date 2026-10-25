@@ -553,7 +553,7 @@ func shot_camera(sh: Dictionary, t: float, prop: Dictionary) -> Transform2D:
 		var sx := 0.0
 		for a in sh["actors"]:
 			sx += actor_x_at(sh, a, t)
-		centre = Vector2(sx / maxf(float(sh["actors"].size()), 1.0), 600)
+		centre = Vector2(sx / float(sh["actors"].size()), 600) if sh["actors"].size() > 0 else Vector2(320, 600)
 	elif st == "close_up" and sa != null:
 		centre = Vector2(actor_x_at(sh, sa, t) + 10.0 * facing_flip(sa), hip_y(sp) - (170.0 if sp == "pip" else 215.0))
 		zoom *= 0.95 + 0.05 * ease_back(seg(t, float(sh["start"]), float(sh["start"]) + 0.25))

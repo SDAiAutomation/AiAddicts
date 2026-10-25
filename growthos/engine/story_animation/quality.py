@@ -19,6 +19,9 @@ MIN_FREEZE_S = 0.7
 MAX_PEAK_DB = -0.1         # at or above: clipping
 MIN_MEAN_DB = -32.0        # below: nearly silent
 
+MIN_FINAL_DURATION_S = 60.0   # mirrors contract.MIN_FINAL_DURATION_S (this module stays dependency-free)
+TARGET_TOLERANCE = (0.85, 1.2)  # mirrors contract.TARGET_TOLERANCE
+
 BLOCKING = "blocking"
 REVIEW = "review"
 
@@ -67,6 +70,14 @@ def judge_media(report: dict, expected: dict) -> list[Problem]:
     if abs(vd - ad) > DURATION_TOLERANCE_S:
         problems.append(Problem("duration", BLOCKING, f"video {vd:.2f}s and audio {ad:.2f}s differ by more than {DURATION_TOLERANCE_S}s",
                                 f"La durée de l'image ({vd:.1f}s) et celle du son ({ad:.1f}s) ne correspondent pas.", {"video": vd, "audio": ad}))
+    target = expected.get("target_s")
+    if target is not None:
+        if vd < MIN_FINAL_DURATION_S:
+            problems.append(Problem("min_duration", BLOCKING, f"video is {vd:.1f}s, below the {MIN_FINAL_DURATION_S:.0f}s floor of a Story Studio video",
+                                    f"Vidéo trop courte ({vd:.0f} s) : une histoire Story Studio dure au moins {MIN_FINAL_DURATION_S:.0f} s.", {"video": vd}))
+        elif not TARGET_TOLERANCE[0] * target <= vd <= TARGET_TOLERANCE[1] * target:
+            problems.append(Problem("target_duration", REVIEW, f"video is {vd:.1f}s for a {target:.0f}s target (band {TARGET_TOLERANCE[0] * target:.0f}-{TARGET_TOLERANCE[1] * target:.0f}s)",
+                                    f"Durée de {vd:.0f} s pour une cible de {target:.0f} s : à vérifier.", {"video": vd, "target": target}))
     if (report["width"], report["height"]) != (expected["width"], expected["height"]):
         problems.append(Problem("resolution", BLOCKING, f"resolution {report['width']}x{report['height']} is not {expected['width']}x{expected['height']}",
                                 f"Résolution inattendue ({report['width']}×{report['height']}).", {}))
