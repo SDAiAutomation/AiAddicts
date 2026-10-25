@@ -2,7 +2,7 @@
 
 Security posture: the command is an argument list (no shell); the only inputs are a validated pack directory and a
 timeline file written by us into a job-private directory; the Godot scene reads nothing else; secrets are stripped from the
-child environment; the child has a hard timeout. Network isolation is NOT enforced here (to be added at the runner level).
+child environment; the child has a hard timeout. Network isolation is applied by the runner through the launcher prefix (empty network namespace, unprivileged user), see the workflows.
 """
 from __future__ import annotations
 

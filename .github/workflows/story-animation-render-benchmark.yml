@@ -42,6 +42,19 @@ jobs:
           unzip -q godot.zip
           chmod +x "Godot_v${GODOT_VERSION}_linux.x86_64"
           "./Godot_v${GODOT_VERSION}_linux.x86_64" --version
+      - name: Isolate the renderer from the network (empty network namespace, no root) and prove it
+        run: |
+          launcher="sudo -E unshare -n setpriv --reuid=$(id -u) --regid=$(id -g) --clear-groups xvfb-run -a -s \"-screen 0 1280x2048x24\""
+          echo "STORY_RENDER_LAUNCHER=${launcher}" >> "$GITHUB_ENV"
+          # the same prefix must show no network and a non-root user, or the job stops before any secret-bearing step
+          out=$(sudo unshare -n setpriv --reuid=$(id -u) --regid=$(id -g) --clear-groups python3 -c "import os,socket; s=socket.socket(); s.settimeout(3)
+          try:
+              s.connect(('1.1.1.1',53)); print('REACHABLE')
+          except OSError:
+              print('ISOLATED uid=%d' % os.getuid())")
+          echo "$out"
+          test "$out" = "ISOLATED uid=$(id -u)"
+
       - name: Render the prototype timeline with a placeholder pack
         run: |
           python -m growthos.engine.story_animation.cli placeholder-pack --out "$RUNNER_TEMP/pack"
@@ -50,7 +63,7 @@ jobs:
           python -m growthos.engine.story_animation.cli render \
             --timeline growthos/engine/story_animation/fixtures/prototype_timeline.json \
             --pack "$RUNNER_TEMP/pack" --out "$RUNNER_TEMP/bench.mp4" \
-            --godot "$PWD/Godot_v${GODOT_VERSION}_linux.x86_64" --launcher 'xvfb-run -a -s "-screen 0 1280x2048x24"' --timeout 1200 | tee result.json
+            --godot "$PWD/Godot_v${GODOT_VERSION}_linux.x86_64" --launcher "$STORY_RENDER_LAUNCHER" --timeout 1200 | tee result.json
           code=${PIPESTATUS[0]}
           set -e
           end=$(date +%s)
