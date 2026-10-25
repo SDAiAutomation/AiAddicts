@@ -153,6 +153,29 @@ class RenderTests(unittest.TestCase):
                 rig_v1.RigV1Renderer("godot").render(timeline(), self.pack, self.work)
         self.assertEqual(calls, [])
 
+    def test_malformed_shot_and_audio_cues_never_spawn_godot(self):
+        cases = []
+        for section, index, key, value in (
+            ("shots", 0, "background", "../../secret"),
+            ("shots", 0, "background", ["bg_shop"]),
+            ("shots", 0, "speaker", ["pip"]),
+            ("shots", 0, "camera", {"move": "static", "zoom_from": float("nan"), "zoom_to": 1}),
+            ("shots", 0, "actors", [{"role": "unknown"}]),
+            ("shots", 0, "end", 0),
+            ("lines", 0, "who", "unknown"),
+            ("lines", 0, "mouth", "c;quit"),
+            ("subs", 0, "end", float("inf")),
+        ):
+            case = timeline()
+            case[section][index][key] = value
+            cases.append(case)
+        run, calls = self.fake_run()
+        with mock.patch.object(rig_v1, "_run", run):
+            for case in cases:
+                with self.subTest(case=case["shots"][0].get("background")), self.assertRaises(RenderError):
+                    rig_v1.RigV1Renderer("godot").render(case, self.pack, self.work)
+        self.assertEqual(calls, [])
+
 
 class CliTests(unittest.TestCase):
     def test_parser(self):

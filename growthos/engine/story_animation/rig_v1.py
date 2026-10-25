@@ -58,6 +58,69 @@ def _validate_timeline(timeline: dict) -> None:
         raise RenderError("timeline.total must be positive and within the duration limit")
     if timeline["fps"] != FPS:
         raise RenderError(f"timeline.fps must be {FPS}")
+    def number(value: object) -> bool:
+        return type(value) in (int, float) and math.isfinite(value)
+
+    def interval(item: object, label: str, *, positive: bool = False) -> tuple[float, float]:
+        if not isinstance(item, dict) or not number(item.get("start")) or not number(item.get("end")):
+            raise RenderError(f"{label} needs finite start and end")
+        start, end = item["start"], item["end"]
+        if start < 0 or end <= start or end > total + 0.05 or (positive and start >= total):
+            raise RenderError(f"{label} is outside the timeline")
+        return start, end
+
+    roles = {"pip", "ros"}  # rig_v1 is a two-character pilot; a new rig must declare its own roster.
+    backgrounds = set(packs.REQUIRED_SPRITES) & {"bg_alley", "bg_shop", "bg_street", "bg_cafe"}
+    shots = timeline["shots"]
+    if not isinstance(shots, list) or not shots or len(shots) > 200:
+        raise RenderError("timeline.shots must contain 1-200 shots")
+    previous_end = 0.0
+    for index, shot in enumerate(shots):
+        label = f"timeline.shots[{index}]"
+        start, end = interval(shot, label, positive=True)
+        if abs(start - previous_end) > 0.05:
+            raise RenderError(f"{label} does not follow the previous shot")
+        previous_end = end
+        if not isinstance(shot.get("background"), str) or shot["background"] not in backgrounds:
+            raise RenderError(f"{label}.background is not in the pack")
+        camera = shot.get("camera")
+        if not isinstance(camera, dict) or camera.get("move") not in contract.CAMERA_MOVES:
+            raise RenderError(f"{label}.camera is invalid")
+        if any(not number(camera.get(k)) or not 0.8 <= camera[k] <= 4.0 for k in ("zoom_from", "zoom_to")):
+            raise RenderError(f"{label}.camera zoom is invalid")
+        if shot.get("shot_type") not in contract.SHOT_TYPES or shot.get("transition_in") not in contract.TRANSITIONS:
+            raise RenderError(f"{label} has an unsupported shot type or transition")
+        speaker = shot.get("speaker")
+        if speaker is not None and (not isinstance(speaker, str) or speaker not in roles | {"", "narrator"}):
+            raise RenderError(f"{label}.speaker is not supported by rig_v1")
+        actors = shot.get("actors")
+        if not isinstance(actors, list) or len(actors) > 2:
+            raise RenderError(f"{label}.actors must be a list of at most two")
+        seen = set()
+        for actor in actors:
+            if not isinstance(actor, dict) or not isinstance(actor.get("role"), str) or actor["role"] not in roles or actor["role"] in seen:
+                raise RenderError(f"{label}.actors has an unknown or repeated role")
+            seen.add(actor["role"])
+            if (actor.get("side") not in contract.SIDES or actor.get("facing") not in contract.FACINGS
+                    or actor.get("mood") not in contract.MOODS or actor.get("gesture") not in contract.GESTURES
+                    or not isinstance(actor.get("props"), list)):
+                raise RenderError(f"{label}.actors has an unsupported instruction")
+        if isinstance(speaker, str) and speaker in roles and speaker not in seen:
+            raise RenderError(f"{label}.speaker is absent from the shot")
+    if abs(previous_end - total) > 0.05:
+        raise RenderError("timeline.shots do not cover timeline.total")
+    for name in ("lines", "subs"):
+        items = timeline[name]
+        if not isinstance(items, list) or len(items) > 1000:
+            raise RenderError(f"timeline.{name} must be a bounded list")
+        for index, item in enumerate(items):
+            label = f"timeline.{name}[{index}]"
+            interval(item, label)
+            if name == "lines":
+                if not isinstance(item.get("who"), str) or item["who"] not in roles | {"narrator"} or not isinstance(item.get("mouth"), str) or not item["mouth"] or set(item["mouth"]) - {"c", "o", "r"}:
+                    raise RenderError(f"{label} has an unsupported role or mouth cue")
+            elif not isinstance(item.get("text"), str) or len(item["text"]) > 500:
+                raise RenderError(f"{label}.text is invalid")
 
 
 class RigV1Renderer:
