@@ -9,7 +9,10 @@ from __future__ import annotations
 from . import timeline as timeline_lib
 
 # closed list the scene knows how to draw (the contract catalog may hold more ids than the scene can show)
-BACKGROUNDS = {"clock_shop": "bg_shop", "factory_alley": "bg_alley", "cafe_terrace": "bg_cafe", "street": "bg_street"}
+# setting id -> background picture of the pack. The last three reuse a picture of the pack and add procedural elements drawn by the
+# scene (a growing queue, rain, a shop at night): the setting id itself tells the scene what to add.
+BACKGROUNDS = {"clock_shop": "bg_shop", "factory_alley": "bg_alley", "cafe_terrace": "bg_cafe", "street": "bg_street",
+               "street_queue": "bg_street", "street_rain": "bg_street", "clock_shop_closed": "bg_shop"}
 WIDE = (1.0, 1.08)
 MEDIUM = (1.25, 1.35)  # wide enough for one actor on each side of the frame
 INSERT = (2.8, 3.2)
