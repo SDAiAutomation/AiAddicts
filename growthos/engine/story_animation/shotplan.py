@@ -18,7 +18,7 @@ CLOSE_UP = {"pip": (2.2, 2.7), "ros": (1.8, 2.25)}
 
 def default_zoom(shot_type: str, speaker_role: str) -> tuple:
     if shot_type == "close_up":
-        return CLOSE_UP[speaker_role]
+        return CLOSE_UP.get(speaker_role, WIDE)  # a narrator shot has no speaker to frame (the contract refuses it anyway)
     return {"wide": WIDE, "medium": MEDIUM, "insert": INSERT}[shot_type]
 
 

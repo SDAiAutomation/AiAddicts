@@ -991,7 +991,11 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
 
     def check_quality(final: Path) -> list:
         report = sa_measure.measure(final)
-        return sa_quality.judge_media(report, {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS})
+        expected = {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS}
+        target = ((script.get("story") or {}).get("duration_target_s")) if isinstance(script, dict) else None
+        if target is not None:
+            expected["target_s"] = target
+        return sa_quality.judge_media(report, expected)
 
     def publish(final: Path, timeline: dict, review: list) -> dict:
         version_number = None
