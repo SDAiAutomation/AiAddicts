@@ -61,6 +61,7 @@ class RigManifestTests(unittest.TestCase):
             lambda r: r["anchors"].update(hip=[float("nan"), 0]),
             lambda r: r["actions"].append("execute"),
             lambda r: r["expressions"].append({"code": "bad"}),
+            lambda r: r["assets"]["head"].update(width=4096, height=4096),
         ):
             rig = copy.deepcopy(self.rig)
             change(rig)

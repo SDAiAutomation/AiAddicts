@@ -18,8 +18,9 @@ from .renderer import RenderError
 SCHEMA_VERSION = 1
 RIG_TYPE = "cutout_2d"
 MAX_MANIFEST_BYTES = 64 * 1024
-MAX_ASSETS = 24
-MAX_PIXELS = 4096 * 4096
+MAX_ASSETS = 12
+MAX_PIXELS = 2048 * 2048
+MAX_TOTAL_PIXELS = 8_000_000
 _ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 ANCHORS = frozenset(("hip", "neck", "shoulder_l", "shoulder_r", "hip_l", "hip_r", "wrist_l", "wrist_r", "ankle_l", "ankle_r"))
@@ -75,6 +76,8 @@ def validate_manifest(raw: object) -> dict:
             raise RigManifestError("rig asset hash is invalid")
         if not all(type(meta[k]) is int and 1 <= meta[k] <= 4096 for k in ("width", "height")) or meta["width"] * meta["height"] > MAX_PIXELS:
             raise RigManifestError("rig asset dimensions are invalid")
+    if sum(meta["width"] * meta["height"] for meta in assets.values()) > MAX_TOTAL_PIXELS:
+        raise RigManifestError("rig asset pixel budget is exceeded")
     head_asset = assets[sprites["head"]]
     if any(not 0 <= face[k][0] <= head_asset["width"] or not 0 <= face[k][1] <= head_asset["height"] for k in face):
         raise RigManifestError("rig face anchors must lie on the head sprite")
