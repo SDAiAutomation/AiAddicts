@@ -105,7 +105,7 @@ class RigV1Renderer:
             raise RenderError(f"renderer failed with exit code {done.returncode}: {tail}")
 
         t1 = time.monotonic()
-        enc = ["-v", "error", "-y", "-i", str(avi), "-c:v", "libx264", "-crf", "26", "-preset", "medium", "-pix_fmt", "yuv420p", "-an", str(mp4)]
+        enc = ["-v", "error", "-y", "-i", str(avi), "-c:v", "libx264", "-crf", "28", "-preset", "medium", "-pix_fmt", "yuv420p", "-an", str(mp4)]
         try:
             done = _run([self.ffmpeg, *enc], timeout_s, env)
         except subprocess.TimeoutExpired as exc:

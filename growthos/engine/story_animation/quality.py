@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass, field
 
 MAX_SIZE_BYTES = 40 * 1024 * 1024
+SIZE_ALLOWANCE_BYTES_PER_S = 0.4 * 1024 * 1024   # longer videos may be larger: measured about 0.25 MiB per second at crf 28 (grain is costly)
+# the storage bucket itself accepts up to 200 MiB (content-videos), so this stays far below the real ceiling
 DURATION_TOLERANCE_S = 0.1
 FADE_ALLOWANCE_S = 0.8     # fades in and out legitimately look black / still
 MIN_BLACK_S = 0.15
@@ -83,9 +85,10 @@ def judge_media(report: dict, expected: dict) -> list[Problem]:
                                 f"Résolution inattendue ({report['width']}×{report['height']}).", {}))
     if abs(report["fps"] - expected["fps"]) > 0.01:
         problems.append(Problem("fps", BLOCKING, f"frame rate {report['fps']} is not {expected['fps']}", f"Cadence inattendue ({report['fps']} i/s).", {}))
-    if report["size_bytes"] > MAX_SIZE_BYTES:
+    size_limit = max(MAX_SIZE_BYTES, SIZE_ALLOWANCE_BYTES_PER_S * vd)
+    if report["size_bytes"] > size_limit:
         mib = report["size_bytes"] / 1048576
-        problems.append(Problem("size", BLOCKING, f"file is {mib:.1f} MiB, above the {MAX_SIZE_BYTES // 1048576} MiB limit", f"Fichier trop lourd ({mib:.0f} Mio).", {}))
+        problems.append(Problem("size", BLOCKING, f"file is {mib:.1f} MiB, above the {size_limit / 1048576:.0f} MiB limit", f"Fichier trop lourd ({mib:.0f} Mio).", {}))
     for a, b in _outside_fades(report.get("black") or [], vd, MIN_BLACK_S):
         problems.append(Problem("black", REVIEW, f"black frames between {a}s and {b}s", f"Image noire entre {a}s et {b}s.", {"start": a, "end": b}))
     for a, b in _outside_fades(report.get("freeze") or [], vd, MIN_FREEZE_S):

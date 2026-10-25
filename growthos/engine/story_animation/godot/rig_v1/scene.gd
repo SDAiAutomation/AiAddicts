@@ -307,12 +307,36 @@ func overlays(t: float) -> void:
 	for i in 90:
 		var k := frame * 131.0 + i * 17.0
 		draw_rect(Rect2(fmod(k * 7.31, W), fmod(k * 3.77, H), 2, 2), Color(0, 0, 0, 0.16) if i % 3 else Color(1, 1, 1, 0.2))
+	draw_cards(t)
 	for s in TL["subs"]:
 		if t >= s["start"] and t < s["end"]:
 			draw_sub(String(s["text"]))
 	var fade := minf(clampf(t / 0.3, 0.0, 1.0), clampf((float(TL["total"]) - t) / 0.7, 0.0, 1.0))
 	if fade < 1.0:
 		draw_rect(Rect2(0, 0, W, H), Color(0, 0, 0, 1.0 - fade))
+
+# A word the narrator puts between quotation marks appears large on screen while it is spoken: something to see during the narration.
+func draw_cards(t: float) -> void:
+	for c in TL.get("cards", []):
+		var a := float(c["start"])
+		var b := float(c["end"])
+		if t < a or t >= b:
+			continue
+		var pop := ease_back(seg(t, a, a + 0.22))
+		var fade := 1.0 - seg(t, b - 0.3, b)
+		var text := String(c["text"]).to_upper()
+		var font := ThemeDB.fallback_font
+		var size := 84
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		if w > W - 80.0:
+			size = int(size * (W - 80.0) / w)
+			w = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var sc := lerpf(0.72, 1.0, pop)
+		draw_set_transform_matrix(Transform2D(-0.04, Vector2(sc, sc), 0.0, Vector2(W * 0.5, 215.0)))
+		draw_rect(Rect2(-w * 0.5 - 26.0, -size * 0.95, w + 52.0, size * 1.3), Color(0.04, 0.04, 0.05, 0.62 * fade))
+		draw_string_outline(font, Vector2(-w * 0.5, 0.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 10, Color(0, 0, 0, fade))
+		draw_string(font, Vector2(-w * 0.5, 0.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1.0, 0.95, 0.75, fade))
+	draw_set_transform_matrix(Transform2D.IDENTITY)
 
 func draw_sub(text: String) -> void:
 	var font := ThemeDB.fallback_font
@@ -439,8 +463,14 @@ func gesture_pose(role: String, g: String, dn: float, tt: float, e: float) -> Di
 			var k := ease_io(seg(tt, 0.5, 1.0))
 			var rl: Vector2 = P["wrist_l"]
 			var rr: Vector2 = P["wrist_r"]
-			arm(P, false, rl.lerp(neck + Vector2(-132.0, -136.0), k), 40.0)
-			arm(P, true, rr.lerp(neck + Vector2(128.0, -156.0), k), 40.0)
+			var hold_l := Vector2(-132.0, -136.0)
+			var hold_r := Vector2(128.0, -156.0)
+			if role == "pip":
+				# his glasses sit about 250 px above the neck anchor: the hands hold the top of the head, clear of the eyes
+				hold_l = Vector2(-250.0, -392.0)
+				hold_r = Vector2(250.0, -402.0)
+			arm(P, false, rl.lerp(neck + hold_l, k), 40.0)
+			arm(P, true, rr.lerp(neck + hold_r, k), 40.0)
 			P["lean"] = -0.08 * k
 		"hands_on_hips":
 			arm(P, false, hip + Vector2(-147.0, -80.0), 80.0)
@@ -549,7 +579,12 @@ func shot_camera(sh: Dictionary, t: float, prop: Dictionary) -> Transform2D:
 	var st: String = sh["shot_type"]
 	var sp: String = sh["speaker"]
 	var sa: Variant = actor_of(sh, sp)
-	if st == "medium":
+	var focus_role = sh.get("focus", null)
+	var fa: Variant = actor_of(sh, focus_role) if focus_role != null else null
+	if fa != null:
+		centre = Vector2(actor_x_at(sh, fa, t) + 10.0 * facing_flip(fa), hip_y(String(focus_role)) - (170.0 if focus_role == "pip" else 215.0))
+		zoom *= 0.95 + 0.05 * ease_back(seg(t, float(sh["start"]), float(sh["start"]) + 0.25))
+	elif st == "medium":
 		var sx := 0.0
 		for a in sh["actors"]:
 			sx += actor_x_at(sh, a, t)
@@ -600,7 +635,7 @@ func _draw() -> void:
 	var prop := prop_state(sh, t)
 	var cam := shot_camera(sh, t, prop)
 	draw_world(cam, t, sh["background"], float(prop["ring"]), float(prop["x"]), float(prop["move"]), bool(prop["vis"]))
-	var order: Array = sh["actors"].duplicate()
+	var order: Array = [] if bool(sh.get("empty", false)) else sh["actors"].duplicate()
 	order.sort_custom(func(p, q): return float(SIDE_X[p["side"]]) < float(SIDE_X[q["side"]]))
 	for a in order:
 		draw_actor(sh, a, t, cam)
