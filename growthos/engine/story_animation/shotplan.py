@@ -53,11 +53,11 @@ def narrated_beats(entry: dict, start_index: int) -> list:
     # An explicit narrative intent takes priority over mechanical camera rotation.
     # Keep the original contract shot and duration; no extra assets or actions are fabricated.
     semantic = direction(entry.get("intent", ""), entry["actors"], entry["speaker"])
-    if semantic is not None:
-        return [dict(entry, index=start_index, **semantic)]
     beats = []
     for k in range(n):
         spec = BEATS[k % len(BEATS)]
+        if semantic is not None and spec["kind"] == "empty":
+            spec = {"kind": "medium", "move": "static", "zoom": (1.25, 1.25)}
         a, b = entry["start"] + duration * k / n, entry["start"] + duration * (k + 1) / n
         actors = [dict(x) for x in entry["actors"]]
         for x in actors:
@@ -74,6 +74,10 @@ def narrated_beats(entry: dict, start_index: int) -> list:
         else:
             shot_type, move, zoom = spec["kind"] if spec["kind"] != "empty" else "wide", spec["move"], spec["zoom"]
             empty = spec["kind"] == "empty"
+        if semantic is not None and k == 0:
+            shot_type, move = semantic["shot_type"], semantic["camera"]["move"]
+            zoom = (semantic["camera"]["zoom_from"], semantic["camera"]["zoom_to"])
+            empty = False
         beats.append(dict(entry, index=start_index + k, start=round(a, 3), end=round(b, 3), shot_type=shot_type, actors=actors,
                           camera={"move": move, "zoom_from": zoom[0], "zoom_to": zoom[1]}, focus=focus, empty=empty, beat=k,
                           transition_in=entry["transition_in"] if k == 0 else "cut"))
