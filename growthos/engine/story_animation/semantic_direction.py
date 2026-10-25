@@ -9,8 +9,9 @@ from __future__ import annotations
 import re
 
 # Small, auditable vocabulary. Do not treat keyword matching as story comprehension.
-_REVEAL = re.compile(r"\b(reveal|discover|realiz|secret|truth|révél|découvr|secret|vérité)\w*", re.I)
-_OBJECT = re.compile(r"\b(clock|watch|letter|book|object|horloge|montre|lettre|livre|objet)\w*", re.I)
+_REVEAL = re.compile(r"\b(reveal|discover|realiz|secret|truth|révél|découvr|vérité)\w*", re.I)
+# only what the scene can really show: its single prop is the alarm clock
+_OBJECT = re.compile(r"\b(clock|alarm|horloge|r[ée]veil)\w*", re.I)
 _REACTION = re.compile(r"\b(fear|afraid|shock|surpris|peur|inquiet|panique|hésit)\w*", re.I)
 
 
@@ -22,7 +23,8 @@ def direction(intent: str, actors: list[dict], speaker: str) -> dict | None:
     """
     if not isinstance(intent, str) or not intent.strip():
         return None
-    if _OBJECT.search(intent) and any("alarm_clock" in a.get("props", []) for a in actors):
+    # an insert hides the faces: only while the narrator talks, never over a character's line
+    if speaker == "narrator" and _OBJECT.search(intent) and any("alarm_clock" in a.get("props", []) for a in actors):
         return {"shot_type": "insert", "camera": {"move": "static", "zoom_from": 2.8, "zoom_to": 2.8}}
     if _REVEAL.search(intent):
         return {"shot_type": "close_up", "camera": {"move": "push_in", "zoom_from": 1.8, "zoom_to": 2.2}} if speaker in ("pip", "ros") else {"shot_type": "medium", "camera": {"move": "push_in", "zoom_from": 1.2, "zoom_to": 1.35}}

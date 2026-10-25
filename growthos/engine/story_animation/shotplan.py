@@ -94,8 +94,17 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
     plan = []
     for i, shot in enumerate(shots):
         speaker = roles[shot["speaker_id"]]
-        camera = shot.get("camera")
-        preset = default_zoom(shot["shot_type"], speaker)
+        actors = [{
+            "role": roles[a["character_id"]], "side": a["side"], "facing": a["facing"], "mood": a.get("mood", "neutral"),
+            "gesture": a.get("gesture_id", "idle"), "props": list(a.get("props", [])),
+        } for a in shot["actors"]]
+        camera, shot_type = shot.get("camera"), shot["shot_type"]
+        # The author's explicit camera always wins. Without one, a written intent may reframe the shot (dialogue shots of schema 1
+        # and 2 alike); the zoom is then taken from the new framing, never from the one the author's shot_type had.
+        semantic = direction(shot.get("intent", ""), actors, speaker) if camera is None else None
+        if semantic is not None:
+            camera, shot_type = semantic["camera"], semantic["shot_type"]
+        preset = default_zoom(shot_type, speaker)
         if camera is None:
             move, z0, z1 = "push_in", preset[0], preset[1]
         else:
@@ -104,23 +113,12 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
             z1 = float(camera.get("zoom_to", preset[1]))
             if move == "static":
                 z1 = z0
-        actors = [{
-            "role": roles[a["character_id"]], "side": a["side"], "facing": a["facing"], "mood": a.get("mood", "neutral"),
-            "gesture": a.get("gesture_id", "idle"), "props": list(a.get("props", [])),
-        } for a in shot["actors"]]
-        # Frontend schema v1 scenes also carry intent; apply supported framing to
-        # dialogue shots, not just narrator beats in the extended schema.
-        semantic = direction(shot.get("intent", ""), actors, speaker)
-        if semantic is not None:
-            camera = semantic["camera"]
-            shot_type = semantic["shot_type"]
-        else:
-            shot_type = shot["shot_type"]
         plan.append({
             "index": i, "start": cuts[i], "end": cuts[i + 1], "setting": shot["setting_id"],
             "background": BACKGROUNDS.get(shot["setting_id"], "bg_shop"), "shot_type": shot_type,
             "camera": {"move": move, "zoom_from": z0, "zoom_to": z1}, "speaker": speaker, "actors": actors,
-            "transition_in": shot.get("transition_in", "cut"), "intent": shot.get("intent", ""),
+            "transition_in": shot.get("transition_in", "cut"),
+            **({"intent": shot["intent"]} if shot.get("intent") else {}),   # only when written: plans of stories without one stay as before
         })
     expanded = []
     for entry in plan:
