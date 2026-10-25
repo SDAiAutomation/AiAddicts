@@ -80,7 +80,7 @@ Une scène apporte un changement, une information ou une émotion ; une accroche
 ## 5. Scénario 3 — « La ville sans mots » (idée d'auteur : Orwell)
 
 **Question directrice :** les mots que nous avons façonnent-ils ce que nous pouvons penser, et qui profite de leur appauvrissement ?
-**Statuts :** scènes 1 à 4, 6 à 8 : **fiction** (la ville n'existe pas, annoncé en scène 5). Scène 5 : **fait** sur une œuvre (l'annexe de *1984*). Scène 9 : **fait nuancé** (langue et pensée). Scène 10 : **exemple réel** et interprétation. Scène 11 : **interprétation** de l'œuvre. Scènes 12 à 15 : fiction et question ouverte.
+**Statuts :** scènes 1 à 6, 8 à 10, 14 et 15 : **fiction** (la ville n'existe pas, annoncé en scène 7). Scène 7 : **fait** sur une œuvre (l'annexe de *1984*). Scène 11 : **fait nuancé** (langue et pensée). Scène 12 : **exemple réel** et interprétation. Scène 13 : **interprétation** de l'œuvre. Scène 16 : question ouverte.
 
 | # | Qui | Texte | Car. | Décor | Plan | Jeu des personnages | Remarque |
 | --- | --- | --- | --- | --- | --- | --- | --- |
