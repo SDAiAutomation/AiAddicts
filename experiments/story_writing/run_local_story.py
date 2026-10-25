@@ -36,6 +36,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--cap", type=int, default=2000)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--silent", action="store_true", help="no voice at all: silent audio of the estimated length (visual preview, zero cost)")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -49,21 +50,47 @@ def main():
     print(f"story: {len(story['shots'])} shots, {chars} characters, target {story.get('duration_target_s')} s, contract errors: {errors or 'none'}")
     if errors:
         sys.exit(1)
-    if chars > a.cap:
-        sys.exit(f"refused: {chars} characters are above the cap of {a.cap}")
+    cache = out / "voice_cache"
+    cache.mkdir(exist_ok=True)
+    voices_of = {c["id"]: c["voice_id"] for c in story["characters"]}
+    voices_of[story["narrator"]["id"]] = story["narrator"]["voice_id"]
+
+    def cache_key(text, voice):
+        return hashlib.sha1(f"{voice}|{text}".encode()).hexdigest()[:16]
+
+    # only lines that are not already in the cache are sent, so only those count against the cap
+    to_send = 0 if a.silent else sum(len(s["dialogue"]) for s in story["shots"]
+                  if not (cache / f"{cache_key(s['dialogue'], voices_of[s['speaker_id']])}.json").is_file())
+    print(f"to send to ElevenLabs: {to_send} characters (cap {a.cap}); the rest comes from the cache")
+    if to_send > a.cap:
+        sys.exit(f"refused: {to_send} characters to send are above the cap of {a.cap}")
     if a.dry_run:
         print("dry run: nothing sent, nothing rendered")
         return
 
-    if "ELEVENLABS_API_KEY" not in os.environ:
+    if not a.silent and "ELEVENLABS_API_KEY" not in os.environ:
         from dotenv import dotenv_values
         os.environ["ELEVENLABS_API_KEY"] = dotenv_values(ENV)["ELEVENLABS_API_KEY"]
-    cache = out / "voice_cache"
-    cache.mkdir(exist_ok=True)
     sent = {"chars": 0, "requests": 0, "cached": 0}
 
+    def silent_synth(text, voice, wav):
+        """No provider: silence of the length a voice would take (16.5 characters per second, measured), uniform character timing and
+        a breathing envelope, so the mouths move and the cuts fall where a voice would put them."""
+        import math
+        import subprocess
+        duration = max(1.0, len(text) / 16.5)
+        Path(wav).parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", f"{duration:.3f}", str(wav)], check=True)
+        step = duration / len(text)
+        alignment = {"characters": list(text), "character_start_times_seconds": [round(i * step, 4) for i in range(len(text))],
+                     "character_end_times_seconds": [round((i + 1) * step, 4) for i in range(len(text))]}
+        envelope = [0.35 + 0.65 * abs(math.sin(i * 0.55)) for i in range(int(duration * 24))]
+        return {"duration_s": duration, "alignment": alignment, "envelope": envelope}
+
     def synth(text, voice, wav):
-        key = hashlib.sha1(f"{voice}|{text}".encode()).hexdigest()[:16]
+        if a.silent:
+            return silent_synth(text, voice, wav)
+        key = cache_key(text, voice)
         meta, cached_wav = cache / f"{key}.json", cache / f"{key}.wav"
         if meta.is_file() and cached_wav.is_file():
             sent["cached"] += 1
