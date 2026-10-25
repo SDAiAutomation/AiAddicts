@@ -603,6 +603,26 @@ func act(role: String, t: float) -> Dictionary:
 	add_life(role, P, t, t - float(sh["start"]), e, sh["speaker"] == role, mood)
 	return smooth_pose(role, P)
 
+# the hat is thrown up, falls under gravity, bounces once and stays on the ground (it never vanishes mid-air)
+const HAT_G := 2600.0
+const HAT_THROW := 1050.0
+const HAT_GROUND_Y := FEET_Y - 22.0
+
+func hat_fall(s: float, x0: float, y0: float) -> Vector3:
+	var disc := HAT_THROW * HAT_THROW + 2.0 * HAT_G * (HAT_GROUND_Y - y0)
+	var t1 := (HAT_THROW + sqrt(disc)) / HAT_G
+	var vx := -110.0
+	var vb := 0.32 * (HAT_G * t1 - HAT_THROW)
+	var tb := 2.0 * vb / HAT_G
+	var rest_x := x0 + vx * (t1 + tb)
+	if s < t1:
+		return Vector3(x0 + vx * s, y0 - HAT_THROW * s + 0.5 * HAT_G * s * s, 4.0 * PI * s / t1)
+	var b := s - t1
+	var rot := 4.0 * PI + 0.3
+	if b < tb:
+		return Vector3(x0 + vx * s, HAT_GROUND_Y - vb * b + 0.5 * HAT_G * b * b, rot)
+	return Vector3(rest_x, HAT_GROUND_Y, rot)
+
 # time at which Pip's hat comes off (it never comes back), or a huge number
 func hat_loss_time() -> float:
 	var best := 1.0e9
@@ -611,6 +631,17 @@ func hat_loss_time() -> float:
 		if a != null and HAT_LOSS_AT.has(a["gesture"]):
 			best = minf(best, float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]]))
 	return best
+
+# where Pip stood when the hat came off: the hat lands there, whoever is on screen afterwards
+func hat_loss_x() -> float:
+	var best := 1.0e9
+	var x := SIDE_X["right"]
+	for sh in TL["shots"]:
+		var a: Variant = actor_of(sh, "pip")
+		if a != null and HAT_LOSS_AT.has(a["gesture"]) and float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]]) < best:
+			best = float(sh["start"]) + float(HAT_LOSS_AT[a["gesture"]])
+			x = actor_x_at(sh, a, best)
+	return x
 
 func actor_x_at(sh: Dictionary, a: Dictionary, t: float) -> float:
 	var x: float = SIDE_X[a["side"]]
@@ -673,10 +704,9 @@ func draw_actor(sh: Dictionary, a: Dictionary, t: float, cam: Transform2D) -> vo
 		var lost := hat_loss_time()
 		if t > lost:
 			P["hat_off"] = true
-			var hu := seg(t - lost, 0.0, 1.2)
-			if hu < 1.0:
-				P["hat_world"] = Vector2(P["pos"].x + 18.0 * hu, hip_y(role) - 300.0 - 260.0 * sin(PI * hu * 0.5) + 360.0 * hu * hu)
-				P["hat_rot"] = hu * 8.0
+			var fall := hat_fall(t - lost, hat_loss_x(), hip_y(role) - 300.0)
+			P["hat_world"] = Vector2(fall.x, fall.y)
+			P["hat_rot"] = fall.z
 	if a["gesture"] == "run_away":
 		if tt < 0.9:
 			var ant := ease_io(seg(tt, 0.55, 0.9))
