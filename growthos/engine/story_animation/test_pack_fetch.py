@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from growthos.engine.story_animation import packs, pack_fetch
+from growthos.engine.story_animation import demo_rig_v2, packs, pack_fetch
 from growthos.engine.story_animation.pack_fetch import PackError
 
 
@@ -126,6 +126,41 @@ class PackFetchTests(unittest.TestCase):
         manifest = json.loads(self.bucket.objects["proto_v1/manifest.json"])
         data = (self.source / "clock.png").read_bytes()
         self.assertEqual(manifest["files"]["clock.png"], {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)})
+
+
+class RigPackFetchTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        _, pack = demo_rig_v2.create(self.root / "fixture", frames_per_shot=12)
+        self.source = pack / "tavi_owl"
+        self.dest = self.root / "job" / "tavi_owl"
+        self.objects = {f"tavi_owl/{path.name}": path.read_bytes() for path in self.source.iterdir() if path.is_file()}
+        self.requested = []
+
+    def download(self, path):
+        self.requested.append(path)
+        return self.objects[path]
+
+    def test_fetches_only_declared_private_objects_and_installs_immutably(self):
+        rig = pack_fetch.fetch_rig_pack(self.download, "tavi_owl", self.dest)
+        self.assertEqual(rig["character_id"], "tavi_owl")
+        self.assertEqual(set(self.requested), set(self.objects))
+        self.assertEqual(set(path.name for path in self.dest.iterdir()), {path.name for path in self.source.iterdir()})
+        with self.assertRaisesRegex(PackError, "already exists"):
+            pack_fetch.fetch_rig_pack(self.download, "tavi_owl", self.dest)
+
+    def test_tamper_or_path_like_id_never_installs_a_pack(self):
+        self.objects["tavi_owl/head.png"] += b"tampered"
+        with self.assertRaisesRegex(PackError, "does not match"):
+            pack_fetch.fetch_rig_pack(self.download, "tavi_owl", self.dest)
+        self.assertFalse(self.dest.exists())
+        self.assertEqual(list(self.dest.parent.glob("tavi_owl.part.*")), [])
+        self.requested.clear()
+        with self.assertRaises(PackError):
+            pack_fetch.fetch_rig_pack(self.download, "../other", self.dest)
+        self.assertEqual(self.requested, [])
 
 
 if __name__ == "__main__":
