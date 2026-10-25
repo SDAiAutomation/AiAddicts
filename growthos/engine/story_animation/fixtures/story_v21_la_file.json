@@ -50,7 +50,7 @@
   "shots": [
    {
     "id": "s1",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "wide",
     "speaker_id": "narrator",
     "dialogue": "Une ville imaginaire. Un mardi matin. Une porte fermée, et une file qui commence à se former.",
@@ -76,7 +76,7 @@
    },
    {
     "id": "s2",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "medium",
     "speaker_id": "pip",
     "dialogue": "Madame Rosette, pourquoi tout le monde fait la queue devant cette porte ?",
@@ -101,7 +101,7 @@
    },
    {
     "id": "s3",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "medium",
     "speaker_id": "rosette",
     "dialogue": "Aucune idée, Pip. Mais ils sont déjà quarante. Ça doit valoir le coup.",
@@ -126,7 +126,7 @@
    },
    {
     "id": "s4",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "close_up",
     "speaker_id": "pip",
     "dialogue": "Alors je me mets derrière. Au cas où.",
@@ -151,7 +151,7 @@
    },
    {
     "id": "s5",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "wide",
     "speaker_id": "narrator",
     "dialogue": "Dix minutes plus tard, ils sont cent. Personne ne sait ce qu'il attend, mais chacun suppose que les autres le savent.",
@@ -177,7 +177,7 @@
    },
    {
     "id": "s6",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "medium",
     "speaker_id": "rosette",
     "dialogue": "Demandez au premier de la file, Pip !",
@@ -202,7 +202,7 @@
    },
    {
     "id": "s7",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "close_up",
     "speaker_id": "pip",
     "dialogue": "J'ai demandé. Il attend un ami. Depuis ce matin.",
@@ -228,7 +228,7 @@
    },
    {
     "id": "s8",
-    "setting_id": "street",
+    "setting_id": "street_queue",
     "shot_type": "close_up",
     "speaker_id": "rosette",
     "dialogue": "Cent personnes pour un ami en retard ?",

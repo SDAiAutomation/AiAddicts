@@ -299,6 +299,66 @@ func draw_world(cam: Transform2D, t: float, bg: String, ring: float, clock_x: fl
 			draw_arc(base + Vector2(0, -85 - hop), rr, -2.45 + 3.14, -0.7 + 3.14 - 0.6, 10, INK, 2.6, true)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 
+# ---------- procedural settings: drawn in code over the same background pictures, no new asset ----------
+const QUEUE_MAX := 44
+
+func draw_setting_back(cam: Transform2D, t: float, sh: Dictionary) -> void:
+	if String(sh.get("setting", "")) == "street_queue":
+		draw_queue(cam, t)
+
+func draw_setting_front(cam: Transform2D, t: float, sh: Dictionary) -> void:
+	var s := String(sh.get("setting", ""))
+	if s == "street_rain":
+		draw_rain(cam, t)
+	elif s == "clock_shop_closed":
+		draw_night_shop(cam, t)
+
+# a queue of black silhouettes down the middle of the street (between the two characters), toward a closed door; it grows with the story's time ("forty, then a hundred")
+func draw_queue(cam: Transform2D, t: float) -> void:
+	draw_set_transform_matrix(cam)
+	draw_rect(Rect2(292.0, 458.0, 30.0, 58.0), INK)
+	draw_circle(Vector2(315.0, 490.0), 2.2, Color(0.92, 0.92, 0.9))
+	var n := clampi(6 + int(t * 1.6), 6, QUEUE_MAX)
+	for k in range(n):
+		var i := n - 1 - k
+		var u := float(i) / float(QUEUE_MAX)
+		var d := pow(u, 0.9)
+		var sc := lerpf(0.58, 0.19, u)
+		var pos := Vector2(lerpf(262.0, 316.0, d) + (9.0 if i % 2 == 0 else -9.0) * sc, lerpf(690.0, 506.0, d))
+		pos.y += sin(t * 3.0 + float(i) * 1.7) * 1.6 * sc
+		pos += boil(float(i) * 3.1, 0.5 * sc)
+		draw_set_transform_matrix(cam * Transform2D(0.0, Vector2(sc, sc), 0.0, pos))
+		draw_colored_polygon(ell_pts(Vector2(0, 2), 34.0, 9.0, 16), Color(0, 0, 0, 0.3))
+		draw_rect(Rect2(-17.0, -118.0, 34.0, 118.0), INK)
+		draw_circle(Vector2(0, -136.0), 21.0, Color(0.96, 0.96, 0.94))
+		draw_arc(Vector2(0, -136.0), 21.0, 0.0, TAU, 20, INK, 4.0, true)
+		if i % 3 == 0:
+			draw_rect(Rect2(-24.0, -160.0, 48.0, 7.0), INK)
+			draw_rect(Rect2(-15.0, -184.0, 30.0, 26.0), INK)
+		elif i % 3 == 1:
+			draw_colored_polygon(ell_pts(Vector2(0, -150.0), 26.0, 12.0, 16), INK)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+func draw_rain(cam: Transform2D, t: float) -> void:
+	draw_set_transform_matrix(cam)
+	draw_rect(Rect2(0.0, 0.0, 640.0, 960.0), Color(0.04, 0.05, 0.08, 0.22))
+	for i in 150:
+		var x := fmod(float(i) * 97.0 + t * 60.0, 700.0) - 30.0
+		var y := fmod(float(i) * 53.0 + t * 640.0 * (0.8 + 0.4 * fmod(float(i) * 0.37, 1.0)), 1000.0) - 20.0
+		var len := 22.0 + float(i % 5) * 6.0
+		draw_line(Vector2(x, y), Vector2(x - 8.0, y + len), Color(0.92, 0.93, 0.95, 0.5), 1.8)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+func draw_night_shop(cam: Transform2D, t: float) -> void:
+	draw_set_transform_matrix(cam)
+	draw_rect(Rect2(0.0, 0.0, 640.0, 960.0), Color(0.02, 0.03, 0.08, 0.5))
+	var font := ThemeDB.fallback_font
+	draw_set_transform_matrix(cam * Transform2D(-0.05, Vector2(1.0, 1.0), 0.0, Vector2(92.0, 455.0)))
+	draw_rect(Rect2(-46.0, -26.0, 92.0, 38.0), Color(0.93, 0.9, 0.82))
+	draw_rect(Rect2(-46.0, -26.0, 92.0, 38.0), INK, false, 3.0)
+	draw_string(font, Vector2(-34.0, 0.0), "FERMÉ", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, INK)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
 func overlays(t: float) -> void:
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 	draw_texture_rect(vignette, Rect2(0, 0, W, H), false, Color(1, 1, 1, clampf(float(LOOK["vignette"]) - 0.0, 0.0, 1.0)))
@@ -635,10 +695,12 @@ func _draw() -> void:
 	var prop := prop_state(sh, t)
 	var cam := shot_camera(sh, t, prop)
 	draw_world(cam, t, sh["background"], float(prop["ring"]), float(prop["x"]), float(prop["move"]), bool(prop["vis"]))
+	draw_setting_back(cam, t, sh)
 	var order: Array = [] if bool(sh.get("empty", false)) else sh["actors"].duplicate()
 	order.sort_custom(func(p, q): return float(SIDE_X[p["side"]]) < float(SIDE_X[q["side"]]))
 	for a in order:
 		draw_actor(sh, a, t, cam)
+	draw_setting_front(cam, t, sh)
 	if sh["transition_in"] == "fade":
 		var f := 1.0 - seg(t, float(sh["start"]), float(sh["start"]) + 0.3)
 		if f > 0.0:

@@ -35,7 +35,7 @@
   "shots": [
    {
     "id": "s1",
-    "setting_id": "street",
+    "setting_id": "street_rain",
     "shot_type": "medium",
     "speaker_id": "pip",
     "dialogue": "Madame Rosette, pardon. Il pleut, je n'ai pas de parapluie, et pas de quoi en acheter un.",
@@ -137,7 +137,7 @@
    },
    {
     "id": "s5",
-    "setting_id": "street",
+    "setting_id": "clock_shop_closed",
     "shot_type": "medium",
     "speaker_id": "narrator",
     "dialogue": "Pip apprend l'horlogerie la nuit. Il n'a pas de quoi se payer un autre parapluie, alors il garde celui-là, jusqu'au jour où il peut ouvrir sa propre boutique.",
@@ -163,7 +163,7 @@
    },
    {
     "id": "s6",
-    "setting_id": "clock_shop",
+    "setting_id": "clock_shop_closed",
     "shot_type": "wide",
     "speaker_id": "narrator",
     "dialogue": "Vingt ans plus tard, la boutique de Madame Rosette ferme. Une grande enseigne a ouvert au coin de la rue, et les clients ne viennent plus.",
