@@ -7,6 +7,7 @@ contract, with role names (`pip`, `ros`) in place of character ids because the p
 from __future__ import annotations
 
 from . import timeline as timeline_lib, visual_props
+from .semantic_direction import direction
 
 # closed list the scene knows how to draw (the contract catalog may hold more ids than the scene can show)
 # setting id -> background picture of the pack. The last three reuse a picture of the pack and add procedural elements drawn by the
@@ -49,9 +50,14 @@ def narrated_beats(entry: dict, start_index: int) -> list:
     n = min(MAX_BEATS, int(duration // BEAT_SECONDS))
     if entry["speaker"] != "narrator" or duration < MIN_NARRATED_SPLIT_S or n < 2 or not entry["actors"]:
         return [dict(entry, index=start_index)]   # unchanged: the scene reads the optional focus / empty / beat keys with defaults
+    # An explicit narrative intent takes priority over mechanical camera rotation.
+    # Keep the original contract shot and duration; no extra assets or actions are fabricated.
+    semantic = direction(entry.get("intent", ""), entry["actors"], entry["speaker"])
     beats = []
     for k in range(n):
         spec = BEATS[k % len(BEATS)]
+        if semantic is not None and spec["kind"] == "empty":
+            spec = {"kind": "medium", "move": "static", "zoom": (1.25, 1.25)}
         a, b = entry["start"] + duration * k / n, entry["start"] + duration * (k + 1) / n
         actors = [dict(x) for x in entry["actors"]]
         for x in actors:
@@ -68,6 +74,10 @@ def narrated_beats(entry: dict, start_index: int) -> list:
         else:
             shot_type, move, zoom = spec["kind"] if spec["kind"] != "empty" else "wide", spec["move"], spec["zoom"]
             empty = spec["kind"] == "empty"
+        if semantic is not None and k == 0:
+            shot_type, move = semantic["shot_type"], semantic["camera"]["move"]
+            zoom = (semantic["camera"]["zoom_from"], semantic["camera"]["zoom_to"])
+            empty = False
         beats.append(dict(entry, index=start_index + k, start=round(a, 3), end=round(b, 3), shot_type=shot_type, actors=actors,
                           camera={"move": move, "zoom_from": zoom[0], "zoom_to": zoom[1]}, focus=focus, empty=empty, beat=k,
                           transition_in=entry["transition_in"] if k == 0 else "cut"))
@@ -84,8 +94,17 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
     plan = []
     for i, shot in enumerate(shots):
         speaker = roles[shot["speaker_id"]]
-        camera = shot.get("camera")
-        preset = default_zoom(shot["shot_type"], speaker)
+        actors = [{
+            "role": roles[a["character_id"]], "side": a["side"], "facing": a["facing"], "mood": a.get("mood", "neutral"),
+            "gesture": a.get("gesture_id", "idle"), "props": list(a.get("props", [])),
+        } for a in shot["actors"]]
+        camera, shot_type = shot.get("camera"), shot["shot_type"]
+        # The author's explicit camera always wins. Without one, a written intent may reframe the shot (dialogue shots of schema 1
+        # and 2 alike); the zoom is then taken from the new framing, never from the one the author's shot_type had.
+        semantic = direction(shot.get("intent", ""), actors, speaker) if camera is None else None
+        if semantic is not None:
+            camera, shot_type = semantic["camera"], semantic["shot_type"]
+        preset = default_zoom(shot_type, speaker)
         if camera is None:
             move, z0, z1 = "push_in", preset[0], preset[1]
         else:
@@ -94,16 +113,13 @@ def build_shot_plan(story: dict, tl: dict, roles: dict) -> list:
             z1 = float(camera.get("zoom_to", preset[1]))
             if move == "static":
                 z1 = z0
-        actors = [{
-            "role": roles[a["character_id"]], "side": a["side"], "facing": a["facing"], "mood": a.get("mood", "neutral"),
-            "gesture": a.get("gesture_id", "idle"), "props": list(a.get("props", [])),
-        } for a in shot["actors"]]
         plan.append({
             "index": i, "start": cuts[i], "end": cuts[i + 1], "setting": shot["setting_id"],
-            "background": BACKGROUNDS.get(shot["setting_id"], "bg_shop"), "shot_type": shot["shot_type"],
+            "background": BACKGROUNDS.get(shot["setting_id"], "bg_shop"), "shot_type": shot_type,
             "camera": {"move": move, "zoom_from": z0, "zoom_to": z1}, "speaker": speaker, "actors": actors,
             "transition_in": shot.get("transition_in", "cut"),
             "objects": visual_props.schedule(str(tl["lines"][i]["text"]), float(tl["lines"][i]["start"]), float(tl["lines"][i]["dur"])),
+            **({"intent": shot["intent"]} if shot.get("intent") else {}),   # only when written: plans of stories without one stay as before
         })
     expanded = []
     for entry in plan:
