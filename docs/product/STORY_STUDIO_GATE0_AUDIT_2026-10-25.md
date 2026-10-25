@@ -46,12 +46,12 @@ Légende : **EXISTANT** (lu dans le code et couvert par un test ou une exécutio
 | Recherche documentaire, provenance, vérification | **ABSENT pour Story Studio**, **PARTIEL ailleurs** | Standard : `invented-claims.ts` (détecteur consultatif de faux témoignages), `quiz-verification` + `verifyQuizAnswers` (gpt-5). Explainer (`engine/explainer/schema.py`) : une affirmation chiffrée sans `source` est refusée ; `critic.py` juge la vérité de la narration. Rien de tout cela n'est branché sur Story Studio. |
 | Distinguer fait / interprétation / hypothèse / fiction | **ABSENT** | le contrat v2 n'a aucun champ `nature`, `sources`, `provenance`. |
 | Structure narrative (hook, enjeu, tournant, résolution) | **PARTIEL** | le moteur Standard a STOP→HOLD→PROGRESS→REWARD→RETURN (`engine/retention.py`, 1383 lignes, déterministe, sans appel IA) ; Story Studio ne l'applique pas. |
-| Qualité d'écriture mesurable | **NON VÉRIFIÉ** | banc local (`experiments/story_writing/bench.py`) : l'écriture en plusieurs passes bat la production actuelle dans tous les jugements d'un juge IA ; **ce n'est pas un public**. Résultats complets dans `~/story_studio_work/bench1/bench.json`, à présenter à l'utilisateur. |
+| Qualité d'écriture mesurable | **NON VÉRIFIÉ** | banc local (`experiments/story_writing/bench.py`, **11 concepts sur 12 jugés** : le processus s'est arrêté avant le douzième, cause non examinée) : l'écriture en plusieurs passes bat la production actuelle dans 22 jugements sur 22 ; le même prompt sur un modèle plus fort bat la production dans 22 sur 22 ; l'écriture en passes bat ce dernier dans 17 jugements sur 22. Juge = modèle, **ce n'est pas un public**. Résultats dans `~/story_studio_work/bench1/bench.json` (hors dépôt), à présenter à l'utilisateur. |
 
 ### 2.3 Architecture (§4)
 | Brique | Statut | Preuve / écart |
 | --- | --- | --- |
-| Contrat de scène versionné | **EXISTANT** (`story.version 2`, `animation_schema_version 1`, 42 cas partagés Python/TS) | `contract.py`, `animation-contract.ts`, `fixtures/animation_contract.json`. |
+| Contrat de scène versionné | **EXISTANT** (`story.version 2`, `animation_schema_version 1`, 43 cas partagés Python/TS) | `contract.py`, `animation-contract.ts`, `fixtures/animation_contract.json`. |
 | Champs du contrat demandés mais absents | **ABSENT** | état émotionnel avant/après, axes de regard, continuité des accessoires, exigences de sous-titres, provenance de l'idée, rôle de narrateur. Présents : id, locuteur, texte, décor, plan, caméra, acteurs (côté, orientation, humeur, geste, accessoires), transition, intention, budget. |
 | Voix off + dialogues combinables | **ABSENT** | chaque réplique est portée par un personnage du rig (`pipeline.py`), pas de narrateur sans corps. |
 | Story Adapter (récit Standard → scènes) | **ABSENT** | l'ancien `story_compile.py` fait l'inverse (storyboard v1 → blocs Standard), « pas branché » par son propre en-tête. |
