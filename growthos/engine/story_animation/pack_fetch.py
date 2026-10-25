@@ -1,13 +1,14 @@
-"""Fetch an approved asset pack from a PRIVATE bucket and verify it against a SHA-256 manifest (not wired into any worker).
+"""Fetch approved asset packs from a PRIVATE bucket and verify their SHA-256 manifests.
 
-Why a manifest: sprites are not in Git and the runner has no pack of its own. Everything downloaded is checked
-(exact file list, byte size, SHA-256) and then validated as a pack before it replaces anything, so a tampered, partial or
-swapped object can never reach the renderer. Object paths are built here from a validated pack id and a fixed list of
-names: nothing in a story, a manifest or an environment value can introduce another path.
+Sprites are not in Git. The legacy pack has an exact fixed list; the new rig
+pack accepts only validated asset IDs with per-file SHA-256. Object paths are
+built from these IDs, never from a story-supplied path or URL.
 
 Bucket layout (private, service-role access only; see growthos/supabase/pending/story_packs_bucket.sql):
   story-packs/<pack_id>/manifest.json
   story-packs/<pack_id>/<sprite>.png        (one object per entry of packs.REQUIRED_SPRITES)
+  story-packs/<character_id>/rig.json      (experimental rig_v2; not worker-wired)
+  story-packs/<character_id>/<asset_id>.png
 """
 from __future__ import annotations
 
