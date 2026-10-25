@@ -1,6 +1,6 @@
 # AI art for Story Studio's Godot rigs (25 October 2026)
 
-Status: research and offline intake implemented; **no paid image call or finished character art yet**. Keep the existing public rendering flag off.
+Status: research, offline intake and a local API-backed **concept preview** implemented. No cutout character pack is approved or worker-wired. Keep the existing public rendering flag off.
 
 ## Findings checked against current sources
 
@@ -37,3 +37,13 @@ This is a **reference image prompt**, not a final Godot sprite. The follow-up pa
 - The approved reference and all six parts visibly share identity, palette and line style.
 - A Godot render shows the character in idle, walk, point, talk and a reaction beside another character; representative frames are manually reviewed for seams and facial readability.
 - The final report includes API usage/cost, render time, failure count and asset provenance. Until then, quality is unverified.
+
+## Local API pilot and Godot evidence
+
+Four billable Image API calls were made with `gpt-image-2.5-sunburst`, medium quality, 1024×1536 transparent PNG: Pip reference generation, targeted Pip alpha edit, Rosette reference from Pip, targeted Rosette alpha edit. The bundled imagegen CLI did not report token usage; **actual API charges are unknown**. Do not infer a fixed cost from file size. The key was read from the local `.env` only for each child process and never written to the repository or output.
+
+Selected local references (outside Git): `output/imagegen/pip_reference_v2.png` (SHA-256 `f7abebc49abb0df3beae991459e92d09c7136711591c9ecef48d4f8c38661f40`) and `output/imagegen/rosette_reference_v2.png` (SHA-256 `be2a15785985493d3ad1981353c6b94b93cdf0fc3c6965ec1dd5ed48c923df19`). Both are RGBA with transparent corners. Rosette still has one stray corner pixel with alpha 1, so the art intake correctly **cannot approve it as a rig piece**. The selected Pip and Rosette images are full-body references, not six independent sprites.
+
+The offline `godot/concept_preview` scene loads the two full-body references and draws a labeled static composition with a small camera-scale progression. This is deliberately separate from `rig_v2` and is **not** a character animation feature. Local Godot 4.7.2 + FFmpeg output: `output/imagegen/pip_rosette_concept.mp4`, 144 frames, 24 FPS, 1080×1920, 6.000 s, 1,335,777 bytes, SHA-256 `9a9bcc77c63e14367b26d04083fa024e2ae03445ddcedde0697dddd658aa75d4`. A representative middle frame was inspected for composition and actual character visibility. The background remains a simple technical placeholder.
+
+The next quality gate is an approved art direction followed by rig-ready body parts and face variants. Full-body images must not be passed off as an animated cutout pack.

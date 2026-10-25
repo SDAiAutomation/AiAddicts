@@ -1,0 +1,14 @@
+config_version=5
+
+[application]
+config/name="Story Studio Concept Preview"
+run/main_scene="res://main.tscn"
+
+[display]
+window/size/viewport_width=1080
+window/size/viewport_height=1920
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
