@@ -19,6 +19,7 @@ FPS, WIDTH, HEIGHT = 24, 1080, 1920
 MAX_FRAMES = FPS * 200
 _MOVES = {"static", "push_in", "pull_out", "pan_left", "pan_right"}
 _TRANSITIONS = {"cut", "fade"}
+SETTINGS = {"forest", "street", "street_queue", "street_rain", "clock_shop", "clock_shop_closed", "cafe_terrace", "factory_alley"}
 
 
 def _finite(value: object, minimum: float, maximum: float) -> bool:
@@ -26,7 +27,8 @@ def _finite(value: object, minimum: float, maximum: float) -> bool:
 
 
 def validate_timeline(timeline: object, pack_dir: Path) -> dict[str, dict]:
-    if not isinstance(timeline, dict) or set(timeline) != {"rig_schema_version", "fps", "total_frames", "characters", "shots"}:
+    required = {"rig_schema_version", "fps", "total_frames", "characters", "shots"}
+    if not isinstance(timeline, dict) or not required <= set(timeline) or set(timeline) - required - {"subs"}:
         raise RenderError("generic rig timeline fields are invalid")
     if type(timeline["rig_schema_version"]) is not int or timeline["rig_schema_version"] != 1 or timeline["fps"] != FPS:
         raise RenderError("generic rig timeline version or fps is unsupported")
@@ -48,17 +50,19 @@ def validate_timeline(timeline: object, pack_dir: Path) -> dict[str, dict]:
         if rigs[character_id]["character_id"] != character_id:
             raise RenderError("generic rig character id differs from its manifest")
     shots = timeline["shots"]
-    if not isinstance(shots, list) or not 1 <= len(shots) <= 80:
+    if not isinstance(shots, list) or not 1 <= len(shots) <= 200:
         raise RenderError("generic rig shots are invalid")
     cursor = 0
     for i, shot in enumerate(shots):
         label = f"shots[{i}]"
-        if not isinstance(shot, dict) or set(shot) != {"start_frame", "end_frame", "camera", "transition", "actors", "subtitle"}:
+        if not isinstance(shot, dict) or set(shot) != {"start_frame", "end_frame", "setting", "camera", "transition", "actors", "subtitle"}:
             raise RenderError(f"{label} fields are invalid")
         a, b = shot["start_frame"], shot["end_frame"]
         if type(a) is not int or type(b) is not int or a != cursor or b <= a or b > total:
             raise RenderError(f"{label} frame boundaries are invalid")
         cursor = b
+        if not isinstance(shot["setting"], str) or shot["setting"] not in SETTINGS:
+            raise RenderError(f"{label} setting is unsupported")
         camera = shot["camera"]
         if not isinstance(camera, dict) or set(camera) != {"move", "zoom_from", "zoom_to"} or not isinstance(camera["move"], str) or camera["move"] not in _MOVES:
             raise RenderError(f"{label} camera is invalid")
@@ -67,7 +71,7 @@ def validate_timeline(timeline: object, pack_dir: Path) -> dict[str, dict]:
         if not isinstance(shot["transition"], str) or shot["transition"] not in _TRANSITIONS or not isinstance(shot["subtitle"], str) or len(shot["subtitle"]) > 300:
             raise RenderError(f"{label} transition or subtitle is invalid")
         actors = shot["actors"]
-        if not isinstance(actors, list) or not 1 <= len(actors) <= min(3, len(ids)):
+        if not isinstance(actors, list) or len(actors) > min(3, len(ids)):
             raise RenderError(f"{label} actors are invalid")
         seen = set()
         for actor in actors:
@@ -84,6 +88,18 @@ def validate_timeline(timeline: object, pack_dir: Path) -> dict[str, dict]:
                 raise RenderError(f"{label} actor instruction is unsupported")
     if cursor != total:
         raise RenderError("generic rig shots do not cover all frames")
+    subs = timeline.get("subs", [])
+    if not isinstance(subs, list) or len(subs) > 1000:
+        raise RenderError("generic rig subtitles are invalid")
+    previous_end = 0
+    for i, sub in enumerate(subs):
+        if not isinstance(sub, dict) or set(sub) != {"start_frame", "end_frame", "text"}:
+            raise RenderError(f"subtitles[{i}] fields are invalid")
+        a, b = sub["start_frame"], sub["end_frame"]
+        if (type(a) is not int or type(b) is not int or not previous_end <= a < b <= total
+                or not isinstance(sub["text"], str) or not sub["text"].strip() or len(sub["text"]) > 300):
+            raise RenderError(f"subtitles[{i}] timing or text is invalid")
+        previous_end = b
     return rigs
 
 

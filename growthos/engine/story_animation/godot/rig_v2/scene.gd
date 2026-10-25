@@ -89,7 +89,7 @@ func _body(id: String, actor: Dictionary, shot: Dictionary, cam: Transform2D) ->
 	var stride := 0.0
 	if action == "walk":
 		stride = sin(phase * 7.0) * 36.0
-	elif action == "run":
+	elif action == "run" or action == "run_away":
 		stride = sin(phase * 12.0) * 70.0
 	if stride != 0.0:
 		ankle_l.x += stride
@@ -98,6 +98,29 @@ func _body(id: String, actor: Dictionary, shot: Dictionary, cam: Transform2D) ->
 		wrist_r.x += stride * 0.6
 	if action == "point":
 		wrist_r = shoulder_r + Vector2(170, -90)
+	elif action == "accuse":
+		wrist_r = shoulder_r + Vector2(230, -65)
+		wrist_l = hip + Vector2(-110, -60)
+	elif action == "defend":
+		wrist_l = neck + Vector2(-135, -30)
+		wrist_r = neck + Vector2(135, -30)
+	elif action == "wring":
+		wrist_l = hip + Vector2(-30, -65)
+		wrist_r = hip + Vector2(30, -65)
+	elif action == "indignant":
+		wrist_l = shoulder_l + Vector2(-190, 0)
+		wrist_r = shoulder_r + Vector2(190, 0)
+	elif action == "clutch_head":
+		wrist_l = neck + Vector2(-70, -125)
+		wrist_r = neck + Vector2(70, -125)
+	elif action == "hands_on_hips":
+		wrist_l = hip + Vector2(-95, -35)
+		wrist_r = hip + Vector2(95, -35)
+	elif action == "shrug":
+		wrist_l = shoulder_l + Vector2(-120, -65)
+		wrist_r = shoulder_r + Vector2(120, -65)
+	elif action == "wave":
+		wrist_r = neck + Vector2(135 + 22.0 * sin(phase * 7.0), -170)
 	elif action == "react":
 		wrist_l = neck + Vector2(-100, -70)
 		wrist_r = neck + Vector2(100, -70)
@@ -126,20 +149,22 @@ func _body(id: String, actor: Dictionary, shot: Dictionary, cam: Transform2D) ->
 	var mood: String = actor["expression"]
 	for key in ["eye_l", "eye_r"]:
 		var eye := head_top + _point(face[key])
-		if mood == "happy":
+		if mood == "happy" or mood == "joy":
 			draw_arc(eye, 14, 0.1, PI - 0.1, 12, INK, 5.0, true)
 		else:
-			draw_circle(eye, 11.0 if mood != "surprised" else 16.0, INK)
+			draw_circle(eye, 16.0 if mood == "surprised" or mood == "surprise" or mood == "panic" else 11.0, INK)
 		if mood == "angry":
 			draw_line(eye + Vector2(-18, -26), eye + Vector2(18, -15), INK, 5.0, true)
+		elif mood == "worry" or mood == "puzzled":
+			draw_line(eye + Vector2(-18, -20), eye + Vector2(18, -28), INK, 4.0, true)
 	var mouth := head_top + _point(face["mouth"])
 	var cue: String = actor["mouth_track"]
 	var mouth_frame := mini(frame - int(shot["start_frame"]), cue.length() - 1)
 	var mouth_shape := cue[mouth_frame]
-	if mouth_shape == "o" or mouth_shape == "r" or mood == "surprised":
+	if mouth_shape == "o" or mouth_shape == "r" or mood == "surprised" or mood == "surprise" or mood == "panic":
 		draw_circle(mouth, 13.0 if mouth_shape == "o" else 8.0 if mouth_shape == "r" else 18.0, INK)
 	else:
-		draw_arc(mouth + Vector2(0, -8 if mood == "sad" else 0), 18.0, 0.1 if mood != "sad" else PI + 0.1, PI - 0.1 if mood != "sad" else TAU - 0.1, 12, INK, 4.0, true)
+		draw_arc(mouth + Vector2(0, -8 if mood == "sad" or mood == "worry" else 0), 18.0, 0.1 if mood != "sad" and mood != "worry" else PI + 0.1, PI - 0.1 if mood != "sad" and mood != "worry" else TAU - 0.1, 12, INK, 4.0, true)
 	_sprite(_image(id, "hand_l"), wrist_l, _image(id, "hand_l").get_size())
 	_sprite(_image(id, "hand_r"), wrist_r, _image(id, "hand_r").get_size())
 	draw_set_transform_matrix(Transform2D.IDENTITY)
@@ -159,18 +184,39 @@ func _draw() -> void:
 		focus.x += 100.0 * (progress - 0.5)
 	var cam := Transform2D(0.0, Vector2(zoom, zoom), 0.0, Vector2(W, H) * 0.5 - focus * zoom)
 	draw_set_transform_matrix(cam)
-	# A deterministic forest backdrop provides depth without any external asset or random motion.
-	for i in 7:
-		var tree_x := -100.0 + float(i) * 220.0
-		var tree_h := 470.0 + float((i * 67) % 170)
-		draw_rect(Rect2(tree_x - 22, 1430.0 - tree_h, 44, tree_h), Color(0.37, 0.42, 0.36))
-		draw_circle(Vector2(tree_x, 1430.0 - tree_h), 130.0, Color(0.59, 0.68, 0.52))
-		draw_circle(Vector2(tree_x - 55, 1480.0 - tree_h), 95.0, Color(0.62, 0.70, 0.55))
-	draw_rect(Rect2(0, 1400, W, 520), Color(0.36, 0.50, 0.39))
+	var setting: String = shot["setting"]
+	if setting == "clock_shop" or setting == "clock_shop_closed":
+		draw_rect(Rect2(0, 0, W, H), Color(0.78, 0.73, 0.65) if setting == "clock_shop" else Color(0.34, 0.36, 0.43))
+		for i in 4:
+			draw_rect(Rect2(65 + i * 270, 670, 180, 540), Color(0.49, 0.33, 0.26))
+			draw_rect(Rect2(88 + i * 270, 720, 135, 180), Color(0.88, 0.78, 0.55))
+		draw_rect(Rect2(0, 1400, W, 520), Color(0.43, 0.35, 0.31))
+	elif setting == "forest":
+		for i in 7:
+			var tree_x := -100.0 + float(i) * 220.0
+			var tree_h := 470.0 + float((i * 67) % 170)
+			draw_rect(Rect2(tree_x - 22, 1430.0 - tree_h, 44, tree_h), Color(0.37, 0.42, 0.36))
+			draw_circle(Vector2(tree_x, 1430.0 - tree_h), 130.0, Color(0.59, 0.68, 0.52))
+			draw_circle(Vector2(tree_x - 55, 1480.0 - tree_h), 95.0, Color(0.62, 0.70, 0.55))
+		draw_rect(Rect2(0, 1400, W, 520), Color(0.36, 0.50, 0.39))
+	else:
+		var city := Color(0.69, 0.72, 0.72) if setting != "street_rain" else Color(0.42, 0.49, 0.57)
+		for i in 5:
+			var building_h := 460.0 + float((i * 97) % 220)
+			draw_rect(Rect2(i * 230 - 20, 1430 - building_h, 190, building_h), city)
+		for i in 6:
+			draw_rect(Rect2(10 + i * 190, 1420, 130, 18), Color(0.40, 0.42, 0.41))
+		draw_rect(Rect2(0, 1440, W, 480), Color(0.48, 0.50, 0.47))
 	for actor in shot["actors"]:
 		_body(String(actor["character_id"]), actor, shot, cam)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 	var subtitle: String = shot["subtitle"]
+	if timeline.has("subs"):
+		subtitle = ""
+		for sub in timeline["subs"]:
+			if frame >= int(sub["start_frame"]) and frame < int(sub["end_frame"]):
+				subtitle = String(sub["text"])
+				break
 	if subtitle != "":
 		var font := ThemeDB.fallback_font
 		var width := font.get_string_size(subtitle, HORIZONTAL_ALIGNMENT_LEFT, -1, 48).x

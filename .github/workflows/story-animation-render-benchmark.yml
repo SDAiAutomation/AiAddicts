@@ -13,6 +13,9 @@ on:
       - 'growthos/engine/story_animation/rig_v2.py'
       - 'growthos/engine/story_animation/demo_rig_v2.py'
       - 'growthos/engine/story_animation/benchmark_rig_v2.py'
+      - 'growthos/engine/story_animation/benchmark_measured_rig_v2.py'
+      - 'growthos/engine/story_animation/rig_v2_compile.py'
+      - 'growthos/engine/story_animation/fixtures/prototype_timeline.json'
       - '.github/workflows/story-animation-render-benchmark.yml'
   workflow_dispatch:
 
@@ -87,10 +90,17 @@ jobs:
           python -m pip install Pillow==12.2.0
           python -c 'import os,shlex; from pathlib import Path; from growthos.engine.story_animation.benchmark_rig_v2 import run; report=run(Path(os.environ["RUNNER_TEMP"])/"rig_v2", str(Path.cwd()/"Godot_v4.7.2-stable_linux.x86_64"), tuple(shlex.split(os.environ["STORY_RENDER_LAUNCHER"]))); print(report)'
           cat "$RUNNER_TEMP/rig_v2/benchmark.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Render existing measured timeline with the generic rig
+        run: |
+          python -c 'import os,shlex; from pathlib import Path; from growthos.engine.story_animation.benchmark_measured_rig_v2 import run; report=run(Path(os.environ["RUNNER_TEMP"])/"rig_v2_measured", str(Path.cwd()/"Godot_v4.7.2-stable_linux.x86_64"), tuple(shlex.split(os.environ["STORY_RENDER_LAUNCHER"]))); print(report)'
+          cat "$RUNNER_TEMP/rig_v2_measured/benchmark.json" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: story-rig-v2-silent-technical-preview
           path: |
             ${{ runner.temp }}/rig_v2/render/silent.mp4
             ${{ runner.temp }}/rig_v2/benchmark.json
+            ${{ runner.temp }}/rig_v2_measured/render/silent.mp4
+            ${{ runner.temp }}/rig_v2_measured/benchmark.json
+            ${{ runner.temp }}/rig_v2_measured/compiled_timeline.json
           retention-days: 14

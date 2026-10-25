@@ -25,8 +25,8 @@ _ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 ANCHORS = frozenset(("hip", "neck", "shoulder_l", "shoulder_r", "hip_l", "hip_r", "wrist_l", "wrist_r", "ankle_l", "ankle_r"))
 SPRITES = frozenset(("torso", "head", "hand_l", "hand_r", "foot_l", "foot_r"))
-EXPRESSIONS = frozenset(("neutral", "happy", "sad", "angry", "surprised"))
-ACTIONS = frozenset(("idle", "walk", "run", "talk", "point", "react"))
+EXPRESSIONS = frozenset(("neutral", "happy", "sad", "angry", "surprised", "worry", "surprise", "joy", "puzzled", "panic"))
+ACTIONS = frozenset(("idle", "walk", "run", "talk", "point", "react", "accuse", "defend", "wring", "indignant", "clutch_head", "hands_on_hips", "shrug", "wave", "run_away"))
 MOUTHS = frozenset(("closed", "open", "round"))
 
 

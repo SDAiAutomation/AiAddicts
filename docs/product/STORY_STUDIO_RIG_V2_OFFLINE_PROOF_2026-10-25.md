@@ -16,6 +16,7 @@ The renderer timeline is versioned (`rig_schema_version: 1`) and uses integer fr
 ```powershell
 python -m unittest discover -s growthos/engine/story_animation -p 'test_*.py' -q
 python -m growthos.engine.story_animation.benchmark_rig_v2 --out .artifacts/story-rig-v2 --godot Godot_v4.7.2-stable_win64_console.exe
+python -m growthos.engine.story_animation.benchmark_measured_rig_v2 --out .artifacts/story-rig-v2-measured --godot Godot_v4.7.2-stable_win64_console.exe
 ```
 
 The second command needs local Godot 4.7.2, FFmpeg/FFprobe and Pillow. CI runs it with software OpenGL in a network-isolated namespace and uploads the MP4 and JSON report.
@@ -24,10 +25,12 @@ Local Windows run: 576 frames, 1080×1920, 24 FPS, **24.000 s** measured by FFpr
 
 Representative frames were visually inspected at approximately 2, 12 and 20 seconds. Three silhouettes and distinct proportions are visible; the owl's pointing wing, expressions, camera framing, subtitle and forest backdrop change. The drawing quality is intentionally elementary, body motion is limited, and the silent mouth track is synthetic. This is **not** evidence of compelling finished animation, emotional dialogue or measured lip sync.
 
+The separate measured-timeline adapter consumes the existing `timeline.py` voice/subtitle cues and `shotplan.py` camera, setting and actor instructions. It refuses unsupported roles, actions and timing. A local render of the existing prototype fixture produced **518 frames at 24 FPS**, 21.583333 s by FFprobe against 21.568 s of measured input (0.015333 s, less than one frame); Godot took 48.27 s and encoding 17.41 s. A representative frame was visually checked for the timed French subtitle. This is still a **silent** preview: the fixture has timing and mouth cues, but no voice recording. Audio/video synchronization remains unmeasured. The CI benchmark now rerenders this fixture and checks its frame count and duration.
+
 ## Required before production
 
 1. Wire the tested private character-pack fetcher into the worker's job-local pack preparation, with an approved catalog and tenant isolation review.
 2. Test production Pip/Rosette assets in the new rig and compare representative frames against the legacy renderer. Keep old projects on `rig_v1` until an explicit migration succeeds.
-3. Compile the existing measured voice timeline into this renderer's frame cues; test mouth/audio error, transitions and subtitle timing against real audio fixtures.
+3. Test mouth/audio error, transitions and subtitle timing against licensed real audio fixtures. The measured timeline compiles and renders offline, but audio has not been muxed into this renderer.
 4. Replace placeholder drawings with approved assets, obtain human visual review, and expand the animation repertoire based on observed story needs.
 5. Route through the existing reservation, refund, QC and private storage pipeline only after the above gates pass. Keep `STORY_ANIMATION_ENABLED` off publicly.

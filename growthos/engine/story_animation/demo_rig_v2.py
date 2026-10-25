@@ -84,8 +84,8 @@ def create(out: Path, frames_per_shot: int = 96) -> tuple[Path, Path]:
             "schema_version": 1, "character_id": character_id, "rig_type": "cutout_2d",
             "canvas": spec["canvas"], "anchors": spec["anchors"], "face": spec["face"],
             "sprites": {role: role for role in spec["parts"]}, "assets": assets,
-            "expressions": ["neutral", "happy", "sad", "angry", "surprised"],
-            "actions": ["idle", "walk", "run", "talk", "point", "react"], "mouths": ["closed", "open", "round"],
+            "expressions": sorted(rig_manifest.EXPRESSIONS),
+            "actions": sorted(rig_manifest.ACTIONS), "mouths": ["closed", "open", "round"],
         }
         rig_manifest.validate_manifest(manifest)
         (home / "rig.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -93,9 +93,9 @@ def create(out: Path, frames_per_shot: int = 96) -> tuple[Path, Path]:
         track = ("ccoorr" * (frames_per_shot // 6 + 1))[:frames_per_shot] if speaking else "c" * frames_per_shot
         return {"character_id": who, "x": x, "facing": "right" if x < 0.5 else "left", "action": action, "expression": expression, "mouth_track": track}
     shots = [
-        {"camera": {"move": "static", "zoom_from": 0.9, "zoom_to": 0.9}, "transition": "cut", "subtitle": "Trois silhouettes, un même moteur", "actors": [actor("pip", 0.23, "idle", "neutral"), actor("tavi_owl", 0.5, "react", "surprised"), actor("rosette", 0.77, "idle", "neutral")]},
-        {"camera": {"move": "push_in", "zoom_from": 1.0, "zoom_to": 1.2}, "transition": "cut", "subtitle": "Tavi découvre la forêt qui disparaît.", "actors": [actor("pip", 0.27, "talk", "sad", True), actor("tavi_owl", 0.72, "point", "surprised")]},
-        {"camera": {"move": "pan_right", "zoom_from": 1.0, "zoom_to": 1.0}, "transition": "fade", "subtitle": "Ensemble, ils cherchent la cause.", "actors": [actor("tavi_owl", 0.32, "walk", "happy", True), actor("rosette", 0.75, "react", "happy")]},
+        {"setting": "forest", "camera": {"move": "static", "zoom_from": 0.9, "zoom_to": 0.9}, "transition": "cut", "subtitle": "Trois silhouettes, un même moteur", "actors": [actor("pip", 0.23, "idle", "neutral"), actor("tavi_owl", 0.5, "react", "surprised"), actor("rosette", 0.77, "idle", "neutral")]},
+        {"setting": "forest", "camera": {"move": "push_in", "zoom_from": 1.0, "zoom_to": 1.2}, "transition": "cut", "subtitle": "Tavi découvre la forêt qui disparaît.", "actors": [actor("pip", 0.27, "talk", "sad", True), actor("tavi_owl", 0.72, "point", "surprised")]},
+        {"setting": "forest", "camera": {"move": "pan_right", "zoom_from": 1.0, "zoom_to": 1.0}, "transition": "fade", "subtitle": "Ensemble, ils cherchent la cause.", "actors": [actor("tavi_owl", 0.32, "walk", "happy", True), actor("rosette", 0.75, "react", "happy")]},
     ]
     for i, shot in enumerate(shots):
         shot["start_frame"] = i * frames_per_shot
