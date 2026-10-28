@@ -1,0 +1,54 @@
+name: Claude PR review
+
+# Relecture automatique de chaque PR selon la doctrine Faceloop (CLAUDE.md / AGENTS.md).
+# Inactif tant qu'aucun secret n'est configuré : CLAUDE_CODE_OAUTH_TOKEN (abonnement, via `claude setup-token`)
+# ou ANTHROPIC_API_KEY (API). Lecture seule : commente la PR, ne pousse rien, ne merge rien.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Pas de brouillon, pas de fork (les forks n'ont pas accès aux secrets).
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    env:
+      HAS_CLAUDE_AUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip (no Claude secret configured)
+        if: env.HAS_CLAUDE_AUTH != 'true'
+        run: echo "Ni CLAUDE_CODE_OAUTH_TOKEN ni ANTHROPIC_API_KEY — relecture Claude ignorée."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_CLAUDE_AUTH == 'true'
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        if: env.HAS_CLAUDE_AUTH == 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Tu relis une PR de AiAddicts (moteur GrowthOS de Faceloop, code dans growthos/). Suis la méthode et les critères de
+            `.claude/agents/engine-reviewer.md`, avec growthos/AGENTS.md, growthos/PRODUCT_DOCTRINE.md et CLAUDE.md comme doctrine. Ne lance ni worker
+            ni appel réseau payant. Commente les problèmes précis en ligne, puis un commentaire de synthèse
+            en français : liste courte triée par gravité et verdict (OK pour merge / OK après corrections / Bloquant).
+            Si contract.py, story_adapter.py ou story_animation/fixtures change, rappelle de vérifier la parité avec growthos-web.
+          claude_args: |
+            --max-turns 30
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
