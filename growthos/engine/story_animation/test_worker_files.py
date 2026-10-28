@@ -15,12 +15,18 @@ def triggers(text: str) -> set:
 
 
 class DedicatedWorkflow(unittest.TestCase):
-    def test_only_manual_dispatch_can_start_it(self):
-        self.assertEqual(triggers(WORKFLOW), {"workflow_dispatch"})
+    def test_only_dispatch_and_schedule_can_start_it(self):
+        self.assertEqual(triggers(WORKFLOW), {"workflow_dispatch", "schedule"})
 
-    def test_job_is_skipped_unless_the_repository_variable_is_true(self):
-        self.assertIn("if: ${{ vars.STORY_ANIMATION_ENABLED == 'true' }}", WORKFLOW)
+    def test_schedule_is_offset_from_the_main_worker(self):
+        self.assertIn('cron: "2,12,22,32,42,52 * * * *"', WORKFLOW)
+        self.assertNotIn('"2,12,22,32,42,52', MAIN_WORKFLOW)
 
+    def test_heavy_job_needs_work_and_the_repository_variable_is_an_off_switch(self):
+        self.assertIn("if: ${{ vars.STORY_ANIMATION_ENABLED != 'false' }}", WORKFLOW)  # light check-queue job
+        self.assertIn(
+            "if: ${{ vars.STORY_ANIMATION_ENABLED != 'false' && needs.check-queue.outputs.has_work == 'true' }}", WORKFLOW
+        )
     def test_read_only_permissions_and_single_run(self):
         self.assertIn("permissions:\n  contents: read", WORKFLOW)
         self.assertIn("group: story-animation-worker", WORKFLOW)
