@@ -143,4 +143,15 @@ jobs:
           STORY_PACK_DIR: ${{ runner.temp }}/story-packs
           STORY_RENDER_TIMEOUT_S: '900'
           ELEVENLABS_USD_PER_1K_CHARS: '0.18'
+          # Renderer: storyboard (illustrated beats, default) or rig_v1 (Godot puppets). Switch back with the repository
+          # variable STORY_RENDERER=rig_v1, no code change. See docs/product/STORY_STUDIO_STORYBOARD_RENDERER_2026-10-28.md.
+          STORY_RENDERER: ${{ vars.STORY_RENDERER || 'storyboard' }}
+          # Same image prices as the main worker (estimates for the budget check and the cost report, never invoices).
+          IMAGE_PRICE_TEXT_IN_PER_M: '5'
+          IMAGE_PRICE_IMAGE_IN_PER_M: '8'
+          IMAGE_PRICE_IMAGE_OUT_PER_M: '30'
+          STORY_DIRECTOR_MODEL: 'gpt-5-mini'
+          STORY_DIRECTOR_PRICE_IN_PER_M: '0.25'
+          STORY_DIRECTOR_PRICE_OUT_PER_M: '2'
+          STORY_STORYBOARD_MAX_USD: ${{ vars.STORY_STORYBOARD_MAX_USD || '8' }}
         run: python animation_worker.py --until-idle

@@ -959,13 +959,16 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
     `story_animation.pipeline`; this function only plugs the real services into it. Imports are local so that the
     legacy path never loads this code."""
     import shlex
+    import shutil
     from .story_animation import measure as sa_measure, packs as sa_packs, pipeline as sa_pipeline
-    from .story_animation import quality as sa_quality, rig_v1 as sa_rig, voices as sa_voices
+    from .story_animation import quality as sa_quality, rig_v1 as sa_rig, storyboard as sa_storyboard, voices as sa_voices
 
+    renderer_name = sa_storyboard.renderer_from_env()
+    use_storyboard = renderer_name == sa_storyboard.STORYBOARD
     godot_bin = os.environ.get("GODOT_BIN", "")
     pack_root = os.environ.get("STORY_PACK_DIR", "")
     style_id = ((script.get("story") or {}).get("style_id")) if isinstance(script, dict) else None
-    pack_dir = sa_packs.resolve_pack_dir(pack_root, style_id) if pack_root else None
+    pack_dir = sa_packs.resolve_pack_dir(pack_root, style_id) if pack_root and not use_storyboard else None
     renderer = sa_rig.RigV1Renderer(godot_bin, launcher=tuple(shlex.split(os.environ.get("STORY_RENDER_LAUNCHER", ""))))
     work = Path(output_root) / f"animated_{content_item_id}"
     organization_id = events.organization_id_of(client, content_item_id)
@@ -978,6 +981,13 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
 
     def ready() -> list:
         problems = []
+        if use_storyboard:
+            # no Godot and no pack: pictures come from the image provider, assembly from ffmpeg
+            if not os.environ.get("OPENAI_API_KEY"):
+                problems.append("OPENAI_API_KEY is not set (storyboard pictures)")
+            if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+                problems.append("ffmpeg/ffprobe are not installed")
+            return problems
         if not godot_bin or not Path(godot_bin).is_file():
             problems.append("GODOT_BIN is not set to an existing file")
         if pack_dir is None:
@@ -991,7 +1001,8 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
 
     def check_quality(final: Path) -> list:
         report = sa_measure.measure(final)
-        expected = {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS}
+        expected = ({"width": sa_storyboard.WIDTH, "height": sa_storyboard.HEIGHT, "fps": sa_storyboard.FPS} if use_storyboard
+                    else {"width": sa_rig.WIDTH, "height": sa_rig.HEIGHT, "fps": sa_rig.FPS})
         target = ((script.get("story") or {}).get("duration_target_s")) if isinstance(script, dict) else None
         if target is not None:
             expected["target_s"] = target
@@ -1021,11 +1032,31 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
             print(f"       (run non comptabilisé pour la politique de crédits : {exc})")
         return {"video_url": video_url, "video": str(final), "content_item_id": content_item_id}
 
+    storyboard_ports = None
+    if use_storyboard:
+        from . import openai_images, image_model_router
+        from .story_animation import direction as sa_direction
+
+        def generate_image(prompt: str, out: Path):
+            sel = image_model_router.select_model("final")
+            return openai_images.generate_image(prompt, str(out), aspect_ratio="9:16", model=sel.model, quality=sel.quality)
+
+        model = sa_direction.director_model()
+        storyboard_ports = sa_storyboard.StoryboardPorts(
+            generate_image=generate_image,
+            call_llm=sa_direction.call_openai if model else None,
+            llm_model=model,
+            usd_per_image=sa_storyboard.usd_per_image_estimate(),
+            llm_reserve_usd=float(os.environ.get("STORY_DIRECTOR_RESERVE_USD", "0.05")),
+            max_usd=sa_storyboard.server_max_usd(),
+        )
+
     ports = sa_pipeline.Ports(
         authorize=authorize,
         moderate=moderation.check_script,
         ready=ready,
-        estimate=renderer.estimate,
+        estimate=((lambda seconds, chars: sa_storyboard.estimate(seconds, chars, storyboard_ports)) if use_storyboard
+                  else renderer.estimate),
         reserve_credit=lambda: repo.reserve_generation_credit(client, content_item_id),
         refund_credit=lambda: repo.refund_generation_credit(client, content_item_id),
         record_event=record_event,
@@ -1036,6 +1067,8 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
         publish=publish,
         catalog=sa_pipeline.RIG_V1_CATALOG,
         usd_per_1k_chars=float(os.environ.get("ELEVENLABS_USD_PER_1K_CHARS", "0.3")),
+        renderer=renderer_name,
+        storyboard=storyboard_ports,
     )
     def report_progress(label: str) -> None:
         repo.update_content_item(client, content_item_id, generation_step=label)

@@ -146,6 +146,9 @@ _VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
 # Ken Burns : un mouvement différent par bloc (choisi par l'index du bloc,
 # stable au re-rendu) pour éviter l'effet "toutes les images zooment pareil".
 _KB_MOVES = ("in", "out", "right", "left", "up", "in_slow")
+# Mouvements disponibles seulement sur demande explicite (jamais dans la rotation par défaut ci-dessus, qui reste
+# inchangée) : "shake" = tremblement court pour un choc (rendu storyboard Story Studio).
+_EXTRA_KB_MOVES = ("shake",)
 
 # Vignette légère qui "respire" (angle animé) : un cadrage un peu filmique,
 # coût de compression négligeable. Appliquée aux clips image ET stock.
@@ -176,7 +179,7 @@ def _resolve_kb_move(block_index: int, motion_move: str | None) -> str:
     see engine/motion_profiles.py), always wins. `None` preserves the
     original `block_index % len(_KB_MOVES)` rotation exactly — the default
     for any caller that hasn't been updated to pass a resolved move."""
-    if motion_move in _KB_MOVES:
+    if motion_move in _KB_MOVES or motion_move in _EXTRA_KB_MOVES:
         return motion_move
     return _KB_MOVES[(block_index - 1) % len(_KB_MOVES)]
 
@@ -211,6 +214,8 @@ def _kenburns_filter(move: str, resolution: str, n_frames: int, fps: int) -> str
         z, x, y = "1.14", cx, f"(ih-ih/zoom)*(1-on/{n})"
     elif move == "in_slow":
         z, x, y = "min(1.0+0.0009*on,1.15)", cx, cy
+    elif move == "shake":
+        z, x, y = "1.12", f"{cx}+18*sin(on*2.1)", f"{cy}+12*cos(on*2.7)"
     else:  # "in"
         z, x, y = "min(1.0+0.0016*on,1.28)", cx, cy
     return f"zoompan=z='{z}':x='{x}':y='{y}':d={n_frames}:s={resolution}:fps={fps}"
