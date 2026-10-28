@@ -10,6 +10,10 @@ name: Story animation worker (dedicated)
 # Kill switch (opt-out): the jobs run unless the repository variable STORY_ANIMATION_ENABLED is 'false'. Paid generation
 # is already gated upstream: web flag STORY_ANIMATION_ENABLED=1, platform admin only, explicit paid confirmation, and
 # credit reservation in the engine before any paid call. The repo variable stays an emergency off switch ('false').
+# check-queue also counts animated stories stuck in `generating` past the stale threshold (a killed heavy job), and fails RED
+# on a configuration error (missing Supabase variables); a transient query error only logs a ::warning:: and has_work=false.
+# check-queue has NO `environment:`: its Supabase secrets must stay at REPOSITORY level. If they are moved to the
+# `story-animation` environment, give check-queue the same environment too (otherwise it fails red, by design).
 # Even then animation_worker.py exits at once when its own STORY_ANIMATION_ENABLED is off.
 # Secrets are limited to what an animated job needs: no Pexels key, no cron secret, no site URL.
 # Prerequisites (see docs/product/STORY_STUDIO_ANIMATION_RUNBOOK_2026-10-24.md): the private `story-packs` bucket

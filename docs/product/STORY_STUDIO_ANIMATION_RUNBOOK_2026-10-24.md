@@ -62,11 +62,14 @@ group by 1 having sum(delta) < -1 order by 2;
 Alertes recommandées (à créer, aujourd'hui inexistantes) : ≥ 2 échecs animés consécutifs ; consommation ElevenLabs mensuelle > 80 % (compte Creator : 121 032 caractères/mois, 30 043 utilisés à l'audit du 2026-10-24) ; durée de job > 30 min ; coût par vidéo estimé > budget.
 
 ## 6. Incidents
+Rappel : une variable `STORY_ANIMATION_ENABLED` **absente = worker actif** ; seule la valeur `false` l'arrête.
+
 | Symptôme | Action |
 | --- | --- |
+| Job `check-queue` rouge | Erreur de configuration (variables Supabase absentes ou client impossible à créer) : volontairement rouge, pour ne pas passer pour une file vide. Les secrets Supabase de `check-queue` doivent rester au **niveau du dépôt** ; si on les déplace vers l'environnement `story-animation`, donner le même `environment:` à `check-queue`. Un simple `::warning::` (erreur de requête transitoire) n'empêche pas le prochain réveil. |
 | Rendu animé qui échoue en boucle | Mettre la variable de dépôt `STORY_ANIMATION_ENABLED` à `false` (le workflow s'arrête ; supprimer la variable ne suffit plus) et couper le flag web : les nouveaux contenus animés sont refusés avant crédit ; les vidéos déjà publiées restent lisibles. Examiner `error` des contenus échoués. |
 | Crédit non rendu après un échec | Le remboursement est idempotent : relancer `refund_generation_credit(<id>)` n'inscrit qu'une fois. Vérifier la requête crédits ci-dessus ; en cas d'écart, corriger par une ligne `credits_ledger` explicite, jamais en modifiant le solde à la main. |
-| Item resté `generating` | Il est remis en file au bout de 15 min sans battement ; si le worker est mort, la reprise ne débite pas deux fois (réservation idempotente). |
+| Item resté `generating` | Il est remis en file au bout de 15 min sans battement (`check-queue` compte aussi ces items, donc le worker redémarre pour les reprendre) ; si le worker est mort, la reprise ne débite pas deux fois (réservation idempotente). |
 | Quota ElevenLabs épuisé | Les jobs échouent avant le rendu (erreur du fournisseur) et remboursent ; désactiver le flag le temps de recharger. |
 | Qualité | Deux niveaux (`engine/story_animation/quality.py`). **Bloquant** (durée image/son incohérente, résolution ou cadence inattendues, fichier > 40 Mio, mesure absente) : clip non livré, crédit remboursé, motif sur l'élément. **À revoir** (image noire ou figée hors fondus, son saturé ou presque inaudible) : le clip est **livré** dans l'état existant `quality_check` avec ses `quality_flags` en français (coup d'œil humain avant publication, publication automatique de série bloquée), le crédit est conservé ; `quality_score` reste nul (aucune note inventée). |
 | Fuite suspectée de secret | Le sous-processus Godot reçoit un environnement filtré (variables contenant KEY, SECRET, TOKEN, PASSWORD, CREDENTIAL retirées) ; vérifier les journaux (ni dialogues complets ni URL signées) puis faire tourner les clés concernées. |

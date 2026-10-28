@@ -27,6 +27,7 @@ class DedicatedWorkflow(unittest.TestCase):
         self.assertIn(
             "if: ${{ vars.STORY_ANIMATION_ENABLED != 'false' && needs.check-queue.outputs.has_work == 'true' }}", WORKFLOW
         )
+
     def test_read_only_permissions_and_single_run(self):
         self.assertIn("permissions:\n  contents: read", WORKFLOW)
         self.assertIn("group: story-animation-worker", WORKFLOW)
