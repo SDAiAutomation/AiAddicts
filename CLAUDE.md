@@ -4,7 +4,19 @@
 
 Lance Claude Code depuis la racine de ce repo (là où se trouve `.claude/`) pour que les agents, permissions et hooks ci-dessous soient chargés. Ces règles complètent `growthos/AGENTS.md` et `growthos/PRODUCT_DOCTRINE.md` sans les remplacer.
 
-## Sous-agents du projet (`.claude/agents/`)
+## Équipe de développement (`.claude/agents/`, worktree isolé, une PR chacun)
+
+| Agent | Rôle |
+|---|---|
+| `engine-builder` | Pipeline, worker, orchestration IA, contrats backend. |
+| `rig-animator` | Rendu Story Studio : Godot, gestes, visage, caméra, timeline (hors ligne, déterministe). |
+| `migration-author` | Migration Supabase additive + RLS + tests SQL ; rédigée, jamais appliquée. |
+| `bug-fixer` | Bug ou régression : test qui échoue d'abord, correction minimale. |
+| `test-writer` | Couverture de tests, sans toucher au code de production. |
+
+Commande `/livrer <demande>` : découpe la demande, fait valider le plan, lance les constructeurs en parallèle, puis les vérificateurs, et rend une ligne par PR. Pour une demande de développement non triviale, préfère ce circuit plutôt que de tout coder dans la session principale.
+
+## Vérificateurs (lecture seule)
 
 | Agent | Quand le lancer (automatiquement, sans attendre qu'on le demande) |
 |---|---|
