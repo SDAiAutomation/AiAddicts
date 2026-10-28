@@ -34,6 +34,19 @@ class Transport:
         return usage
 
 
+class OtherProvider:
+    """A non-fake provider (as a real one would be) with a configurable price."""
+
+    name, model = "other", "other:v1"
+
+    def __init__(self, transport, price):
+        self.transport, self.usd_per_second = transport, price
+
+    def generate(self, request, out_path, timeout_s):
+        usage = self.transport(request, out_path, timeout_s)
+        return kc.ClipResult(video_path=out_path, usage=usage, actual_cost_usd=usage.pop("cost_usd", None))
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -86,6 +99,21 @@ class SelectTests(Base):
         self.assertEqual([b.id for b in kc.select_key_beats(beats, max_clips=5, max_total_s=6)], ["ok1"])
         self.assertEqual(kc.select_key_beats(beats, max_clips=0), [])
         self.assertLessEqual(len(kc.select_key_beats(self.story() * 3, max_clips=99)), kc.MAX_CLIPS_LIMIT)
+
+    def test_malformed_beats_are_ignored(self):
+        good = self.beat("ok", 10, 13, intent="climax")
+        beats = [
+            {"id": "s", "start": "abc", "end": 3, "intent": "climax", "image_path": good.image_path},
+            {"id": "i", "start": 0, "end": float("inf"), "intent": "climax", "image_path": good.image_path},
+            {"id": "n", "start": float("nan"), "end": 3, "intent": "climax", "image_path": good.image_path},
+            kc.Beat("r", 5, 4, intent="climax", image_path=good.image_path),
+            kc.Beat("t", 0, 3, intent=None, image_path=good.image_path),
+            None, "beat", 7, good,
+        ]
+        self.assertEqual([b.id for b in kc.select_key_beats(beats)], ["ok"])
+        self.assertEqual(kc.select_key_beats(None), [])
+        self.assertEqual(kc.select_key_beats(beats, max_clips="x"), [])
+        self.assertEqual([b.id for b in kc.select_key_beats(beats, max_total_s=float("nan"))], ["ok"])
 
     def test_accepts_dicts(self):
         beat = self.beat("b1", 0, 3, intent="climax")
@@ -164,10 +192,10 @@ class MakeKeyClipsTests(Base):
     def run_clips(self, transport, budget=None, beats=None, measure=good_measure, **provider_kw):
         provider = kc.FakeProvider(transport=transport, **provider_kw)
         return kc.make_key_clips(beats or self.story(), provider, budget or kc.KeyClipBudget(max_clips=3),
-                                 out_dir=self.out, measure=measure)
+                                 out_dir=self.out, image_root=self.tmp, measure=measure)
 
     def test_disabled_provider_returns_empty_report(self):
-        report = kc.make_key_clips(self.story(), None, out_dir=self.out)
+        report = kc.make_key_clips(self.story(), None, out_dir=self.out, image_root=self.tmp)
         self.assertEqual(report.clips, {})
         self.assertEqual(report.actual_usd, 0.0)
 
@@ -185,7 +213,7 @@ class MakeKeyClipsTests(Base):
         self.assertEqual(d["prompt_version"], kc.MOTION_PROMPT_VERSION)
 
     def test_missing_actual_cost_is_unknown_not_zero(self):
-        report = self.run_clips(Transport(), usd_per_second=0.05, report_cost=False)
+        report = self.run_clips(Transport(), usd_per_second=0.05)
         self.assertIsNone(report.actual_usd)
         self.assertFalse(report.actual_cost_complete)
         self.assertGreater(report.estimated_usd, 0)
@@ -232,14 +260,104 @@ class MakeKeyClipsTests(Base):
         self.assertEqual(statuses, {"b03": "failed", "b05": "skipped_budget"})
         self.assertLessEqual(report.estimated_usd, 0.5)
 
-    def test_rate_override_and_unknown_rate(self):
+    def test_unknown_rate_makes_no_call(self):
         t = Transport()
-        report = self.run_clips(t, usd_per_second=None)
+        report = self.run_clips(t, usd_per_second=None, budget=kc.KeyClipBudget(max_clips=3, usd_per_second=0.2))
         self.assertEqual(t.calls, [])
         self.assertTrue(all(o.status == "rate_unknown" for o in report.outcomes))
-        report = self.run_clips(Transport(), budget=kc.KeyClipBudget(max_clips=1, usd_per_second=0.2), usd_per_second=None)
+        with self.assertRaises(ValueError):
+            kc.FakeProvider(transport=t, usd_per_second=float("nan"))
+        with self.assertRaises(ValueError):
+            kc.FakeProvider(transport=t, usd_per_second=-1)
+
+    def test_override_can_only_raise_the_rate(self):
+        report = self.run_clips(Transport(), budget=kc.KeyClipBudget(max_clips=1, usd_per_second=0.2), usd_per_second=0.05)
+        self.assertAlmostEqual(report.estimated_usd, 0.6)       # raised: 3 s x 0.2
+        report = self.run_clips(Transport(), budget=kc.KeyClipBudget(max_clips=1, usd_per_second=0.01), usd_per_second=0.05)
+        self.assertAlmostEqual(report.estimated_usd, 0.15)      # not lowered: 3 s x 0.05
+        for bad in (0, -1, float("nan"), float("inf"), True):
+            self.assertIsNone(kc.KeyClipBudget(usd_per_second=bad).usd_per_second)
+
+    def test_real_provider_with_zero_or_invalid_price_is_refused(self):
+        for price in (0.0, -0.1, float("nan"), float("inf"), None):
+            t = Transport()
+            report = kc.make_key_clips(self.story(), OtherProvider(t, price), kc.KeyClipBudget(max_clips=2),
+                                       out_dir=self.out, image_root=self.tmp, measure=good_measure)
+            self.assertEqual(t.calls, [], price)
+            self.assertTrue(all(o.status == "rate_unknown" for o in report.outcomes))
+        # a provider without its own price may run on the config price
+        t = Transport()
+        report = kc.make_key_clips(self.story(), OtherProvider(t, None), kc.KeyClipBudget(max_clips=1, usd_per_second=0.1),
+                                   out_dir=self.out, image_root=self.tmp, measure=good_measure)
         self.assertEqual(report.outcomes[0].status, "ok")
-        self.assertAlmostEqual(report.estimated_usd, 0.6)
+        # a real provider with a valid price
+        report = kc.make_key_clips(self.story(), OtherProvider(Transport(), 0.1), kc.KeyClipBudget(max_clips=1),
+                                   out_dir=self.out, image_root=self.tmp, measure=good_measure)
+        self.assertAlmostEqual(report.estimated_usd, 0.3)
+
+    def test_invalid_reported_costs_are_unknown(self):
+        for cost in (-1.0, float("nan"), float("inf"), True, "0.2"):
+            report = self.run_clips(Transport(cost=cost), budget=kc.KeyClipBudget(max_clips=1), usd_per_second=0.05)
+            self.assertIsNone(report.outcomes[0].attempts[0].actual_usd, cost)
+            self.assertIsNone(report.actual_usd)
+
+    def test_injected_transport_without_cost_is_unknown(self):
+        report = self.run_clips(Transport(), budget=kc.KeyClipBudget(max_clips=1))
+        self.assertIsNone(report.actual_usd)
+
+    def test_timeout_then_retry_succeeds(self):
+        t = Transport(sleep_s=1.5)
+        original = t.__call__
+
+        def first_slow(request, out_path, timeout_s):
+            if not t.calls:
+                return original(request, out_path, timeout_s)
+            t.sleep_s = 0.0
+            return original(request, out_path, timeout_s)
+
+        provider = kc.FakeProvider(transport=first_slow)
+        report = kc.make_key_clips(self.story(), provider, kc.KeyClipBudget(max_clips=1, timeout_s=1.0),
+                                   out_dir=self.out, image_root=self.tmp, measure=good_measure)
+        outcome = report.outcomes[0]
+        self.assertEqual(outcome.status, "ok")
+        self.assertIn("timeout", outcome.attempts[0].error)
+        self.assertEqual(len(outcome.attempts), 2)
+
+    def test_duplicate_ids_keep_the_first(self):
+        beats = [self.beat("dup", 0, 3, intent="climax", description="first"),
+                 self.beat("dup", 3, 6, intent="climax", description="second jumps"),
+                 self.beat("other", 6, 9, intent="conflict")]
+        t = Transport()
+        report = self.run_clips(t, beats=beats)
+        self.assertEqual([o.beat_id for o in report.outcomes], ["dup", "other"])
+        self.assertIn("first", t.calls[0].prompt)
+        self.assertEqual(sorted(p.name for p in self.out.glob("*.mp4")), ["dup.a1.mp4", "other.a1.mp4"])
+
+    def test_symlink_outside_root_is_refused(self):
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        (outside / "secret.png").write_bytes(b"png")
+        link = self.tmp / "link.png"
+        link.symlink_to(outside / "secret.png")
+        t = Transport()
+        report = self.run_clips(t, beats=[kc.Beat("s1", 0, 3, intent="climax", image_path=str(link))])
+        self.assertEqual(report.outcomes[0].status, "skipped_invalid")
+        self.assertEqual(t.calls, [])
+
+    def test_image_root_is_required(self):
+        with self.assertRaises(TypeError):
+            kc.make_key_clips(self.story(), kc.FakeProvider(transport=Transport()), out_dir=self.out)
+
+    def test_never_raises(self):
+        provider = kc.FakeProvider(transport=Transport())
+        for beats in (None, 42, [None, "x", {"id": "a", "start": "nope"}], [{"id": object(), "start": 0, "end": 3}]):
+            report = kc.make_key_clips(beats, provider, out_dir=self.out, image_root=self.tmp, measure=good_measure)
+            self.assertEqual(report.clips, {})
+        blocked = self.tmp / "file"
+        blocked.write_text("x")
+        report = kc.make_key_clips(self.story(), provider, out_dir=blocked / "sub", image_root=self.tmp, measure=good_measure)
+        self.assertIsNotNone(report.error)
+        self.assertEqual([p for p in report.clips.values() if p], [])
 
     def test_timeout_is_bounded_and_falls_back(self):
         t = Transport(sleep_s=1.5)
@@ -276,7 +394,7 @@ class FfmpegIntegrationTests(Base):
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=540x960:d=1",
                         "-frames:v", "1", str(image)], check=True)
         beat = kc.Beat("k1", 0, 2.0, intent="climax", image_path=str(image))
-        report = kc.make_key_clips([beat], kc.FakeProvider(), kc.KeyClipBudget(), out_dir=self.out)
+        report = kc.make_key_clips([beat], kc.FakeProvider(), kc.KeyClipBudget(), out_dir=self.out, image_root=self.tmp)
         self.assertEqual(report.outcomes[0].status, "ok", report.to_dict())
         self.assertEqual(report.actual_usd, 0.0)
         m = kc.measure_clip(report.clips["k1"])
@@ -287,7 +405,7 @@ class FfmpegIntegrationTests(Base):
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=540x960",
                         "-frames:v", "1", str(image)], check=True)
         beat = kc.Beat("k2", 0, 2.0, intent="climax", image_path=str(image))
-        report = kc.make_key_clips([beat], kc.FakeProvider(), kc.KeyClipBudget(), out_dir=self.out)
+        report = kc.make_key_clips([beat], kc.FakeProvider(), kc.KeyClipBudget(), out_dir=self.out, image_root=self.tmp)
         self.assertIsNone(report.clips["k2"])
         self.assertTrue(any(p.startswith("black") for p in report.outcomes[0].attempts[0].problems))
 

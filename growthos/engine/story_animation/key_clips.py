@@ -26,17 +26,19 @@ docs/product/STORY_STUDIO_KEY_CLIPS_2026-10-28.md). No endpoint is guessed here.
 Costs: every attempt records an estimated cost (requested seconds x per-second rate) and the actual cost reported
 by the provider, separately. A missing actual cost is None (unknown), never 0. The per-story cap
 (`STORY_KEY_CLIP_MAX_USD`, default 1.5) is checked before every attempt, retries included, against the committed
-spend (actual when reported, otherwise the estimate).
+spend (actual when reported, otherwise the estimate). The cap bounds estimates: a provider billing more than the
+estimate can overshoot it by one call, so a real transport must bound the billed seconds. A real provider needs a
+finite price > 0 (only `fake` may be free); `STORY_KEY_CLIP_USD_PER_S` can only raise that price, never lower it.
 """
 from __future__ import annotations
 
-import concurrent.futures
 import json
 import math
 import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,6 +60,7 @@ ABSOLUTE_MAX_USD = 10.0          # a typo in the env never authorises more than 
 DEFAULT_MAX_CLIPS = 4
 MAX_CLIPS_LIMIT = 5
 DEFAULT_MAX_TOTAL_S = 18.0       # total requested seconds of motion per story
+MAX_TOTAL_S_LIMIT = 25.0         # MAX_CLIPS_LIMIT x MAX_CLIP_S
 DEFAULT_TIMEOUT_S = 300.0
 MAX_ATTEMPTS = 2                 # first try + one retry, never more
 
@@ -121,8 +124,39 @@ class Beat:
         )
 
 
-def _as_beat(b) -> Beat:
-    return b if isinstance(b, Beat) else Beat.from_dict(b)
+def _finite(x) -> bool:
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def _as_beat(b) -> Beat | None:
+    """A well-formed Beat, or None for anything malformed (non-numeric/inf/NaN times, end <= start, wrong type)."""
+    try:
+        beat = b if isinstance(b, Beat) else Beat.from_dict(b) if isinstance(b, Mapping) else None
+    except (TypeError, ValueError, KeyError):
+        return None
+    if beat is None or not (_finite(beat.start) and _finite(beat.end)) or beat.end <= beat.start or beat.start < 0:
+        return None
+    if not all(isinstance(v, str) for v in (beat.id, beat.text, beat.intent, beat.description)):
+        return None
+    if beat.image_path is not None and not isinstance(beat.image_path, (str, os.PathLike)):
+        return None
+    return beat
+
+
+def _clean_beats(beats) -> list[Beat]:
+    """Well-formed beats, duplicates of an id dropped (the first one is kept)."""
+    seen, out = set(), []
+    try:
+        items = list(beats or [])
+    except TypeError:
+        return []
+    for raw in items:
+        beat = _as_beat(raw)
+        if beat is None or beat.id in seen:
+            continue
+        seen.add(beat.id)
+        out.append(beat)
+    return out
 
 
 # Small, auditable vocabulary (EN + FR). Keyword matching is not story comprehension: it only ranks.
@@ -176,9 +210,17 @@ def select_key_beats(beats: Sequence, max_clips: int = DEFAULT_MAX_CLIPS, max_to
     Ranking: explicit `motion=True` first, then score (intent climax/conflict/action, action verbs), then earlier
     start, then id. Beats with score 0, no still, an invalid id or shorter than MIN_CLIP_S are never chosen.
     Bounded by `max_clips` (capped at MAX_CLIPS_LIMIT) and by the total requested seconds. Returned in story order.
+    Malformed beats are ignored and duplicate ids keep the first occurrence; never raises (empty list at worst).
     """
-    max_clips = max(0, min(int(max_clips), MAX_CLIPS_LIMIT))
-    candidates = [b for b in map(_as_beat, beats) if _eligible(b)]
+    try:
+        max_clips = max(0, min(int(max_clips), MAX_CLIPS_LIMIT))
+        max_total_s = float(max_total_s)
+    except (TypeError, ValueError, OverflowError):
+        return []
+    if not math.isfinite(max_total_s):
+        max_total_s = DEFAULT_MAX_TOTAL_S
+    max_total_s = min(max(max_total_s, 0.0), MAX_TOTAL_S_LIMIT)
+    candidates = [b for b in _clean_beats(beats) if _eligible(b)]
     scored = sorted(((motion_score(b), b) for b in candidates), key=lambda sb: (-sb[0], sb[1].start, sb[1].id))
     chosen: list[Beat] = []
     total = 0.0
@@ -246,7 +288,7 @@ def camera_instruction(beat: Beat) -> str:
 
 def build_motion_prompt(beat, style: Style = STYLE_1930S_RUBBER_HOSE) -> MotionPrompt:
     """Image-to-video prompt: what moves (from the beat description), how it looks, what must not change."""
-    beat = _as_beat(beat)
+    beat = beat if isinstance(beat, Beat) else Beat.from_dict(beat)
     action = _clean(beat.description, 400) or _clean(beat.text, 300) or "The characters react with lively full-body acting."
     if not action.endswith((".", "!", "?")):
         action += "."
@@ -309,19 +351,27 @@ def _ffmpeg_still_motion(request: ClipRequest, out_path: Path, timeout_s: float)
 
 
 class FakeProvider:
-    """Offline provider for tests and dry runs. Free: actual cost 0.0 is a real measurement here."""
+    """Offline provider for tests and dry runs.
+
+    With the default local ffmpeg transport the clip is really free, so the actual cost 0.0 is a measurement.
+    An injected transport reports its own `cost_usd` in the usage dict; without it the actual cost is None.
+    """
 
     name = "fake"
     model = "fake-i2v:v1"
 
-    def __init__(self, transport: Transport | None = None, usd_per_second: float | None = 0.0, report_cost: bool = True):
+    def __init__(self, transport: Transport | None = None, usd_per_second: float | None = 0.0):
+        if usd_per_second is not None and not (_finite(usd_per_second) and usd_per_second >= 0):
+            raise ValueError("usd_per_second must be a finite number >= 0 or None")
+        self._local = transport is None
         self._transport = transport or _ffmpeg_still_motion
         self.usd_per_second = usd_per_second
-        self._report_cost = report_cost
 
     def generate(self, request: ClipRequest, out_path: Path, timeout_s: float) -> ClipResult:
         usage = dict(self._transport(request, out_path, timeout_s) or {})
-        cost = usage.pop("cost_usd", 0.0) if self._report_cost else None
+        cost = usage.pop("cost_usd", None)
+        if self._local:
+            cost = 0.0
         return ClipResult(video_path=out_path, usage=usage, actual_cost_usd=cost)
 
 
@@ -381,13 +431,19 @@ class KeyClipBudget:
     max_total_s: float = DEFAULT_MAX_TOTAL_S
     timeout_s: float = DEFAULT_TIMEOUT_S
     max_attempts: int = MAX_ATTEMPTS
-    usd_per_second: float | None = None            # override of the provider rate (config), None = provider's own
+    usd_per_second: float | None = None            # config rate; can only raise the provider's rate, never lower it
 
     def __post_init__(self):
-        object.__setattr__(self, "max_usd", min(max(float(self.max_usd), 0.0), ABSOLUTE_MAX_USD))
-        object.__setattr__(self, "max_clips", min(max(int(self.max_clips), 0), MAX_CLIPS_LIMIT))
-        object.__setattr__(self, "max_attempts", min(max(int(self.max_attempts), 1), MAX_ATTEMPTS))
-        object.__setattr__(self, "timeout_s", max(float(self.timeout_s), 1.0))
+        def num(value, default):
+            return float(value) if _finite(value) else default
+
+        object.__setattr__(self, "max_usd", min(max(num(self.max_usd, DEFAULT_MAX_USD), 0.0), ABSOLUTE_MAX_USD))
+        object.__setattr__(self, "max_clips", int(min(max(num(self.max_clips, DEFAULT_MAX_CLIPS), 0), MAX_CLIPS_LIMIT)))
+        object.__setattr__(self, "max_total_s", min(max(num(self.max_total_s, DEFAULT_MAX_TOTAL_S), 0.0), MAX_TOTAL_S_LIMIT))
+        object.__setattr__(self, "max_attempts", int(min(max(num(self.max_attempts, MAX_ATTEMPTS), 1), MAX_ATTEMPTS)))
+        object.__setattr__(self, "timeout_s", max(num(self.timeout_s, DEFAULT_TIMEOUT_S), 1.0))
+        rate = self.usd_per_second
+        object.__setattr__(self, "usd_per_second", float(rate) if _finite(rate) and rate > 0 else None)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "KeyClipBudget":
@@ -486,6 +542,7 @@ class KeyClipsReport:
     prompt_version: str
     budget_usd: float
     outcomes: list[ClipOutcome] = field(default_factory=list)
+    error: str | None = None                       # unexpected internal error; the stills are kept
 
     @property
     def clips(self) -> dict[str, Path | None]:
@@ -512,7 +569,7 @@ class KeyClipsReport:
         return {
             "version": self.version, "provider": self.provider, "model": self.model, "prompt_version": self.prompt_version,
             "budget_usd": self.budget_usd, "estimated_usd": self.estimated_usd, "actual_usd": self.actual_usd,
-            "actual_cost_complete": self.actual_cost_complete,
+            "actual_cost_complete": self.actual_cost_complete, "error": self.error,
             "clips": [{
                 "beat_id": o.beat_id, "status": o.status, "requested_s": o.requested_s,
                 "clip_path": str(o.clip_path) if o.clip_path else None,
@@ -523,26 +580,64 @@ class KeyClipsReport:
         }
 
 
-def _valid_image(path_str: str | None, image_root: Path | None) -> Path | None:
-    if not path_str:
+def _valid_image(path_str: str | None, image_root: Path) -> Path | None:
+    """The still, only when it is an image file under `image_root` once every symlink is resolved."""
+    if not path_str or image_root is None:
         return None
-    path = Path(path_str).resolve()
+    try:
+        path = Path(path_str).resolve(strict=True)
+        root = Path(image_root).resolve(strict=True)
+        path.relative_to(root)
+    except (OSError, ValueError, RuntimeError):
+        return None
     if path.suffix.lower() not in _IMAGE_SUFFIXES or not path.is_file():
         return None
-    if image_root is not None:
-        try:
-            path.relative_to(Path(image_root).resolve())
-        except ValueError:
-            return None
     return path
 
 
+def _valid_cost(value) -> float | None:
+    """A reported cost, or None (unknown) for anything that is not a finite number >= 0."""
+    return float(value) if _finite(value) and value >= 0 else None
+
+
+def effective_rate(provider, budget: "KeyClipBudget") -> float | None:
+    """Per-second price used for estimates and the cap; None means unknown (no call is made).
+
+    A real provider needs a finite price > 0; only `fake` may be free. The config override can only raise the
+    provider's own price, never lower it (it is the only price when the provider declares none).
+    """
+    base = getattr(provider, "usd_per_second", None)
+    is_fake = isinstance(provider, FakeProvider)
+    if not (_finite(base) and (base > 0 or (is_fake and base == 0))):
+        base = None
+    override = budget.usd_per_second
+    if base is None:
+        return None if is_fake else override
+    return max(float(base), override) if override is not None else float(base)
+
+
 def _call_with_timeout(fn, timeout_s: float):
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    try:
-        return pool.submit(fn).result(timeout=timeout_s)
-    finally:
-        pool.shutdown(wait=False, cancel_futures=True)
+    """Run `fn` in a daemon thread and give up after `timeout_s`.
+
+    A Python thread cannot be killed: on timeout the call keeps running orphaned in the background (daemon, so it
+    never blocks the process exit). The real transport must bound its own wait and billed seconds.
+    """
+    box: dict = {}
+
+    def run():
+        try:
+            box["result"] = fn()
+        except BaseException as exc:  # handed back to the caller thread
+            box["error"] = exc
+
+    thread = threading.Thread(target=run, name="key-clip-call", daemon=True)
+    thread.start()
+    thread.join(timeout_s)
+    if thread.is_alive():
+        raise TimeoutError(f"timeout after {timeout_s:.0f}s")
+    if "error" in box:
+        raise box["error"]
+    return box["result"]
 
 
 def make_key_clips(
@@ -551,24 +646,35 @@ def make_key_clips(
     budget: KeyClipBudget | None = None,
     *,
     out_dir: Path,
+    image_root: Path,
     style: Style = STYLE_1930S_RUBBER_HOSE,
-    image_root: Path | None = None,
     measure: Callable[[Path], dict] = measure_clip,
     clock: Callable[[], float] = time.monotonic,
 ) -> KeyClipsReport:
-    """Generate clips for the selected key beats; never raises for a single beat's failure.
+    """Generate clips for the selected key beats. Never raises: at worst the report has no clip.
 
     `provider=None` (feature disabled) returns an empty report. Each selected beat ends with a clip path or None.
+    `image_root` is required: stills outside it (after resolving symlinks) are refused.
     """
-    budget = budget or KeyClipBudget()
+    if not isinstance(budget, KeyClipBudget):
+        budget = KeyClipBudget()
     report = KeyClipsReport(version=KEY_CLIPS_VERSION, provider=getattr(provider, "name", None),
                             model=getattr(provider, "model", None), prompt_version=MOTION_PROMPT_VERSION,
                             budget_usd=budget.max_usd)
     if provider is None or budget.max_clips == 0:
         return report
+    try:
+        _run(report, beats, provider, budget, Path(out_dir), image_root, style, measure, clock)
+    except Exception as exc:  # defensive: a key clip problem must never fail the story
+        report.error = f"{type(exc).__name__}: {str(exc)[:200]}"
+    return report
+
+
+def _run(report, beats, provider, budget, out_dir, image_root, style, measure, clock) -> None:
     selected = select_key_beats(beats, budget.max_clips, budget.max_total_s)
-    rate = budget.usd_per_second if budget.usd_per_second is not None else getattr(provider, "usd_per_second", None)
-    out_dir = Path(out_dir)
+    if not selected:
+        return
+    rate = effective_rate(provider, budget)
     out_dir.mkdir(parents=True, exist_ok=True)
     committed = 0.0
     stop_status: str | None = None
@@ -590,7 +696,7 @@ def make_key_clips(
         outcome.prompt = build_motion_prompt(beat, style)
         request = ClipRequest(image_path=image, prompt=outcome.prompt.prompt, negative_prompt=outcome.prompt.negative,
                               duration_s=requested)
-        estimate = round(requested * float(rate), 6)
+        estimate = round(requested * rate, 6)
 
         for number in range(1, budget.max_attempts + 1):
             if committed + estimate > budget.max_usd + 1e-9:
@@ -602,8 +708,8 @@ def make_key_clips(
             started = clock()
             try:
                 result = _call_with_timeout(lambda: provider.generate(request, out_path, budget.timeout_s), budget.timeout_s)
-                attempt.usage = dict(result.usage)
-                attempt.actual_usd = result.actual_cost_usd if isinstance(result.actual_cost_usd, (int, float)) else None
+                attempt.usage = dict(getattr(result, "usage", None) or {})
+                attempt.actual_usd = _valid_cost(getattr(result, "actual_cost_usd", None))
                 if Path(result.video_path).resolve() != out_path.resolve() or not out_path.is_file():
                     raise KeyClipError("provider did not write the expected file")
                 attempt.problems = clip_problems(measure(out_path), requested, beat.duration_s)
@@ -612,8 +718,8 @@ def make_key_clips(
             except NotConfigured as exc:
                 attempt.error = f"NotConfigured: {exc}"
                 outcome.status = stop_status = "not_configured"
-            except concurrent.futures.TimeoutError:
-                attempt.error = f"timeout after {budget.timeout_s:.0f}s"
+            except TimeoutError as exc:
+                attempt.error = str(exc)
             except Exception as exc:  # provider/IO/ffprobe: recorded, the still is kept
                 attempt.error = f"{type(exc).__name__}: {str(exc)[:200]}"
             else:
@@ -624,5 +730,7 @@ def make_key_clips(
                 committed += attempt.actual_usd if attempt.actual_usd is not None else attempt.estimated_usd
             if outcome.status in ("ok", "not_configured"):
                 break
-            out_path.unlink(missing_ok=True)
-    return report
+            try:
+                out_path.unlink(missing_ok=True)
+            except OSError:
+                pass
