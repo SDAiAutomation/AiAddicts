@@ -165,3 +165,63 @@ def resolve_style_bible(visual_style: str | None, visual_style_prompt: str | Non
         "contrast": identity.get("contrast"),
         "texture": identity.get("texture"),
     }
+
+
+# Story Studio (rendu « storyboard ») : looks des histoires animées, ids du contrat Story Studio (`story.style_id`,
+# voir engine/story_animation/pipeline.STYLES). Catalogue SÉPARÉ de `_VISUAL_STYLE_PROMPTS` (styles Standard, alignés
+# avec growthos-web) : un style d'histoire n'est pas proposé dans le Create Standard. `grain` : intensité du grain de
+# pellicule ajouté au montage (0 = aucun), jamais laissé au seul modèle d'image.
+STORY_STYLE_BIBLE_VERSION = "1.0.0"
+_STORY_RUBBER_HOSE = (
+    "dessin animé américain des années 1930 style rubber hose : membres tubulaires souples, gants blancs, yeux en "
+    "camembert (pie-cut eyes), encrage noir épais et régulier, formes rondes et élastiques, décors dessinés à la main"
+)
+_STORY_STYLES: dict[str, dict] = {
+    "noir_1930": {
+        "consigne": _STORY_RUBBER_HOSE + ", NOIR ET BLANC strict avec UN SEUL accent de couleur rouge vif",
+        "palette": "noir et blanc uniquement, un unique accent rouge vif sur l'objet clé",
+        "contrast": "contraste fort, noirs profonds",
+        "texture": "grain de pellicule ancienne, léger vignettage",
+        "grain": 14,
+    },
+    "sepia_1930": {
+        "consigne": _STORY_RUBBER_HOSE + ", monochrome sépia avec un seul accent rouge",
+        "palette": "tons sépia, un unique accent rouge",
+        "texture": "grain de pellicule ancienne, léger vignettage",
+        "grain": 12,
+    },
+    "cyanotype_1930": {
+        "consigne": _STORY_RUBBER_HOSE + ", monochrome bleu de Prusse façon cyanotype avec un seul accent rouge",
+        "palette": "bleus cyanotype, un unique accent rouge",
+        "texture": "grain de papier et de pellicule, léger vignettage",
+        "grain": 12,
+    },
+    "couleur_1930": {
+        "consigne": _STORY_RUBBER_HOSE + ", couleurs Technicolor deux bandes des années 1930, palette limitée",
+        "palette": "palette limitée rouge-orangé et bleu-vert, couleurs légèrement passées",
+        "texture": "léger grain de pellicule",
+        "grain": 8,
+    },
+}
+DEFAULT_STORY_STYLE = "noir_1930"
+
+
+def resolve_story_style_bible(style_id: str | None) -> dict:
+    """Style Bible d'une histoire animée (même forme que `resolve_style_bible`, consommée par
+    `image_prompt_builder.build_scene_prompt`). Id inconnu ou absent -> le look de référence `noir_1930`."""
+    key = style_id if style_id in _STORY_STYLES else DEFAULT_STORY_STYLE
+    style = _STORY_STYLES[key]
+    return {
+        "visual_style_id": key,
+        "consigne": style["consigne"],
+        "avoid": list(_DEFAULT_AVOID) + ["texte, lettres, chiffres, panneaux écrits", "rendu 3D, photo réaliste"],
+        "composition_rules": _COMPOSITION_RULES,
+        "version": STORY_STYLE_BIBLE_VERSION,
+        "prompt_version": IMAGE_PROMPT_VERSION,
+        "motion_profile": "cinematic",
+        "transition": "cut",
+        "palette": style.get("palette"),
+        "contrast": style.get("contrast"),
+        "texture": style.get("texture"),
+        "grain": int(style.get("grain") or 0),
+    }
