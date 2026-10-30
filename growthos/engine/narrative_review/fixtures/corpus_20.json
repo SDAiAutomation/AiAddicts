@@ -1,0 +1,659 @@
+{
+  "document_type": "benchmark_specification_not_results",
+  "version": "narrative-corpus:0.1",
+  "date": "2026-10-30",
+  "execution_status": "not_run",
+  "defaults": {
+    "language": "fr",
+    "audience": "adultes francophones curieux, sans expertise préalable",
+    "platform": "youtube",
+    "target_duration_s": 75,
+    "cta": "optional",
+    "sources_policy": "bounded_packet_only",
+    "history_available": false
+  },
+  "instructions": "Fournir au générateur defaults + generator_input + les dossiers source_ids. Ne pas fournir evaluator_only, cas adverses, attentes de rappel ou critères de victoire. Ne pas écrire sur les sujets holdout pendant le réglage du pilote.",
+  "topics": [
+    {
+      "id": "N01",
+      "split": "pilot",
+      "category": "psychologie",
+      "generator_input": {
+        "topic": "La file sans raison",
+        "brief": "Raconter une file qui grandit alors que chacun suppose que la personne devant sait pourquoi elle attend. Un personnage vérifie cette supposition.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi cette file existe-t-elle ?",
+        "learning_intention": "Une croyance partagée ne garantit pas une information partagée.",
+        "source_ids": [],
+        "constraints": [
+          "Ville, personnages et événements explicitement fictifs.",
+          "La résolution doit expliquer l'origine de l'attente."
+        ],
+        "prohibited_claims": [
+          "Ne pas citer Asch ni ajouter de statistique.",
+          "Ne pas humilier tous les participants comme idiots."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Vérification ou action modifiant l'attente",
+          "Conclusion reliée à l'origine de la file"
+        ],
+        "comprehension_question": "Qu'est-ce qui a déclenché la file ?",
+        "acceptable_answer": "Les personnes se sont copiées ; le premier avait une raison différente ou privée, explicitée par le script.",
+        "adversarial_failure": "La file se dissout magiquement sans découverte ni décision."
+      }
+    },
+    {
+      "id": "N02",
+      "split": "development",
+      "category": "psychologie",
+      "generator_input": {
+        "topic": "Deux promesses incompatibles",
+        "brief": "Un personnage promet la même soirée à deux proches. Montrer ce que ce choix fait perdre et comment il assume une limite.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Que coûte son incapacité à refuser ?",
+        "learning_intention": "Une promesse utile tient compte de la possibilité de la tenir.",
+        "source_ids": [],
+        "constraints": [
+          "Deux engagements incompatibles connus avant leur conséquence.",
+          "Personnages inventés."
+        ],
+        "prohibited_claims": [
+          "Ne pas promettre que dire non ne déçoit jamais.",
+          "Pas de formule médicale ou psychologique universelle."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Conséquence concrète",
+          "Décision qui transforme la situation"
+        ],
+        "comprehension_question": "Pourquoi le personnage ne peut-il pas tenir ses promesses ?",
+        "acceptable_answer": "Les engagements demandent le même temps ; sa décision finale rend cette limite explicite.",
+        "adversarial_failure": "Tous les proches pardonnent automatiquement sans conséquence."
+      }
+    },
+    {
+      "id": "N03",
+      "split": "development",
+      "category": "decision",
+      "generator_input": {
+        "topic": "Le projet déjà trop coûteux",
+        "brief": "Présenter un projet imaginaire auquel une équipe a déjà consacré du temps. Comparer ce qui reste à investir et ce qu'elle peut encore obtenir, sans recommander systématiquement d'abandonner.",
+        "truth_mode": "fiction",
+        "illustration_mode": "hypothetical",
+        "central_question": "Le temps déjà passé suffit-il à justifier la suite ?",
+        "learning_intention": "La décision suivante dépend aussi des coûts et bénéfices futurs.",
+        "source_ids": [],
+        "constraints": [
+          "Annoncer le caractère hypothétique.",
+          "Éventuels chiffres inventés présentés comme hypothèses."
+        ],
+        "prohibited_claims": [
+          "Pas de conseil d'investissement.",
+          "Ne pas conclure que persévérer est toujours une erreur."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Deux options concrètes",
+          "Conclusion conditionnelle"
+        ],
+        "comprehension_question": "Quelles informations devraient guider le prochain choix ?",
+        "acceptable_answer": "Les efforts encore nécessaires et les résultats possibles ; le passé seul ne suffit pas.",
+        "adversarial_failure": "La quantité d'effort passée devient la seule justification."
+      }
+    },
+    {
+      "id": "N04",
+      "split": "pilot",
+      "category": "metaphore",
+      "generator_input": {
+        "topic": "La maison des interruptions",
+        "brief": "Dans une maison imaginaire, chaque interruption oblige l'habitant à déplacer le même objet avant de reprendre une tâche. Faire évoluer cette règle simple jusqu'à une décision concrète.",
+        "truth_mode": "fiction",
+        "illustration_mode": "metaphor",
+        "central_question": "Pourquoi le personnage bouge-t-il beaucoup sans terminer sa tâche ?",
+        "learning_intention": "Le coût des interruptions peut être rendu visible par des reprises répétées.",
+        "source_ids": [],
+        "constraints": [
+          "Une seule règle métaphorique stable.",
+          "L'objet et la tâche sont identifiables à l'écoute."
+        ],
+        "prohibited_claims": [
+          "Pas de prétention neuroscientifique.",
+          "Pas de nouveau pouvoir qui résout tout à la fin."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Métaphore filée",
+          "Action finale préparée"
+        ],
+        "comprehension_question": "Quelle règle de la maison empêchait d'avancer ?",
+        "acceptable_answer": "Chaque interruption imposait un déplacement ou une reprise ; la fin modifie cette règle ou les interruptions.",
+        "adversarial_failure": "L'objet change de fonction ou de règle sans préparation."
+      }
+    },
+    {
+      "id": "N05",
+      "split": "pilot",
+      "category": "science_histoire",
+      "generator_input": {
+        "topic": "De la moisissure au traitement",
+        "brief": "Expliquer pourquoi l'observation de Fleming ne suffit pas à raconter toute l'histoire de la pénicilline. Relier observation et travail collectif ultérieur sans inventer de scène privée.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi observer une substance ne suffit-il pas à en faire un traitement ?",
+        "learning_intention": "Distinguer découverte et développement thérapeutique.",
+        "source_ids": [
+          "S01",
+          "S02"
+        ],
+        "constraints": [
+          "Limiter les faits au dossier S01/S02.",
+          "Mentionner le travail d'équipe sans récit du héros unique."
+        ],
+        "prohibited_claims": [
+          "Aucune citation ou pensée inventée.",
+          "Aucun nombre de vies sauvées.",
+          "Pas de conseil médical ni de protocole d'usage."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Distinction découverte/développement",
+          "Conclusion spécifique au problème"
+        ],
+        "comprehension_question": "Quelle différence sépare l'observation initiale d'un traitement utilisable ?",
+        "acceptable_answer": "Le développement, la préparation et l'évaluation ultérieurs demandent d'autres travaux ; plusieurs chercheurs contribuent.",
+        "adversarial_failure": "Fleming rend seul le médicament immédiatement utilisable en 1928."
+      }
+    },
+    {
+      "id": "N06",
+      "split": "development",
+      "category": "physique",
+      "generator_input": {
+        "topic": "Le métal et le bois",
+        "brief": "Expliquer pourquoi des surfaces de métal et de bois laissées à la même température ambiante peuvent donner des sensations différentes au toucher.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi la sensation ne donne-t-elle pas directement la température ?",
+        "learning_intention": "Différencier température et transfert thermique.",
+        "source_ids": [
+          "S03"
+        ],
+        "constraints": [
+          "Préciser des objets à température ambiante inférieure à celle de la main.",
+          "La comparaison concerne des matériaux dans les mêmes conditions."
+        ],
+        "prohibited_claims": [
+          "Ne pas dire que le métal est toujours plus froid.",
+          "Aucune expérience avec objet brûlant."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Réponse accessible",
+          "Condition de validité comprise"
+        ],
+        "comprehension_question": "Les deux objets sont-ils nécessairement à des températures différentes ?",
+        "acceptable_answer": "Non ; ils peuvent transférer la chaleur de la main à des vitesses différentes.",
+        "adversarial_failure": "La fin répète que le métal contient du froid."
+      }
+    },
+    {
+      "id": "N07",
+      "split": "holdout",
+      "category": "astronomie",
+      "generator_input": {
+        "topic": "La Lune qui accompagne la voiture",
+        "brief": "Répondre à l'impression que la Lune suit une voiture en comparant la distance de la Lune et celle des objets proches.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi la Lune semble-t-elle nous suivre ?",
+        "learning_intention": "Comprendre une apparence de mouvement liée à la distance.",
+        "source_ids": [
+          "S04"
+        ],
+        "constraints": [
+          "Comparer arbres proches et Lune lointaine.",
+          "Éviter les mesures de distance inutiles."
+        ],
+        "prohibited_claims": [
+          "Ne pas dire que la Lune est immobile dans l'espace.",
+          "Ne pas confondre avec son apparente taille à l'horizon."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Réponse tôt",
+          "Analogie fidèle"
+        ],
+        "comprehension_question": "Pourquoi les arbres changent-ils davantage de position apparente ?",
+        "acceptable_answer": "Ils sont beaucoup plus proches ; leur direction apparente change davantage pendant le trajet.",
+        "adversarial_failure": "La voiture attirerait la Lune."
+      }
+    },
+    {
+      "id": "N08",
+      "split": "holdout",
+      "category": "biologie",
+      "generator_input": {
+        "topic": "La graine et ses conditions",
+        "brief": "Présenter une graine viable qui ne germe pas encore et expliquer pourquoi une seule condition favorable peut ne pas suffire.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Qu'est-ce qui manque à une graine pour germer ?",
+        "learning_intention": "Les conditions et besoins diffèrent selon les espèces.",
+        "source_ids": [
+          "S05"
+        ],
+        "constraints": [
+          "Éviter de donner une température universelle.",
+          "Présenter un exemple de graine comme illustration, pas un résultat expérimental réel."
+        ],
+        "prohibited_claims": [
+          "Pas de graine qui choisit consciemment.",
+          "Pas de garantie de germination en un délai inventé."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Plusieurs conditions sans liste indigeste",
+          "Nuance préservée"
+        ],
+        "comprehension_question": "Pourquoi l'eau seule ne garantit-elle pas la germination ?",
+        "acceptable_answer": "D'autres conditions, dont oxygène et température adaptée, comptent ; les espèces diffèrent.",
+        "adversarial_failure": "Un arrosage rend toutes les graines immédiatement viables."
+      }
+    },
+    {
+      "id": "N09",
+      "split": "holdout",
+      "category": "histoire",
+      "generator_input": {
+        "topic": "La Californie dessinée comme une île",
+        "brief": "Partir de la carte attribuée à Joan Vinckeboons vers 1650 conservée à la Library of Congress pour montrer ce qu'une représentation détaillée peut laisser incertain.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Une carte détaillée garantit-elle une géographie exacte ?",
+        "learning_intention": "Distinguer document historique et description exacte du terrain.",
+        "source_ids": [
+          "S06"
+        ],
+        "constraints": [
+          "Dire vers 1650, pas une date certaine au jour près.",
+          "Séparer constat sur la carte et interprétation."
+        ],
+        "prohibited_claims": [
+          "Ne pas inventer les intentions du cartographe.",
+          "Ne pas généraliser à toutes les cartes de l'époque."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Détail documentaire",
+          "Limite de preuve explicite"
+        ],
+        "comprehension_question": "Que montre cette carte de façon erronée ?",
+        "acceptable_answer": "La Californie y est représentée comme une île ; son niveau de détail ne suffit pas à garantir sa justesse.",
+        "adversarial_failure": "Le cartographe ment délibérément sans preuve de son intention."
+      }
+    },
+    {
+      "id": "N10",
+      "split": "holdout",
+      "category": "histoire_technique",
+      "generator_input": {
+        "topic": "Une horloge à l'épreuve de la mer",
+        "brief": "Raconter le problème des instruments de Harrison : une horloge précise doit aussi rester utilisable dans les conditions du voyage. S'appuyer sur ses essais et améliorations.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi une bonne horloge à terre ne suffit-elle pas ?",
+        "learning_intention": "Une solution doit fonctionner dans ses conditions réelles d'usage.",
+        "source_ids": [
+          "S07"
+        ],
+        "constraints": [
+          "Rester dans les essais documentés du dossier.",
+          "Montrer un obstacle concret plutôt qu'une biographie exhaustive."
+        ],
+        "prohibited_claims": [
+          "Pas de marin ou dialogue inventé présenté comme réel.",
+          "Ne pas affirmer que H1 a résolu immédiatement tous les problèmes."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Essai puis amélioration",
+          "Conclusion technique précise"
+        ],
+        "comprehension_question": "Pourquoi les essais en mer comptaient-ils ?",
+        "acceptable_answer": "Il fallait vérifier la tenue de l'instrument dans les conditions de navigation ; des ajustements furent nécessaires.",
+        "adversarial_failure": "Une inspiration soudaine supprime tous les essais."
+      }
+    },
+    {
+      "id": "N11",
+      "split": "holdout",
+      "category": "histoire_objet",
+      "generator_input": {
+        "topic": "Marcher sur place : exercice ou contrainte",
+        "brief": "Comparer l'image contemporaine familière de l'exercice sur place à la gravure du moulin de prison de Brixton de 1821. Expliquer le changement de contexte sans prétendre prouver une filiation technique directe.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Un même geste a-t-il toujours la même signification ?",
+        "learning_intention": "Le contexte transforme le sens d'une activité.",
+        "source_ids": [
+          "S08"
+        ],
+        "constraints": [
+          "La gravure et sa notice sont la base documentaire.",
+          "L'exercice contemporain sert de comparaison générale, sans chronologie industrielle."
+        ],
+        "prohibited_claims": [
+          "Pas de récit d'invention unique du tapis moderne.",
+          "Aucun nombre de morts ou d'heures de peine non documenté."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Contraste contextualisé",
+          "Limites historiques"
+        ],
+        "comprehension_question": "Qu'est-ce qui distingue les deux contextes comparés ?",
+        "acceptable_answer": "Le choix de faire un exercice et la contrainte carcérale ; la gravure ne prouve pas toute la généalogie d'un objet.",
+        "adversarial_failure": "Tous les tapis actuels seraient exactement la même invention."
+      }
+    },
+    {
+      "id": "N12",
+      "split": "holdout",
+      "category": "litterature",
+      "generator_input": {
+        "topic": "Les mots dans le néoparler",
+        "brief": "Présenter l'intention du néoparler dans l'annexe de 1984, puis distinguer ce dispositif littéraire d'une preuve scientifique sur le langage humain.",
+        "truth_mode": "fact",
+        "illustration_mode": "none",
+        "central_question": "Que cherche à faire le pouvoir à travers le langage dans ce récit ?",
+        "learning_intention": "Distinguer analyse d'une œuvre et loi générale sur l'esprit.",
+        "source_ids": [
+          "S09"
+        ],
+        "constraints": [
+          "Attribution explicite à l'univers du roman.",
+          "Paraphraser sans reprendre longuement le texte littéraire."
+        ],
+        "prohibited_claims": [
+          "Aucune affirmation que supprimer un mot supprime nécessairement toute pensée correspondante.",
+          "Pas de citation apocryphe d'Orwell."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Interprétation balisée",
+          "Conclusion sans extrapolation scientifique"
+        ],
+        "comprehension_question": "Le récit prouve-t-il une loi scientifique du langage ?",
+        "acceptable_answer": "Non ; il met en scène un projet de contrôle dans une œuvre littéraire.",
+        "adversarial_failure": "Le roman est présenté comme une expérience scientifique concluante."
+      }
+    },
+    {
+      "id": "N13",
+      "split": "pilot",
+      "category": "economie",
+      "generator_input": {
+        "topic": "L'augmentation et les nouvelles dépenses",
+        "brief": "Exemple hypothétique mensuel : revenu disponible augmenté de 1 000 euros, nouvelles dépenses de 250 euros de loyer, 180 de voiture, 220 de livraisons et 200 de sorties. Expliquer ce qui reste.",
+        "truth_mode": "fiction",
+        "illustration_mode": "hypothetical",
+        "central_question": "Combien reste-t-il réellement de cette augmentation dans l'exemple ?",
+        "learning_intention": "Distinguer hausse de revenu et hausse de marge disponible.",
+        "source_ids": [],
+        "constraints": [
+          "Toutes les sommes sont hypothétiques, mensuelles et dans la même unité.",
+          "Dire le résultat et montrer assez du calcul pour le comprendre."
+        ],
+        "prohibited_claims": [
+          "Pas de règle fiscale, de fréquence empirique ou de jugement moral.",
+          "Pas de rendement ni d'économie garantie."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Calcul reproductible",
+          "Réponse concrète sans suspense artificiel"
+        ],
+        "comprehension_question": "Combien reste-t-il, et pourquoi ?",
+        "acceptable_answer": "Les nouvelles dépenses font 850 euros par mois ; il reste 150 euros par mois.",
+        "adversarial_failure": "Confondre un coût annuel avec un coût mensuel ou annoncer 250 euros restants."
+      }
+    },
+    {
+      "id": "N14",
+      "split": "holdout",
+      "category": "economie",
+      "generator_input": {
+        "topic": "Deux abonnements, deux usages",
+        "brief": "Comparer un abonnement A à 12 euros par mois utilisé deux fois et un abonnement B à 20 euros par mois utilisé dix fois, dans un exemple fictif. Distinguer coût total et coût par usage.",
+        "truth_mode": "fiction",
+        "illustration_mode": "hypothetical",
+        "central_question": "Le moins cher au mois est-il le moins cher par usage ?",
+        "learning_intention": "Une comparaison dépend de la mesure retenue.",
+        "source_ids": [],
+        "constraints": [
+          "Même mois et usages explicitement hypothétiques.",
+          "A vaut 6 euros par usage ; B vaut 2 euros par usage."
+        ],
+        "prohibited_claims": [
+          "Ne pas conclure qu'il faut toujours acheter B.",
+          "Pas de conseils contractuels de résiliation."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Deux métriques distinctes",
+          "Conclusion conditionnelle"
+        ],
+        "comprehension_question": "Quel abonnement coûte moins par usage dans cet exemple ?",
+        "acceptable_answer": "B, mais A reste moins cher au total ; le choix dépend du besoin.",
+        "adversarial_failure": "Confondre coût par usage et montant payé."
+      }
+    },
+    {
+      "id": "N15",
+      "split": "development",
+      "category": "travail",
+      "generator_input": {
+        "topic": "L'équipe qui compte les tâches",
+        "brief": "Une équipe fictive mesure les tâches fermées. Elle termine beaucoup de détails mais ne livre pas l'objet attendu. Un personnage confronte le tableau de tâches à l'objet réel.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi tout semble avancer alors que rien n'est livrable ?",
+        "learning_intention": "Un indicateur d'activité ne suffit pas à définir un résultat.",
+        "source_ids": [],
+        "constraints": [
+          "Un livrable précis au centre du récit.",
+          "Pas de société ou de salarié réel identifiable."
+        ],
+        "prohibited_claims": [
+          "Ne pas dire que tous les indicateurs sont inutiles.",
+          "Pas de chiffre de productivité présenté comme étude."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Conséquence observable",
+          "Changement de décision"
+        ],
+        "comprehension_question": "Pourquoi le tableau de tâches donnait-il une impression trompeuse ?",
+        "acceptable_answer": "Les tâches comptées n'assuraient pas la livraison de l'objet attendu.",
+        "adversarial_failure": "Une morale sur le travail remplace toute action."
+      }
+    },
+    {
+      "id": "N16",
+      "split": "holdout",
+      "category": "apprentissage",
+      "generator_input": {
+        "topic": "Relire ou rappeler sans regarder",
+        "brief": "À partir de l'étude fournie sur des textes, comparer relecture et rappel sans support. Ne pas confondre l'étude avec une preuve universelle sur l'explication orale.",
+        "truth_mode": "fact",
+        "illustration_mode": "hypothetical",
+        "central_question": "Pourquoi l'impression de savoir peut-elle différer d'un rappel différé ?",
+        "learning_intention": "Distinguer familiarité, confiance et rappel mesuré.",
+        "source_ids": [
+          "S10"
+        ],
+        "constraints": [
+          "Décrire les résultats uniquement dans le contexte des expériences.",
+          "Un exemple personnel éventuel est annoncé hypothétique."
+        ],
+        "prohibited_claims": [
+          "Pas de pourcentage ajouté.",
+          "Pas de garantie de réussite à tous les examens.",
+          "Ne pas affirmer que l'étude comparait directement expliquer à voix haute et relire."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Limites d'étude",
+          "Conseil prudent"
+        ],
+        "comprehension_question": "L'étude garantit-elle que relire est toujours moins utile ?",
+        "acceptable_answer": "Non ; le délai et la tâche comptent, notamment différence entre test immédiat et différé.",
+        "adversarial_failure": "Remplacer le résultat contextualisé par une règle universelle."
+      }
+    },
+    {
+      "id": "N17",
+      "split": "development",
+      "category": "emotion",
+      "generator_input": {
+        "topic": "L'objet prêté revient",
+        "brief": "Un objet prêté revient des années plus tard avec une modification qui montre ce que le geste initial a changé. La conséquence doit être compréhensible sans longue morale.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi cet objet a-t-il été conservé ?",
+        "learning_intention": "Un geste peut recevoir un sens nouveau à travers ses conséquences.",
+        "source_ids": [],
+        "constraints": [
+          "Le prêt doit avoir un rôle précis dans la trajectoire.",
+          "La personne aidée conserve son initiative."
+        ],
+        "prohibited_claims": [
+          "Pas de sauvetage financier magique.",
+          "Pas de leçon universelle formulée comme fait empirique."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Objet préparé",
+          "Émotion par l'action"
+        ],
+        "comprehension_question": "Quel lien unit le geste initial et le retour de l'objet ?",
+        "acceptable_answer": "Une conséquence explicitement racontée, pas seulement le passage du temps.",
+        "adversarial_failure": "Une fortune surgit à la fin sans rapport avec l'objet."
+      }
+    },
+    {
+      "id": "N18",
+      "split": "pilot",
+      "category": "comedie",
+      "generator_input": {
+        "topic": "Le gardien et la règle absurde",
+        "brief": "Un gardien fictif exige que personne ne franchisse une porte sans autorisation. La procédure pour obtenir l'autorisation exige de franchir cette même porte. Construire une chute à partir de cette contradiction.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Comment appliquer une règle qui empêche sa propre procédure ?",
+        "learning_intention": "Reconnaître une contradiction pratique par la comédie.",
+        "source_ids": [],
+        "constraints": [
+          "Règle et procédure compréhensibles avant la chute.",
+          "Le renversement utilise la règle posée."
+        ],
+        "prohibited_claims": [
+          "Aucune morale obligatoire.",
+          "Pas de nouvelle exception inventée uniquement dans la dernière phrase."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Escalade brève",
+          "Chute cohérente"
+        ],
+        "comprehension_question": "Pourquoi la procédure se bloque-t-elle ?",
+        "acceptable_answer": "L'autorisation est derrière la porte dont elle conditionne le passage.",
+        "adversarial_failure": "La porte devient magique sans préparation."
+      }
+    },
+    {
+      "id": "N19",
+      "split": "holdout",
+      "category": "aventure_animale",
+      "generator_input": {
+        "topic": "Deux animaux, un obstacle",
+        "brief": "Deux animaux fictifs doivent transporter un objet encombrant par un passage étroit. Leurs essais différents conduisent à une coopération.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi leurs deux approches séparées échouent-elles ?",
+        "learning_intention": "Une solution peut combiner des capacités complémentaires.",
+        "source_ids": [],
+        "constraints": [
+          "Objet, passage et capacités restent cohérents.",
+          "Aucune scène de détresse ou sauvetage imposée."
+        ],
+        "prohibited_claims": [
+          "Ne pas attribuer une compétence réelle non documentée à une espèce comme fait zoologique.",
+          "Pas de changement de taille magique."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Essais causalement utiles",
+          "Coopération préparée"
+        ],
+        "comprehension_question": "Qu'est-ce que la coopération permet que chaque essai seul ne permettait pas ?",
+        "acceptable_answer": "La solution combine deux capacités ou actions déjà introduites.",
+        "adversarial_failure": "L'obstacle disparaît sans action des personnages."
+      }
+    },
+    {
+      "id": "N20",
+      "split": "holdout",
+      "category": "mystere",
+      "generator_input": {
+        "topic": "L'horloge et le mensonge",
+        "brief": "Dans un monde imaginaire, une horloge avance d'une minute quand quelqu'un ment volontairement devant elle. Un personnage veut comprendre son avance. Préparer des indices cohérents.",
+        "truth_mode": "fiction",
+        "illustration_mode": "none",
+        "central_question": "Pourquoi cette horloge a-t-elle pris de l'avance ?",
+        "learning_intention": "Une révélation peut recontextualiser des détails déjà présents.",
+        "source_ids": [],
+        "constraints": [
+          "La règle porte sur le mensonge volontaire, pas l'erreur sincère.",
+          "Le mécanisme final doit correspondre aux indices."
+        ],
+        "prohibited_claims": [
+          "Pas de pouvoir supplémentaire révélé à la fin.",
+          "Pas d'affirmation sur de vrais détecteurs de mensonges."
+        ]
+      },
+      "evaluator_only": {
+        "focus": [
+          "Règle stable",
+          "Indices relus après révélation"
+        ],
+        "comprehension_question": "Quelle règle explique les indices entendus ?",
+        "acceptable_answer": "Les mensonges volontaires font avancer l'horloge ; les événements cités doivent respecter cette règle.",
+        "adversarial_failure": "L'horloge détecte soudain des pensées jamais exprimées."
+      }
+    }
+  ]
+}

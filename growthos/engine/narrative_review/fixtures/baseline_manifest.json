@@ -1,0 +1,31 @@
+{
+ "version": "narrative-baseline-manifest:0.1",
+ "standard": {
+  "source_repo": "growthos-web",
+  "source_commit": "c61480d6",
+  "builder": "buildManualSystemPrompt(language, platform, profile)",
+  "render": {
+   "language": "fr",
+   "platform": "youtube",
+   "profile": "standard"
+  },
+  "rendered_file": "standard_A_fr_youtube.txt",
+  "rendered_sha256": "e270fe3e43ea747b9f6906ac9d7d21790f57e75272694aae8bea02318ea40082",
+  "source_files_sha256": {
+   "src/app/(app)/content/ai-actions.ts": "8747d4d98e793e620380543835919d057c09975bd414c7f42804bbc92633f651",
+   "src/lib/script-length.ts": "368118c064a3805035d7f976b00f7b7da0db8fca4332c25c07260cc748e3a966",
+   "src/lib/narrative-perspective.ts": "544d5e30b2ecb7c184b06512b5f468d2f8f85891d9e9698fb37afd8a0580e27b",
+   "src/lib/niche-narrative.ts": "18955472c7a7d77148c15cae60c6ce96e05e97e964881b5f430cc08db30ce51d",
+   "src/app/(app)/content/visual-styles.ts": "f1371dc39a86acc2d2abe7b71ccc899c1c5ac768500b7590e0b9f3304a6e737f"
+  },
+  "reproduction": "assemble script-length.ts + stubs (LANGUAGE_NAME, PRECEDENCE_RULE, NARRATIVE_PERSPECTIVE_*) + ai-actions.ts lines 124-262 at the commit, transpile with TypeScript and run render_standard_A.js (see this folder). Only the TEXT of buildManualSystemPrompt is frozen; the production user message, retries, cleanup and perspective review are NOT reproduced."
+ },
+ "story_visual": {
+  "source_repo": "AiAddicts",
+  "source_commit": "57af0ae7da94ee774f5de2395b111c554df02e84",
+  "builder": "growthos/engine/story_visual/formats.py:build_planner_prompt",
+  "formats_py_sha256": "45c85100c1f003a2fd30f3d708bbad9edd8acf53fb17dc07dc6ce74633c71730",
+  "rendered_file": "story_visual_A_prompts.json",
+  "rendered_sha256": "618186241e1ca68d5e3d15ab68ba15047e7c563ea0c9a5fb6e3084113beca676"
+ }
+}

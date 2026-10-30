@@ -1,0 +1,622 @@
+{
+  "document_type": "synthetic_editorial_cases_not_observed_results",
+  "version": "narrative-cases:0.1",
+  "instructions": "Attentes proposées à valider par le panel. Chaque cas cible un défaut précis, pas nécessairement toutes les dimensions d'un script complet. mandatory_codes peuvent admettre les équivalences explicites de la note ; forbidden_codes ne peuvent être émis sur ce motif. Un dossier prepared_for_benchmark garde la décision documentaire en review indépendamment de la justesse de la critique.",
+  "cases": [
+    {
+      "id": "E01",
+      "test_id": "T01",
+      "truth_mode": "fact",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Pourquoi le métal paraît-il plus froid que le bois ?"
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Dans cet exemple, les deux objets sont à la même température ambiante, inférieure à celle de la main."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Le métal conduit la chaleur de la main plus vite."
+        },
+        {
+          "unit_id": "u4",
+          "channel": "spoken",
+          "text": "La sensation ne suffit donc pas à comparer leurs températures."
+        }
+      ],
+      "source_ids": [
+        "S03"
+      ],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "PROMISE_UNFULFILLED",
+          "ENDING_SUBSTITUTED"
+        ],
+        "rationale": "Réponse précoce autorisée ; l'explication progresse. Dossier préparé restant à valider humainement."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E02",
+      "test_id": "T02",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, Léa cherche sa clé."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Elle la retrouve dans la poche où elle l'avait rangée."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Elle ouvre sa porte."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "ENDING_SUBSTITUTED",
+          "PROMISE_UNFULFILLED"
+        ],
+        "rationale": "Pas de CTA requis, même si le compilateur étiquette la dernière réplique cta."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E03",
+      "test_id": "T03",
+      "truth_mode": "fiction",
+      "illustration_mode": "hypothetical",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cet exemple, combien reste-t-il de mille euros ?"
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Les dépenses mensuelles ajoutées sont de huit cent cinquante euros."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Il reste cent cinquante euros par mois."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "ENDING_SUBSTITUTED"
+        ],
+        "rationale": "Une réponse explicite peut conclure. Les unités et l'hypothèse sont présentes."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E04",
+      "test_id": "T04",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, comment Léa ouvre-t-elle le coffre sans clé ?"
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Elle regarde le coffre fermé."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Il faut toujours croire en soi."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [
+          "PROMISE_UNFULFILLED"
+        ],
+        "forbidden_codes": [],
+        "rationale": "Une seule cause principale : la morale remplace la réponse. ENDING_SUBSTITUTED peut être un alias de la même cause, pas un second défaut compté."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E05",
+      "test_id": "T05",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, un facteur a perdu une lettre."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Il vérifie son sac et la retrouve dans une doublure déchirée."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Il recoud le sac avant de repartir."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "CAUSAL_CONTRADICTION"
+        ],
+        "rationale": "Trois passages : éditorialement intelligible, techniquement non conforme à Story Visual v1 sans projection honnête."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E06",
+      "test_id": "T06",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, la sonnette ne marche plus."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Nora frappe à la porte."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Son frère lui ouvre."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "ENDING_UNEARNED"
+        ],
+        "rationale": "Texte court complet ; longueur hors format éventuelle à consigner séparément."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E07",
+      "test_id": "T07",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, pourquoi le gardien garde-t-il encore une porte déjà disparue ?"
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Il n'a pas reçu l'ordre de changer de poste."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Il demande enfin ce qu'il doit protéger."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "PROMISE_UNFULFILLED"
+        ],
+        "rationale": "Ne pas rejeter sémantiquement le hook sur le seul nombre de mots."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E08",
+      "test_id": "T08",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, où Nora a-t-elle rangé sa lettre ?"
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Elle vide son sac."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "La lettre est dans la doublure."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "PROMISE_UNFULFILLED"
+        ],
+        "rationale": "La réponse est au dernier passage, pas à l'avant-dernier."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E09",
+      "test_id": "T09",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, comment ouvre-t-il le coffre sans clé ?"
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Le coffre a une serrure et la clé a disparu."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Ce coffre sans clé est vraiment mystérieux."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [
+          "PROMISE_UNFULFILLED"
+        ],
+        "forbidden_codes": [],
+        "rationale": "Le chevauchement des mots ne résout pas la question."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E10",
+      "test_id": "T10",
+      "truth_mode": "fact",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Fleming a découvert la pénicilline en 1828."
+        }
+      ],
+      "source_ids": [
+        "S01"
+      ],
+      "expected": {
+        "mandatory_codes": [
+          "FACT_CONTRADICTED"
+        ],
+        "forbidden_codes": [],
+        "rationale": "1828 contredit 1928 dans le dossier ; juger ce défaut sans demander au mini-texte d'être un récit complet."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E11",
+      "test_id": "T11",
+      "truth_mode": "fact",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Une étude prouve que quatre-vingts pour cent des gens copient toujours leurs voisins."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [
+          "FACT_UNVERIFIED"
+        ],
+        "forbidden_codes": [
+          "FACT_CONTRADICTED",
+          "FABRICATED_ATTRIBUTION"
+        ],
+        "rationale": "Sans preuve, ne pas certifier que le chiffre est faux ou la source fabriquée."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E12",
+      "test_id": "T12",
+      "truth_mode": "fact",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "La Lune suit chaque voiture grâce à une force magnétique."
+        }
+      ],
+      "source_ids": [
+        "S03"
+      ],
+      "expected": {
+        "mandatory_codes": [
+          "FACT_UNVERIFIED"
+        ],
+        "forbidden_codes": [],
+        "rationale": "La source sur le métal ne prouve rien sur ce mécanisme ; ne pas utiliser des sources externes absentes pour transformer ce test en contradiction documentée."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E13",
+      "test_id": "T13",
+      "truth_mode": "inspired",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Ce récit est inspiré d'une observation documentée ; le dialogue suivant est une invention."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Un personnage fictif imagine ce qu'il aurait demandé au chercheur."
+        }
+      ],
+      "source_ids": [
+        "S01"
+      ],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "TRUTH_MODE_MISMATCH",
+          "FABRICATED_ATTRIBUTION"
+        ],
+        "rationale": "Ne pas convertir inspired en verified ou en fiction pure ; invention clairement séparée."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E14",
+      "test_id": "T18",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, je suis Léa et je cherche ma clé."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Paul me dit : je l'ai vue sur la table."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Je la prends et je rentre chez moi."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "NARRATOR_DISCONTINUITY"
+        ],
+        "rationale": "Le je dans une réplique attribuée ne change pas le narrateur."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E15",
+      "test_id": "T18",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, je suis Léa, seule dans la pièce."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Je pose la clé sur la table."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Léa est un inconnu que je n'ai jamais rencontré."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [
+          "NARRATOR_DISCONTINUITY"
+        ],
+        "forbidden_codes": [],
+        "rationale": "Identité contradictoire du même narrateur, sans transition déclarée."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E16",
+      "test_id": "T04",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, le coffre ne s'ouvre qu'avec sa clé, détruite ce matin."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Léa découvre soudain qu'elle peut traverser le métal et prend son contenu."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [
+          "ENDING_UNEARNED"
+        ],
+        "forbidden_codes": [],
+        "rationale": "Le seul dénouement dépend d'un pouvoir inédit ; préserver le genre imaginaire sans accepter une règle arbitraire."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E17",
+      "test_id": "T03",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, Nora retrouve sa lettre dans la doublure du sac."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Elle recoud le trou pour ne plus la perdre."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Il faut toujours faire attention à ses affaires."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "ENDING_SUBSTITUTED",
+          "PROMISE_UNFULFILLED"
+        ],
+        "rationale": "ENDING_REDUNDANT est possible comme warning ; la réponse existait avant la morale."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E18",
+      "test_id": "T09",
+      "truth_mode": "fact",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Ce dossier ne permet pas de savoir qui a déplacé le document."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Les éléments disponibles montrent seulement qu'il a changé d'étagère."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "L'identité de la personne reste inconnue dans ce dossier."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "PROMISE_UNFULFILLED"
+        ],
+        "rationale": "Cible : promesse d'explorer une incertitude, pas de révéler un nom. Les assertions documentaires elles-mêmes restent non vérifiées sans dossier."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E19",
+      "test_id": "T10",
+      "truth_mode": "fiction",
+      "illustration_mode": "hypothetical",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cet exemple mensuel, mille euros de plus et huit cent cinquante euros de dépenses."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Il reste deux cent cinquante euros."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [
+          "FACT_CONTRADICTED"
+        ],
+        "forbidden_codes": [],
+        "rationale": "Preuve arithmétique : 1000−850=150, pas250 ; pas de source web requise."
+      },
+      "observed_result": null
+    },
+    {
+      "id": "E20",
+      "test_id": "T17",
+      "truth_mode": "fiction",
+      "illustration_mode": "none",
+      "units": [
+        {
+          "unit_id": "u1",
+          "channel": "spoken",
+          "text": "Dans cette fiction, Pip apprend à plier une carte."
+        },
+        {
+          "unit_id": "u2",
+          "channel": "spoken",
+          "text": "Pip découvre qu'un pli cachait le nom de sa rue."
+        },
+        {
+          "unit_id": "u3",
+          "channel": "spoken",
+          "text": "Il déplie la carte et retrouve son chemin."
+        }
+      ],
+      "source_ids": [],
+      "expected": {
+        "mandatory_codes": [],
+        "forbidden_codes": [
+          "HISTORY_SIMILARITY"
+        ],
+        "rationale": "Sans historique, ne pas prétendre savoir que cet épisode répète les précédents ; nom récurrent insuffisant."
+      },
+      "observed_result": null
+    }
+  ]
+}
