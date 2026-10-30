@@ -472,7 +472,7 @@ class TestHardeningFromIndependentReview(NetworkBlocked):
                         sources=[{"source_id": "S1", "title": "t", "content": "y" * 20000, "verification": "unknown"}])
         calls, budget = [], Budget(1.0)
         report = run(s, good_response(s), calls=calls, budget=budget)
-        self.assertEqual((calls, report["error"]["code"], budget.committed()), ([], c.INPUT_TOO_LARGE, 0.0))
+        self.assertEqual((calls, report["error"]["code"], budget.committed()), ([], c.INPUT_TOO_LARGE, 0.0))  # committed() = lecture validée
 
     def test_hidden_retry_is_detected_forces_review_and_is_not_cached(self):
         s = snapshot_of()

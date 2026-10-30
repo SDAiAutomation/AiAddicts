@@ -234,13 +234,21 @@ class TestBlock3OfflineBoundary(unittest.TestCase):
 
     def test_every_network_route_is_really_blocked_for_the_generator(self):
         import urllib.request
+        def with_socket(make, use):
+            """Crée la socket et la FERME toujours (aucun ResourceWarning), même quand la garde bloque `use`."""
+            sock = make()
+            try:
+                use(sock)
+            finally:
+                sock.close()
+
         routes = {
             "create_connection": lambda: socket.create_connection(self.addr, timeout=1),
-            "socket.connect": lambda: socket.socket().connect(self.addr),
-            "_socket.connect": lambda: __import__("_socket").socket().connect(self.addr),
+            "socket.connect": lambda: with_socket(socket.socket, lambda s: s.connect(self.addr)),
+            "_socket.connect": lambda: with_socket(__import__("_socket").socket, lambda s: s.connect(self.addr)),
             "urllib": lambda: urllib.request.urlopen(f"http://{self.addr[0]}:{self.addr[1]}/", timeout=1),
             "dns": lambda: socket.getaddrinfo("example.invalid", 80),
-            "sendto": lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b"x", self.addr),
+            "sendto": lambda: with_socket(lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM), lambda s: s.sendto(b"x", self.addr)),
         }
         try:
             import requests
@@ -255,7 +263,7 @@ class TestBlock3OfflineBoundary(unittest.TestCase):
         self.assertEqual(self.connections_received(), 0)                                  # AUCUNE connexion n'a atteint le serveur
 
     def test_a_malicious_critic_is_blocked_too(self):
-        attack = lambda: socket.create_connection(self.addr, timeout=1)  # noqa: E731
+        attack = lambda: socket.create_connection(self.addr, timeout=1)  # noqa: E731  (bloquée avant toute création de socket)
         result = self.campaign(simulated_generator(), critic=self.evil(attack))
         self.assertGreaterEqual(result["summary"]["network"]["attempts_blocked"], 1)
         self.assertEqual(self.connections_received(), 0)

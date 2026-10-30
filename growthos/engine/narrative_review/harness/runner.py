@@ -216,7 +216,7 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         entry["network_attempt_blocked"] = True
     est = estimate_usd(result.usage, gen_prices)
     overrun = budget.settle(base["attempt_id"], est)
-    if overrun or result.http_attempts is None or result.http_attempts > 1:
+    if overrun or budget.integrity_error() or result.http_attempts is None or result.http_attempts > 1:
         state["halted"] = True  # retry interne, tentatives inconnues ou dépassement de réservation : la borne de coût n'est plus tenue
     usage = result.usage or {}
     usage_cols = dict(input_tokens=usage.get("input"), output_tokens=usage.get("output"), usage_complete=bool(result.usage),
@@ -262,7 +262,8 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
     u = report["usage"]
     state["calls"]["critique"] += u["logical_calls"]   # un refus (budget, locataire, taille) vaut 0 appel, comme dans le journal
     answered_unverified = u["provider_attempts"] is None and report["error"] is None or "provider_attempts_unverified" in report["limits"]
-    if u["logical_calls"] and ((u["provider_attempts"] or 0) > 1 or answered_unverified or "cost_exceeded_reservation" in report["limits"]):
+    if u["logical_calls"] and ((u["provider_attempts"] or 0) > 1 or answered_unverified or "cost_exceeded_reservation" in report["limits"]
+                               or "budget_state_corrupted" in report["limits"]):
         state["halted"] = True  # une exception ou un timeout isolé n'arrête pas la campagne (une case consommée, sans retry)
     journal.add(_row({**base, "attempt_id": critic_id, "model": critic_model, "prompt_version": c.PROMPT_VERSION, "prompt_hash": ""},
                      task="critique", snapshot_id=report["snapshot_id"], execution_status=report["analysis_status"],
@@ -287,6 +288,8 @@ def _summary(rows, pairs, logical_calls, budget, campaign_id, manifest, corpus, 
             "errors": [{"attempt_id": r["attempt_id"], "task": r["task"], "status": r["execution_status"], "code": r["error_code"]}
                        for r in rows if r["error_code"] not in ("", None) or r["execution_status"] not in ("ok", "complete")],
             "costs": {"estimated_known_usd": sum(known) if known else None, "attempts_with_unknown_cost": sum(1 for r in rows if r["estimated_cost"] in ("", None) and r["logical_calls"] != 0),
-                      "observed_usd": None, "budget_ceiling_usd": budget.ceiling_usd, "budget_committed_usd": budget.committed(),
+                      "observed_usd": None, "budget_ceiling_usd": budget.ceiling_usd,
+                      "budget_committed_usd": None if budget.integrity_error() else budget.committed(),
+                      "budget_integrity_error": budget.integrity_error(),
                       "reservation_overruns": budget.overruns},
             "pairs": pairs}

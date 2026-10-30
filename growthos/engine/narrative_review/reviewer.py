@@ -125,7 +125,10 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
     if overrun:
         limits.append("cost_exceeded_reservation")
     # Un retry interne, un nombre de tentatives inconnu ou un dépassement de la réservation cassent la borne de coût : jamais acceptés.
-    retry_suspected = overrun or result.http_attempts is None or result.http_attempts > 1
+    budget_error = budget.integrity_error()
+    if budget_error:
+        limits.append("budget_state_corrupted")
+    retry_suspected = overrun or bool(budget_error) or result.http_attempts is None or result.http_attempts > 1
     if result.http_attempts is not None and result.http_attempts > 1:
         limits.append("hidden_retry_detected")
     elif result.http_attempts is None:
@@ -149,6 +152,9 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
     decision = decide(snapshot, response, "complete")
     if retry_suspected:
         decision = {**decision, "decision": "review", "can_auto_accept": False, "reasons": decision["reasons"] + ["cost_bound_unverified"]}
+    if snapshot.get("coverage_gaps") and decision["can_auto_accept"]:
+        # Invariant de sécurité (en plus de `decide`) : une lacune de couverture ne coexiste JAMAIS avec une acceptation automatique.
+        decision = {**decision, "decision": "review", "can_auto_accept": False, "reasons": decision["reasons"] + ["unread_displayed_content"]}
     report = _report(snapshot, status=status, response=response, decision=decision, error=None, usage=usage, model=model, limits=limits)
     if cache is not None and status == "complete" and not retry_suspected:
         cache.put(snapshot, model, report)

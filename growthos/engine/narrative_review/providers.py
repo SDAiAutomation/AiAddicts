@@ -78,44 +78,90 @@ def max_call_usd(prices: Prices | None, input_cap: int, output_cap: int) -> floa
     return cost if finite_nonneg(cost) else None
 
 
-@dataclass
 class Budget:
-    """Plafond monétaire global. `reserve` AVANT chaque tentative ; inconnu, invalide ou insuffisant = refus, aucun appel."""
-    ceiling_usd: float
-    reserved: dict = field(default_factory=dict)
-    settled_usd: float = 0.0
-    unknown_calls: int = 0
-    overruns: int = 0
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    """Plafond monétaire global. `reserve` AVANT chaque tentative ; inconnu, invalide ou insuffisant = refus, aucun appel.
 
-    def __post_init__(self):
-        if not finite_nonneg(self.ceiling_usd):
+    L'état comptable est ENCAPSULÉ (`__slots__`, propriétés en lecture seule, `reserved` rendu en copie) ET revalidé en entier, sous verrou,
+    avant CHAQUE opération : plafond, montant consommé, chaque réservation et compteurs doivent être finis, positifs ou nuls et cohérents.
+    Un état corrompu (y compris par contournement `object.__setattr__`) refuse toute réservation, donc aucun appel fournisseur, et reste
+    refusé : il n'est jamais « réparé » en silence.
+    """
+    __slots__ = ("_ceiling", "_reserved", "_settled", "_unknown_calls", "_overruns", "_poisoned", "_lock")
+
+    def __init__(self, ceiling_usd: float):
+        if not finite_nonneg(ceiling_usd):
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "the budget ceiling must be finite and non-negative")
+        self._ceiling, self._reserved, self._settled = float(ceiling_usd), {}, 0.0
+        self._unknown_calls, self._overruns, self._poisoned = 0, 0, False
+        self._lock = threading.Lock()
+
+    ceiling_usd = property(lambda self: self._ceiling)
+    settled_usd = property(lambda self: self._settled)
+    unknown_calls = property(lambda self: self._unknown_calls)
+    overruns = property(lambda self: self._overruns)
+
+    @property
+    def reserved(self) -> dict:
+        return dict(self._reserved) if isinstance(self._reserved, dict) else {}   # copie : muter le résultat ne change pas le budget
+
+    def _state_error(self) -> str | None:
+        """Message décrivant l'incohérence, ou None si l'état est sain. À appeler sous verrou."""
+        if self._poisoned:
+            return "budget state was corrupted earlier; it stays refused"
+        if not finite_nonneg(self._ceiling):
+            return "budget ceiling is not finite and non-negative"
+        if not finite_nonneg(self._settled):
+            return "settled amount is not finite and non-negative"
+        if not isinstance(self._reserved, dict) or any(not isinstance(k, str) or not finite_nonneg(v) for k, v in self._reserved.items()):
+            return "a reservation is not a finite non-negative amount"
+        for counter in (self._unknown_calls, self._overruns):
+            if not isinstance(counter, int) or isinstance(counter, bool) or counter < 0:
+                return "a counter is not a non-negative integer"
+        if not finite_nonneg(self._settled + sum(self._reserved.values())):
+            return "committed total is not finite"
+        return None
+
+    def integrity_error(self) -> str | None:
+        with self._lock:
+            return self._state_error()
 
     def committed(self) -> float:
-        return self.settled_usd + sum(self.reserved.values())
+        with self._lock:
+            error = self._state_error()
+            if error:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, error)
+            return self._settled + sum(self._reserved.values())
 
     def reserve(self, label: str, max_usd: float | None) -> None:
         with self._lock:
+            error = self._state_error()
+            if error:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {error}, no call")
+            if not isinstance(label, str) or label in self._reserved:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, "a reservation label must be a new text label")
             if not finite_nonneg(max_usd):  # None, NaN, +-inf, négatif : le coût maximal n'est pas démontrable
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: maximum cost is unknown or invalid, no call")
-            if not finite_nonneg(self.ceiling_usd) or self.committed() + max_usd > self.ceiling_usd + 1e-12:
+            if self._settled + sum(self._reserved.values()) + max_usd > self._ceiling + 1e-12:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {max_usd:.6f} USD would exceed the ceiling")
-            self.reserved[label] = max_usd
+            self._reserved[label] = max_usd
 
     def settle(self, label: str, actual_estimate_usd: float | None) -> bool:
         """Remplace la réservation par l'estimation. Estimation inconnue OU invalide : on GARDE la réservation (prudence).
 
-        Retourne True si l'estimation DÉPASSE la réservation (plafond de tokens non tenu) : le dépassement est enregistré, jamais masqué.
+        Ne lève jamais (appelée après l'appel fournisseur) : sur état corrompu, le budget est marqué corrompu et refusera toute réservation
+        suivante ; `integrity_error()` le dit. Retourne True si l'estimation DÉPASSE la réservation (dépassement enregistré, jamais masqué).
         """
         with self._lock:
-            held = self.reserved.pop(label, 0.0)
-            if not finite_nonneg(actual_estimate_usd):
-                self.settled_usd += held
-                self.unknown_calls += 1
+            if self._state_error():
+                self._poisoned = True
                 return False
-            self.settled_usd += actual_estimate_usd
+            held = self._reserved.pop(label, 0.0)
+            if not finite_nonneg(actual_estimate_usd):
+                self._settled += held
+                self._unknown_calls += 1
+                return False
+            self._settled += actual_estimate_usd
             if actual_estimate_usd > held + 1e-12:
-                self.overruns += 1
+                self._overruns += 1
                 return True
             return False

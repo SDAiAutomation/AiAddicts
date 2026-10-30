@@ -105,6 +105,16 @@ def build_snapshot(*, source_format: str, units: list[dict], organization_id: st
 # décision reste `review`. C'est une liste d'autorisation : un champ nouveau est suspect par défaut, jamais ignoré.
 _STANDARD_NON_VIEWER_KEYS = {"role", "text", "visual", "shotType", "visualPurpose", "retentionRole", "informationGain", "voice_id",
                              "speaker_id", "hold_after_seconds", "quiz_phase", "quiz_reveal_beat_seconds", "motion_graphic"}
+# Racine d'un script Standard. `title` et `blocks` sont lus explicitement ; `motion_graphic(s)` à la racine est lu comme un overlay. Les autres
+# clés listées sont des métadonnées du contrat (`engine/script.py`, assembler) qui ne sont pas du texte affiché dans la vidéo : entrées
+# (`source_*`, `transformation_mode`), choix de rendu, identifiants, publication (`hashtags`, `thumbnail_*`), diagnostics. Une clé ABSENTE de
+# cette liste (par ex. `description`, `overlay`, `caption`, `subtitle`) qui porte du contenu est une lacune de couverture.
+_ROOT_OVERLAY_KEYS = {"motion_graphic", "motion_graphics"}
+_ROOT_READ_OR_NON_VIEWER_KEYS = {
+    "title", "blocks", "niche", "account", "organization", "platform", "aspect_ratio", "caption_style", "language", "content_goal",
+    "content_format", "source_type", "source_text", "transformation_mode", "characters", "voice_id", "visual_style", "visual_style_prompt",
+    "motion_graphics_theme", "thumbnail_url", "hashtags", "made_for_kids", "contentStrategy", "openLoops", "generationMetadata",
+    "retentionDiagnostics", "script_usage"}
 # Dans `motion_graphic`, ces clés ne sont pas du texte affiché (type de scène, icône, thème, ancres de narration, champs internes `_*`).
 _OVERLAY_SKIP_KEYS = {"sceneType", "type", "icon", "theme", "rhythm", "spoken", "sidesSpoken", "resultSpoken", "verifySpoken"}
 _OVERLAY_NUMBER_KEYS = {"value"}  # un nombre sous `value` est affiché (chiffre clé, étape) ; les autres nombres sont des paramètres de tracé
@@ -114,32 +124,70 @@ def _pointer(*parts) -> str:
     return "".join("/" + str(p).replace("~", "~0").replace("/", "~1") for p in parts)
 
 
-def _has_text(value) -> bool:
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, dict):
-        return any(_has_text(v) for v in value.values())
-    if isinstance(value, (list, tuple)):
-        return any(_has_text(v) for v in value)
+MAX_DEPTH = 16  # au-delà, une structure n'est pas analysable de façon fiable : lacune de couverture, jamais récursion non bornée
+
+
+def _has_content(value) -> bool:
+    """Vrai si `value` peut porter du contenu potentiellement affiché : texte non vide, nombre (hors booléen), structure trop profonde,
+    clé non textuelle ou type inattendu (tout ce qui n'est pas None/booléen/vide). Itératif : aucune récursion, donc aucune RecursionError."""
+    stack = [(value, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_DEPTH:
+            return True
+        if isinstance(node, str):
+            if node.strip():
+                return True
+        elif isinstance(node, bool) or node is None:
+            continue
+        elif isinstance(node, (int, float)):
+            return True
+        elif isinstance(node, dict):
+            if any(not isinstance(k, str) for k in node):
+                return True
+            stack.extend((v, depth + 1) for v in node.values())
+        elif isinstance(node, (list, tuple)):
+            stack.extend((v, depth + 1) for v in node)
+        else:
+            return True  # type inattendu : on ne peut pas prouver qu'il n'est pas affiché
     return False
 
 
-def _overlay_texts(node, path: tuple):
-    """Chaque texte VISIBLE d'un `motion_graphic`, quelle que soit sa forme (objet, liste, imbriqué) : (pointeur JSON, texte)."""
-    if isinstance(node, str):
-        if node.strip():
-            yield _pointer(*path), node
-    elif isinstance(node, dict):
-        for key, value in node.items():
-            if not isinstance(key, str) or key.startswith("_") or key in _OVERLAY_SKIP_KEYS:
-                continue
-            if key in _OVERLAY_NUMBER_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
-                yield _pointer(*path, key), str(value)
-            else:
-                yield from _overlay_texts(value, path + (key,))
-    elif isinstance(node, (list, tuple)):
-        for i, item in enumerate(node):
-            yield from _overlay_texts(item, path + (i,))
+def _collect_overlay(node, path: tuple) -> tuple[list[tuple[str, str]], list[str]]:
+    """Tous les textes VISIBLES d'un `motion_graphic`, quelle que soit sa forme (objet, liste, imbriqué) : ([(pointeur JSON, texte)], lacunes).
+
+    Une valeur qui n'est ni texte, ni conteneur, ni nombre sous `value` (type inattendu, clé non textuelle, profondeur > MAX_DEPTH) est une
+    LACUNE : elle est consignée, jamais ignorée. Ordre du document conservé, sans récursion.
+    """
+    items: list[tuple[str, str]] = []
+    gaps: list[str] = []
+    stack = [(node, path, 0)]
+    while stack:
+        current, where, depth = stack.pop()
+        if depth > MAX_DEPTH:
+            gaps.append(_pointer(*where))
+        elif isinstance(current, str):
+            if current.strip():
+                items.append((_pointer(*where), current))
+        elif isinstance(current, dict):
+            children = []
+            for key, value in current.items():
+                if not isinstance(key, str):
+                    gaps.append(_pointer(*where, repr(key)))
+                elif key.startswith("_") or key in _OVERLAY_SKIP_KEYS:
+                    continue
+                elif key in _OVERLAY_NUMBER_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
+                    items.append((_pointer(*where, key), str(value)))
+                else:
+                    children.append((value, where + (key,), depth + 1))
+            stack.extend(reversed(children))
+        elif isinstance(current, (list, tuple)):
+            stack.extend(reversed([(item, where + (i,), depth + 1) for i, item in enumerate(current)]))
+        elif current is None or isinstance(current, (bool, int, float)):
+            continue  # null, booléen ou nombre hors `value` : paramètre de tracé, pas un texte (nombre sous une autre clé : voir `_has_content`)
+        else:
+            gaps.append(_pointer(*where))  # type inattendu (bytes, objet...) : non analysable
+    return items, gaps
 
 
 def from_standard(script: dict, **ctx) -> dict:
@@ -155,19 +203,41 @@ def from_standard(script: dict, **ctx) -> dict:
     units, gaps = [], []
     if isinstance(script.get("title"), str) and script["title"].strip():
         units.append(_unit("title", "/title", "title", script["title"]))
+    elif _has_content(script.get("title")):
+        gaps.append("/title")  # un titre qui n'est pas un texte exploitable (liste, nombre...) n'est pas lu : lacune
     for i, b in enumerate(script["blocks"]):
         if not isinstance(b, dict) or not isinstance(b.get("text"), str):
             raise c.ReviewError(c.UNSUPPORTED_FORMAT, f"blocks[{i}] has no text")
         bid = f"block-{i + 1:04d}"
         units.append(_unit(bid, f"/blocks/{i}/text", "spoken", b["text"], declared_role=b.get("role")))
-        mg = b.get("motion_graphic")
-        if mg is not None and not isinstance(mg, (dict, list, tuple)):
-            gaps.append(_pointer("blocks", i, "motion_graphic"))
-        for n, (pointer, text) in enumerate(_overlay_texts(mg, ("blocks", i, "motion_graphic")) if mg is not None else (), start=1):
-            units.append(_unit(f"{bid}:on_screen-{n:02d}", pointer, "on_screen", text, native_id=None))
-        gaps += [_pointer("blocks", i, key) for key, value in b.items()
-                 if isinstance(key, str) and key not in _STANDARD_NON_VIEWER_KEYS and _has_text(value)]
+        _read_overlay(b.get("motion_graphic"), ("blocks", i, "motion_graphic"), bid, units, gaps)
+        gaps += [_pointer("blocks", i, key) if isinstance(key, str) else _pointer("blocks", i, repr(key))
+                 for key, value in b.items() if key not in _STANDARD_NON_VIEWER_KEYS and (not isinstance(key, str) or _has_content(value))]
+    # Racine du script : le texte affiché n'est PAS réservé aux blocs. Un overlay racine est lu ; toute autre clé racine hors liste
+    # d'autorisation qui porte du contenu est une lacune. Liste d'autorisation = champs du contrat Standard (`engine/script.py`) qui ne
+    # sont pas affichés dans la vidéo (métadonnées de génération, entrées, publication, choix de rendu).
+    for key, value in script.items():
+        if not isinstance(key, str):
+            gaps.append(_pointer(repr(key)))
+        elif key in _ROOT_OVERLAY_KEYS:
+            _read_overlay(value, (key,), "root", units, gaps)
+        elif key not in _ROOT_READ_OR_NON_VIEWER_KEYS and _has_content(value):
+            gaps.append(_pointer(key))
     return build_snapshot(source_format="standard", units=units, coverage_gaps=gaps, **ctx)
+
+
+def _read_overlay(node, path: tuple, unit_prefix: str, units: list, gaps: list) -> None:
+    """Lit un `motion_graphic` (bloc ou racine) dans `units`/`gaps`. Une forme qui n'est ni objet ni liste est une lacune (jamais ignorée)."""
+    if node is None:
+        return
+    if not isinstance(node, (dict, list, tuple)):
+        gaps.append(_pointer(*path))
+        return
+    items, found = _collect_overlay(node, path)
+    gaps.extend(found)
+    start = 1 + sum(1 for u in units if u["unit_id"].startswith(f"{unit_prefix}:on_screen-"))
+    for n, (pointer, text) in enumerate(items, start=start):
+        units.append(_unit(f"{unit_prefix}:on_screen-{n:02d}", pointer, "on_screen", text, native_id=None))
 
 
 def from_story_dialogue(script: dict, **ctx) -> dict:
