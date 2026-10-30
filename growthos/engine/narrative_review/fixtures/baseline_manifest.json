@@ -1,5 +1,5 @@
 {
- "version": "narrative-baseline-manifest:0.1",
+ "version": "narrative-baseline-manifest:0.2",
  "standard": {
   "source_repo": "growthos-web",
   "source_commit": "c61480d6",
@@ -18,14 +18,22 @@
    "src/lib/niche-narrative.ts": "18955472c7a7d77148c15cae60c6ce96e05e97e964881b5f430cc08db30ce51d",
    "src/app/(app)/content/visual-styles.ts": "f1371dc39a86acc2d2abe7b71ccc899c1c5ac768500b7590e0b9f3304a6e737f"
   },
-  "reproduction": "assemble script-length.ts + stubs (LANGUAGE_NAME, PRECEDENCE_RULE, NARRATIVE_PERSPECTIVE_*) + ai-actions.ts lines 124-262 at the commit, transpile with TypeScript and run render_standard_A.js (see this folder). Only the TEXT of buildManualSystemPrompt is frozen; the production user message, retries, cleanup and perspective review are NOT reproduced."
+  "reproduction": "Checkout growthos-web at source_commit, then: python -m growthos.engine.narrative_review.harness.rebuild_baseline --web-checkout <path>. Marker-based assembly of 5 source files (hashes above) rendered by render_standard_A.mjs; no local or temporary path involved. Only the TEXT of buildManualSystemPrompt is frozen: production user message, retries, cleanup and perspective review are NOT reproduced."
  },
  "story_visual": {
   "source_repo": "AiAddicts",
   "source_commit": "57af0ae7da94ee774f5de2395b111c554df02e84",
   "builder": "growthos/engine/story_visual/formats.py:build_planner_prompt",
-  "formats_py_sha256": "45c85100c1f003a2fd30f3d708bbad9edd8acf53fb17dc07dc6ce74633c71730",
+  "formats_py_sha256": "acf3eb3716f3e8183eec0c3450d2e8957b8f8264efdbc9fd0e48a2643fbcec2d",
   "rendered_file": "story_visual_A_prompts.json",
-  "rendered_sha256": "618186241e1ca68d5e3d15ab68ba15047e7c563ea0c9a5fb6e3084113beca676"
+  "rendered_sha256": "618186241e1ca68d5e3d15ab68ba15047e7c563ea0c9a5fb6e3084113beca676",
+  "reproduction": "Checkout AiAddicts at source_commit (PR #103 branch), then: python -m growthos.engine.narrative_review.harness.rebuild_baseline --engine-checkout <path>."
+ },
+ "tooling": {
+  "render_script": "render_standard_A.mjs",
+  "render_script_sha256": "9664e962f977d557d79f9a6047d610c6aaa3876309e8df9314c1c72517da427e",
+  "node_min": "22.13",
+  "node_used": "v24.16.0",
+  "rebuild_module": "growthos.engine.narrative_review.harness.rebuild_baseline"
  }
 }

@@ -32,9 +32,11 @@ COLUMNS = ["campaign_id", "attempt_id", "task", "topic_id", "stratum", "conditio
 HALTED = "HALTED_RETRY_DETECTED"
 
 
-def plan_cases(campaign_id: str, topic_ids=PILOT_IDS) -> list[dict]:
+def plan_cases(campaign_id: str, topic_ids=PILOT_IDS, strata=policy.STRATA) -> list[dict]:
     """Ordre déterministe + identifiants aveugles dérivés d'une permutation seedée par la campagne (pas de fuite d'ordre A/B)."""
-    cases = [{"topic_id": t, "stratum": s, "condition": cond} for t in sorted(topic_ids) for s in policy.STRATA for cond in policy.CONDITIONS]
+    if not strata or any(s not in policy.STRATA for s in strata):
+        raise ValueError(f"strata must be a non-empty subset of {policy.STRATA}")
+    cases = [{"topic_id": t, "stratum": s, "condition": cond} for t in sorted(topic_ids) for s in strata for cond in policy.CONDITIONS]
     ranked = sorted(cases, key=lambda k: hashlib.sha256(f"{campaign_id}|{k['topic_id']}|{k['stratum']}|{k['condition']}".encode()).hexdigest())
     blind = {(k["topic_id"], k["stratum"], k["condition"]): f"B{i + 1:02d}" for i, k in enumerate(ranked)}
     return [{**k, "blind_script_id": blind[(k["topic_id"], k["stratum"], k["condition"])]} for k in cases]
@@ -111,6 +113,28 @@ def registry_csv(rows: list[dict]) -> str:
     return buf.getvalue()
 
 
+def _write_json(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+
+def _campaign_manifest(corpus, baseline, cases, campaign_id, source_commit, gen_model, critic_model, gen_prices, critic_prices, budget,
+                       allowed_splits) -> dict:
+    """Plan complet, sans secret : ce qui sera exécuté, avec quelles versions, quels plafonds et quels tarifs (None = inconnus)."""
+    def prices(p):
+        return None if p is None else {"input_per_m": getattr(p, "input_per_m", None), "output_per_m": getattr(p, "output_per_m", None),
+                                       "currency": getattr(p, "currency", None), "as_of": getattr(p, "as_of", ""), "source": getattr(p, "source", "")}
+    return {"campaign_id": campaign_id, "mode": "offline_simulation", "source_commit": source_commit, "policy_version": c.POLICY_VERSION,
+            "critic_version": c.CRITIC_VERSION, "critic_prompt_version": c.PROMPT_VERSION, "allowed_splits": list(allowed_splits),
+            "strata": sorted({k["stratum"] for k in cases}), "topics": sorted({k["topic_id"] for k in cases}),
+            "conditions": list(policy.CONDITIONS), "cases": cases, "corpus_sha256": corpus["hashes"]["corpus_sha256"],
+            "sources_sha256": corpus["hashes"]["sources_sha256"], "baseline_manifest": baseline, "models": {"generation": gen_model, "critique": critic_model},
+            "prices": {"generation": prices(gen_prices), "critique": prices(critic_prices)},
+            "limits": {"max_input_tokens": MAX_INPUT_TOKENS, "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_s": TIMEOUT_S,
+                       "max_logical_calls": 2 * len(cases), "retries": 0},
+            "budget_ceiling_usd": budget.ceiling_usd}
+
+
 class _Journal:
     """Lignes en mémoire ET, si `out_dir`, ajoutées au CSV dès qu'elles existent : une exception ne perd aucune tentative payée."""
 
@@ -145,16 +169,26 @@ def run_campaign(corpus: dict, *, generator: OfflineProvider, critic: OfflinePro
 
 def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget: Budget, gen_prices: Prices | None,
                   critic_prices: Prices | None, gen_model: str, critic_model: str, campaign_id: str, caller: Caller,
-                  source_commit: str, out_dir: Path | None = None, allowed_splits=("pilot",), topic_ids=PILOT_IDS) -> dict:
+                  source_commit: str, out_dir: Path | None = None, allowed_splits=("pilot",), topic_ids=PILOT_IDS,
+                  strata=policy.STRATA) -> dict:
     manifest = policy.load_manifest()
-    cases = plan_cases(campaign_id, topic_ids)
+    cases = plan_cases(campaign_id, topic_ids, strata)
     journal = _Journal(out_dir)
+    if out_dir is not None:  # le plan est écrit AVANT tout appel : une campagne interrompue reste reproductible et auditable
+        _write_json(out_dir / "campaign_manifest.json", _campaign_manifest(
+            corpus, manifest, cases, campaign_id, source_commit, gen_model, critic_model, gen_prices, critic_prices, budget, allowed_splits))
     pairs: dict[tuple, dict] = {}
     state = {"halted": False, "attempt_no": 0, "calls": {"generation": 0, "critique": 0}}
     for case in cases:
         view = generator_view(corpus, case["topic_id"], allowed_splits=allowed_splits)  # lève HoldoutAccessError hors campagne
         spec = policy.build_condition(case["stratum"], case["condition"], view, manifest)
         assert_no_leak(spec["system"] + "\n" + spec["user"], corpus, own_topic_id=case["topic_id"])
+        if out_dir is not None:  # entrée exacte de la case (prompt, hash, diff de politique) : rejouable et comparable A/B
+            _write_json(out_dir / "inputs" / f"{case['blind_script_id']}.json", {
+                "blind_script_id": case["blind_script_id"], "topic_id": case["topic_id"], "stratum": case["stratum"],
+                "condition": case["condition"], "system": spec["system"], "user": spec["user"], "policy_diff": spec["policy_diff"],
+                "prompt_sha256": spec["prompt_sha256"], "baseline_commit": spec["baseline_commit"], "policy_version": spec["policy_version"],
+                "limits": {"max_input_tokens": MAX_INPUT_TOKENS, "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_s": TIMEOUT_S}})
         state["attempt_no"] += 1
         base = {"campaign_id": campaign_id, "attempt_id": f"{campaign_id}-{state['attempt_no']:03d}", "topic_id": case["topic_id"],
                 "stratum": case["stratum"], "condition": case["condition"], "repetition": 1, "blind_script_id": case["blind_script_id"],
@@ -172,6 +206,7 @@ def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget
             entry.update(status="harness_error", error=type(exc).__name__)
     paired = [pairs[k] for k in sorted(pairs)]
     summary = _summary(journal.rows, paired, state["calls"], budget, campaign_id, manifest, corpus, source_commit, state["halted"])
+    summary["strata"] = sorted({k["stratum"] for k in cases})
     summary["network"] = {"guard": "sys.addaudithook (not an OS sandbox)", "attempts_blocked": state.get("network_violations", 0)}
     if out_dir is not None:
         (out_dir / "campaign_report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -235,7 +270,9 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         output_path = out_dir / f"{case['blind_script_id']}.json"
         output_path.write_text(result.text, encoding="utf-8")  # sortie brute, jamais réparée
     valid, errors = technical_check(stratum, result.text)
-    journal.add(_row(base, task="generation", execution_status="ok", technical_valid=valid, output_path=str(output_path or ""),
+    # chemin RELATIF au dossier de campagne : le journal ne contient aucun chemin local et reste identique d'une machine à l'autre
+    journal.add(_row(base, task="generation", execution_status="ok", technical_valid=valid,
+                     output_path=output_path.relative_to(out_dir).as_posix() if output_path else "",
                      error_code="" if valid else "TECHNICAL_INVALID", **usage_cols))
     entry.update(status="ok", technical_valid=valid, technical_errors=errors, generation_cost=est)
     if not valid:

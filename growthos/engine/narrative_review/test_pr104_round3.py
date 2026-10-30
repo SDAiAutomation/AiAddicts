@@ -1,4 +1,4 @@
-"""Tests de REPRODUCTION de la troisième correction (seconde revue Codex, commit 157fc24). N'importent que des symboles déjà présents à 157fc24 :
+﻿"""Tests de REPRODUCTION de la troisième correction (seconde revue Codex, commit 157fc24). N'importent que des symboles déjà présents à 157fc24 :
 ils tournent donc contre l'ancien code et y ÉCHOUENT sur l'assertion, pas sur un import.
 
 P0-1 : un texte affiché hors des blocs (racine du script) était ignoré, avec `can_auto_accept=True`.
@@ -16,7 +16,7 @@ from growthos.engine.narrative_review import contract as c
 from growthos.engine.narrative_review import snapshot as snap
 from growthos.engine.narrative_review.providers import Budget, Prices, ProviderResult
 from growthos.engine.narrative_review.reviewer import review
-from growthos.engine.narrative_review.test_review import CALLER, PRICES, NetworkBlocked, good_response, run, snapshot_of
+from growthos.engine.narrative_review.test_review import ACC, CALLER, ORG, PRICES, NetworkBlocked, good_response, run, snapshot_of
 
 
 def root_script(**extra):
@@ -27,7 +27,7 @@ class TestP01RootLevelDisplayedText(NetworkBlocked):
     def test_exact_codex_reproduction_root_motion_graphic_is_analysed_and_cannot_be_ignored(self):
         script = root_script(motion_graphic=[{"text": "FAUX TEXTE AFFICHÉ"}])
         before = copy.deepcopy(script)
-        s = snap.from_standard(script, organization_id="o", account_id="a", truth_mode="fiction")
+        s = snap.from_standard(script, organization_id=ORG, account_id=ACC, truth_mode="fiction")
         self.assertEqual(script, before)
         overlay = [u for u in s["units"] if u["channel"] == "on_screen"]
         self.assertEqual([(u["text"], u["origin"]["path"]) for u in overlay], [("FAUX TEXTE AFFICHÉ", "/motion_graphic/0/text")])
@@ -80,15 +80,16 @@ class TestP01RootLevelDisplayedText(NetworkBlocked):
             "block non-string key": {"title": "T", "blocks": [{"role": "hook", "text": "ok", 9: "TEXTE"}]},
         }
         for label, script in cases.items():
-            s = snap.from_standard(script, organization_id="o", account_id="a", truth_mode="fiction")
+            s = snap.from_standard(script, organization_id=ORG, account_id=ACC, truth_mode="fiction")
             self.assertTrue(s["coverage_gaps"], label)
             report = run(s, good_response(s))
             self.assertEqual((report["decision"], report["can_auto_accept"]), ("review", False), label)
+            self.assertIn("unread_displayed_content", report["reasons"], label)
 
     def test_hard_malformed_inputs_never_yield_a_snapshot_that_could_be_accepted(self):
         for bad in (None, [], "text", {"blocks": "x"}, {"blocks": [None]}, {"blocks": [{"role": "hook"}]}, {"blocks": [{"text": 5}]}):
             with self.assertRaises(c.ReviewError):
-                snap.from_standard(bad, organization_id="o", account_id="a")
+                snap.from_standard(bad, organization_id=ORG, account_id=ACC)
 
     def test_no_coverage_gap_can_ever_coexist_with_auto_accept(self):
         """Propriété : pour toute forme générée avec des lacunes, aucune réponse (même parfaite) ne produit `can_auto_accept=True`."""
@@ -100,12 +101,14 @@ class TestP01RootLevelDisplayedText(NetworkBlocked):
                 for place in ("root", "block"):
                     script = root_script(**{key: value}) if place == "root" else \
                         {"title": "T", "blocks": [{"role": "hook", "text": "ok", key: value}]}
-                    s = snap.from_standard(script, organization_id="o", account_id="a", truth_mode="fiction")
+                    s = snap.from_standard(script, organization_id=ORG, account_id=ACC, truth_mode="fiction")
                     report = run(s, good_response(s))
                     if s["coverage_gaps"]:
                         count += 1
                         self.assertFalse(report["can_auto_accept"], (place, key, value))
                         self.assertEqual(report["decision"], "review", (place, key, value))
+                        self.assertIsNone(report["error"], (place, key, value))
+                        self.assertIn("unread_displayed_content", report["reasons"], (place, key, value))
         self.assertGreater(count, 30)          # la propriété a réellement été exercée
 
     def test_overlay_text_change_at_root_changes_the_hash(self):
@@ -241,3 +244,5 @@ class TestP02BudgetStateIntegrity(NetworkBlocked):
 
 if __name__ == "__main__":
     unittest.main()
+
+

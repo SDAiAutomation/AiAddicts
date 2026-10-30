@@ -117,7 +117,10 @@ _ROOT_READ_OR_NON_VIEWER_KEYS = {
     "retentionDiagnostics", "script_usage"}
 # Dans `motion_graphic`, ces clés ne sont pas du texte affiché (type de scène, icône, thème, ancres de narration, champs internes `_*`).
 _OVERLAY_SKIP_KEYS = {"sceneType", "type", "icon", "theme", "rhythm", "spoken", "sidesSpoken", "resultSpoken", "verifySpoken"}
-_OVERLAY_NUMBER_KEYS = {"value"}  # un nombre sous `value` est affiché (chiffre clé, étape) ; les autres nombres sont des paramètres de tracé
+_OVERLAY_NUMBER_KEYS = {"value"}  # un nombre sous `value` est affiché (chiffre clé, étape) : il devient une unité on_screen
+# Nombres dont le contrat de rendu (`motion_graphics/display_text.py`, `_NUMBER_FIELDS`) fait des paramètres de tracé, pas du texte. Tout autre
+# nombre d'un motion_graphic (clé inconnue, imbriqué, élément de liste) est une LACUNE : on ne peut pas prouver qu'il n'est pas affiché.
+_OVERLAY_PLOT_KEYS = {"targetRatio", "maxValue", "slope", "intercept", "xMin", "xMax", "yMin", "yMax", "highlightX"}
 
 
 def _pointer(*parts) -> str:
@@ -161,9 +164,9 @@ def _collect_overlay(node, path: tuple) -> tuple[list[tuple[str, str]], list[str
     """
     items: list[tuple[str, str]] = []
     gaps: list[str] = []
-    stack = [(node, path, 0)]
+    stack = [(node, path, 0, None)]  # (valeur, chemin, profondeur, clé la plus proche : celle d'une liste est celle de son parent)
     while stack:
-        current, where, depth = stack.pop()
+        current, where, depth, key = stack.pop()
         if depth > MAX_DEPTH:
             gaps.append(_pointer(*where))
         elif isinstance(current, str):
@@ -171,20 +174,25 @@ def _collect_overlay(node, path: tuple) -> tuple[list[tuple[str, str]], list[str
                 items.append((_pointer(*where), current))
         elif isinstance(current, dict):
             children = []
-            for key, value in current.items():
-                if not isinstance(key, str):
-                    gaps.append(_pointer(*where, repr(key)))
-                elif key.startswith("_") or key in _OVERLAY_SKIP_KEYS:
+            for child_key, value in current.items():
+                if not isinstance(child_key, str):
+                    gaps.append(_pointer(*where, repr(child_key)))
+                elif child_key.startswith("_") or child_key in _OVERLAY_SKIP_KEYS:
                     continue
-                elif key in _OVERLAY_NUMBER_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
-                    items.append((_pointer(*where, key), str(value)))
                 else:
-                    children.append((value, where + (key,), depth + 1))
+                    children.append((value, where + (child_key,), depth + 1, child_key))
             stack.extend(reversed(children))
         elif isinstance(current, (list, tuple)):
-            stack.extend(reversed([(item, where + (i,), depth + 1) for i, item in enumerate(current)]))
-        elif current is None or isinstance(current, (bool, int, float)):
-            continue  # null, booléen ou nombre hors `value` : paramètre de tracé, pas un texte (nombre sous une autre clé : voir `_has_content`)
+            stack.extend(reversed([(item, where + (i,), depth + 1, key) for i, item in enumerate(current)]))
+        elif current is None or isinstance(current, bool):
+            continue  # null et booléen : aucun texte à afficher
+        elif isinstance(current, (int, float)):
+            if key in _OVERLAY_NUMBER_KEYS:
+                items.append((_pointer(*where), str(current)))          # chiffre affiché : lu comme texte
+            elif key in _OVERLAY_PLOT_KEYS:
+                continue                                                  # paramètre de tracé connu (display_text._NUMBER_FIELDS)
+            else:
+                gaps.append(_pointer(*where))  # nombre sous une clé inconnue (ou orphelin) : potentiellement affiché, non interprété
         else:
             gaps.append(_pointer(*where))  # type inattendu (bytes, objet...) : non analysable
     return items, gaps
