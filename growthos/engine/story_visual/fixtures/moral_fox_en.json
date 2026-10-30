@@ -43,7 +43,7 @@
     },
     {
       "beat": "setup",
-      "camera": "still",
+      "camera": "pull_out",
       "characters": [
         "rowan"
       ],
@@ -91,7 +91,7 @@
     },
     {
       "beat": "development",
-      "camera": "still",
+      "camera": "push_in",
       "characters": [
         "rowan"
       ],

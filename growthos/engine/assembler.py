@@ -14,6 +14,7 @@ from typing import Callable
 
 from .explainer import access as explainer_access, integration as explainer_integration
 from .story_animation import contract as story_animation_contract
+from .story_visual import contract as story_visual_contract
 from . import (
     asset_store, captions, db, editorial_quality, events, generation_cache, image_style_bible,
     math_narration, moderation, motion_profiles, originality, poster, publish_pack, quality, quiz_backdrop, quiz_cover, quiz_motion, quiz_shorts, repo, retention,
@@ -1063,6 +1064,84 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
     return result
 
 
+def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_start: float) -> dict:
+    """Illustrated story (flag-gated, admin beta). Stages, budget and credit rules live in `story_visual.pipeline`; this only
+    plugs the real services (OpenAI Images, ElevenLabs, credits, moderation, publication). Local imports: the legacy path never
+    loads this code."""
+    from .story_visual import cache as sv_cache, orchestrator as sv_orchestrator, pipeline as sv_pipeline, voice as sv_voice
+    from .story_visual import cost as sv_cost
+
+    organization_id = events.organization_id_of(client, content_item_id)
+    tenant_id = str(organization_id or "")
+    root = Path(output_root)
+
+    def authorize() -> None:
+        try:
+            explainer_access.authorize(client, content_item_id)
+        except explainer_access.ExplainerAccessDenied as exc:
+            raise sv_pipeline.PipelineError("Récit illustré refusé : réservé aux administrateurs de la plateforme") from exc
+
+    def publish(final: Path, timeline: dict, result: dict) -> dict:
+        version_number = None
+        try:
+            version_number = versions.next_version_number(client, content_item_id)
+        except Exception as exc:  # noqa: BLE001 - same fallback as the other paths
+            print(f"       (historique de versions indisponible : {exc})")
+        video_url = _publish_video(client, content_item_id, str(final), require_remote=True, version=version_number)
+        fields = {"script": script, "video_url": video_url, "error": None, "generation_step": None, "trim_start": 0,
+                  "trim_end": None, "trim_status": None, "original_video_url": None}
+        if version_number:
+            version_id = versions.record_version(client, content_item_id, version_number, "generation", video_url,
+                                                 script=script, duration_seconds=timeline["total_s"])
+            if version_id:
+                fields["current_version_id"] = version_id
+        repo.update_content_item(client, content_item_id, **fields)
+        try:
+            repo.mark_generation_completed(client, content_item_id)
+        except Exception as exc:  # noqa: BLE001
+            print(f"       (run non comptabilisé pour la politique de crédits : {type(exc).__name__})")
+        return {"video_url": video_url, "content_item_id": content_item_id}
+
+    def report_progress(label: str) -> None:
+        try:
+            repo.update_content_item(client, content_item_id, generation_step=label)
+        except Exception as exc:  # noqa: BLE001 - tracking only
+            print(f"       (suivi d'avancement non mis à jour : {type(exc).__name__})")
+
+    ports = sv_pipeline.Ports(
+        image_provider=sv_orchestrator.openai_provider(),
+        voice_provider=sv_voice.elevenlabs_provider(),
+        reserve_credit=lambda: repo.reserve_generation_credit(client, content_item_id),
+        refund_credit=lambda: repo.refund_generation_credit(client, content_item_id),
+        authorize=authorize,
+        moderate=moderation.check_script,
+        record_event=lambda name, **props: events.record(client, name, content_item_id, organization_id, **props),
+        progress=report_progress,
+        publish=publish,
+        budget=sv_cost.Budget.from_env(),
+        image_cache=sv_cache.DiskImageCache(root / "story_visual_cache", tenant_id),
+        voice_cache=sv_cache.DiskImageCache(root / "story_visual_cache", tenant_id, ".mp3"),
+    )
+    stop = threading.Event()
+
+    def heartbeat() -> None:
+        while not stop.wait(_ANIMATION_HEARTBEAT_S):
+            try:
+                repo.update_content_item(client, content_item_id)
+            except Exception as exc:  # noqa: BLE001
+                print(f"       (battement de vie non enregistré : {type(exc).__name__})")
+
+    beat = threading.Thread(target=heartbeat, name="story-visual-heartbeat", daemon=True)
+    beat.start()
+    try:
+        result = sv_pipeline.run(script, ports, root / f"story_visual_{content_item_id}", tenant_id=tenant_id)
+    finally:
+        stop.set()
+        beat.join(timeout=5)
+    print(f"       total génération récit illustré : {time.monotonic() - t_start:.1f}s")
+    return result
+
+
 def run_for_content_item(content_item_id: str, output_root: str = "output") -> dict:
     """Point d'entrée worker.py : génère la vidéo d'un content_item déjà en
     base (créé par le front en status='queued', script déjà construit —
@@ -1077,6 +1156,10 @@ def run_for_content_item(content_item_id: str, output_root: str = "output") -> d
     # sent anywhere), otherwise handled by their own pipeline. Every other script continues below, unchanged.
     if story_animation_contract.route_for(raw_script) == "animated":
         return _run_animated(client, content_item_id, raw_script, output_root, t_start)
+    # Illustrated stories (content_format "story_visual"): same rule, own flag STORY_VISUAL_ENABLED (OFF by default). Any
+    # other script gets "legacy" from route_for and continues below untouched.
+    if story_visual_contract.route_for(raw_script) == "visual":
+        return _run_visual(client, content_item_id, raw_script, output_root, t_start)
 
     data = script_module.normalize_script(raw_script)
     script_module.validate_script(data)

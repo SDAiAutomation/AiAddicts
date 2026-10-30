@@ -216,7 +216,7 @@ class TestCost(unittest.TestCase):
         estimate = cost.estimate_episode(sample.moral_plan(), PRICED)
         items = {l["item"]: l for l in estimate["lines"]}
         self.assertEqual(set(items), {"script", "research", "images", "image_edits", "voice_1k_chars", "render", "storage"})
-        self.assertEqual(items["images"]["quantity"], 8)
+        self.assertEqual(items["images"]["quantity"], 8)  # une image par scène
         self.assertAlmostEqual(items["images"]["usd"], 0.64)
         self.assertEqual(estimate["unpriced"], [])
         decision = cost.check_budget(estimate, cost.Budget())
@@ -481,21 +481,21 @@ class TestOverlay(TempDirCase):
 class TestEndToEndRender(TempDirCase):
     """Rendu réel FFmpeg des deux récits d'exemple : un récit factuel sourcé et une fable fictive. Coût réel : 0."""
 
-    def check(self, plan):
-        report = sample.build_sample(plan, self.tmp / plan["story_id"])
+    def check(self, plan, **render_kw):
+        report = sample.build_sample(plan, self.tmp / plan["story_id"], **render_kw)
         probe = report["probe"]
         self.assertEqual((probe["video"]["width"], probe["video"]["height"]), (1080, 1920))
         self.assertEqual(probe["video"]["codec_name"], "h264")
         self.assertEqual(probe["video"]["pix_fmt"], "yuv420p")
         self.assertEqual(probe["audio"]["codec_name"], "aac")
-        self.assertAlmostEqual(probe["duration"], report["timeline"]["total_s"], delta=0.35)  # voix et image restent synchronisées
+        self.assertAlmostEqual(probe["duration"], report["timeline"]["total_s"], delta=0.15)  # voix et image restent synchronisées
         self.assertEqual(report["actual_cost_usd"], 0.0)
         self.assertTrue(all(r["contrast"] >= overlay.MIN_CONTRAST for r in report["readability"] if r["text"]))
         self.assertEqual(timing.check_no_overlap(report["timeline"]), [])
         self.assertTrue(Path(report["video"]).with_suffix(".srt").is_file())
 
     def test_factual_story(self):
-        self.check(sample.factual_plan())
+        self.check(sample.factual_plan(), fps=12, preset="ultrafast")
 
     def test_moral_story(self):
         self.check(sample.moral_plan())

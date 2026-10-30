@@ -65,7 +65,7 @@ def factual_plan() -> dict:
                    ("l'hésitation : jeter ou observer", "tension légère", "la main suspendue", "le chercheur, la boîte, l'évier",
                     "tout le reste", "fait écho à la boîte du premier plan"),
                    "Le chercheur penché sur une boîte de Petri, la main suspendue au-dessus d'un évier.",
-                   "Il aurait pu la jeter.", "tension", 8, "crossfade", "still", ["chercheur"], "fact", s),
+                   "Il aurait pu la jeter.", "tension", 8, "crossfade", "push_in", ["chercheur"], "fact", s),
             _scene("s4", "development", "Mais autour de la moisissure, les bactéries avaient disparu. Il remarque la zone claire.",
                    "Gros plan de la boîte : un halo clair autour de la tache verte.",
                    ("voir la zone sans bactéries", "émerveillement", "le halo comme un cercle de protection", "la boîte, le halo",
@@ -77,7 +77,7 @@ def factual_plan() -> dict:
                    ("nommer la substance", "excitation contenue", "un nom qui naît", "le chercheur, le tableau",
                     "formules illisibles", "même chercheur, même nœud papillon"),
                    "Le chercheur tient une boîte devant un tableau noir couvert de croquis griffonnés.",
-                   "Penicillium → pénicilline", "excitation", 8, "crossfade", "still", ["chercheur"], "fact", s),
+                   "Penicillium → pénicilline", "excitation", 8, "crossfade", "pull_out", ["chercheur"], "fact", s),
             _scene("s6", "development", "Il faudra encore plus de dix ans, et d'autres chercheurs, pour en faire un médicament utilisable.",
                    "Un couloir de laboratoire qui s'étire, des silhouettes de chercheurs au loin.",
                    ("le chemin est long et collectif", "patience", "le couloir comme le temps", "un couloir, des silhouettes",
@@ -124,7 +124,7 @@ def moral_plan() -> dict:
                    ("everyone asks, he gives", "heaviness", "the stack of stones", "Rowan, stones, hares, crows",
                     "background trees", "same scarf, same clearing as scene 1"),
                    "The red fox in the teal scarf carries a tall stack of stones, hares and crows waiting in a line behind him.",
-                   "Yes. Yes. Yes.", "heaviness", 8, "crossfade", "still", ["rowan"], "fiction"),
+                   "Yes. Yes. Yes.", "heaviness", 8, "crossfade", "pull_out", ["rowan"], "fiction"),
             _scene("s3", "conflict", "His own den grew cold and empty. No one noticed, because he never said so.",
                    "Rowan's tiny den, cold and dark, seen from outside in the rain.",
                    ("his own needs disappear", "loneliness", "a den with no light", "the den, the rain",
@@ -136,7 +136,7 @@ def moral_plan() -> dict:
                    ("the breaking point", "tension", "one stone leaving the stack", "Rowan, the rolling stone",
                     "crowd", "same night after the den"),
                    "The red fox in the teal scarf buckles under his stack of stones, one stone rolling down a moonlit slope.",
-                   "One stone slipped.", "tension", 8, "crossfade", "still", ["rowan"], "fiction"),
+                   "One stone slipped.", "tension", 8, "crossfade", "push_in", ["rowan"], "fiction"),
             _scene("s5", "development", "Nothing terrible happened. The owl simply picked up the stone and said, 'Thank you for telling us.'",
                    "The owl gently lifts the stone, Rowan watching, surprised.",
                    ("refusing is survivable", "relief", "the owl's open wings", "owl, Rowan, stone",
@@ -207,7 +207,7 @@ def _tone(path: Path, seconds: float) -> None:
                     "-af", "volume=0.05", "-c:a", "aac", str(path)], check=True, capture_output=True)
 
 
-def build_sample(plan: dict, out_dir: str | Path, tenant_id: str = "sample") -> dict:
+def build_sample(plan: dict, out_dir: str | Path, tenant_id: str = "sample", *, fps: int = render.FPS, preset: str = "veryfast") -> dict:
     """Plan -> MP4 vertical complet, sans aucun appel payant. Retourne un rapport (timeline, lisibilité, coût réel = 0)."""
     errors = schema.validate_story_plan(plan)
     if errors:
@@ -218,11 +218,14 @@ def build_sample(plan: dict, out_dir: str | Path, tenant_id: str = "sample") -> 
     tracker = cost.BudgetTracker(cost.Budget())
     manifest = orchestrator.generate_scene_images(plan, tenant_id=tenant_id, work_dir=out / "work", provider=provider,
                                                   tracker=tracker, expected_unit_usd=0.0)
-    cards, readability, audio = [], [], []
+    cards, readability, audio, layers = [], [], [], []
     for scene in plan["scenes"]:
         card = out / "work" / f"card-{scene['id']}.jpg"
-        readability.append(overlay.compose_card(manifest[scene["id"]]["path"], scene["on_screen_text"], plan["art_direction"], card))
+        layer = out / "work" / f"text-{scene['id']}.png"
+        report = overlay.compose_layers(manifest[scene["id"]]["path"], scene["on_screen_text"], plan["art_direction"], card, layer)
+        readability.append(report)
         cards.append(card)
+        layers.append(layer if report["has_layer"] else None)
         tone = out / "work" / f"voice-{scene['id']}.m4a"
         _tone(tone, timing.estimate_audio_seconds(scene["narration"], plan["language"]))
         audio.append(tone)
@@ -232,7 +235,7 @@ def build_sample(plan: dict, out_dir: str | Path, tenant_id: str = "sample") -> 
     if overlaps:
         raise ValueError("; ".join(overlaps))
     video = out / f"{plan['story_id']}.mp4"
-    info = render.render_story(cards, timeline, audio, video, out / "work")
+    info = render.render_story(cards, timeline, audio, video, out / "work", fps=fps, preset=preset, text_layers=layers)
     (out / f"{plan['story_id']}.srt").write_text(timing.srt(plan, timeline), encoding="utf-8")
     return {"video": str(video), "probe": info, "timeline": timeline, "readability": readability,
             "actual_cost_usd": tracker.total, "placeholder": True}

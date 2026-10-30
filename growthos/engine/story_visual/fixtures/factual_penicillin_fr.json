@@ -72,7 +72,7 @@
     },
     {
       "beat": "conflict",
-      "camera": "still",
+      "camera": "push_in",
       "characters": [
         "chercheur"
       ],
@@ -126,7 +126,7 @@
     },
     {
       "beat": "development",
-      "camera": "still",
+      "camera": "pull_out",
       "characters": [
         "chercheur"
       ],

@@ -6,11 +6,14 @@ from __future__ import annotations
 
 import math
 
+from . import art_directions
+
 WORDS_PER_SECOND = {"fr": 2.7, "en": 2.5}  # estimation AVANT synthèse, remplacée par la mesure ensuite
+MIN_PAUSE_S = 0.3         # >= plus longue transition : un fondu ne recouvre jamais la parole
 PAUSE_S = 0.35            # silence entre deux narrations : aucune superposition
 MIN_SCENE_S = 2.5
 READ_S_PER_WORD = 0.32    # temps de lecture du texte à l'écran
-FINAL_HOLD_S = 3.0        # le dernier plan laisse le temps de retenir la leçon
+FINAL_HOLD_S = 2.0        # le dernier plan laisse le temps de retenir la leçon
 HOOK_LEAD_S = 0.15        # départ quasi immédiat : l'accroche ne commence pas dans le silence
 
 
@@ -25,6 +28,8 @@ def schedule(plan: dict, audio_seconds: dict[str, float], *, pause_s: float = PA
     Chaque scène dure : lead + audio + pause (+ prolongation pour lire le texte, + maintien final). L'audio d'une
     scène commence APRÈS la fin de la précédente (jamais de recouvrement). Les transitions chevauchent la PAUSE
     de fin de scène, donc jamais la parole."""
+    if not isinstance(pause_s, (int, float)) or isinstance(pause_s, bool) or not math.isfinite(pause_s) or pause_s < MIN_PAUSE_S:
+        raise ValueError(f"pause_s must be at least {MIN_PAUSE_S}s so that transitions never overlap speech")
     scenes = plan["scenes"]
     ids = [s["id"] for s in scenes]
     if set(audio_seconds) != set(ids):
@@ -43,7 +48,8 @@ def schedule(plan: dict, audio_seconds: dict[str, float], *, pause_s: float = PA
         out.append({
             "id": scene["id"], "start": round(cursor, 3), "end": round(cursor + duration, 3), "duration": round(duration, 3),
             "audio_start": round(cursor + lead, 3), "audio_end": round(cursor + lead + audio, 3),
-            "transition": scene["transition"], "camera": scene.get("camera", "still"),
+            "transition": scene["transition"],
+            "camera": scene.get("camera") or art_directions.get_direction(plan["art_direction"])["default_camera"],
         })
         cursor += duration
     target = plan["target_duration_s"]

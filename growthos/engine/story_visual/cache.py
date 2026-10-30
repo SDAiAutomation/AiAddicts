@@ -6,6 +6,7 @@ d'un autre (voir test d'isolation).
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 from pathlib import Path
@@ -24,7 +25,12 @@ def image_key(tenant_id: str, prompt: str, model: str, quality: str, size: str =
 
 
 class DiskImageCache:
-    def __init__(self, root: str | Path, tenant_id: str):
+    """Cache disque d'actifs (images par défaut ; `ext=".mp3"` pour la voix), un dossier par locataire."""
+
+    def __init__(self, root: str | Path, tenant_id: str, ext: str = ".jpg"):
+        if not re.fullmatch(r"\.[a-z0-9]{2,5}", ext):
+            raise ValueError("invalid extension")
+        self.ext = ext
         if not _SAFE.fullmatch(tenant_id or ""):
             raise ValueError("invalid tenant id")
         self.dir = Path(root).resolve() / tenant_id
@@ -33,14 +39,17 @@ class DiskImageCache:
     def _path(self, key: str) -> Path:
         if not re.fullmatch(r"[0-9a-f]{32}", key):
             raise ValueError("invalid cache key")
-        return self.dir / f"{key}.jpg"
+        return self.dir / f"{key}{self.ext}"
 
     def restore(self, key: str, dest: str | Path) -> bool:
         src = self._path(key)
-        if not src.is_file() or src.stat().st_size == 0:
+        if src.is_symlink() or not src.is_file() or src.stat().st_size == 0:
             return False
         shutil.copyfile(src, dest)
         return True
 
     def save(self, key: str, src: str | Path) -> None:
-        shutil.copyfile(src, self._path(key))
+        target = self._path(key)
+        tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, target)  # jamais d'actif tronqué resservi

@@ -13,11 +13,11 @@ Variables (toutes optionnelles) :
 """
 from __future__ import annotations
 
+import math
 import os
 import threading
 from dataclasses import dataclass, field
 
-from .. import image_model_router
 
 DEFAULT_BUDGET_USD = 2.00
 PREFERRED_BUDGET_USD = 1.50
@@ -29,7 +29,7 @@ def _float(env: dict, name: str) -> float | None:
         value = float(raw) if raw else None
     except ValueError:
         return None
-    return value if value is not None and value >= 0 else None
+    return value if value is not None and math.isfinite(value) and value >= 0 else None
 
 
 def image_unit_cost(env: dict | None = None, purpose: str = "final") -> tuple[float | None, str]:
@@ -41,11 +41,6 @@ def image_unit_cost(env: dict | None = None, purpose: str = "final") -> tuple[fl
     tokens = _float(env, "STORY_IMAGE_OUTPUT_TOKENS")
     price = _float(env, "IMAGE_PRICE_IMAGE_OUT_PER_M")
     if tokens and price is not None:
-        selection = image_model_router.select_model(purpose)
-        usage = {"input_text": 600, "input_image": 0, "output": int(tokens)}
-        # le routeur lit ses tarifs dans os.environ : on ne l'appelle que si l'environnement passé est l'environnement réel
-        if env is os.environ:
-            return image_model_router.estimate_cost(selection.model, selection.quality, usage), "IMAGE_PRICE_* x STORY_IMAGE_OUTPUT_TOKENS"
         return tokens * price / 1_000_000, "IMAGE_PRICE_IMAGE_OUT_PER_M x STORY_IMAGE_OUTPUT_TOKENS"
     return None, "unpriced"
 
@@ -55,11 +50,19 @@ class Budget:
     max_usd: float = DEFAULT_BUDGET_USD
     preferred_usd: float = PREFERRED_BUDGET_USD
 
+    def __post_init__(self):
+        for value in (self.max_usd, self.preferred_usd):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                raise ValueError("budget amounts must be finite and non-negative")
+        self.preferred_usd = min(self.preferred_usd, self.max_usd)  # la cible ne dépasse jamais le plafond
+
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Budget":
+        """`STORY_BUDGET_USD=0` est un budget de 0 $ (dépense coupée), pas « valeur par défaut »."""
         env = os.environ if env is None else env
-        return cls(_float(env, "STORY_BUDGET_USD") or DEFAULT_BUDGET_USD,
-                   _float(env, "STORY_BUDGET_PREFERRED_USD") or PREFERRED_BUDGET_USD)
+        cap, target = _float(env, "STORY_BUDGET_USD"), _float(env, "STORY_BUDGET_PREFERRED_USD")
+        cap = DEFAULT_BUDGET_USD if cap is None else cap
+        return cls(cap, PREFERRED_BUDGET_USD if target is None else target)
 
 
 class BudgetExceeded(RuntimeError):
@@ -83,12 +86,12 @@ def estimate_episode(plan: dict, env: dict | None = None, *, edits_per_episode: 
     t_in, t_out = _float(env, "STORY_PLAN_TOKENS_IN"), _float(env, "STORY_PLAN_TOKENS_OUT")
     script_usd = None if None in (p_in, p_out, t_in, t_out) else (t_in * p_in + t_out * p_out) / 1_000_000
     render, storage = _float(env, "STORY_RENDER_USD"), _float(env, "STORY_STORAGE_USD")
-    unique_images = len({s["image_prompt"].strip() for s in scenes})
+    n_images = len(scenes)  # une image par scène (le prompt final dépend aussi de la direction visuelle et des personnages)
     lines = [
         {"item": "script", "quantity": 1, "unit_usd": script_usd, "usd": None if script_usd is None else round(script_usd, 4),
          "source": "SCRIPT_PRICE_* x STORY_PLAN_TOKENS_*" if script_usd is not None else "unpriced"},
         {"item": "research", "quantity": 0, "unit_usd": 0.0, "usd": 0.0, "source": "no paid research in this engine (sources are supplied)"},
-        _line("images", unique_images + regenerations, image_unit, image_source),
+        _line("images", n_images + regenerations, image_unit, image_source),
         _line("image_edits", edits_per_episode, edit_unit, edit_source),
         _line("voice_1k_chars", chars / 1000, voice_rate, "ELEVENLABS_USD_PER_1K_CHARS" if voice_rate is not None else "unpriced"),
         _line("render", 1, render, "STORY_RENDER_USD" if render is not None else "unpriced"),
@@ -96,8 +99,9 @@ def estimate_episode(plan: dict, env: dict | None = None, *, edits_per_episode: 
     ]
     unpriced = [l["item"] for l in lines if l["usd"] is None and l["quantity"]]
     return {"estimated": True, "lines": lines, "unpriced": unpriced,
-            "total_usd": round(sum(l["usd"] or 0.0 for l in lines), 4), "scenes": len(scenes),
-            "voice_characters": chars, "unique_images": unique_images}
+            # somme des seuls postes chiffrés : un total « incomplet » (complete False) ne doit jamais être affiché comme un coût
+            "total_usd": round(sum(l["usd"] or 0.0 for l in lines), 4), "complete": not unpriced, "scenes": len(scenes),
+            "voice_characters": chars, "images": n_images}
 
 
 def check_budget(estimate: dict, budget: Budget) -> dict:
@@ -141,24 +145,68 @@ def suggest_compromises(estimate: dict, budget: Budget) -> list[str]:
     return out
 
 
+# nature d'un montant enregistré : jamais confondre mesuré, estimé et non chiffré
+MEASURED, ESTIMATED, UNPRICED, CACHED = "measured", "estimated", "unpriced", "cache"
+
+
 @dataclass
 class BudgetTracker:
-    """Dépense RÉELLE d'un épisode. `reserve` refuse AVANT l'appel payant si le plafond serait dépassé."""
+    """Dépense d'un épisode. `reserve` POSE UNE RETENUE (atomique) : le plafond est vérifié contre dépense + retenues en cours,
+    donc deux appels concurrents ne passent pas ensemble sous le plafond. `record` solde la retenue ; `release` l'annule.
+    Chaque montant porte sa nature : `measured` (usage réel x tarif configuré), `estimated`, `unpriced` (appel fait, coût
+    inconnu : 0 $ comptabilisé mais signalé), `cache` (réutilisé, 0 $)."""
     budget: Budget
     spent: dict = field(default_factory=dict)
+    kinds: dict = field(default_factory=dict)
+    holds: dict = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
     def total(self) -> float:
         return round(sum(self.spent.values()), 6)
 
-    def reserve(self, item: str, expected_usd: float | None) -> None:
-        if expected_usd is None:
-            raise BudgetExceeded(f"{item}: cost unknown, refusing a paid call")
-        with self._lock:
-            if self.total + expected_usd > self.budget.max_usd + 1e-9:
-                raise BudgetExceeded(f"{item}: ${self.total + expected_usd:.2f} would exceed the ${self.budget.max_usd:.2f} budget")
+    @property
+    def committed(self) -> float:
+        return round(self.total + sum(self.holds.values()), 6)
 
-    def record(self, item: str, actual_usd: float) -> None:
+    def total_by_kind(self) -> dict:
+        out: dict = {}
+        for item, usd in self.spent.items():
+            kind = self.kinds.get(item, MEASURED)
+            out[kind] = round(out.get(kind, 0.0) + usd, 6)
+        return out
+
+    @property
+    def has_unpriced(self) -> bool:
+        return UNPRICED in self.kinds.values()
+
+    def seed(self, item: str, usd: float | None, kind: str) -> None:
+        """Reprend une dépense déjà faite (lue dans un manifeste) : idempotent, un item n'est jamais compté deux fois."""
         with self._lock:
+            if item not in self.spent:
+                self.spent[item] = round(max(0.0, usd or 0.0), 6)
+                self.kinds[item] = UNPRICED if usd is None and kind != CACHED else kind
+
+    def reserve(self, item: str, expected_usd: float | None) -> None:
+        if (expected_usd is None or isinstance(expected_usd, bool) or not isinstance(expected_usd, (int, float))
+                or not math.isfinite(expected_usd) or expected_usd < 0):
+            raise BudgetExceeded(f"{item}: cost unknown or invalid, refusing a paid call")
+        with self._lock:
+            held = sum(v for k, v in self.holds.items() if k != item)
+            if self.total + held + expected_usd > self.budget.max_usd + 1e-9:
+                raise BudgetExceeded(f"{item}: ${self.total + held + expected_usd:.2f} would exceed the ${self.budget.max_usd:.2f} budget")
+            self.holds[item] = float(expected_usd)
+
+    def release(self, item: str) -> None:
+        with self._lock:
+            self.holds.pop(item, None)
+
+    def record(self, item: str, actual_usd: float | None, kind: str = MEASURED) -> None:
+        """`actual_usd=None` : l'appel a eu lieu mais son coût est inconnu -> 0 $ comptabilisé, nature `unpriced`.
+        Un coût réel supérieur à la retenue est enregistré tel quel : le `reserve` suivant refusera (plafond dépassé)."""
+        if actual_usd is None or not math.isfinite(actual_usd):
+            actual_usd, kind = 0.0, UNPRICED
+        with self._lock:
+            self.holds.pop(item, None)
             self.spent[item] = round(self.spent.get(item, 0.0) + max(0.0, actual_usd), 6)
+            self.kinds[item] = kind

@@ -5,10 +5,8 @@ est la porte d'entrée obligatoire avant toute génération payante ou tout rend
 """
 from __future__ import annotations
 
-import ipaddress
 import math
 import re
-from urllib.parse import urlparse
 
 SCHEMA_VERSION = 1
 
@@ -31,45 +29,52 @@ MAX_SOURCES = 12
 DURATION_TOLERANCE = 0.25  # écart toléré entre durées prévues et cible, avant calage sur la voix
 
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_VOICE_ID = re.compile(r"[A-Za-z0-9]{8,64}")
 _VISUAL_DIRECTION_KEYS = ("understand", "feel", "metaphor", "essentials", "omit", "continuity")
 _CHARACTER_KEYS = ("appearance", "proportions", "clothing", "palette", "distinctive")
 
 
 def _num(value) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return abs(value) < 1e15 and math.isfinite(value)  # un entier gigantesque n'est pas un nombre exploitable (et ne lève pas)
 
 
 def _text(value, limit: int) -> bool:
     return isinstance(value, str) and bool(value.strip()) and len(value) <= limit and "\x00" not in value
 
 
+# Même expression des deux côtés (Python / TypeScript) : l'URL BRUTE doit déjà être un https ASCII sans identifiants, sans
+# antislash, sans pourcentage ni IDN dans l'hôte. On ne s'en remet pas à un analyseur d'URL (WHATWG et urllib divergent).
+_URL = re.compile(r"https://((?:[A-Za-z0-9-]+\.)+[A-Za-z][A-Za-z0-9-]*)\.?(?::([0-9]{1,5}))?(?:[/?#][^\s\\]*)?")
+
+
 def is_safe_source_url(url: str) -> bool:
-    """Anti-SSRF côté contrat : https uniquement, pas d'identifiants, pas d'hôte local/privé/littéral IP interne.
-    Le moteur ne télécharge JAMAIS ces URL ; elles servent à la provenance affichée à l'utilisateur."""
-    if not isinstance(url, str) or len(url) > 500:
+    """Anti-SSRF côté contrat : https + nom d'hôte DNS public ASCII (jamais une IP, quelle que soit sa notation), pas
+    d'identifiants, pas d'hôte local/interne, port ≤ 65535. Le moteur ne télécharge JAMAIS ces URL (provenance affichée)."""
+    if not isinstance(url, str) or len(url) > 500 or not _URL.fullmatch(url):
         return False
-    try:
-        parsed = urlparse(url)
-    except ValueError:
+    host, port = _URL.fullmatch(url).group(1).lower(), _URL.fullmatch(url).group(2)
+    if port is not None and int(port) > 65535:
         return False
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-        return False
-    host = parsed.hostname.lower()
-    if host == "localhost" or host.endswith((".local", ".internal", ".localhost")) or "." not in host and ":" not in host:
-        return False
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return True
-    return ip.is_global
+    return not (host == "localhost" or host.endswith((".local", ".internal", ".localhost")))
 
 
 def validate_story_plan(plan: dict) -> list[str]:
-    """Erreurs actionnables ; liste vide = plan acceptable pour la génération. Ne modifie rien."""
+    """Erreurs actionnables ; liste vide = plan acceptable pour la génération. Ne modifie rien, ne lève jamais :
+    une entrée hostile (types inattendus) donne une erreur, pas une exception."""
     if not isinstance(plan, dict):
         return ["plan must be an object"]
+    try:
+        return _validate(plan)
+    except (TypeError, ValueError, KeyError, AttributeError, RecursionError, OverflowError):
+        return ["plan is malformed"]
+
+
+def _validate(plan: dict) -> list[str]:
     errors: list[str] = []
-    if plan.get("schema_version") != SCHEMA_VERSION:
+    version = plan.get("schema_version")
+    if isinstance(version, bool) or not isinstance(version, (int, float)) or version != SCHEMA_VERSION:
         errors.append(f"schema_version must be {SCHEMA_VERSION}")
     if not isinstance(plan.get("story_id"), str) or not _ID.fullmatch(plan["story_id"]):
         errors.append("story_id must be a safe 1–64 character identifier")
@@ -84,6 +89,8 @@ def validate_story_plan(plan: dict) -> list[str]:
     if not _num(target) or not MIN_DURATION_S <= target <= MAX_DURATION_S:
         errors.append(f"target_duration_s must be between {MIN_DURATION_S} and {MAX_DURATION_S}")
         target = None
+    if plan.get("voice_id") is not None and not (isinstance(plan["voice_id"], str) and _VOICE_ID.fullmatch(plan["voice_id"])):
+        errors.append("voice_id must be an alphanumeric provider voice identifier")
     if not _text(plan.get("title"), 120):
         errors.append("title must be a nonempty string of at most 120 characters")
 
@@ -155,6 +162,9 @@ def _validate_characters(plan: dict, errors: list[str]) -> dict[str, dict]:
         for key in _CHARACTER_KEYS:
             if not _text(character.get(key), 300):
                 errors.append(f"characters[{i}].{key} is required (identity contract)")
+        for key in ("environment", "negative"):
+            if character.get(key) is not None and not _text(character.get(key), 300):
+                errors.append(f"characters[{i}].{key} must be a short string")
     return found
 
 
@@ -202,10 +212,10 @@ def _validate_scenes(plan, errors, characters, source_ids, story_type, factualit
         if scene.get("camera", "still") not in CAMERAS:
             errors.append(f"{where}.camera must be one of {CAMERAS}")
         direction = scene.get("visual_direction")
-        if not isinstance(direction, dict) or any(not direction.get(k) for k in _VISUAL_DIRECTION_KEYS):
+        if not isinstance(direction, dict) or any(not _text(direction.get(k), 300) for k in _VISUAL_DIRECTION_KEYS):
             errors.append(f"{where}.visual_direction must define {_VISUAL_DIRECTION_KEYS}")
         present = scene.get("characters", [])
-        if not isinstance(present, list) or any(c not in characters for c in present):
+        if not isinstance(present, list) or any(not isinstance(c, str) or c not in characters for c in present):
             errors.append(f"{where}.characters must reference known character ids")
         errors += _validate_claims(where, scene, source_ids, story_type, factuality)
     if len(ids) != len(set(ids)):
@@ -229,13 +239,13 @@ def _validate_claims(where: str, scene: dict, source_ids: set[str], story_type, 
         errors.append(f"{where}: a fictional story cannot present a scene as a fact")
     if factuality == "verified" and kind == "fact":
         refs = scene.get("source_ids", [])
-        if not isinstance(refs, list) or not refs or any(r not in source_ids for r in refs):
+        if not isinstance(refs, list) or not refs or any(not isinstance(r, str) or r not in source_ids for r in refs):
             errors.append(f"{where}: a verified fact must cite at least one known source")
     quote = scene.get("quote")
     if quote is not None:
         refs = scene.get("quote_source_id")
-        if factuality != "fiction" and refs not in source_ids:
+        if factuality != "fiction" and not (isinstance(refs, str) and refs in source_ids):
             errors.append(f"{where}: a quotation presented as authentic must cite a known source")
-        if factuality == "fiction" and scene.get("quote_attributed_to_real_person"):
+        if factuality == "fiction" and scene.get("quote_attributed_to_real_person") is True:
             errors.append(f"{where}: an invented quotation cannot be attributed to a real person")
     return errors
