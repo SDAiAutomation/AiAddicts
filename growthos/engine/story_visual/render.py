@@ -50,7 +50,7 @@ def _run(cmd: list[str]) -> None:
 def probe(path: str | Path) -> dict:
     try:
         proc = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,pix_fmt,color_range:format=duration",
+            ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,pix_fmt,color_range,color_space:format=duration",
              "-of", "json", _path(path)], capture_output=True, text=True, timeout=_timeout())
     except subprocess.TimeoutExpired as exc:
         raise RenderError("ffprobe timed out") from exc

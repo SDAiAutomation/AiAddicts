@@ -521,6 +521,18 @@ class TestEndToEndRender(TempDirCase):
     def test_moral_story(self):
         self.check(sample.moral_plan())
 
+    def test_clip_color_metadata_is_limited_range_bt709_for_jpeg_and_png_cards(self):
+        from PIL import Image
+        for ext in ("jpg", "png"):
+            card = self.tmp / f"card.{ext}"
+            Image.new("RGB", (1080, 1920), (200, 120, 40)).save(card)
+            for camera in ("still", "push_in"):
+                clip = self.tmp / f"clip-{ext}-{camera}.mp4"
+                render._scene_clip(card, 1.0, camera, clip, 12, "ultrafast")
+                video = render.probe(clip)["video"]
+                self.assertEqual((video["pix_fmt"], video["color_range"]), ("yuv420p", "tv"), (ext, camera))
+                self.assertEqual(video["color_space"], "bt709", (ext, camera))
+
     def test_invalid_plan_is_refused_before_any_work(self):
         plan = sample.moral_plan()
         plan["scenes"] = plan["scenes"][:2]
