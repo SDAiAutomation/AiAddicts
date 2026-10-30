@@ -91,6 +91,10 @@ class TestUnknownCostIsNeverFree(unittest.TestCase):
     def _no_rates(self):
         return patch.dict(os.environ, {k: v for k, v in os.environ.items() if not k.startswith("IMAGE_PRICE_")}, clear=True)
 
+    def _only_rates(self, **rates):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("IMAGE_PRICE_")}
+        return patch.dict(os.environ, {**env, **rates}, clear=True)
+
     def test_unknown_is_none_while_legacy_estimate_stays_zero(self):
         with self._no_rates():
             for model in ("gpt-image-2.5-flare", "modele-inconnu"):
@@ -101,11 +105,11 @@ class TestUnknownCostIsNeverFree(unittest.TestCase):
     def test_known_values_are_identical_in_both_functions(self):
         for args in (("gpt-image-1-mini", "medium"), ("gpt-image-1", "high")):
             self.assertEqual(image_model_router.estimate_cost_or_none(*args), image_model_router.estimate_cost(*args))
-        with patch.dict(os.environ, {"IMAGE_PRICE_IMAGE_OUT_PER_M": "40"}):
+        with self._only_rates(IMAGE_PRICE_IMAGE_OUT_PER_M="40"):  # isolé du .env local (IMAGE_PRICE_TEXT_IN... fausserait 0.24)
             self.assertAlmostEqual(image_model_router.estimate_cost_or_none("gpt-image-2.5-flare", "medium", self.USAGE), 0.24)
 
     def test_an_explicit_zero_rate_is_a_priced_zero(self):
-        with patch.dict(os.environ, {"IMAGE_PRICE_IMAGE_OUT_PER_M": "0"}):
+        with self._only_rates(IMAGE_PRICE_IMAGE_OUT_PER_M="0", IMAGE_PRICE_TEXT_IN_PER_M="0", IMAGE_PRICE_IMAGE_IN_PER_M="0"):
             self.assertEqual(image_model_router.estimate_cost_or_none("gpt-image-2.5-flare", "medium", self.USAGE), 0.0)
 
 
