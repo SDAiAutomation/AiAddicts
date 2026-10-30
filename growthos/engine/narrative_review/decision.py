@@ -16,6 +16,16 @@ def _judgement(snapshot: dict, response: dict | None, analysis_status: str) -> t
     reasons += [f"coverage_{c['dimension']}_{c['status']}" for c in response["coverage"] if c["status"] in ("partial", "unavailable")]
     reasons += [f"unverified_claim_{c['claim_id']}" for c in response["claims"] if c["assessment"] == "unverified"]
     blockers = [f for f in response["findings"] if f["severity"] == "blocker"]
+    if snapshot["truth_mode"] in ("fact", "inspired"):
+        # Un récit à assertions factuelles n'est jamais accepté sans registre d'affirmations ni dossier : l'absence de claims
+        # peut être une omission du critique (risque R01), pas une preuve d'absence de faits.
+        if not response["claims"]:
+            reasons.append("factual_mode_without_registered_claims")
+        if not snapshot["sources"]:
+            reasons.append("factual_mode_without_sources")
+    if any(c["assessment"] == "contradicted" for c in response["claims"]) and not any(
+            f["code"] == "FACT_CONTRADICTED" and f["assessment"] == "established" for f in blockers):
+        reasons.append("contradicted_claim_without_established_finding")  # le défaut manque : on ne peut pas accepter, ni trancher
     reasons += [f"uncertain_blocker_{f['finding_id']}" for f in blockers if f["assessment"] == "uncertain"]
     reasons += [f"needs_{f['repair_scope'][6:]}_{f['finding_id']}" for f in blockers
                 if f["repair_scope"] in ("needs_sources", "needs_author")]

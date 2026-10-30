@@ -221,5 +221,49 @@ class TestRunner(NetworkBlocked):
         self.assertNotEqual(ordered, sorted(ordered))      # l'ordre des ID ne suit pas l'ordre sujet/condition
 
 
+class TestHardeningFromIndependentReview(NetworkBlocked):
+    def test_a_harness_error_is_journaled_and_the_campaign_goes_on(self):
+        from growthos.engine.narrative_review.providers import ProviderResult
+        base = simulated_generator()
+
+        def duplicate_scene_ids(request):  # sortie techniquement valide dont l'instantané est refusé (ids de scène en double)
+            result = base(request)
+            if '{"blocks"' in request["system"]:
+                return result
+            data = json.loads(result.text)
+            for scene in data["scenes"]:
+                scene["id"] = "dup"
+            return ProviderResult(text=json.dumps(data), usage=result.usage, latency_s=result.latency_s)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = campaign(generator=duplicate_scene_ids, out_dir=Path(tmp))
+            lines = list(csv.DictReader(io.StringIO((Path(tmp) / "registre_executions.csv").read_text(encoding="utf-8"))))
+        errors = [r for r in result["rows"] if r["execution_status"] == "harness_error"]
+        self.assertEqual(len(errors), 10)                       # les 10 cases Story Visual
+        self.assertEqual(len(lines), len(result["rows"]))      # tout ce qui a été journalisé est dans le fichier
+        self.assertEqual(sum(r["task"] == "generation" for r in result["rows"]), 20)  # les 20 appels payés sont tous enregistrés
+        self.assertEqual(sum(r["task"] == "critique" for r in result["rows"]), 10)
+
+    def test_a_hidden_retry_halts_the_campaign(self):
+        from growthos.engine.narrative_review.providers import ProviderResult
+        inner = simulated_generator()
+        count = {"n": 0}
+
+        def retrying(request):
+            count["n"] += 1
+            result = inner(request)
+            return ProviderResult(text=result.text, usage=result.usage, latency_s=1.0, http_attempts=2 if count["n"] == 3 else 1)
+        result = campaign(generator=retrying)
+        self.assertEqual(count["n"], 3)                          # plus aucun appel après la détection
+        self.assertTrue(result["summary"]["halted_on_hidden_retry"])
+        self.assertEqual(sum(r["error_code"] == "HALTED_RETRY_DETECTED" for r in result["rows"]), 17)
+
+    def test_critique_call_counter_matches_the_journal(self):
+        crit = simulated_critic()
+        result = campaign(critic=crit, budget=Budget(0.05))  # plafond trop bas pour les critiques : refus = 0 appel
+        logged = sum(int(r["logical_calls"] or 0) for r in result["rows"] if r["task"] == "critique")
+        self.assertEqual(result["summary"]["logical_calls"]["critique"], logged)
+        self.assertEqual(len(crit.requests), logged)
+
+
 if __name__ == "__main__":
     unittest.main()

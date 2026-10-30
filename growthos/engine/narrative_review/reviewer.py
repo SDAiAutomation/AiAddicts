@@ -5,13 +5,14 @@ décision serveur. Toute erreur donne un rapport explicite `review` / `can_auto_
 """
 from __future__ import annotations
 
+import copy
 import json
 import uuid
 from dataclasses import dataclass
 
 from . import contract as c
 from .decision import decide
-from .providers import Budget, Prices, Provider, estimate_usd
+from .providers import Budget, Prices, Provider, estimate_usd, max_call_usd, prompt_tokens_upper
 from .snapshot import READ_LIMITS
 from .validate import validate_response
 
@@ -38,16 +39,19 @@ class ReviewCache:
     def get(self, caller: Caller, snapshot: dict, model: str):
         if (snapshot["organization_id"], snapshot["account_id"]) != (caller.organization_id, caller.account_id):
             return None
-        return self._items.get(self.key(snapshot, model))
+        hit = self._items.get(self.key(snapshot, model))
+        return copy.deepcopy(hit)  # copie profonde : muter un rapport rendu ne modifie jamais le cache
 
     def put(self, snapshot: dict, model: str, report: dict) -> None:
-        self._items[self.key(snapshot, model)] = report
+        self._items[self.key(snapshot, model)] = copy.deepcopy(report)
 
 
 def build_critic_prompt(snapshot: dict) -> str:
     """Prompt du critique (harness uniquement). Ne contient NI identifiants de locataire, NI condition A/B, NI `evaluator_only`."""
     payload = {k: snapshot[k] for k in ("language", "source_format", "truth_mode", "illustration_mode", "intent", "units",
                                          "sources", "timing", "required_dimensions", "history")}
+    # La provenance (`verification`) et l'URL ne servent qu'au serveur (verrou de décision) : pas de biais « dossier préparé » côté modèle.
+    payload["sources"] = [{k: v for k, v in s.items() if k not in ("verification", "url")} for s in snapshot["sources"]]
     return (
         "Tu es un relecteur éditorial. Tu produis UNIQUEMENT des observations et des preuves, jamais une décision, un score de "
         f"viralité, un prix ou un verdict. Version du contrat : {c.SCHEMA_VERSION} ; politique : {c.POLICY_VERSION}.\n"
@@ -97,38 +101,53 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
         return {**hit, "review_id": uuid.uuid4().hex, "cache_hit": True,
                 "usage": _usage_block(None, prices, None, 0) | {"logical_calls": 0}}
     label = f"critic:{snapshot['snapshot_id'][:12]}:{uuid.uuid4().hex[:6]}"
-    from .providers import max_call_usd
+    prompt = build_critic_prompt(snapshot)
+    no_call = _usage_block(None, prices, None, 0) | {"logical_calls": 0}
+    if prompt_tokens_upper(prompt) > MAX_INPUT_TOKENS:  # le plafond de tokens est APPLIQUÉ, pas seulement réservé
+        return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["input_too_large"]),
+                       error={"code": c.INPUT_TOO_LARGE, "message": f"prompt exceeds {MAX_INPUT_TOKENS} input tokens (upper bound)"},
+                       usage=no_call, model=model, limits=limits)
     try:
         budget.reserve(label, max_call_usd(prices, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS))
     except c.ReviewError as exc:
         return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["budget"]),
-                       error={"code": exc.code, "message": exc.message}, usage=_usage_block(None, prices, None, 0) | {"logical_calls": 0},
-                       model=model, limits=limits)
+                       error={"code": exc.code, "message": exc.message}, usage=no_call, model=model, limits=limits)
     try:  # UN appel. Une exception du fournisseur est un échec visible, jamais un retry.
-        result = provider({"role": "critique", "prompt": build_critic_prompt(snapshot), "max_output_tokens": MAX_OUTPUT_TOKENS,
-                           "timeout_s": TIMEOUT_S})
+        result = provider({"role": "critique", "prompt": prompt, "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_s": TIMEOUT_S})
     except Exception as exc:  # noqa: BLE001 - frontière fournisseur : tout échec est enregistré, coût inconnu
         budget.settle(label, None)
         return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["provider_unavailable"]),
                        error={"code": c.PROVIDER_UNAVAILABLE, "message": type(exc).__name__}, usage=_usage_block(None, prices, None, None),
                        model=model, limits=limits)
     usage = _usage_block(result.usage, prices, result.latency_s, result.http_attempts)
-    budget.settle(label, usage["estimated_cost"])
+    if budget.settle(label, usage["estimated_cost"]):
+        limits.append("cost_exceeded_reservation")
+    retry_suspected = result.http_attempts is not None and result.http_attempts > 1   # un retry interne casse la borne de coût
+    if retry_suspected:
+        limits.append("hidden_retry_detected")
+    elif result.http_attempts is None:
+        limits.append("provider_attempts_unverified")
     if result.text is None:
         return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["provider_unavailable"]),
                        error={"code": c.PROVIDER_UNAVAILABLE, "message": result.error or "no text"}, usage=usage, model=model, limits=limits)
     try:
         raw = json.loads(result.text)
         response = validate_response(raw, snapshot)
-    except (ValueError, c.ReviewError) as exc:
-        code, message = (exc.code, exc.message) if isinstance(exc, c.ReviewError) else (c.INVALID_RESPONSE, "response is not valid JSON")
+    except c.ReviewError as exc:
         return _report(snapshot, status="invalid", response=None, decision=_no_decision(["invalid_response"]),
-                       error={"code": code, "message": message}, usage=usage, model=model, limits=limits)
+                       error={"code": exc.code, "message": exc.message}, usage=usage, model=model, limits=limits)
+    except Exception as exc:  # noqa: BLE001 - JSON invalide, types inattendus, récursion : toujours un rapport, jamais une exception
+        message = "response is not valid JSON" if isinstance(exc, ValueError) else f"malformed response ({type(exc).__name__})"
+        return _report(snapshot, status="invalid", response=None, decision=_no_decision(["invalid_response"]),
+                       error={"code": c.INVALID_RESPONSE, "message": message}, usage=usage, model=model, limits=limits)
+    limits += [f"coverage_{cov['dimension']}_not_applicable" for cov in response["coverage"] if cov["status"] == "not_applicable"]
     partial = any(cov["status"] in ("partial", "unavailable") for cov in response["coverage"])
     status = "partial" if partial else "complete"
     decision = decide(snapshot, response, "complete")
+    if retry_suspected:
+        decision = {**decision, "decision": "review", "can_auto_accept": False, "reasons": decision["reasons"] + ["hidden_retry_detected"]}
     report = _report(snapshot, status=status, response=response, decision=decision, error=None, usage=usage, model=model, limits=limits)
-    if cache is not None and status == "complete":
+    if cache is not None and status == "complete" and not retry_suspected:
         cache.put(snapshot, model, report)
     return report
 

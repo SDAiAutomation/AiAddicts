@@ -40,6 +40,15 @@ def estimate_usd(usage: dict | None, prices: Prices | None) -> float | None:
     return (usage["input"] * prices.input_per_m + usage["output"] * prices.output_per_m) / 1_000_000
 
 
+def prompt_tokens_upper(text: str) -> int:
+    """Majorant du nombre de jetons d'entrée : 1 jeton pour 2 caractères.
+
+    shortcut: majorant raisonnable pour le français et l'anglais, pas démontré pour tous les modèles ; à remplacer par le
+    tokenizer du modèle choisi avant tout appel réel. Un prompt au-dessus du plafond est refusé AVANT toute réservation.
+    """
+    return -(-len(text) // 2)
+
+
 def max_call_usd(prices: Prices | None, input_cap: int, output_cap: int) -> float | None:
     """Coût maximal d'UN appel sous les plafonds de tokens. None (= pas d'appel) si le tarif est inconnu."""
     return None if prices is None else (input_cap * prices.input_per_m + output_cap * prices.output_per_m) / 1_000_000
@@ -52,6 +61,7 @@ class Budget:
     reserved: dict = field(default_factory=dict)
     settled_usd: float = 0.0
     unknown_calls: int = 0
+    overruns: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def committed(self) -> float:
@@ -65,12 +75,19 @@ class Budget:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {max_usd:.6f} USD would exceed the ceiling")
             self.reserved[label] = max_usd
 
-    def settle(self, label: str, actual_estimate_usd: float | None) -> None:
-        """Remplace la réservation par l'estimation. Estimation inconnue : on GARDE la réservation (prudence)."""
+    def settle(self, label: str, actual_estimate_usd: float | None) -> bool:
+        """Remplace la réservation par l'estimation. Estimation inconnue : on GARDE la réservation (prudence).
+
+        Retourne True si l'estimation DÉPASSE la réservation (plafond de tokens non tenu) : le dépassement est enregistré, jamais masqué.
+        """
         with self._lock:
             held = self.reserved.pop(label, 0.0)
             if actual_estimate_usd is None:
                 self.settled_usd += held
                 self.unknown_calls += 1
-            else:
-                self.settled_usd += actual_estimate_usd
+                return False
+            self.settled_usd += actual_estimate_usd
+            if actual_estimate_usd > held + 1e-12:
+                self.overruns += 1
+                return True
+            return False

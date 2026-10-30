@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import math
+import re
 
 from . import contract as c
 
@@ -39,7 +40,7 @@ def _text(value, where: str, limit: int = c.TEXT_MAX) -> str:
 
 
 def _enum(value, allowed, where: str):
-    if value not in allowed:
+    if not isinstance(value, str) or value not in allowed:
         _bad(f"{where}: {value!r} is not one of {list(allowed)}")
     return value
 
@@ -118,7 +119,14 @@ def _number(v, where: str) -> float:
     return float(v)
 
 
-def _check_calculation(calc, units: dict, where: str) -> bool:
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _number_in_quote(value: float, quote: str) -> bool:
+    return any(math.isclose(value, float(m.replace(",", ".")), rel_tol=1e-9, abs_tol=1e-9) for m in _NUMBER.findall(quote))
+
+
+def _check_calculation(calc, units: dict, where: str, claim_quote: str) -> bool:
     """Retourne True si `expected_result == stated_result`. Le résultat attendu est RECALCULÉ, jamais cru."""
     _exact_keys(calc, _CALC_KEYS, where)
     _text(calc["expression"], f"{where}.expression", 200)
@@ -130,10 +138,16 @@ def _check_calculation(calc, units: dict, where: str) -> bool:
         _exact_keys(op, {"value", "anchor"}, f"{where}.operands.{name}")
         values[name] = _number(op["value"], f"{where}.operands.{name}.value")
         check_text_anchor(op["anchor"], units, f"{where}.operands.{name}.anchor")
+        # shortcut: seuls les chiffres sont reconnus ; un nombre écrit en toutes lettres ne peut pas servir d'opérande (réponse refusée,
+        # donc `review`). À étendre avec un analyseur de nombres par langue si les cas réels l'exigent.
+        if not _number_in_quote(values[name], op["anchor"]["quote"]):
+            _bad(f"{where}.operands.{name}: the value {values[name]} does not appear in its anchored quote", c.INVALID_ANCHOR)
     computed = safe_eval(calc["expression"], values)
     expected, stated = _number(calc["expected_result"], f"{where}.expected_result"), _number(calc["stated_result"], f"{where}.stated_result")
     if not math.isclose(computed, expected, rel_tol=1e-9, abs_tol=1e-9):
         _bad(f"{where}: expected_result {expected} does not match the recomputed value {computed}")
+    if not _number_in_quote(stated, claim_quote):
+        _bad(f"{where}.stated_result {stated} does not appear in the claim anchor", c.INVALID_ANCHOR)
     return math.isclose(expected, stated, rel_tol=1e-9, abs_tol=1e-9)
 
 
@@ -156,7 +170,7 @@ def validate_response(raw: dict, snapshot: dict) -> dict:
         if not isinstance(raw[key], list):
             _bad(f"{key} must be a list")
 
-    seen = []
+    seen, status_by_dim = [], {}
     for i, cov in enumerate(raw["coverage"]):
         where = f"coverage[{i}]"
         _exact_keys(cov, _COVERAGE_KEYS, where)
@@ -166,24 +180,29 @@ def validate_response(raw: dict, snapshot: dict) -> dict:
         inspected = _unit_ids(cov["inspected_unit_ids"], units, f"{where}.inspected_unit_ids")
         if cov["status"] in ("evaluated", "partial") and not inspected:
             _bad(f"{where}: an evaluated or partial dimension must list the units it inspected")
+        if cov["status"] == "evaluated" and not spoken <= set(inspected):
+            # un jugement sur le texte entier ne peut pas être « evaluated » après lecture d'une seule unité : déclarer `partial`
+            _bad(f"{where}: an evaluated dimension must inspect every spoken unit (declare it partial otherwise)", c.INCOMPLETE_COVERAGE)
         if cov["status"] == "not_applicable" and not (
                 cov["dimension"] == "truth" and snapshot["truth_mode"] == "fiction" and snapshot["illustration_mode"] != "hypothetical"):
             # shortcut: seule `truth` peut être non applicable (fiction explicite, hors simulation) ; les autres dimensions
             # obligatoires ne peuvent pas disparaître. À assouplir si le corpus de relecture humaine montre des cas légitimes.
             _bad(f"{where}: {cov['dimension']} cannot be not_applicable in this mode")
         seen.append(cov["dimension"])
+        status_by_dim[cov["dimension"]] = cov["status"]
     if sorted(seen) != sorted(required):
         _bad(f"coverage must contain exactly one entry per requested dimension {required}", c.INCOMPLETE_COVERAGE)
 
     if len(raw["claims"]) > c.MAX_CLAIMS:
         _bad("too many claims", c.INPUT_TOO_LARGE)
-    claim_ids, calc_contradictions = set(), 0
+    claim_ids, calc_contradictions, factual_claims = set(), 0, 0
     for i, cl in enumerate(raw["claims"]):
         where = f"claims[{i}]"
         _exact_keys(cl, _CLAIM_KEYS, where)
+        _text(cl["claim_id"], f"{where}.claim_id", 80)
         if cl["claim_id"] in claim_ids:
             _bad(f"{where}: duplicate claim_id")
-        claim_ids.add(_text(cl["claim_id"], f"{where}.claim_id", 80))
+        claim_ids.add(cl["claim_id"])
         check_text_anchor(cl["anchor"], units, f"{where}.anchor")
         _enum(cl["assessment"], c.CLAIM_ASSESSMENTS, f"{where}.assessment")
         _text(cl["reason"], f"{where}.reason")
@@ -193,15 +212,20 @@ def validate_response(raw: dict, snapshot: dict) -> dict:
             check_source_anchor(ev, sources, f"{where}.source_evidence[{j}]")
         calc_ok = None
         if cl["calculation"] is not None:
-            calc_ok = _check_calculation(cl["calculation"], units, f"{where}.calculation")
+            calc_ok = _check_calculation(cl["calculation"], units, f"{where}.calculation", cl["anchor"]["quote"])
         if cl["assessment"] in ("supported", "contradicted") and not cl["source_evidence"] and cl["calculation"] is None:
             _bad(f"{where}: {cl['assessment']} needs source evidence or a verifiable calculation")
         if calc_ok is True and cl["assessment"] == "contradicted" and not cl["source_evidence"]:
             _bad(f"{where}: the calculation matches the stated result, it cannot support 'contradicted'")
-        if calc_ok is False and cl["assessment"] == "supported":
-            _bad(f"{where}: the calculation contradicts the stated result, it cannot support 'supported'")
-        if calc_ok is False and cl["assessment"] == "contradicted":
+        if calc_ok is False and cl["assessment"] != "contradicted":
+            # un calcul faux ne peut être étiqueté ni supported, ni not_factual, ni unverified : sinon il passerait sans défaut
+            _bad(f"{where}: the calculation contradicts the stated result, the claim must be 'contradicted'")
+        if calc_ok is False:
             calc_contradictions += 1
+        if cl["assessment"] != "not_factual":
+            factual_claims += 1
+    if status_by_dim.get("truth") == "not_applicable" and factual_claims:
+        _bad("truth cannot be not_applicable while factual claims are registered")
 
     if len(raw["findings"]) > c.MAX_FINDINGS:
         _bad("too many findings", c.INPUT_TOO_LARGE)
@@ -209,13 +233,16 @@ def validate_response(raw: dict, snapshot: dict) -> dict:
     for i, f in enumerate(raw["findings"]):
         where = f"findings[{i}]"
         _exact_keys(f, _FINDING_KEYS, where)
+        _text(f["finding_id"], f"{where}.finding_id", 80)
         if f["finding_id"] in finding_ids:
             _bad(f"{where}: duplicate finding_id")
-        finding_ids.add(_text(f["finding_id"], f"{where}.finding_id", 80))
+        finding_ids.add(f["finding_id"])
         code = _enum(f["code"], c.CODES, f"{where}.code")
         dimension, severities = c.CODES[code]
         if f["dimension"] != dimension:
             _bad(f"{where}: code {code} belongs to dimension {dimension}, not {f['dimension']!r}")
+        if status_by_dim.get(dimension) in ("not_applicable", "unavailable"):
+            _bad(f"{where}: a finding cannot target dimension {dimension}, declared {status_by_dim[dimension]}", c.INCOMPLETE_COVERAGE)
         if _enum(f["severity"], c.SEVERITIES, f"{where}.severity") not in severities:
             _bad(f"{where}: severity {f['severity']!r} is not allowed for {code}")
         _enum(f["assessment"], c.ASSESSMENTS, f"{where}.assessment")

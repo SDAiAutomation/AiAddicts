@@ -204,15 +204,28 @@ class TestValidation(NetworkBlocked):
         validate_response({**good_response(self.s), "findings": [full]}, self.s)
 
     def test_k04_calculation_is_recomputed_not_trusted(self):
-        ops = {"a": {"value": 1000, "anchor": anchor("title", "La file")}, "b": {"value": 850, "anchor": anchor("title", "La file")}}
+        s = snapshot_of({"title": "Budget", "blocks": [{"role": "hook", "text": "Avec 1000 euros et 850 de dépenses, il reste 140 euros."}]})
+        base = good_response(s)
+        ops = {"a": {"value": 1000, "anchor": anchor("block-0001", "1000 euros")}, "b": {"value": 850, "anchor": anchor("block-0001", "850 de dépenses")}}
         calc = {"expression": "a-b", "operands": ops, "unit": "EUR", "expected_result": 150, "stated_result": 140}
-        claim = {"claim_id": "c1", "anchor": anchor("title", "La file"), "assessment": "contradicted", "source_evidence": [],
+        claim = {"claim_id": "c1", "anchor": anchor("block-0001", "il reste 140 euros"), "assessment": "contradicted", "source_evidence": [],
                  "reason": "calcul", "calculation": calc}
-        validate_response({**good_response(self.s), "claims": [claim]}, self.s)
-        self.invalid({**good_response(self.s), "claims": [{**claim, "calculation": {**calc, "expected_result": 999}}]})
-        self.invalid({**good_response(self.s), "claims": [{**claim, "assessment": "supported"}]})  # le calcul contredit le résultat annoncé
+        validate_response({**base, "claims": [claim]}, s)
+
+        def bad(claims, code=None):
+            with self.assertRaises(c.ReviewError) as ctx:
+                validate_response({**base, "claims": claims}, s)
+            if code:
+                self.assertEqual(ctx.exception.code, code)
+        bad([{**claim, "calculation": {**calc, "expected_result": 999}}])
+        bad([{**claim, "assessment": "supported"}])  # le calcul contredit le résultat annoncé
+        for label in ("not_factual", "unverified"):  # un calcul faux ne peut pas être étiqueté autrement que `contradicted`
+            bad([{**claim, "assessment": label}])
         for evil in ("__import__('os').system('x')", "a**9999999", "a if b else 1", "open('f')"):
-            self.invalid({**good_response(self.s), "claims": [{**claim, "calculation": {**calc, "expression": evil}}]})
+            bad([{**claim, "calculation": {**calc, "expression": evil}}])
+        # opérande non ancré : la valeur doit figurer dans la citation ; le résultat annoncé aussi dans l'ancre de l'affirmation
+        bad([{**claim, "calculation": {**calc, "operands": {**ops, "a": {"value": 150, "anchor": anchor("block-0001", "1000 euros")}}}}], c.INVALID_ANCHOR)
+        bad([{**claim, "anchor": anchor("block-0001", "Avec 1000 euros")}], c.INVALID_ANCHOR)
         self.assertEqual(safe_eval("(a+b)/n", {"a": 2.0, "b": 4.0, "n": 2.0}), 3.0)
         with self.assertRaises(c.ReviewError):  # aucun littéral numérique : chaque nombre vient d'un opérande ancré
             safe_eval("(a+b)/2", {"a": 2.0, "b": 4.0})
@@ -269,13 +282,15 @@ class TestDecision(NetworkBlocked):
     def test_k13_prepared_sources_lock_the_decision_until_human_verified(self):
         src = {"source_id": "S1", "url": "https://example.org", "title": "t", "content": "Le métal conduit la chaleur.",
                "verification": "prepared_for_benchmark"}
+        claim = {"claim_id": "c1", "anchor": anchor(), "assessment": "supported", "reason": "couvert par le dossier", "calculation": None,
+                 "source_evidence": [{"source_id": "S1", "quote": "Le métal conduit la chaleur", "occurrence": 0}]}
         s = snapshot_of(truth_mode="fact", sources=[src])
-        report = run(s, good_response(s))
+        report = run(s, good_response(s, claims=[claim]))
         self.assertEqual((report["judgement_decision"], report["decision"], report["can_auto_accept"], report["evidence_human_verified"]),
                          ("accept", "review", False, False))
         verified = snapshot_of(truth_mode="fact", sources=[{**src, "verification": "human_verified"}])
         self.assertNotEqual(verified["snapshot_id"], s["snapshot_id"])  # la provenance fait partie de l'empreinte (cache invalidé)
-        self.assertEqual(run(verified, good_response(verified))["decision"], "accept")
+        self.assertEqual(run(verified, good_response(verified, claims=[claim]))["decision"], "accept")
 
     def test_unverified_claim_forces_review(self):
         s = snapshot_of(truth_mode="fact")
@@ -366,6 +381,103 @@ class TestOrchestrator(NetworkBlocked):
         s = snap.from_standard(script, organization_id=ORG, account_id=ACC, truth_mode="fiction")
         run(s, good_response(s, findings=[finding("ENDING_REDUNDANT")]))
         self.assertEqual(script, before)
+
+
+class TestHardeningFromIndependentReview(NetworkBlocked):
+    """Défauts relevés par la revue indépendante de la branche : chacun a un test qui échouait avant le correctif."""
+
+    def test_contradicted_claim_without_a_finding_is_never_accepted(self):
+        s = snapshot_of({"title": "B", "blocks": [{"role": "hook", "text": "Avec 2 et 3, on obtient 150."}]}, truth_mode="fiction")
+        ops = {"a": {"value": 2, "anchor": anchor("block-0001", "Avec 2")}, "b": {"value": 3, "anchor": anchor("block-0001", "3,")}}
+        calc = {"expression": "a*b", "operands": ops, "unit": "x", "expected_result": 6, "stated_result": 150}
+        claim = {"claim_id": "c1", "anchor": anchor("block-0001", "on obtient 150"), "assessment": "contradicted", "source_evidence": [],
+                 "reason": "calcul faux", "calculation": calc}
+        report = run(s, good_response(s, claims=[claim]))
+        self.assertEqual((report["decision"], report["can_auto_accept"]), ("review", False))
+        self.assertIn("contradicted_claim_without_established_finding", report["reasons"])
+        found = finding("FACT_CONTRADICTED", anchors=[anchor("block-0001", "on obtient 150")], inspected_unit_ids=["block-0001"],
+                        repair_scope="local_text")
+        self.assertEqual(run(s, good_response(s, claims=[claim], findings=[found]))["decision"], "revise")
+
+    def test_factual_mode_without_claims_or_sources_is_review_not_accept(self):
+        for mode in ("fact", "inspired"):
+            s = snapshot_of(truth_mode=mode)
+            report = run(s, good_response(s))
+            self.assertEqual((report["decision"], report["can_auto_accept"]), ("review", False), mode)
+            self.assertIn("factual_mode_without_registered_claims", report["reasons"])
+            self.assertIn("factual_mode_without_sources", report["reasons"])
+
+    def test_malformed_types_become_a_report_never_an_exception(self):
+        s = snapshot_of()
+        base = good_response(s)
+        claim = {"claim_id": [1], "anchor": anchor(), "assessment": "not_factual", "source_evidence": [], "reason": "r", "calculation": None}
+        payloads = [{**base, "claims": [claim]}, {**base, "findings": [finding(finding_id=["x"])]},
+                    {**base, "findings": [{**finding(), "code": ["HOOK_GENERIC"]}]}, {**base, "findings": [{**finding(), "severity": {"a": 1}}]},
+                    "[" * 100000, "null", "[]", '"text"']
+        for payload in payloads:
+            report = run(s, payload)
+            self.assertEqual((report["analysis_status"], report["can_auto_accept"]), ("invalid", False), str(payload)[:40])
+
+    def test_evaluated_coverage_must_inspect_every_spoken_unit(self):
+        s = snapshot_of()
+        partial = good_response(s)
+        partial["coverage"][1]["inspected_unit_ids"] = ["block-0001"]
+        with self.assertRaises(c.ReviewError) as ctx:
+            validate_response(partial, s)
+        self.assertEqual(ctx.exception.code, c.INCOMPLETE_COVERAGE)
+
+    def test_truth_not_applicable_is_refused_with_factual_claims_and_findings_cannot_target_it(self):
+        s = snapshot_of()
+        factual = {"claim_id": "c1", "anchor": anchor(), "assessment": "unverified", "source_evidence": [], "reason": "r", "calculation": None}
+        with self.assertRaises(c.ReviewError):
+            validate_response(good_response(s, claims=[factual], truth_status="not_applicable"), s)
+        f = finding("FACT_UNVERIFIED", assessment="uncertain", repair_scope="needs_sources")
+        with self.assertRaises(c.ReviewError):
+            validate_response(good_response(s, findings=[f], truth_status="not_applicable"), s)
+        report = run(s, good_response(s, truth_status="not_applicable"))
+        self.assertIn("coverage_truth_not_applicable", report["limits"])  # un not_applicable accepté reste visible
+
+    def test_oversized_prompt_is_refused_before_any_reservation_or_call(self):
+        s = snapshot_of({"title": "T", "blocks": [{"role": "hook", "text": "x" * 20000}]},
+                        sources=[{"source_id": "S1", "title": "t", "content": "y" * 20000, "verification": "unknown"}])
+        calls, budget = [], Budget(1.0)
+        report = run(s, good_response(s), calls=calls, budget=budget)
+        self.assertEqual((calls, report["error"]["code"], budget.committed()), ([], c.INPUT_TOO_LARGE, 0.0))
+
+    def test_hidden_retry_is_detected_forces_review_and_is_not_cached(self):
+        s = snapshot_of()
+        cache = ReviewCache()
+        retrying = lambda request: ProviderResult(text=json.dumps(good_response(s)), usage={"input": 10, "output": 10}, http_attempts=3)  # noqa: E731
+        report = review(s, retrying, caller=CALLER, budget=Budget(1.0), prices=PRICES, model="m", cache=cache)
+        self.assertEqual((report["decision"], report["can_auto_accept"]), ("review", False))
+        self.assertIn("hidden_retry_detected", report["limits"])
+        self.assertIsNone(cache.get(CALLER, s, "m"))
+
+    def test_cost_beyond_the_reservation_is_recorded_not_hidden(self):
+        s = snapshot_of()
+        huge = lambda request: ProviderResult(text=json.dumps(good_response(s)), usage={"input": 10_000_000, "output": 10_000_000})  # noqa: E731
+        budget = Budget(1000.0)
+        report = review(s, huge, caller=CALLER, budget=budget, prices=PRICES, model="m")
+        self.assertIn("cost_exceeded_reservation", report["limits"])
+        self.assertEqual(budget.overruns, 1)
+
+    def test_cached_reports_are_isolated_copies(self):
+        s, cache = snapshot_of(), ReviewCache()
+        first = run(s, good_response(s), cache=cache)
+        again = run(s, good_response(s), cache=cache)
+        again["coverage"][0]["status"] = "unavailable"
+        third = run(s, good_response(s), cache=cache)
+        self.assertEqual((first["cache_hit"], third["coverage"][0]["status"]), (False, "evaluated"))
+
+    def test_critic_prompt_hides_provenance_and_url_but_the_server_keeps_them(self):
+        src = {"source_id": "S1", "url": "https://example.org/x", "title": "t", "content": "Le métal conduit la chaleur.",
+               "verification": "prepared_for_benchmark"}
+        s = snapshot_of(truth_mode="fact", sources=[src])
+        prompt = build_critic_prompt(s)
+        for hidden in ("prepared_for_benchmark", "https://example.org/x", "verification"):
+            self.assertNotIn(hidden, prompt)
+        self.assertIn("Le métal conduit la chaleur.", prompt)
+        self.assertEqual(s["sources"][0]["verification"], "prepared_for_benchmark")
 
 
 if __name__ == "__main__":
