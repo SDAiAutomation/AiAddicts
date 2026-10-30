@@ -62,7 +62,7 @@ def _clean_source(src: dict) -> dict:
 def build_snapshot(*, source_format: str, units: list[dict], organization_id: str, account_id: str, language: str = "fr",
                    truth_mode: str = "unknown", illustration_mode: str = "none", intent: dict | None = None,
                    sources=(), history: dict | None = None, timing: dict | None = None,
-                   required_dimensions=c.PILOT_REQUIRED_DIMENSIONS) -> dict:
+                   required_dimensions=c.PILOT_REQUIRED_DIMENSIONS, coverage_gaps=()) -> dict:
     if source_format not in c.SOURCE_FORMATS:
         raise c.ReviewError(c.UNSUPPORTED_FORMAT, f"unsupported source format {source_format!r}")
     if truth_mode not in c.TRUTH_MODES or illustration_mode not in c.ILLUSTRATION_MODES:
@@ -93,28 +93,81 @@ def build_snapshot(*, source_format: str, units: list[dict], organization_id: st
     core = {"organization_id": organization_id, "account_id": account_id, "policy_version": c.POLICY_VERSION,
             "language": language, "source_format": source_format, "truth_mode": truth_mode,
             "illustration_mode": illustration_mode, "intent": intent or {}, "units": units, "sources": clean_sources,
-            "history": history, "timing": timing, "required_dimensions": list(required_dimensions)}
+            "history": history, "timing": timing, "required_dimensions": list(required_dimensions),
+            "coverage_gaps": sorted(set(coverage_gaps))}
     return {"schema_version": c.SCHEMA_VERSION, "snapshot_id": snapshot_hash(core), **core}
 
 
 # --- Adaptateurs de lecture -------------------------------------------------------------------------------------------
 
-def from_standard(script: dict, **ctx) -> dict:
-    """Standard : titre + `blocks[i].text`. `declared_role` conserve le rôle étiqueté (un `cta` hérité reste une étiquette).
+# Champs d'un bloc Standard connus POUR NE PAS PORTER de texte de spectateur (ou lus explicitement ci-dessous). Toute autre clé qui contient
+# du texte est un texte affiché potentiel que l'adaptateur ne sait pas lire : il devient une LACUNE DE COUVERTURE (`coverage_gaps`) et la
+# décision reste `review`. C'est une liste d'autorisation : un champ nouveau est suspect par défaut, jamais ignoré.
+_STANDARD_NON_VIEWER_KEYS = {"role", "text", "visual", "shotType", "visualPurpose", "retentionRole", "informationGain", "voice_id",
+                             "speaker_id", "hold_after_seconds", "quiz_phase", "quiz_reveal_beat_seconds", "motion_graphic"}
+# Dans `motion_graphic`, ces clés ne sont pas du texte affiché (type de scène, icône, thème, ancres de narration, champs internes `_*`).
+_OVERLAY_SKIP_KEYS = {"sceneType", "type", "icon", "theme", "rhythm", "spoken", "sidesSpoken", "resultSpoken", "verifySpoken"}
+_OVERLAY_NUMBER_KEYS = {"value"}  # un nombre sous `value` est affiché (chiffre clé, étape) ; les autres nombres sont des paramètres de tracé
 
-    Limite connue : les textes affichés des `motion_graphic` ne sont pas lus (schéma non figé) ; ils ne comptent donc pas
-    comme évalués (voir `READ_LIMITS`).
+
+def _pointer(*parts) -> str:
+    return "".join("/" + str(p).replace("~", "~0").replace("/", "~1") for p in parts)
+
+
+def _has_text(value) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_has_text(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_text(v) for v in value)
+    return False
+
+
+def _overlay_texts(node, path: tuple):
+    """Chaque texte VISIBLE d'un `motion_graphic`, quelle que soit sa forme (objet, liste, imbriqué) : (pointeur JSON, texte)."""
+    if isinstance(node, str):
+        if node.strip():
+            yield _pointer(*path), node
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            if not isinstance(key, str) or key.startswith("_") or key in _OVERLAY_SKIP_KEYS:
+                continue
+            if key in _OVERLAY_NUMBER_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
+                yield _pointer(*path, key), str(value)
+            else:
+                yield from _overlay_texts(value, path + (key,))
+    elif isinstance(node, (list, tuple)):
+        for i, item in enumerate(node):
+            yield from _overlay_texts(item, path + (i,))
+
+
+def from_standard(script: dict, **ctx) -> dict:
+    """Standard : titre + `blocks[i].text` + TOUT texte affiché des `motion_graphic` (unités `on_screen`). `declared_role` conserve
+    le rôle étiqueté (un `cta` hérité reste une étiquette).
+
+    Couverture : si un bloc porte une clé hors liste d'autorisation avec du texte, ou si `motion_graphic` n'est pas un objet/une liste,
+    la lacune est consignée dans `coverage_gaps` (hashée) et la décision ne peut jamais être `accept`. Les autres champs du script
+    (hashtags, stratégie de contenu...) ne sont pas affichés dans la vidéo et ne sont pas lus.
     """
     if not isinstance(script, dict) or not isinstance(script.get("blocks"), list):
         raise c.ReviewError(c.UNSUPPORTED_FORMAT, "a standard script needs a blocks list")
-    units = []
+    units, gaps = [], []
     if isinstance(script.get("title"), str) and script["title"].strip():
         units.append(_unit("title", "/title", "title", script["title"]))
     for i, b in enumerate(script["blocks"]):
         if not isinstance(b, dict) or not isinstance(b.get("text"), str):
             raise c.ReviewError(c.UNSUPPORTED_FORMAT, f"blocks[{i}] has no text")
-        units.append(_unit(f"block-{i + 1:04d}", f"/blocks/{i}/text", "spoken", b["text"], declared_role=b.get("role")))
-    return build_snapshot(source_format="standard", units=units, **ctx)
+        bid = f"block-{i + 1:04d}"
+        units.append(_unit(bid, f"/blocks/{i}/text", "spoken", b["text"], declared_role=b.get("role")))
+        mg = b.get("motion_graphic")
+        if mg is not None and not isinstance(mg, (dict, list, tuple)):
+            gaps.append(_pointer("blocks", i, "motion_graphic"))
+        for n, (pointer, text) in enumerate(_overlay_texts(mg, ("blocks", i, "motion_graphic")) if mg is not None else (), start=1):
+            units.append(_unit(f"{bid}:on_screen-{n:02d}", pointer, "on_screen", text, native_id=None))
+        gaps += [_pointer("blocks", i, key) for key, value in b.items()
+                 if isinstance(key, str) and key not in _STANDARD_NON_VIEWER_KEYS and _has_text(value)]
+    return build_snapshot(source_format="standard", units=units, coverage_gaps=gaps, **ctx)
 
 
 def from_story_dialogue(script: dict, **ctx) -> dict:
@@ -162,7 +215,7 @@ def from_story_visual(plan: dict, **ctx) -> dict:
     return build_snapshot(source_format="story_visual", units=units, **ctx)
 
 
-READ_LIMITS = {"standard": ["standard_on_screen_text_not_read"], "story_dialogue": [], "story_visual": ["image_prompts_not_evidence"]}
+READ_LIMITS = {"standard": [], "story_dialogue": [], "story_visual": ["image_prompts_not_evidence"]}
 
 
 def adapt(kind: str, document: dict, **ctx) -> dict:

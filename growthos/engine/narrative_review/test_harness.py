@@ -12,6 +12,7 @@ from pathlib import Path
 from growthos.engine.narrative_review import contract as c
 from growthos.engine.narrative_review.harness import corpus as corp
 from growthos.engine.narrative_review.harness import policy, runner
+from growthos.engine.narrative_review.harness.offline import offline
 from growthos.engine.narrative_review.harness.simulation import simulated_critic, simulated_generator
 from growthos.engine.narrative_review.providers import Budget, Prices
 from growthos.engine.narrative_review.reviewer import Caller
@@ -235,7 +236,7 @@ class TestHardeningFromIndependentReview(NetworkBlocked):
                 scene["id"] = "dup"
             return ProviderResult(text=json.dumps(data), usage=result.usage, latency_s=result.latency_s)
         with tempfile.TemporaryDirectory() as tmp:
-            result = campaign(generator=duplicate_scene_ids, out_dir=Path(tmp))
+            result = campaign(generator=offline(duplicate_scene_ids), out_dir=Path(tmp))
             lines = list(csv.DictReader(io.StringIO((Path(tmp) / "registre_executions.csv").read_text(encoding="utf-8"))))
         errors = [r for r in result["rows"] if r["execution_status"] == "harness_error"]
         self.assertEqual(len(errors), 10)                       # les 10 cases Story Visual
@@ -252,7 +253,7 @@ class TestHardeningFromIndependentReview(NetworkBlocked):
             count["n"] += 1
             result = inner(request)
             return ProviderResult(text=result.text, usage=result.usage, latency_s=1.0, http_attempts=2 if count["n"] == 3 else 1)
-        result = campaign(generator=retrying)
+        result = campaign(generator=offline(retrying))
         self.assertEqual(count["n"], 3)                          # plus aucun appel après la détection
         self.assertTrue(result["summary"]["halted_on_hidden_retry"])
         self.assertEqual(sum(r["error_code"] == "HALTED_RETRY_DETECTED" for r in result["rows"]), 17)

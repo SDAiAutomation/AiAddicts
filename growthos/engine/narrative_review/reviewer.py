@@ -70,7 +70,7 @@ def build_critic_prompt(snapshot: dict) -> str:
 def _usage_block(usage: dict | None, prices: Prices | None, latency, attempts) -> dict:
     return {"input_tokens": None if not usage else usage.get("input"), "output_tokens": None if not usage else usage.get("output"),
             "estimated_cost": estimate_usd(usage, prices), "observed_cost": None,   # la facture n'est connue qu'après coup
-            "currency": prices.currency if prices else None,
+            "currency": getattr(prices, "currency", None) if prices else None,
             "cost_method": "tokens x configured prices" if prices and usage else "unknown",
             "latency_s": latency, "provider_attempts": attempts, "logical_calls": 1}
 
@@ -93,6 +93,7 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
            cache: ReviewCache | None = None) -> dict:
     """Une revue. Ne lève jamais pour une erreur du contrat : elle devient un rapport `review` explicite."""
     limits = list(READ_LIMITS[snapshot["source_format"]]) + (["history_not_evaluated"] if snapshot["history"].get("coverage") == "none" else [])
+    limits += [f"unread_content:{pointer}" for pointer in snapshot.get("coverage_gaps", [])]
     if (snapshot["organization_id"], snapshot["account_id"]) != (caller.organization_id, caller.account_id):
         err = {"code": c.TENANT_MISMATCH, "message": "snapshot identity differs from the authorised caller; no provider call"}
         return _report(snapshot, status="invalid", response=None, decision=_no_decision(["tenant_mismatch"]), error=err,

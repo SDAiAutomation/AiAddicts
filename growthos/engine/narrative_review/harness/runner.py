@@ -22,6 +22,7 @@ from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, TIMEOUT_S, Caller, r
 from ..snapshot import FACTUALITY_TO_MODES, from_standard, from_story_visual
 from . import policy
 from .corpus import PILOT_IDS, assert_no_leak, generator_view
+from .offline import OfflineProvider, network_denied, violations_count
 
 COLUMNS = ["campaign_id", "attempt_id", "task", "topic_id", "stratum", "condition", "repetition", "blind_script_id", "corpus_hash",
            "sources_hash", "policy_version", "prompt_version", "prompt_hash", "model", "model_config", "source_commit", "snapshot_id",
@@ -129,9 +130,22 @@ class _Journal:
         return row
 
 
-def run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget: Budget, gen_prices: Prices | None,
-                 critic_prices: Prices | None, gen_model: str, critic_model: str, campaign_id: str, caller: Caller,
-                 source_commit: str, out_dir: Path | None = None, allowed_splits=("pilot",), topic_ids=PILOT_IDS) -> dict:
+def run_campaign(corpus: dict, *, generator: OfflineProvider, critic: OfflineProvider, **kwargs) -> dict:
+    """Seule porte d'entrée. Refuse tout fournisseur non déclaré hors ligne, puis exécute TOUTE la campagne sous `network_denied()`.
+
+    La déclaration `OfflineProvider` n'est pas une garantie (voir `offline.py`) : c'est le crochet d'audit actif pendant la campagne qui
+    bloque réellement le réseau, et toute tentative arrête la campagne.
+    """
+    for role, provider in (("generator", generator), ("critic", critic)):
+        if not isinstance(provider, OfflineProvider):
+            raise TypeError(f"{role} must be an OfflineProvider: the P0 harness never accepts a raw callable (declare it with offline())")
+    with network_denied():
+        return _run_campaign(corpus, generator=generator, critic=critic, **kwargs)
+
+
+def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget: Budget, gen_prices: Prices | None,
+                  critic_prices: Prices | None, gen_model: str, critic_model: str, campaign_id: str, caller: Caller,
+                  source_commit: str, out_dir: Path | None = None, allowed_splits=("pilot",), topic_ids=PILOT_IDS) -> dict:
     manifest = policy.load_manifest()
     cases = plan_cases(campaign_id, topic_ids)
     journal = _Journal(out_dir)
@@ -158,6 +172,7 @@ def run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget:
             entry.update(status="harness_error", error=type(exc).__name__)
     paired = [pairs[k] for k in sorted(pairs)]
     summary = _summary(journal.rows, paired, state["calls"], budget, campaign_id, manifest, corpus, source_commit, state["halted"])
+    summary["network"] = {"guard": "sys.addaudithook (not an OS sandbox)", "attempts_blocked": state.get("network_violations", 0)}
     if out_dir is not None:
         (out_dir / "campaign_report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"rows": journal.rows, "pairs": paired, "summary": summary}
@@ -182,6 +197,7 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         return
     state["calls"]["generation"] += 1
     started = time.monotonic()
+    blocked_before = violations_count()
     try:
         result = generator({"role": "generation", "system": spec["system"], "user": spec["user"],
                             "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_s": TIMEOUT_S})
@@ -190,7 +206,14 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         journal.add(_row(base, task="generation", execution_status="provider_error", error_code=type(exc).__name__, logical_calls=1,
                          cost_method="unknown", latency_ms=round((time.monotonic() - started) * 1000)))
         entry.update(status="provider_error", error=type(exc).__name__)
+        if violations_count() > blocked_before:
+            state["halted"] = True
+            state["network_violations"] = state.get("network_violations", 0) + 1
         return
+    if violations_count() > blocked_before:  # le fournisseur a avalé l'exception : la tentative est quand même comptée et arrête la campagne
+        state["halted"] = True
+        state["network_violations"] = state.get("network_violations", 0) + 1
+        entry["network_attempt_blocked"] = True
     est = estimate_usd(result.usage, gen_prices)
     overrun = budget.settle(base["attempt_id"], est)
     if overrun or result.http_attempts is None or result.http_attempts > 1:
@@ -230,7 +253,12 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
                                                                                     view["generator_input"]["illustration_mode"])
     state["attempt_no"] += 1
     critic_id = f"{base['campaign_id']}-{state['attempt_no']:03d}"
+    blocked_before = violations_count()
     report = review(snapshot, critic, caller=caller, budget=budget, prices=critic_prices, model=critic_model)
+    if violations_count() > blocked_before:
+        state["halted"] = True
+        state["network_violations"] = state.get("network_violations", 0) + 1
+        entry["network_attempt_blocked"] = True
     u = report["usage"]
     state["calls"]["critique"] += u["logical_calls"]   # un refus (budget, locataire, taille) vaut 0 appel, comme dans le journal
     answered_unverified = u["provider_attempts"] is None and report["error"] is None or "provider_attempts_unverified" in report["limits"]

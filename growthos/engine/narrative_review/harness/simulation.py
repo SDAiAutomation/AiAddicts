@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from ..providers import ProviderResult
+from .offline import offline
 
 _TAIL = "Données :\n"
 
@@ -39,7 +40,7 @@ def simulated_generator(*, usage=None, fail_on=None, no_output_on=None, invalid_
                 {"id": f"s{i + 1}", "beat": b, "narration": f"Scène simulée {i + 1}."} for i, b in enumerate(beats)]}
         return ProviderResult(text=json.dumps(payload, ensure_ascii=False), usage=usage or {"input": 2000, "output": 600}, latency_s=2.0)
     provider.requests = []
-    return provider
+    return offline(provider, name="simulated_generator")
 
 
 def simulated_critic(*, usage=None, fail_on=None, invalid_on=None):
@@ -59,4 +60,4 @@ def simulated_critic(*, usage=None, fail_on=None, invalid_on=None):
         body = {"schema_version": "narrative-review:0.1", "coverage": coverage, "claims": [], "findings": []}
         return ProviderResult(text=json.dumps(body), usage=usage or {"input": 1500, "output": 400}, latency_s=1.5)
     provider.requests = []
-    return provider
+    return offline(provider, name="simulated_critic")

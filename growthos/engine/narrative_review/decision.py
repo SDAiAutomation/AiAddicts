@@ -11,6 +11,9 @@ def _judgement(snapshot: dict, response: dict | None, analysis_status: str) -> t
     if analysis_status != "complete" or response is None:
         return "review", [f"analysis_{analysis_status}"]
     reasons: list[str] = []
+    if snapshot.get("coverage_gaps"):
+        # Du contenu affiché que l'adaptateur n'a pas su lire : on ne peut pas prouver que tout est couvert, donc jamais d'acceptation.
+        reasons.append("unread_displayed_content")
     if snapshot["truth_mode"] == "unknown":
         reasons.append("truth_mode_unknown")
     reasons += [f"coverage_{c['dimension']}_{c['status']}" for c in response["coverage"] if c["status"] in ("partial", "unavailable")]
