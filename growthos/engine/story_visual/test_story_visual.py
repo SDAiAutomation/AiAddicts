@@ -180,6 +180,26 @@ class TestVisualDirection(unittest.TestCase):
         self.assertIn("cadrage vertical plein cadre", prompt)
         self.assertNotIn(plan["scenes"][1]["on_screen_text"], prompt)  # la typographie n'est jamais confiée au modèle
 
+    def test_identity_comes_first_and_covers_the_full_outfit(self):
+        plan = sample.moral_plan()
+        character = plan["characters"][0]
+        with_rowan = visual_direction.build_image_prompt(plan, 0)
+        self.assertTrue(with_rowan.startswith("IDENTITÉ DE ROWAN"))
+        self.assertLess(with_rowan.index(character["distinctive"].rstrip(".")), with_rowan.index("BRIEF VISUEL"))
+        self.assertIn("TENUE COMPLÈTE", with_rowan)
+        self.assertIn("SIGNE DISTINCTIF OBLIGATOIRE", with_rowan)
+        without = visual_direction.build_image_prompt(plan, 2)   # scène sans personnage
+        self.assertNotIn("IDENTITÉ DE", without)
+        self.assertTrue(without.startswith("CADRAGE SÛR"))
+
+    def test_every_prompt_protects_the_vertical_crop_and_the_caption_zone(self):
+        plan = sample.moral_plan()
+        for i in range(len(plan["scenes"])):
+            prompt = visual_direction.build_image_prompt(plan, i)
+            self.assertIn("recadrée au centre en 9:16", prompt)
+            self.assertIn("quart inférieur du cadre reste CALME", prompt)
+            self.assertIn("SANS AUCUN TEXTE", prompt)
+
     def test_prompts_are_deterministic(self):
         plan = sample.factual_plan()
         self.assertEqual(visual_direction.build_image_prompt(plan, 2), visual_direction.build_image_prompt(copy.deepcopy(plan), 2))

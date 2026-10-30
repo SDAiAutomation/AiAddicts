@@ -36,6 +36,29 @@ def expression_for(scene: dict) -> str:
     return f"Expression et posture : {scene['emotional_tone']}."
 
 
+FRAMING_RULES = (
+    "CADRAGE SÛR (9:16) : l'image sera recadrée au centre en 9:16, on perd environ 7 % de chaque côté. Garde TOUS les sujets, visages et "
+    "mains dans la bande centrale, rien d'essentiel contre les bords gauche et droit. Le quart inférieur du cadre reste CALME et sombre "
+    "(aplat, table, sol), sans visage, sans main, sans détail : il porte la typographie."
+)
+
+
+def identity_block(plan: dict, scene: dict) -> str:
+    """Bloc d'identité placé EN TÊTE du prompt, car un détail demandé en fin de prompt dérive d'une image à l'autre (pilote mesuré :
+    signe distinctif, bas de tenue, coiffure et âge apparent variaient). Vide s'il n'y a aucun personnage dans la scène."""
+    present = set(scene.get("characters", []))
+    parts = []
+    for c in plan.get("characters", []):
+        if c["id"] not in present:
+            continue
+        parts.append(
+            f"IDENTITÉ DE {c['name'].upper()} — IDENTIQUE DANS TOUTES LES IMAGES. SIGNE DISTINCTIF OBLIGATOIRE, de la même forme et du même côté : "
+            f"{c['distinctive'].rstrip('.')}. TENUE COMPLÈTE, du haut en bas, sans jamais en changer : {c['clothing'].rstrip('.')}. "
+            f"Visage et coiffure : {c['appearance'].rstrip('.')}, même âge apparent, même coiffure à chaque image. "
+            f"Proportions : {c['proportions'].rstrip('.')}. Palette : {c['palette'].rstrip('.')}.")
+    return " ".join(parts)
+
+
 def build_image_prompt(plan: dict, scene_index: int) -> str:
     """Prompt déterministe d'une scène. N'inclut que les personnages PRÉSENTS dans la scène (sinon le modèle les
     ajoute partout), mais avec la même fiche d'identité dans toutes les scènes où ils apparaissent."""
@@ -50,8 +73,10 @@ def build_image_prompt(plan: dict, scene_index: int) -> str:
         f"Indispensable : {d['essentials']}. À omettre : {d['omit']}. "
         f"Continuité : {d['continuity']}. {expression_for(scene)}"
     )
-    return image_prompt_builder.build_scene_prompt(
+    base = image_prompt_builder.build_scene_prompt(
         [moment], None, prefix, "9:16", art_directions.style_bible(plan["art_direction"]), None)
+    head = identity_block(plan, scene)
+    return (head + "\n" if head else "") + FRAMING_RULES + "\n" + base
 
 
 def reference_policy(plan: dict, scene_index: int, budget_headroom_usd: float, edit_cost_usd: float | None) -> str:
