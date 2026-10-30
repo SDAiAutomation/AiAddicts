@@ -1,0 +1,251 @@
+{
+  "art_direction": "cinematic_story",
+  "characters": [
+    {
+      "appearance": "un chercheur d'âge mûr au visage fin et attentif, cheveux clairs coiffés en arrière",
+      "clothing": "blouse blanche usée, nœud papillon bordeaux",
+      "distinctive": "un nœud papillon bordeaux toujours visible",
+      "environment": "laboratoire encombré des années 1920",
+      "id": "chercheur",
+      "name": "Le chercheur",
+      "negative": "lunettes, barbe, tenue moderne",
+      "palette": "blanc cassé, bordeaux, vert-de-gris",
+      "proportions": "silhouette élancée, épaules étroites, grandes mains"
+    }
+  ],
+  "factuality": "verified",
+  "language": "fr",
+  "scenes": [
+    {
+      "beat": "hook",
+      "camera": "push_in",
+      "characters": [],
+      "claim_kind": "fact",
+      "duration_s": 7,
+      "emotional_tone": "intrigue",
+      "id": "s1",
+      "image_prompt": "Une boîte de Petri éclairée par un rayon de fenêtre sur une paillasse encombrée, laboratoire des années 1920.",
+      "narration": "Un tas de boîtes de culture oubliées, et une moisissure qui allait changer la médecine.",
+      "on_screen_text": "Un oubli de vacances",
+      "source_ids": [
+        "nobel",
+        "wiki"
+      ],
+      "transition": "cut",
+      "visual_direction": {
+        "continuity": "ouvre le récit, la boîte reviendra à la révélation",
+        "essentials": "une boîte de Petri, une paillasse",
+        "feel": "curiosité",
+        "metaphor": "la boîte oubliée comme un trésor",
+        "omit": "tout décor décoratif",
+        "understand": "l'idée tient à un oubli"
+      },
+      "visual_intention": "Une paillasse en désordre, une boîte au centre de la lumière."
+    },
+    {
+      "beat": "setup",
+      "camera": "push_in",
+      "characters": [
+        "chercheur"
+      ],
+      "claim_kind": "fact",
+      "duration_s": 8,
+      "emotional_tone": "calme",
+      "id": "s2",
+      "image_prompt": "Le chercheur de dos entre dans un laboratoire baigné d'une lumière de fin d'été.",
+      "narration": "En septembre 1928, Alexander Fleming rentre de vacances et retrouve son laboratoire de Londres.",
+      "on_screen_text": "Septembre 1928",
+      "source_ids": [
+        "nobel",
+        "wiki"
+      ],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "présente le personnage, même tenue ensuite",
+        "essentials": "le chercheur, la porte",
+        "feel": "calme",
+        "metaphor": "la porte comme seuil",
+        "omit": "visage détaillé",
+        "understand": "le contexte : un laboratoire, un retour"
+      },
+      "visual_intention": "Le chercheur franchit la porte de son laboratoire."
+    },
+    {
+      "beat": "conflict",
+      "camera": "still",
+      "characters": [
+        "chercheur"
+      ],
+      "claim_kind": "fact",
+      "duration_s": 8,
+      "emotional_tone": "tension",
+      "id": "s3",
+      "image_prompt": "Le chercheur penché sur une boîte de Petri, la main suspendue au-dessus d'un évier.",
+      "narration": "Sur l'une des boîtes, une moisissure s'est installée, ce qui arrive souvent. Il aurait pu la jeter.",
+      "on_screen_text": "Il aurait pu la jeter.",
+      "source_ids": [
+        "nobel",
+        "wiki"
+      ],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "fait écho à la boîte du premier plan",
+        "essentials": "le chercheur, la boîte, l'évier",
+        "feel": "tension légère",
+        "metaphor": "la main suspendue",
+        "omit": "tout le reste",
+        "understand": "l'hésitation : jeter ou observer"
+      },
+      "visual_intention": "Le chercheur se penche sur une boîte, la main hésitante au-dessus de l'évier."
+    },
+    {
+      "beat": "development",
+      "camera": "push_in",
+      "characters": [],
+      "claim_kind": "fact",
+      "duration_s": 7,
+      "emotional_tone": "émerveillement",
+      "id": "s4",
+      "image_prompt": "Gros plan sur une boîte de Petri : une tache verte entourée d'un halo clair, colonies à la périphérie.",
+      "narration": "Mais autour de la moisissure, les bactéries avaient disparu. Il remarque la zone claire.",
+      "on_screen_text": "Un halo sans bactéries",
+      "source_ids": [
+        "nobel",
+        "wiki"
+      ],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "gros plan de la boîte vue depuis la scène 3",
+        "essentials": "la boîte, le halo",
+        "feel": "émerveillement",
+        "metaphor": "le halo comme un cercle de protection",
+        "omit": "le visage",
+        "understand": "voir la zone sans bactéries"
+      },
+      "visual_intention": "Gros plan de la boîte : un halo clair autour de la tache verte."
+    },
+    {
+      "beat": "development",
+      "camera": "still",
+      "characters": [
+        "chercheur"
+      ],
+      "claim_kind": "fact",
+      "duration_s": 8,
+      "emotional_tone": "excitation",
+      "id": "s5",
+      "image_prompt": "Le chercheur tient une boîte devant un tableau noir couvert de croquis griffonnés.",
+      "narration": "La moisissure, un Penicillium, produit quelque chose qui tue ces bactéries. Il l'appelle pénicilline.",
+      "on_screen_text": "Penicillium → pénicilline",
+      "source_ids": [
+        "nobel",
+        "wiki"
+      ],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "même chercheur, même nœud papillon",
+        "essentials": "le chercheur, le tableau",
+        "feel": "excitation contenue",
+        "metaphor": "un nom qui naît",
+        "omit": "formules illisibles",
+        "understand": "nommer la substance"
+      },
+      "visual_intention": "Le chercheur, la boîte dans les mains, face à un tableau griffonné."
+    },
+    {
+      "beat": "development",
+      "camera": "pull_out",
+      "characters": [],
+      "claim_kind": "fact",
+      "duration_s": 8,
+      "emotional_tone": "patience",
+      "id": "s6",
+      "image_prompt": "Plan large d'un long couloir de laboratoire aux portes ouvertes, silhouettes lointaines en blouse.",
+      "narration": "Il faudra encore plus de dix ans, et d'autres chercheurs, pour en faire un médicament utilisable.",
+      "on_screen_text": "Plus de dix ans, et d'autres chercheurs",
+      "source_ids": [
+        "nobel",
+        "wiki"
+      ],
+      "transition": "fade",
+      "visual_direction": {
+        "continuity": "élargit le plan après les gros plans",
+        "essentials": "un couloir, des silhouettes",
+        "feel": "patience",
+        "metaphor": "le couloir comme le temps",
+        "omit": "le chercheur lui-même",
+        "understand": "le chemin est long et collectif"
+      },
+      "visual_intention": "Un couloir de laboratoire qui s'étire, des silhouettes de chercheurs au loin."
+    },
+    {
+      "beat": "revelation",
+      "camera": "push_in",
+      "characters": [],
+      "claim_kind": "interpretation",
+      "duration_s": 8,
+      "emotional_tone": "émotion",
+      "id": "s7",
+      "image_prompt": "La boîte de Petri seule, posée dans un rayon de lumière chaude, fond sombre.",
+      "narration": "Découverte par hasard, oui. Mais il a fallu quelqu'un pour remarquer, et pour s'en étonner.",
+      "on_screen_text": "Remarquer, c'est déjà découvrir",
+      "source_ids": [
+        "nobel"
+      ],
+      "transition": "fade",
+      "visual_direction": {
+        "continuity": "reprend le plan d'ouverture, cadrage plus serré",
+        "essentials": "la boîte, la lumière",
+        "feel": "émotion",
+        "metaphor": "la boîte retrouvée",
+        "omit": "tout le reste",
+        "understand": "le hasard n'a servi que parce qu'on a regardé"
+      },
+      "visual_intention": "La boîte du début, désormais seule au centre d'une lumière chaude."
+    },
+    {
+      "beat": "resolution",
+      "camera": "pull_out",
+      "characters": [
+        "chercheur"
+      ],
+      "claim_kind": "interpretation",
+      "duration_s": 7,
+      "emotional_tone": "apaisement",
+      "id": "s8",
+      "image_prompt": "Le chercheur de profil devant une fenêtre lumineuse, regard calme.",
+      "narration": "À retenir : une découverte commence souvent par un détail que l'on ne jette pas.",
+      "on_screen_text": "Ne pas jeter le détail",
+      "source_ids": [
+        "nobel"
+      ],
+      "transition": "cut",
+      "visual_direction": {
+        "continuity": "clôt sur le personnage, même tenue",
+        "essentials": "le chercheur, la fenêtre",
+        "feel": "apaisement",
+        "metaphor": "la fenêtre comme ouverture",
+        "omit": "tout slogan",
+        "understand": "la leçon : s'arrêter sur l'anomalie"
+      },
+      "visual_intention": "Le chercheur de profil, regardant la lumière."
+    }
+  ],
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "nobel",
+      "title": "The Nobel Prize in Physiology or Medicine 1945 — Alexander Fleming, Facts",
+      "url": "https://www.nobelprize.org/prizes/medicine/1945/fleming/facts/"
+    },
+    {
+      "id": "wiki",
+      "title": "Penicillin — Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Penicillin"
+    }
+  ],
+  "story_id": "sample-penicillin",
+  "story_type": "true",
+  "target_duration_s": 60,
+  "title": "La moisissure oubliée"
+}

@@ -1,0 +1,224 @@
+{
+  "art_direction": "cinematic_story",
+  "characters": [
+    {
+      "appearance": "a slender young red fox with kind amber eyes and a white-tipped tail",
+      "clothing": "a patched teal scarf",
+      "distinctive": "the patched teal scarf, always knotted on the left",
+      "environment": "a misty autumn forest",
+      "id": "rowan",
+      "name": "Rowan",
+      "negative": "hat, backpack, human clothing",
+      "palette": "rust red, teal, cream",
+      "proportions": "long legs, slightly oversized ears, small narrow chest"
+    }
+  ],
+  "factuality": "fiction",
+  "language": "en",
+  "scenes": [
+    {
+      "beat": "hook",
+      "camera": "push_in",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 7,
+      "emotional_tone": "unease",
+      "id": "s1",
+      "image_prompt": "A slender red fox in a patched teal scarf stands in a misty clearing, many long shadows reaching toward him.",
+      "narration": "Rowan the fox had never once said no. Not to anyone. Not even to himself.",
+      "on_screen_text": "He never said no.",
+      "source_ids": [],
+      "transition": "cut",
+      "visual_direction": {
+        "continuity": "opens the fable, the scarf is introduced",
+        "essentials": "Rowan, long shadows",
+        "feel": "unease",
+        "metaphor": "many hands of shadow",
+        "omit": "any text",
+        "understand": "this fox has a problem with refusal"
+      },
+      "visual_intention": "Rowan alone in a clearing, many shadows reaching for him."
+    },
+    {
+      "beat": "setup",
+      "camera": "still",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "heaviness",
+      "id": "s2",
+      "image_prompt": "The red fox in the teal scarf carries a tall stack of stones, hares and crows waiting in a line behind him.",
+      "narration": "The owl asked him to carry stones. The hares asked for his evenings. The crows asked for everything else.",
+      "on_screen_text": "Yes. Yes. Yes.",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "same scarf, same clearing as scene 1",
+        "essentials": "Rowan, stones, hares, crows",
+        "feel": "heaviness",
+        "metaphor": "the stack of stones",
+        "omit": "background trees",
+        "understand": "everyone asks, he gives"
+      },
+      "visual_intention": "Rowan carrying stones while hares and crows queue behind him."
+    },
+    {
+      "beat": "conflict",
+      "camera": "push_in",
+      "characters": [],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "loneliness",
+      "id": "s3",
+      "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+      "narration": "His own den grew cold and empty. No one noticed, because he never said so.",
+      "on_screen_text": "No one noticed.",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "Rowan absent, his scarf hung inside",
+        "essentials": "the den, the rain",
+        "feel": "loneliness",
+        "metaphor": "a den with no light",
+        "omit": "other animals",
+        "understand": "his own needs disappear"
+      },
+      "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+    },
+    {
+      "beat": "development",
+      "camera": "still",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "tension",
+      "id": "s4",
+      "image_prompt": "The red fox in the teal scarf buckles under his stack of stones, one stone rolling down a moonlit slope.",
+      "narration": "One night, the weight was too much. A single stone slipped, and it rolled away down the hill.",
+      "on_screen_text": "One stone slipped.",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "same night after the den",
+        "essentials": "Rowan, the rolling stone",
+        "feel": "tension",
+        "metaphor": "one stone leaving the stack",
+        "omit": "crowd",
+        "understand": "the breaking point"
+      },
+      "visual_intention": "Rowan's paws trembling, a stone rolling down a moonlit slope."
+    },
+    {
+      "beat": "development",
+      "camera": "push_in",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "relief",
+      "id": "s5",
+      "image_prompt": "A wise grey owl lifts a stone with a gentle smile, the red fox in the teal scarf watching, surprised.",
+      "narration": "Nothing terrible happened. The owl simply picked up the stone and said, 'Thank you for telling us.'",
+      "on_screen_text": "Nothing terrible happened.",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "the owl appeared in scene 2",
+        "essentials": "owl, Rowan, stone",
+        "feel": "relief",
+        "metaphor": "the owl's open wings",
+        "omit": "anger",
+        "understand": "refusing is survivable"
+      },
+      "visual_intention": "The owl gently lifts the stone, Rowan watching, surprised."
+    },
+    {
+      "beat": "development",
+      "camera": "pull_out",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "courage",
+      "id": "s6",
+      "image_prompt": "The red fox in the teal scarf stands upright before three hares at sunrise, scarf lifted by the wind.",
+      "narration": "The next day, Rowan said his first small no. The hares waited. The world did not end.",
+      "on_screen_text": "A small no.",
+      "source_ids": [],
+      "transition": "fade",
+      "visual_direction": {
+        "continuity": "Rowan stands taller than in scene 1",
+        "essentials": "Rowan, hares",
+        "feel": "quiet courage",
+        "metaphor": "an upright stance",
+        "omit": "stones",
+        "understand": "practice, not perfection"
+      },
+      "visual_intention": "Rowan standing upright before the hares, scarf blowing."
+    },
+    {
+      "beat": "revelation",
+      "camera": "push_in",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "insight",
+      "id": "s7",
+      "image_prompt": "The red fox in the teal scarf at the entrance of his den, warm light glowing inside.",
+      "narration": "And Rowan understood: every yes to others had been a no to himself.",
+      "on_screen_text": "Every yes is a no.",
+      "source_ids": [],
+      "transition": "fade",
+      "visual_direction": {
+        "continuity": "the den from scene 3, now lit",
+        "essentials": "Rowan, den, light",
+        "feel": "insight",
+        "metaphor": "the lit den",
+        "omit": "the crowd",
+        "understand": "yes and no are linked"
+      },
+      "visual_intention": "Rowan at the den entrance, a warm light inside."
+    },
+    {
+      "beat": "resolution",
+      "camera": "pull_out",
+      "characters": [
+        "rowan"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 7,
+      "emotional_tone": "peace",
+      "id": "s8",
+      "image_prompt": "The red fox asleep in his warm den, the teal scarf folded beside him, soft light.",
+      "narration": "A kind yes needs a free no. That is how Rowan finally came home.",
+      "on_screen_text": "A kind yes needs a free no.",
+      "source_ids": [],
+      "transition": "cut",
+      "visual_direction": {
+        "continuity": "closes inside the den",
+        "essentials": "Rowan sleeping",
+        "feel": "peace",
+        "metaphor": "sleep",
+        "omit": "moral slogans",
+        "understand": "balance is kindness"
+      },
+      "visual_intention": "Rowan asleep in his warm den, the scarf folded."
+    }
+  ],
+  "schema_version": 1,
+  "sources": [],
+  "story_id": "sample-fox-yes",
+  "story_type": "moral",
+  "target_duration_s": 60,
+  "title": "The Fox Who Always Said Yes"
+}
