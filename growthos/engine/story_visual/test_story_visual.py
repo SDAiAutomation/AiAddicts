@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from growthos.engine.story_visual import art_directions, cache, cost, formats, orchestrator, overlay, render, sample, schema, timing, visual_direction
+from growthos.engine.story_visual import art_directions, cache, parity, cost, formats, orchestrator, overlay, render, sample, schema, timing, visual_direction
 
 FX = Path(__file__).parent / "fixtures"
 PRICED = {"STORY_IMAGE_USD_EACH": "0.08", "ELEVENLABS_USD_PER_1K_CHARS": "0.18", "SCRIPT_PRICE_IN_PER_M": "1",
@@ -123,6 +123,15 @@ class TestProvenance(unittest.TestCase):
                "ftp://example.com", "javascript:alert(1)", "https://[::1]/", "", None, 5]
         self.assertTrue(all(schema.is_safe_source_url(u) for u in ok))
         self.assertFalse(any(schema.is_safe_source_url(u) for u in bad))
+
+
+class TestParityFixture(unittest.TestCase):
+    def test_shared_fixture_is_up_to_date_and_has_both_verdicts(self):
+        self.assertEqual(json.loads(parity.PATH.read_text(encoding="utf-8")), json.loads(json.dumps(parity.build())),
+                         "run parity.write_parity_fixture()")
+        cases = parity.build()["cases"]
+        self.assertGreaterEqual(len([c for c in cases if c["valid"]]), 3)
+        self.assertGreaterEqual(len([c for c in cases if not c["valid"]]), 30)
 
 
 class TestFormats(unittest.TestCase):
