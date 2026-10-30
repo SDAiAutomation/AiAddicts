@@ -260,7 +260,10 @@ class TestOrchestratorHardening(Tmp):
         c.save(key, src)
         self.assertEqual([p.name for p in (self.tmp / "c" / "t").iterdir()], [f"{key}.jpg"])
         (self.tmp / "c" / "t" / f"{key}.jpg").unlink()
-        os.symlink(src, self.tmp / "c" / "t" / f"{key}.jpg")
+        try:
+            os.symlink(src, self.tmp / "c" / "t" / f"{key}.jpg")
+        except OSError as exc:  # Windows sans privilège symlink (WinError 1314) : on ne peut pas poser le piège, pas un défaut du cache
+            self.skipTest(f"symlink indisponible : {exc}")
         self.assertFalse(c.restore(key, self.tmp / "out.jpg"))
         with self.assertRaises(ValueError):
             cache.DiskImageCache(self.tmp, "t", "jpg")

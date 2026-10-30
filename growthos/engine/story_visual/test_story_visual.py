@@ -507,6 +507,7 @@ class TestEndToEndRender(TempDirCase):
         self.assertEqual((probe["video"]["width"], probe["video"]["height"]), (1080, 1920))
         self.assertEqual(probe["video"]["codec_name"], "h264")
         self.assertEqual(probe["video"]["pix_fmt"], "yuv420p")
+        self.assertEqual(probe["video"]["color_range"], "tv")  # cartes JPEG = plage pc : convertie, pas héritée
         self.assertEqual(probe["audio"]["codec_name"], "aac")
         self.assertAlmostEqual(probe["duration"], report["timeline"]["total_s"], delta=0.15)  # voix et image restent synchronisées
         self.assertEqual(report["actual_cost_usd"], 0.0)

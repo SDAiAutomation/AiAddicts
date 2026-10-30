@@ -50,7 +50,7 @@ def _run(cmd: list[str]) -> None:
 def probe(path: str | Path) -> dict:
     try:
         proc = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,pix_fmt:format=duration",
+            ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,r_frame_rate,pix_fmt,color_range:format=duration",
              "-of", "json", _path(path)], capture_output=True, text=True, timeout=_timeout())
     except subprocess.TimeoutExpired as exc:
         raise RenderError("ffprobe timed out") from exc
@@ -68,13 +68,17 @@ def audio_duration(path: str | Path) -> float:
 
 def _scene_clip(card: Path, duration: float, camera: str, out: Path, fps: int, preset: str) -> None:
     """Un plan = une carte fixe, avec un reframing optionnel ≤ 5 % (échelle variable dans le temps puis recadrage centré)."""
+    # Les cartes JPEG sont en plage complète (pc) : sans conversion explicite, libx264 la garde et ffprobe annonce `yuvj420p`
+    # (non standard pour TikTok/Shorts, lecteurs qui supposent la plage limitée => contraste faux). On force tv/BT.709.
+    tv = f"scale={W}:{H}:out_range=tv:out_color_matrix=bt709"
     if camera == "still":
-        vf = f"scale={W}:{H},format=yuv420p"
+        vf = f"scale={W}:{H},{tv},format=yuv420p"
     else:
         z = f"(1+{ZOOM}*t/{duration:.3f})" if camera == "push_in" else f"(1+{ZOOM}-{ZOOM}*t/{duration:.3f})"
-        vf = f"scale=w='trunc({W}*{z}/2)*2':h=-2:eval=frame:flags=bilinear,crop={W}:{H},format=yuv420p"
+        vf = f"scale=w='trunc({W}*{z}/2)*2':h=-2:eval=frame:flags=bilinear,crop={W}:{H},{tv},format=yuv420p"
     _run(["ffmpeg", "-y", "-v", "error", "-loop", "1", "-framerate", str(fps), "-t", f"{duration:.3f}", "-i", str(card), "-vf", vf,
-          "-r", str(fps), "-c:v", "libx264", "-preset", preset, "-crf", "20", "-an", str(out)])
+          "-r", str(fps), "-c:v", "libx264", "-preset", preset, "-crf", "20", "-colorspace", "bt709", "-color_range", "tv",
+          "-an", str(out)])
 
 
 def text_windows(slots: list[dict]) -> list[dict]:
