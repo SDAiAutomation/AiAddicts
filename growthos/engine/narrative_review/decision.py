@@ -19,13 +19,17 @@ def _judgement(snapshot: dict, response: dict | None, analysis_status: str) -> t
     if snapshot["truth_mode"] in ("fact", "inspired"):
         # Un récit à assertions factuelles n'est jamais accepté sans registre d'affirmations ni dossier : l'absence de claims
         # peut être une omission du critique (risque R01), pas une preuve d'absence de faits.
-        if not response["claims"]:
-            reasons.append("factual_mode_without_registered_claims")
+        if not any(c["assessment"] != "not_factual" for c in response["claims"]):  # un seul `not_factual` ne prouve aucune lecture factuelle
+            reasons.append("factual_mode_without_registered_factual_claims")
         if not snapshot["sources"]:
             reasons.append("factual_mode_without_sources")
-    if any(c["assessment"] == "contradicted" for c in response["claims"]) and not any(
-            f["code"] == "FACT_CONTRADICTED" and f["assessment"] == "established" for f in blockers):
-        reasons.append("contradicted_claim_without_established_finding")  # le défaut manque : on ne peut pas accepter, ni trancher
+    for claim in response["claims"]:
+        if claim["assessment"] != "contradicted":
+            continue
+        unit = claim["anchor"]["unit_id"]  # le défaut doit être rattaché à CETTE affirmation (même unité), pas à un autre passage
+        if not any(f["code"] == "FACT_CONTRADICTED" and f["assessment"] == "established"
+                   and any(a["unit_id"] == unit for a in f["anchors"]) for f in blockers):
+            reasons.append(f"contradicted_claim_without_established_finding_{claim['claim_id']}")
     reasons += [f"uncertain_blocker_{f['finding_id']}" for f in blockers if f["assessment"] == "uncertain"]
     reasons += [f"needs_{f['repair_scope'][6:]}_{f['finding_id']}" for f in blockers
                 if f["repair_scope"] in ("needs_sources", "needs_author")]

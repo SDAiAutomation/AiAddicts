@@ -120,10 +120,12 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
                        error={"code": c.PROVIDER_UNAVAILABLE, "message": type(exc).__name__}, usage=_usage_block(None, prices, None, None),
                        model=model, limits=limits)
     usage = _usage_block(result.usage, prices, result.latency_s, result.http_attempts)
-    if budget.settle(label, usage["estimated_cost"]):
+    overrun = budget.settle(label, usage["estimated_cost"])
+    if overrun:
         limits.append("cost_exceeded_reservation")
-    retry_suspected = result.http_attempts is not None and result.http_attempts > 1   # un retry interne casse la borne de coût
-    if retry_suspected:
+    # Un retry interne, un nombre de tentatives inconnu ou un dépassement de la réservation cassent la borne de coût : jamais acceptés.
+    retry_suspected = overrun or result.http_attempts is None or result.http_attempts > 1
+    if result.http_attempts is not None and result.http_attempts > 1:
         limits.append("hidden_retry_detected")
     elif result.http_attempts is None:
         limits.append("provider_attempts_unverified")
@@ -145,7 +147,7 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
     status = "partial" if partial else "complete"
     decision = decide(snapshot, response, "complete")
     if retry_suspected:
-        decision = {**decision, "decision": "review", "can_auto_accept": False, "reasons": decision["reasons"] + ["hidden_retry_detected"]}
+        decision = {**decision, "decision": "review", "can_auto_accept": False, "reasons": decision["reasons"] + ["cost_bound_unverified"]}
     report = _report(snapshot, status=status, response=response, decision=decision, error=None, usage=usage, model=model, limits=limits)
     if cache is not None and status == "complete" and not retry_suspected:
         cache.put(snapshot, model, report)

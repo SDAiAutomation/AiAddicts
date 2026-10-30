@@ -394,7 +394,7 @@ class TestHardeningFromIndependentReview(NetworkBlocked):
                  "reason": "calcul faux", "calculation": calc}
         report = run(s, good_response(s, claims=[claim]))
         self.assertEqual((report["decision"], report["can_auto_accept"]), ("review", False))
-        self.assertIn("contradicted_claim_without_established_finding", report["reasons"])
+        self.assertIn("contradicted_claim_without_established_finding_c1", report["reasons"])
         found = finding("FACT_CONTRADICTED", anchors=[anchor("block-0001", "on obtient 150")], inspected_unit_ids=["block-0001"],
                         repair_scope="local_text")
         self.assertEqual(run(s, good_response(s, claims=[claim], findings=[found]))["decision"], "revise")
@@ -404,8 +404,38 @@ class TestHardeningFromIndependentReview(NetworkBlocked):
             s = snapshot_of(truth_mode=mode)
             report = run(s, good_response(s))
             self.assertEqual((report["decision"], report["can_auto_accept"]), ("review", False), mode)
-            self.assertIn("factual_mode_without_registered_claims", report["reasons"])
+            self.assertIn("factual_mode_without_registered_factual_claims", report["reasons"])
             self.assertIn("factual_mode_without_sources", report["reasons"])
+
+    def test_a_single_unrelated_not_factual_claim_does_not_unlock_factual_mode(self):
+        src = {"source_id": "S1", "title": "t", "content": "Le métal conduit la chaleur.", "verification": "human_verified"}
+        s = snapshot_of(truth_mode="fact", sources=[src])
+        decoy = {"claim_id": "c1", "anchor": anchor(), "assessment": "not_factual", "source_evidence": [], "reason": "r", "calculation": None}
+        self.assertEqual(run(s, good_response(s, claims=[decoy]))["decision"], "review")
+
+    def test_a_finding_elsewhere_does_not_cover_a_contradicted_claim(self):
+        s = snapshot_of({"title": "B", "blocks": [{"role": "hook", "text": "Avec 2 et 3, on obtient 150."},
+                                                  {"role": "point", "text": "Autre passage sans rapport."}]})
+        ops = {"a": {"value": 2, "anchor": anchor("block-0001", "Avec 2")}, "b": {"value": 3, "anchor": anchor("block-0001", "3,")}}
+        calc = {"expression": "a*b", "operands": ops, "unit": "x", "expected_result": 6, "stated_result": 150}
+        claim = {"claim_id": "c1", "anchor": anchor("block-0001", "on obtient 150"), "assessment": "contradicted", "source_evidence": [],
+                 "reason": "calcul faux", "calculation": calc}
+        elsewhere = finding("FACT_CONTRADICTED", anchors=[anchor("block-0002", "Autre passage")], inspected_unit_ids=["block-0002"])
+        self.assertEqual(run(s, good_response(s, claims=[claim], findings=[elsewhere]))["decision"], "review")
+
+    def test_thousands_separators_in_operand_quotes(self):
+        from growthos.engine.narrative_review.validate import _number_in_quote
+        self.assertTrue(_number_in_quote(1200, "il reste 1 200 euros"))
+        self.assertTrue(_number_in_quote(1200, "il reste 1 200 euros"))
+        self.assertTrue(_number_in_quote(1.5, "environ 1,5 fois"))
+        self.assertFalse(_number_in_quote(1200, "il reste 200 euros"))
+
+    def test_evaluated_coverage_must_also_inspect_title_and_on_screen_units(self):
+        s = snapshot_of()
+        partial = good_response(s)
+        partial["coverage"][0]["inspected_unit_ids"] = [u for u in partial["coverage"][0]["inspected_unit_ids"] if u != "title"]
+        with self.assertRaises(c.ReviewError):
+            validate_response(partial, s)
 
     def test_malformed_types_become_a_report_never_an_exception(self):
         s = snapshot_of()

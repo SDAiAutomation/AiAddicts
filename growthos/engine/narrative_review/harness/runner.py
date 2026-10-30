@@ -193,8 +193,8 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         return
     est = estimate_usd(result.usage, gen_prices)
     overrun = budget.settle(base["attempt_id"], est)
-    if result.http_attempts is not None and result.http_attempts > 1:
-        state["halted"] = True  # un retry interne casse la borne de coût : plus aucun appel dans cette campagne
+    if overrun or result.http_attempts is None or result.http_attempts > 1:
+        state["halted"] = True  # retry interne, tentatives inconnues ou dépassement de réservation : la borne de coût n'est plus tenue
     usage = result.usage or {}
     usage_cols = dict(input_tokens=usage.get("input"), output_tokens=usage.get("output"), usage_complete=bool(result.usage),
                       estimated_cost=est, observed_cost=None, cost_method="tokens x configured prices" if est is not None else "unknown",
@@ -233,8 +233,9 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
     report = review(snapshot, critic, caller=caller, budget=budget, prices=critic_prices, model=critic_model)
     u = report["usage"]
     state["calls"]["critique"] += u["logical_calls"]   # un refus (budget, locataire, taille) vaut 0 appel, comme dans le journal
-    if u["provider_attempts"] is not None and u["provider_attempts"] > 1:
-        state["halted"] = True
+    answered_unverified = u["provider_attempts"] is None and report["error"] is None or "provider_attempts_unverified" in report["limits"]
+    if u["logical_calls"] and ((u["provider_attempts"] or 0) > 1 or answered_unverified or "cost_exceeded_reservation" in report["limits"]):
+        state["halted"] = True  # une exception ou un timeout isolé n'arrête pas la campagne (une case consommée, sans retry)
     journal.add(_row({**base, "attempt_id": critic_id, "model": critic_model, "prompt_version": c.PROMPT_VERSION, "prompt_hash": ""},
                      task="critique", snapshot_id=report["snapshot_id"], execution_status=report["analysis_status"],
                      error_code=(report["error"] or {}).get("code"), editorial_decision=report["decision"],

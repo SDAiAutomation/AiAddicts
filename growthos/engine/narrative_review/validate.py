@@ -119,11 +119,14 @@ def _number(v, where: str) -> float:
     return float(v)
 
 
-_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+_GROUP_SPACES = "   "  # espace, insécable, insécable fine
+_NUMBER = re.compile(rf"\d{{1,3}}(?:[{_GROUP_SPACES}]\d{{3}})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?")  # « 1 200 » = 1200
 
 
 def _number_in_quote(value: float, quote: str) -> bool:
-    return any(math.isclose(value, float(m.replace(",", ".")), rel_tol=1e-9, abs_tol=1e-9) for m in _NUMBER.findall(quote))
+    """shortcut: chiffres seulement ; « 1,200 » se lit 1.2 (virgule décimale française). Rejet = `review`, jamais une acceptation."""
+    numbers = [float("".join(ch for ch in m if ch not in _GROUP_SPACES).replace(",", ".")) for m in _NUMBER.findall(quote)]
+    return any(math.isclose(value, n, rel_tol=1e-9, abs_tol=1e-9) for n in numbers)
 
 
 def _check_calculation(calc, units: dict, where: str, claim_quote: str) -> bool:
@@ -180,9 +183,10 @@ def validate_response(raw: dict, snapshot: dict) -> dict:
         inspected = _unit_ids(cov["inspected_unit_ids"], units, f"{where}.inspected_unit_ids")
         if cov["status"] in ("evaluated", "partial") and not inspected:
             _bad(f"{where}: an evaluated or partial dimension must list the units it inspected")
-        if cov["status"] == "evaluated" and not spoken <= set(inspected):
-            # un jugement sur le texte entier ne peut pas être « evaluated » après lecture d'une seule unité : déclarer `partial`
-            _bad(f"{where}: an evaluated dimension must inspect every spoken unit (declare it partial otherwise)", c.INCOMPLETE_COVERAGE)
+        if cov["status"] == "evaluated" and not set(units) <= set(inspected):
+            # un jugement sur le texte entier ne peut pas être « evaluated » après lecture d'une partie : titre et textes affichés
+            # compris (un texte affiché peut contredire la voix, risque R03). Sinon, déclarer `partial`.
+            _bad(f"{where}: an evaluated dimension must inspect every unit (declare it partial otherwise)", c.INCOMPLETE_COVERAGE)
         if cov["status"] == "not_applicable" and not (
                 cov["dimension"] == "truth" and snapshot["truth_mode"] == "fiction" and snapshot["illustration_mode"] != "hypothetical"):
             # shortcut: seule `truth` peut être non applicable (fiction explicite, hors simulation) ; les autres dimensions
