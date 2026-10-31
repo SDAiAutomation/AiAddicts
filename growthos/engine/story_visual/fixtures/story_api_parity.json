@@ -1,0 +1,912 @@
+{
+ "cases": [
+  {
+   "body": {
+    "scene": {
+     "beat": "conflict",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "loneliness",
+     "id": "s3",
+     "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+     "narration": "Replaced narration.",
+     "on_screen_text": "No one noticed.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "Rowan absent, his scarf hung inside",
+      "essentials": "the den, the rain",
+      "feel": "loneliness",
+      "metaphor": "a den with no light",
+      "omit": "other animals",
+      "understand": "his own needs disappear"
+     },
+     "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+    },
+    "scene_id": "s3"
+   },
+   "code": null,
+   "invalidated": {
+    "image": true,
+    "voice": true
+   },
+   "kind": "replace_scene",
+   "name": "replace ok",
+   "valid": true
+  },
+  {
+   "body": {
+    "scene": {
+     "beat": "conflict",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "loneliness",
+     "id": "hijack",
+     "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+     "narration": "His own den grew cold and empty. No one noticed, because he never said so.",
+     "on_screen_text": "No one noticed.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "Rowan absent, his scarf hung inside",
+      "essentials": "the den, the rain",
+      "feel": "loneliness",
+      "metaphor": "a den with no light",
+      "omit": "other animals",
+      "understand": "his own needs disappear"
+     },
+     "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+    },
+    "scene_id": "s3"
+   },
+   "code": null,
+   "invalidated": {
+    "image": true,
+    "voice": true
+   },
+   "kind": "replace_scene",
+   "name": "replace id hijack",
+   "valid": true
+  },
+  {
+   "body": {
+    "scene": {
+     "id": "s3"
+    },
+    "scene_id": "s3"
+   },
+   "code": "invalid_plan",
+   "invalidated": null,
+   "kind": "replace_scene",
+   "name": "replace incomplete",
+   "valid": false
+  },
+  {
+   "body": {
+    "scene": {
+     "beat": "conflict",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "loneliness",
+     "id": "s3",
+     "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+     "narration": "His own den grew cold and empty. No one noticed, because he never said so.",
+     "on_screen_text": "No one noticed.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "Rowan absent, his scarf hung inside",
+      "essentials": "the den, the rain",
+      "feel": "loneliness",
+      "metaphor": "a den with no light",
+      "omit": "other animals",
+      "understand": "his own needs disappear"
+     },
+     "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+    },
+    "scene_id": "zz"
+   },
+   "code": "unknown_scene",
+   "invalidated": null,
+   "kind": "replace_scene",
+   "name": "replace unknown scene",
+   "valid": false
+  },
+  {
+   "body": {
+    "scene_id": "s3"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "replace_scene",
+   "name": "replace no scene",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "target_duration_s": 60.0
+   },
+   "code": null,
+   "kind": "plan_request",
+   "name": "duration 60.0",
+   "valid": true
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "voice_id": 12345678
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "voice id integer",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "😀😀",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "emoji idea two chars",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+    "story_type": "knowledge"
+   },
+   "code": null,
+   "kind": "plan_request",
+   "name": "emoji idea long",
+   "valid": true
+  },
+  {
+   "body": {
+    "idea": "\u001c\u001c\u001c",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "idea control chars",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "ab",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "idea nel suffix",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "﻿ab",
+    "story_type": "knowledge"
+   },
+   "code": null,
+   "kind": "plan_request",
+   "name": "idea bom",
+   "valid": true
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "sources": [
+     {
+      "id": {},
+      "title": "t",
+      "url": "https://www.nobelprize.org/x"
+     }
+    ],
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "source id empty object",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "sources": [
+     {
+      "id": "a",
+      "title": [],
+      "url": "https://www.nobelprize.org/x"
+     }
+    ],
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "source title empty list",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge"
+   },
+   "code": null,
+   "kind": "plan_request",
+   "name": "minimal",
+   "valid": true
+  },
+  {
+   "body": {
+    "art_direction": "conceptual_metaphor",
+    "idea": "Pourquoi on procrastine",
+    "language": "en",
+    "story_type": "knowledge",
+    "target_duration_s": 90,
+    "voice_id": "VoiceId12345"
+   },
+   "code": null,
+   "kind": "plan_request",
+   "name": "full",
+   "valid": true
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "sources": [
+     {
+      "id": "a",
+      "title": "t",
+      "url": "https://www.nobelprize.org/x"
+     }
+    ],
+    "story_type": "true"
+   },
+   "code": null,
+   "kind": "plan_request",
+   "name": "true with source",
+   "valid": true
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "true"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "true without source",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "tenant_id": "other"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "unknown field",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "x"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "bad type",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "empty idea",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "idea too long",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "target_duration_s": 10
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "duration low",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "target_duration_s": true
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "duration bool",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "target_duration_s": 60.5
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "duration float",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "story_type": "knowledge",
+    "voice_id": "a/b"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "bad voice",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "sources": [
+     {
+      "id": "a",
+      "title": "t",
+      "url": "http://127.0.0.1/x"
+     }
+    ],
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "unsafe source",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "sources": "x",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "sources not list",
+   "valid": false
+  },
+  {
+   "body": [],
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "body list",
+   "valid": false
+  },
+  {
+   "body": null,
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "body null",
+   "valid": false
+  },
+  {
+   "body": {
+    "idea": "Pourquoi on procrastine",
+    "language": "de",
+    "story_type": "knowledge"
+   },
+   "code": "invalid_request",
+   "kind": "plan_request",
+   "name": "bad language",
+   "valid": false
+  },
+  {
+   "body": {
+    "constructor": "x",
+    "scene_id": "s2"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "prototype key constructor",
+   "valid": false
+  },
+  {
+   "body": {
+    "scene_id": "s2",
+    "toString": "x"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "prototype key toString",
+   "valid": false
+  },
+  {
+   "body": {
+    "__proto__": "x",
+    "scene_id": "s2"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "prototype key __proto__",
+   "valid": false
+  },
+  {
+   "body": {
+    "camera": null,
+    "scene_id": "s2"
+   },
+   "code": "invalid_plan",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "camera null on absent",
+   "valid": false
+  },
+  {
+   "body": {
+    "scene_id": "s2",
+    "visual_direction": {
+     "continuity": "same scarf, same clearing as scene 1",
+     "essentials": "Rowan, stones, hares, crows",
+     "feel": "heaviness",
+     "metaphor": "the stack of stones",
+     "omit": "background trees",
+     "understand": "everyone asks, he gives"
+    }
+   },
+   "code": null,
+   "invalidated": {
+    "image": false,
+    "voice": false
+   },
+   "kind": "edit_scene",
+   "name": "direction reordered",
+   "valid": true
+  },
+  {
+   "body": {
+    "narration": "x",
+    "scene_id": 5
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "scene id not a string",
+   "valid": false
+  },
+  {
+   "body": {
+    "narration": "Another line.",
+    "scene_id": "s2"
+   },
+   "code": null,
+   "invalidated": {
+    "image": false,
+    "voice": true
+   },
+   "kind": "edit_scene",
+   "name": "narration",
+   "valid": true
+  },
+  {
+   "body": {
+    "on_screen_text": "New",
+    "scene_id": "s2"
+   },
+   "code": null,
+   "invalidated": {
+    "image": false,
+    "voice": false
+   },
+   "kind": "edit_scene",
+   "name": "on screen text",
+   "valid": true
+  },
+  {
+   "body": {
+    "narration": "The owl asked him to carry stones. The hares asked for his evenings. The crows asked for everything else.",
+    "scene_id": "s2"
+   },
+   "code": null,
+   "invalidated": {
+    "image": false,
+    "voice": false
+   },
+   "kind": "edit_scene",
+   "name": "same narration",
+   "valid": true
+  },
+  {
+   "body": {
+    "image_prompt": "A lantern in the dark.",
+    "scene_id": "s4"
+   },
+   "code": null,
+   "invalidated": {
+    "image": true,
+    "voice": false
+   },
+   "kind": "edit_scene",
+   "name": "image prompt",
+   "valid": true
+  },
+  {
+   "body": {
+    "emotional_tone": "joy",
+    "scene_id": "s4"
+   },
+   "code": null,
+   "invalidated": {
+    "image": true,
+    "voice": false
+   },
+   "kind": "edit_scene",
+   "name": "tone",
+   "valid": true
+  },
+  {
+   "body": {
+    "narration": "x",
+    "scene_id": "zz"
+   },
+   "code": "unknown_scene",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "unknown scene",
+   "valid": false
+  },
+  {
+   "body": {
+    "id": "s9",
+    "scene_id": "s1"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "immutable id",
+   "valid": false
+  },
+  {
+   "body": {
+    "beat": "resolution",
+    "scene_id": "s1"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "immutable beat",
+   "valid": false
+  },
+  {
+   "body": {
+    "scene_id": "s1"
+   },
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "no change fields",
+   "valid": false
+  },
+  {
+   "body": {
+    "on_screen_text": "<b>",
+    "scene_id": "s1"
+   },
+   "code": "invalid_plan",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "html text",
+   "valid": false
+  },
+  {
+   "body": "x",
+   "code": "invalid_request",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "not an object",
+   "valid": false
+  },
+  {
+   "body": {
+    "narration": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "scene_id": "s1"
+   },
+   "code": "invalid_plan",
+   "invalidated": null,
+   "kind": "edit_scene",
+   "name": "narration too long",
+   "valid": false
+  },
+  {
+   "body": {
+    "scene_id": "s3"
+   },
+   "code": null,
+   "kind": "regenerate",
+   "name": "ok",
+   "valid": true
+  },
+  {
+   "body": {
+    "scene_id": "zz"
+   },
+   "code": "unknown_scene",
+   "kind": "regenerate",
+   "name": "unknown",
+   "valid": false
+  },
+  {
+   "body": {
+    "force": true,
+    "scene_id": "s3"
+   },
+   "code": "invalid_request",
+   "kind": "regenerate",
+   "name": "extra field",
+   "valid": false
+  },
+  {
+   "body": {},
+   "code": "invalid_request",
+   "kind": "regenerate",
+   "name": "empty",
+   "valid": false
+  },
+  {
+   "body": null,
+   "code": "invalid_request",
+   "kind": "regenerate",
+   "name": "null",
+   "valid": false
+  }
+ ],
+ "plan": {
+  "art_direction": "cinematic_story",
+  "characters": [
+   {
+    "appearance": "a slender young red fox with kind amber eyes and a white-tipped tail",
+    "clothing": "a patched teal scarf",
+    "distinctive": "the patched teal scarf, always knotted on the left",
+    "environment": "a misty autumn forest",
+    "id": "rowan",
+    "name": "Rowan",
+    "negative": "hat, backpack, human clothing",
+    "palette": "rust red, teal, cream",
+    "proportions": "long legs, slightly oversized ears, small narrow chest"
+   }
+  ],
+  "factuality": "fiction",
+  "language": "en",
+  "scenes": [
+   {
+    "beat": "hook",
+    "camera": "push_in",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 7,
+    "emotional_tone": "unease",
+    "id": "s1",
+    "image_prompt": "A slender red fox in a patched teal scarf stands in a misty clearing, many long shadows reaching toward him.",
+    "narration": "Rowan the fox had never once said no. Not to anyone. Not even to himself.",
+    "on_screen_text": "He never said no.",
+    "source_ids": [],
+    "transition": "cut",
+    "visual_direction": {
+     "continuity": "opens the fable, the scarf is introduced",
+     "essentials": "Rowan, long shadows",
+     "feel": "unease",
+     "metaphor": "many hands of shadow",
+     "omit": "any text",
+     "understand": "this fox has a problem with refusal"
+    },
+    "visual_intention": "Rowan alone in a clearing, many shadows reaching for him."
+   },
+   {
+    "beat": "setup",
+    "camera": "pull_out",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 8,
+    "emotional_tone": "heaviness",
+    "id": "s2",
+    "image_prompt": "The red fox in the teal scarf carries a tall stack of stones, hares and crows waiting in a line behind him.",
+    "narration": "The owl asked him to carry stones. The hares asked for his evenings. The crows asked for everything else.",
+    "on_screen_text": "Yes. Yes. Yes.",
+    "source_ids": [],
+    "transition": "crossfade",
+    "visual_direction": {
+     "continuity": "same scarf, same clearing as scene 1",
+     "essentials": "Rowan, stones, hares, crows",
+     "feel": "heaviness",
+     "metaphor": "the stack of stones",
+     "omit": "background trees",
+     "understand": "everyone asks, he gives"
+    },
+    "visual_intention": "Rowan carrying stones while hares and crows queue behind him."
+   },
+   {
+    "beat": "conflict",
+    "camera": "push_in",
+    "characters": [],
+    "claim_kind": "fiction",
+    "duration_s": 8,
+    "emotional_tone": "loneliness",
+    "id": "s3",
+    "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+    "narration": "His own den grew cold and empty. No one noticed, because he never said so.",
+    "on_screen_text": "No one noticed.",
+    "source_ids": [],
+    "transition": "crossfade",
+    "visual_direction": {
+     "continuity": "Rowan absent, his scarf hung inside",
+     "essentials": "the den, the rain",
+     "feel": "loneliness",
+     "metaphor": "a den with no light",
+     "omit": "other animals",
+     "understand": "his own needs disappear"
+    },
+    "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+   },
+   {
+    "beat": "development",
+    "camera": "push_in",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 8,
+    "emotional_tone": "tension",
+    "id": "s4",
+    "image_prompt": "The red fox in the teal scarf buckles under his stack of stones, one stone rolling down a moonlit slope.",
+    "narration": "One night, the weight was too much. A single stone slipped, and it rolled away down the hill.",
+    "on_screen_text": "One stone slipped.",
+    "source_ids": [],
+    "transition": "crossfade",
+    "visual_direction": {
+     "continuity": "same night after the den",
+     "essentials": "Rowan, the rolling stone",
+     "feel": "tension",
+     "metaphor": "one stone leaving the stack",
+     "omit": "crowd",
+     "understand": "the breaking point"
+    },
+    "visual_intention": "Rowan's paws trembling, a stone rolling down a moonlit slope."
+   },
+   {
+    "beat": "development",
+    "camera": "push_in",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 8,
+    "emotional_tone": "relief",
+    "id": "s5",
+    "image_prompt": "A wise grey owl lifts a stone with a gentle smile, the red fox in the teal scarf watching, surprised.",
+    "narration": "Nothing terrible happened. The owl simply picked up the stone and said, 'Thank you for telling us.'",
+    "on_screen_text": "Nothing terrible happened.",
+    "source_ids": [],
+    "transition": "crossfade",
+    "visual_direction": {
+     "continuity": "the owl appeared in scene 2",
+     "essentials": "owl, Rowan, stone",
+     "feel": "relief",
+     "metaphor": "the owl's open wings",
+     "omit": "anger",
+     "understand": "refusing is survivable"
+    },
+    "visual_intention": "The owl gently lifts the stone, Rowan watching, surprised."
+   },
+   {
+    "beat": "development",
+    "camera": "pull_out",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 8,
+    "emotional_tone": "courage",
+    "id": "s6",
+    "image_prompt": "The red fox in the teal scarf stands upright before three hares at sunrise, scarf lifted by the wind.",
+    "narration": "The next day, Rowan said his first small no. The hares waited. The world did not end.",
+    "on_screen_text": "A small no.",
+    "source_ids": [],
+    "transition": "fade",
+    "visual_direction": {
+     "continuity": "Rowan stands taller than in scene 1",
+     "essentials": "Rowan, hares",
+     "feel": "quiet courage",
+     "metaphor": "an upright stance",
+     "omit": "stones",
+     "understand": "practice, not perfection"
+    },
+    "visual_intention": "Rowan standing upright before the hares, scarf blowing."
+   },
+   {
+    "beat": "revelation",
+    "camera": "push_in",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 8,
+    "emotional_tone": "insight",
+    "id": "s7",
+    "image_prompt": "The red fox in the teal scarf at the entrance of his den, warm light glowing inside.",
+    "narration": "And Rowan understood: every yes to others had been a no to himself.",
+    "on_screen_text": "Every yes is a no.",
+    "source_ids": [],
+    "transition": "fade",
+    "visual_direction": {
+     "continuity": "the den from scene 3, now lit",
+     "essentials": "Rowan, den, light",
+     "feel": "insight",
+     "metaphor": "the lit den",
+     "omit": "the crowd",
+     "understand": "yes and no are linked"
+    },
+    "visual_intention": "Rowan at the den entrance, a warm light inside."
+   },
+   {
+    "beat": "resolution",
+    "camera": "pull_out",
+    "characters": [
+     "rowan"
+    ],
+    "claim_kind": "fiction",
+    "duration_s": 7,
+    "emotional_tone": "peace",
+    "id": "s8",
+    "image_prompt": "The red fox asleep in his warm den, the teal scarf folded beside him, soft light.",
+    "narration": "A kind yes needs a free no. That is how Rowan finally came home.",
+    "on_screen_text": "A kind yes needs a free no.",
+    "source_ids": [],
+    "transition": "cut",
+    "visual_direction": {
+     "continuity": "closes inside the den",
+     "essentials": "Rowan sleeping",
+     "feel": "peace",
+     "metaphor": "sleep",
+     "omit": "moral slogans",
+     "understand": "balance is kindness"
+    },
+    "visual_intention": "Rowan asleep in his warm den, the scarf folded."
+   }
+  ],
+  "schema_version": 1,
+  "sources": [],
+  "story_id": "sample-fox-yes",
+  "story_type": "moral",
+  "target_duration_s": 60,
+  "title": "The Fox Who Always Said Yes"
+ }
+}
