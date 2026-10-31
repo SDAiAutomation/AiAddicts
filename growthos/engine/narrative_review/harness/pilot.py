@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from .. import contract as c
@@ -78,8 +79,15 @@ def projected_usage(rows: list[dict], prices: Prices | None = None) -> dict:
                             "critic_text_chars": ASSUMED_CRITIC_TEXT_CHARS, "critic_template_chars": crit_template}}
 
 
-def rehearse(out_dir: Path, *, campaign_id: str = "P0D-STANDARD-REHEARSAL") -> dict:
-    """Répétition à blanc complète (10 cases) avec des fournisseurs FACTICES, sous la garde hors ligne du runner. Écrit le dossier d'audit."""
+def rehearse(out_dir: Path, *, campaign_id: str = "P0D-STANDARD-REHEARSAL", synthetic_baseline: bool = False) -> dict:
+    """Répétition à blanc complète (10 cases) avec des fournisseurs FACTICES, sous la garde hors ligne du runner. Écrit le dossier d'audit.
+
+    Le prompt de production n'est pas dans ce dépôt : sans `GROWTHOS_WEB_CHECKOUT`, il faut demander explicitement `synthetic_baseline=True`
+    (prompt de substitution, étiqueté `synthetic_test_stand_in` dans le manifeste, le résumé et les entrées archivées).
+    """
+    if synthetic_baseline:
+        with policy.baseline_override("synthetic"):
+            return rehearse(out_dir, campaign_id=campaign_id, synthetic_baseline=False)
     corpus = load_corpus()
     rows = conditions_report(corpus)
     generator, critic = simulated_generator(), simulated_critic()
@@ -97,11 +105,19 @@ def rehearse(out_dir: Path, *, campaign_id: str = "P0D-STANDARD-REHEARSAL") -> d
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--out", type=Path, required=True, help="dossier d'audit de la répétition à blanc (créé)")
+    parser.add_argument("--web-checkout", type=Path, help="growthos-web (privé) au commit figé : rend le VRAI prompt de baseline en mémoire")
+    parser.add_argument("--synthetic-baseline", action="store_true", help="prompt de substitution synthétique (étiqueté), sans accès au dépôt privé")
     args = parser.parse_args(argv)
-    out = rehearse(args.out)
+    if args.web_checkout:
+        os.environ[policy.WEB_CHECKOUT_ENV] = str(args.web_checkout)
+    try:
+        out = rehearse(args.out, synthetic_baseline=args.synthetic_baseline)
+    except policy.BaselineUnavailable as exc:
+        parser.error(f"{exc}; or pass --synthetic-baseline for a labelled stand-in")
     s = out["summary"]
     print(json.dumps({"mode": s["mode"], "strata": s["strata"], "cases": len(out["conditions"]) * 2, "logical_calls": s["logical_calls_total"],
-                      "network_attempts_blocked": s["network"]["attempts_blocked"], "halted": s["halted_on_hidden_retry"],
+                      "baseline_kinds": s["baseline_kinds"], "network_attempts_blocked": s["network"]["attempts_blocked"],
+                      "halted": s["halted_on_hidden_retry"],
                       "projection": out["projection"]["tokens_expected"], "kind": out["projection"]["kind"]}, indent=1))
     return 0
 

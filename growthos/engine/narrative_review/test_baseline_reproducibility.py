@@ -16,7 +16,7 @@ from pathlib import Path
 
 from growthos.engine.narrative_review.harness import rebuild_baseline as rb
 from growthos.engine.narrative_review.harness.corpus import FIXTURES, sha256_text
-from growthos.engine.narrative_review.harness.policy import frozen_standard_A, frozen_visual_A, load_manifest
+from growthos.engine.narrative_review.harness.policy import frozen_visual_A, load_manifest
 
 LOCAL_PATH = re.compile(r"[A-Za-z]:[\\/]+(?:Users|Windows|Temp)|/Users/|/home/|AppData|scratchpad|\\Temp\\|/tmp/|\.claude[\\/]|node_modules", re.I)
 
@@ -42,7 +42,8 @@ class TestNoLocalPathsInFixtures(unittest.TestCase):
         self.assertEqual(m["standard"]["source_commit"], "c61480d6")
         self.assertRegex(m["story_visual"]["source_commit"], r"^57af0ae[0-9a-f]{33}$")
         self.assertEqual(m["tooling"]["render_script_sha256"], rb.file_sha256(FIXTURES / rb.RENDER_SCRIPT))
-        self.assertEqual(sha256_text(frozen_standard_A(m)), m["standard"]["rendered_sha256"])
+        self.assertNotIn("rendered_file", m["standard"])       # le texte de production n'est pas stocké dans ce dépôt public
+        self.assertFalse(m["standard"]["stored_in_public_repo"])
         self.assertEqual(len(frozen_visual_A("N01", m)["prompt"]) > 1000, True)
 
     def test_the_render_script_only_takes_its_checkout_as_input(self):

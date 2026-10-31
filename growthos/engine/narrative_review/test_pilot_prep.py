@@ -15,6 +15,13 @@ from growthos.engine.narrative_review.providers import Prices
 from growthos.engine.narrative_review.test_review import NetworkBlocked
 
 
+def setUpModule():
+    """Prompt de production absent de ce dépôt public : répétition à blanc avec le prompt de substitution synthétique, étiqueté partout."""
+    cm = policy.baseline_override("synthetic")
+    cm.__enter__()
+    unittest.addModuleCleanup(cm.__exit__, None, None, None)
+
+
 def rehearsal(tmp: str, **kw):
     return pilot.rehearse(Path(tmp), **kw)
 
@@ -104,6 +111,7 @@ class TestRehearsal(NetworkBlocked):
             self.assertEqual(sorted(manifest["topics"]), sorted(corp.PILOT_IDS))
             self.assertEqual(manifest["allowed_splits"], ["pilot"])
             self.assertEqual(manifest["baseline_manifest"]["standard"]["source_commit"], "c61480d6")
+            self.assertEqual(manifest["baseline_kinds"], {"standard": "synthetic_test_stand_in", "story_visual": None})   # jamais confondu
             self.assertEqual(manifest["prices"]["generation"]["source"], pilot.ILLUSTRATIVE_PRICES.source)   # tarif fictif, étiqueté comme tel
             self.assertNotIn("api_key", json.dumps(manifest).lower())
             inputs = sorted((root / "inputs").glob("B*.json"))

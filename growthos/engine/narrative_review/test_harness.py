@@ -22,6 +22,14 @@ PRICES = Prices(input_per_m=1.0, output_per_m=2.0, as_of="2026-10-30", source="t
 CALLER = Caller("org-A", "acc-A")
 
 
+def setUpModule():
+    """Le prompt de production n'est pas dans ce dépôt public : ces tests exercent la LOGIQUE du harness (diff A/B, budget, journal, fuites)
+    avec le prompt de substitution synthétique, explicitement étiqueté. Le prompt réel est couvert par test_baseline_privacy (checkout requis)."""
+    cm = policy.baseline_override("synthetic")
+    cm.__enter__()
+    unittest.addModuleCleanup(cm.__exit__, None, None, None)
+
+
 def campaign(corpus=None, *, generator=None, critic=None, budget=None, gen_prices=PRICES, critic_prices=PRICES, out_dir=None, **kw):
     corpus = corpus or corp.load_corpus()
     return runner.run_campaign(
@@ -76,16 +84,15 @@ class TestPolicy(NetworkBlocked):
         self.corpus = corp.load_corpus()
         self.manifest = policy.load_manifest()
 
-    def test_frozen_baselines_match_their_manifest_and_trace_to_commits(self):
-        a = policy.frozen_standard_A(self.manifest)
-        self.assertIn("Durée YouTube Shorts", a)          # plateforme du corpus consignée
+    def test_baselines_are_pinned_to_commits_and_the_stand_in_is_labelled(self):
+        a, kind = policy.standard_baseline(self.manifest)
+        self.assertEqual(kind, policy.SYNTHETIC_KIND)
+        self.assertIn("SYNTHÉTIQUE", a)                    # jamais confondu avec le prompt de production
+        self.assertIn("Durée YouTube Shorts", a)           # plateforme du corpus consignée
         self.assertEqual(self.manifest["standard"]["source_commit"], "c61480d6")
         self.assertEqual(self.manifest["story_visual"]["source_commit"][:7], "57af0ae")
         self.assertEqual(len(self.manifest["standard"]["source_files_sha256"]), 5)
-        bad = copy.deepcopy(self.manifest)
-        bad["standard"]["rendered_sha256"] = "0" * 64
-        with self.assertRaises(policy.BaselineError):
-            policy.frozen_standard_A(bad)
+        self.assertEqual(policy.build_condition("standard", "A", corp.generator_view(self.corpus, "N01"), self.manifest)["baseline_kind"], policy.SYNTHETIC_KIND)
 
     def test_b_differs_from_a_only_by_the_declared_policy_edits(self):
         a = policy.frozen_standard_A(self.manifest)
@@ -212,7 +219,9 @@ class TestRunner(NetworkBlocked):
         for r in gens:
             by_pair.setdefault((r["topic_id"], r["stratum"]), {})[r["condition"]] = r["prompt_hash"]
         self.assertTrue(all(v["A"] != v["B"] for v in by_pair.values()))
-        self.assertTrue(all(r["prompt_version"] in ("c61480d6", policy.load_manifest()["story_visual"]["source_commit"]) for r in gens))
+        self.assertTrue(all(r["prompt_version"] in ("c61480d6", policy.SYNTHETIC_LABEL, policy.load_manifest()["story_visual"]["source_commit"])
+                            for r in gens))
+        self.assertEqual({r["prompt_version"] for r in gens if r["stratum"] == "standard"}, {policy.SYNTHETIC_LABEL})  # étiqueté dans le journal
 
     def test_blind_ids_are_deterministic_per_campaign_and_do_not_leak_the_order(self):
         a, b = runner.plan_cases("T-1"), runner.plan_cases("T-1")

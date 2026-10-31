@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,35 @@ VISUAL_FILE = "growthos/engine/story_visual/formats.py"
 # Type d'histoire Story Visual par sujet pilote (le sujet « documentaire » N05 est une histoire vraie sourcée ; la simulation N13, une explication).
 STORY_TYPE_BY_TOPIC = {"N01": "moral", "N04": "metaphor", "N05": "true", "N13": "knowledge", "N18": "moral"}
 VISUAL_RENDER = {"language": "fr", "target_duration_s": 75}
+
+
+SHINGLES_FILE = "standard_A_shingles.json"
+SHINGLE_WINDOW, SHINGLE_STRIDE = 80, 40
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _h(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def shingle_hashes(text: str) -> list[str]:
+    """Empreintes (irréversibles) de fenêtres de 80 caractères du texte normalisé, une toutes les 40. Elles permettent de détecter la
+    réintroduction du prompt, même partielle (>= 120 caractères contigus), sans en stocker une seule phrase."""
+    n = _normalize(text)
+    return sorted({_h(n[i:i + SHINGLE_WINDOW]) for i in range(0, max(len(n) - SHINGLE_WINDOW + 1, 1), SHINGLE_STRIDE)})
+
+
+def contains_shingle(text: str, hashes: set[str]) -> bool:
+    """Vrai si `text` contient une fenêtre du prompt protégé (balayage de TOUS les décalages)."""
+    n = _normalize(text)
+    return any(_h(n[i:i + SHINGLE_WINDOW]) in hashes for i in range(len(n) - SHINGLE_WINDOW + 1))
+
+
+def load_shingles() -> set[str]:
+    return set(json.loads((FIXTURES / SHINGLES_FILE).read_text(encoding="utf-8"))["hashes"])
 
 
 def file_sha256(path: Path) -> str:
@@ -115,11 +145,10 @@ def verify(web_checkout: Path | None, engine_checkout: Path | None, manifest: di
         problems += check_sources(web_checkout, std["source_files_sha256"], "growthos-web")
         with tempfile.TemporaryDirectory() as tmp:
             rendered = render_standard(web_checkout, Path(tmp) / "A.txt")
-        frozen = (FIXTURES / std["rendered_file"]).read_text(encoding="utf-8")
         if sha256_text(rendered) != std["rendered_sha256"]:
             problems.append("Standard A: the rebuilt prompt hash differs from the manifest")
-        if rendered != frozen.replace("\r\n", "\n"):
-            problems.append("Standard A: the rebuilt prompt differs from the frozen fixture")
+        if shingle_hashes(rendered) != json.loads((FIXTURES / SHINGLES_FILE).read_text(encoding="utf-8"))["hashes"]:
+            problems.append("Standard A: the stored non-reintroduction fingerprints do not match the rebuilt prompt")
     if engine_checkout is not None:
         sv = manifest["story_visual"]
         problems += check_commit(engine_checkout, sv["source_commit"], "AiAddicts (#103)")
@@ -137,8 +166,11 @@ def write_manifest_and_fixtures(web_checkout: Path, engine_checkout: Path) -> No
     std, sv = manifest["standard"], manifest["story_visual"]
     with tempfile.TemporaryDirectory() as tmp:
         text = render_standard(web_checkout, Path(tmp) / "A.txt")
-    (FIXTURES / std["rendered_file"]).write_text(text, encoding="utf-8", newline="\n")
+    # Le texte du prompt n'est JAMAIS écrit dans ce dépôt (public) : seulement son empreinte et des empreintes de fenêtres.
     std["rendered_sha256"] = sha256_text(text)
+    (FIXTURES / SHINGLES_FILE).write_text(json.dumps({"window": SHINGLE_WINDOW, "stride": SHINGLE_STRIDE, "normalization": "whitespace collapsed, casefold",
+                                                      "whole_sha256": std["rendered_sha256"], "hashes": shingle_hashes(text)}, indent=1) + "\n",
+                                          encoding="utf-8", newline="\n")
     std["source_commit"] = (_git(web_checkout, "rev-parse", "HEAD") or std["source_commit"])[:8]
     std["source_files_sha256"] = {rel: file_sha256(web_checkout / rel) for rel in WEB_FILES}
     prompts = render_story_visual(engine_checkout)

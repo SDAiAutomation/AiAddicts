@@ -1,8 +1,9 @@
 """Conditions A/B du harness. A = baseline FIGÉE ; B = A + politique éditoriale harmonisée. Rien n'est branché en production.
 
-- Standard A : texte rendu de `buildManualSystemPrompt('fr','youtube','standard')` de growthos-web au commit c61480d6 (les builders
-  sont en TypeScript : copie figée, empreinte vérifiée au chargement). Seul le TEXTE est figé : message utilisateur, nettoyage,
-  retries et revue du narrateur de la production ne sont PAS reproduits (à consigner dans tout rapport).
+- Standard A : texte rendu de `buildManualSystemPrompt('fr','youtube','standard')` de growthos-web au commit c61480d6. Les builders sont en
+  TypeScript et le texte n'est PAS stocké dans ce dépôt public : il est reconstruit à la demande depuis un checkout du dépôt privé
+  (GROWTHOS_WEB_CHECKOUT), après vérification du commit et des empreintes des sources, et refusé si son SHA-256 diffère du manifeste.
+  Seul le TEXTE est figé : message utilisateur, nettoyage, retries et revue du narrateur de la production ne sont PAS reproduits.
 - Story Visual A : `formats.build_planner_prompt` rendu au commit 57af0ae (PR #103), un prompt par sujet pilote.
 - B ne diffère de A QUE par la politique : chaque remplacement est listé dans `policy_diff` et doit s'appliquer exactement une fois.
   Le format technique de réponse (JSON, rôles, longueurs, six beats Story Visual v1) est conservé à l'identique.
@@ -11,6 +12,9 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 from ..contract import POLICY_VERSION
@@ -61,13 +65,59 @@ def load_manifest() -> dict:
     return json.loads((FIXTURES / MANIFEST).read_text(encoding="utf-8"))
 
 
-def frozen_standard_A(manifest: dict | None = None) -> str:
+class BaselineUnavailable(BaselineError):
+    """Le prompt Standard de production n'est pas stocké dans ce dépôt public : il faut un checkout de growthos-web (GROWTHOS_WEB_CHECKOUT)."""
+
+
+WEB_CHECKOUT_ENV = "GROWTHOS_WEB_CHECKOUT"
+SYNTHETIC_KIND, PRODUCTION_KIND = "synthetic_test_stand_in", "production_frozen"
+SYNTHETIC_LABEL = "SYNTHETIC-TEST-BASELINE"
+_override: str | None = None
+_production_cache: dict[tuple, str] = {}
+
+
+@contextmanager
+def baseline_override(kind: str):
+    """Réservé aux TESTS : impose le prompt de substitution synthétique (jamais utilisé implicitement, toujours étiqueté dans les journaux)."""
+    global _override
+    if kind != "synthetic":
+        raise ValueError("only the synthetic stand-in can be forced")
+    previous, _override = _override, kind
+    try:
+        yield
+    finally:
+        _override = previous
+
+
+def standard_baseline(manifest: dict | None = None) -> tuple[str, str]:
+    """(texte du prompt A Standard, nature). Le texte de PRODUCTION est rendu à la demande depuis un checkout de growthos-web (privé) dont le
+    commit et les 5 fichiers sources sont vérifiés, puis contrôlé contre `rendered_sha256` : un résultat différent est refusé. Rien n'est écrit
+    sur disque. Sans checkout, `BaselineUnavailable` : jamais de repli silencieux vers le prompt synthétique."""
     manifest = manifest or load_manifest()
     spec = manifest["standard"]
-    text = (FIXTURES / spec["rendered_file"]).read_text(encoding="utf-8")
-    if sha256_text(text) != spec["rendered_sha256"]:
-        raise BaselineError("the frozen Standard A prompt no longer matches baseline_manifest.json")
-    return text
+    if _override == "synthetic":
+        return (FIXTURES / "synthetic_standard_A.txt").read_text(encoding="utf-8"), SYNTHETIC_KIND
+    web = os.environ.get(WEB_CHECKOUT_ENV)
+    if not web:
+        raise BaselineUnavailable(f"the production Standard A prompt is not stored in this repository: set {WEB_CHECKOUT_ENV} to a growthos-web "
+                                  f"checkout at {spec['source_commit']} (see baseline_manifest.json)")
+    from . import rebuild_baseline as rb
+    key = (web, spec["rendered_sha256"])
+    if key not in _production_cache:
+        checkout = Path(web)
+        problems = rb.check_commit(checkout, spec["source_commit"], "growthos-web") + rb.check_sources(checkout, spec["source_files_sha256"], "growthos-web")
+        if problems:
+            raise BaselineError("; ".join(problems))
+        with tempfile.TemporaryDirectory() as tmp:
+            text = rb.render_standard(checkout, Path(tmp) / "A.txt")
+        if sha256_text(text) != spec["rendered_sha256"]:
+            raise BaselineError("the rebuilt Standard A prompt does not match baseline_manifest.json (sha256 differs)")
+        _production_cache[key] = text
+    return _production_cache[key], PRODUCTION_KIND
+
+
+def frozen_standard_A(manifest: dict | None = None) -> str:
+    return standard_baseline(manifest)[0]
 
 
 def frozen_visual_A(topic_id: str, manifest: dict | None = None) -> dict:
@@ -127,8 +177,10 @@ def build_condition(stratum: str, condition: str, view: dict, manifest: dict | N
     if stratum not in STRATA or condition not in CONDITIONS:
         raise ValueError("unknown stratum or condition")
     manifest = manifest or load_manifest()
+    kind = PRODUCTION_KIND
     if stratum == "standard":
-        a_text, base = frozen_standard_A(manifest), manifest["standard"]["source_commit"]
+        a_text, kind = standard_baseline(manifest)
+        base = manifest["standard"]["source_commit"] if kind == PRODUCTION_KIND else SYNTHETIC_LABEL
         system, diff = (a_text, []) if condition == "A" else standard_B(a_text)
     else:
         frozen = frozen_visual_A(view["topic_id"], manifest)
@@ -136,7 +188,8 @@ def build_condition(stratum: str, condition: str, view: dict, manifest: dict | N
         system, diff = (frozen["prompt"], []) if condition == "A" else visual_B(frozen["prompt"])
     user = user_message(view)
     return {"stratum": stratum, "condition": condition, "system": system, "user": user, "policy_diff": diff,
-            "prompt_sha256": sha256_text(system + "\n---\n" + user), "baseline_commit": base, "policy_version": POLICY_VERSION}
+            "prompt_sha256": sha256_text(system + "\n---\n" + user), "baseline_commit": base, "baseline_kind": kind,
+            "policy_version": POLICY_VERSION}
 
 
 def unified_diff(a: str, b: str) -> str:

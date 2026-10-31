@@ -21,7 +21,7 @@ from ..providers import Budget, Prices, Provider, estimate_usd, max_call_usd, pr
 from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, TIMEOUT_S, Caller, review
 from ..snapshot import FACTUALITY_TO_MODES, from_standard, from_story_visual
 from . import policy
-from .corpus import PILOT_IDS, assert_no_leak, generator_view
+from .corpus import PILOT_IDS, assert_no_leak, generator_view, sha256_text
 from .offline import OfflineProvider, network_denied, violations_count
 
 COLUMNS = ["campaign_id", "attempt_id", "task", "topic_id", "stratum", "condition", "repetition", "blind_script_id", "corpus_hash",
@@ -173,10 +173,15 @@ def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget
                   strata=policy.STRATA) -> dict:
     manifest = policy.load_manifest()
     cases = plan_cases(campaign_id, topic_ids, strata)
+    # Nature de chaque baseline : « production_frozen » (rendue depuis growthos-web) ou « synthetic_test_stand_in » (tests). Lève AVANT tout
+    # appel si le prompt de production n'est pas disponible : jamais de repli silencieux.
+    baseline_kinds = {"standard": policy.standard_baseline(manifest)[1] if "standard" in strata else None,
+                      "story_visual": "frozen_public" if "story_visual" in strata else None}
     journal = _Journal(out_dir)
     if out_dir is not None:  # le plan est écrit AVANT tout appel : une campagne interrompue reste reproductible et auditable
-        _write_json(out_dir / "campaign_manifest.json", _campaign_manifest(
-            corpus, manifest, cases, campaign_id, source_commit, gen_model, critic_model, gen_prices, critic_prices, budget, allowed_splits))
+        _write_json(out_dir / "campaign_manifest.json", {**_campaign_manifest(
+            corpus, manifest, cases, campaign_id, source_commit, gen_model, critic_model, gen_prices, critic_prices, budget, allowed_splits),
+            "baseline_kinds": baseline_kinds})
     pairs: dict[tuple, dict] = {}
     state = {"halted": False, "attempt_no": 0, "calls": {"generation": 0, "critique": 0}}
     for case in cases:
@@ -184,10 +189,15 @@ def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget
         spec = policy.build_condition(case["stratum"], case["condition"], view, manifest)
         assert_no_leak(spec["system"] + "\n" + spec["user"], corpus, own_topic_id=case["topic_id"])
         if out_dir is not None:  # entrée exacte de la case (prompt, hash, diff de politique) : rejouable et comparable A/B
+            # Le prompt système de PRODUCTION n'est jamais écrit sur disque (le dossier de campagne peut finir dans un dépôt public) : on archive
+            # son empreinte ; il se reconstruit depuis growthos-web (rebuild_baseline) et se contrôle par `prompt_sha256`.
+            stored_system = spec["system"] if spec["baseline_kind"] != policy.PRODUCTION_KIND or spec["stratum"] != "standard" else None
             _write_json(out_dir / "inputs" / f"{case['blind_script_id']}.json", {
                 "blind_script_id": case["blind_script_id"], "topic_id": case["topic_id"], "stratum": case["stratum"],
-                "condition": case["condition"], "system": spec["system"], "user": spec["user"], "policy_diff": spec["policy_diff"],
-                "prompt_sha256": spec["prompt_sha256"], "baseline_commit": spec["baseline_commit"], "policy_version": spec["policy_version"],
+                "condition": case["condition"], "system": stored_system, "system_sha256": sha256_text(spec["system"]),
+                "system_stored": stored_system is not None, "user": spec["user"], "policy_diff": spec["policy_diff"],
+                "prompt_sha256": spec["prompt_sha256"], "baseline_commit": spec["baseline_commit"], "baseline_kind": spec["baseline_kind"],
+                "policy_version": spec["policy_version"],
                 "limits": {"max_input_tokens": MAX_INPUT_TOKENS, "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_s": TIMEOUT_S}})
         state["attempt_no"] += 1
         base = {"campaign_id": campaign_id, "attempt_id": f"{campaign_id}-{state['attempt_no']:03d}", "topic_id": case["topic_id"],
@@ -207,6 +217,7 @@ def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget
     paired = [pairs[k] for k in sorted(pairs)]
     summary = _summary(journal.rows, paired, state["calls"], budget, campaign_id, manifest, corpus, source_commit, state["halted"])
     summary["strata"] = sorted({k["stratum"] for k in cases})
+    summary["baseline_kinds"] = baseline_kinds
     summary["network"] = {"guard": "sys.addaudithook (not an OS sandbox)", "attempts_blocked": state.get("network_violations", 0)}
     if out_dir is not None:
         (out_dir / "campaign_report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")

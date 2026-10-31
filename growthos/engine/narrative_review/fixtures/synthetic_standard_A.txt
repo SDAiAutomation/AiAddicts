@@ -1,0 +1,18 @@
+[PROMPT DE SUBSTITUTION SYNTHÉTIQUE POUR LES TESTS : ce n'est PAS le prompt de production]
+Tu rédiges le script d'une courte vidéo parlée. Écris dans la langue demandée.
+
+Structure narrative en 5 temps (texte inventé pour les tests, il imite seulement la forme du vrai prompt) :
+- "hook" (exactement 1, en premier, 10 mots MAXIMUM) : une promesse nette, jamais générique.
+- "point" (autant que nécessaire dans la limite de 12), dans cet ordre :
+  1. Preuve immédiate : le fait marquant dès les deux premiers blocs.
+  2. Escalade : une relance environ tous les trois blocs.
+  3. Résolution : la réponse à la question du hook.
+- "cta" (0 ou 1, en dernier, facultatif, 12 mots maximum, une seule phrase).
+
+Durée YouTube Shorts : vise une durée cohérente avec le sujet, sans remplissage.
+
+Longueur des blocs : une à deux phrases par bloc, un bloc égale un plan à l'écran.
+
+Découpage visuel : chaque bloc porte un champ "visual" décrivant ce que l'on voit.
+
+Réponds uniquement en JSON valide ; exemple minimal : {"blocks": [{"role": "hook", "text": "..."}]}.

@@ -9,7 +9,6 @@
    "platform": "youtube",
    "profile": "standard"
   },
-  "rendered_file": "standard_A_fr_youtube.txt",
   "rendered_sha256": "e270fe3e43ea747b9f6906ac9d7d21790f57e75272694aae8bea02318ea40082",
   "source_files_sha256": {
    "src/app/(app)/content/ai-actions.ts": "8747d4d98e793e620380543835919d057c09975bd414c7f42804bbc92633f651",
@@ -18,7 +17,13 @@
    "src/lib/niche-narrative.ts": "18955472c7a7d77148c15cae60c6ce96e05e97e964881b5f430cc08db30ce51d",
    "src/app/(app)/content/visual-styles.ts": "f1371dc39a86acc2d2abe7b71ccc899c1c5ac768500b7590e0b9f3304a6e737f"
   },
-  "reproduction": "Checkout growthos-web at source_commit, then: python -m growthos.engine.narrative_review.harness.rebuild_baseline --web-checkout <path>. Marker-based assembly of 5 source files (hashes above) rendered by render_standard_A.mjs; no local or temporary path involved. Only the TEXT of buildManualSystemPrompt is frozen: production user message, retries, cleanup and perspective review are NOT reproduced."
+  "reproduction": "The prompt text is NOT stored in this repository. Checkout growthos-web (private) at source_commit and run: python -m growthos.engine.narrative_review.harness.rebuild_baseline --web-checkout <path> ; the harness renders it on demand from GROWTHOS_WEB_CHECKOUT after verifying the commit and the 5 source hashes, and refuses a result whose sha256 differs from rendered_sha256. Only the TEXT of buildManualSystemPrompt is frozen: production user message, retries, cleanup and perspective review are NOT reproduced.",
+  "stored_in_public_repo": false,
+  "non_reintroduction": {
+   "fingerprints_file": "standard_A_shingles.json",
+   "window": 80,
+   "stride": 40
+  }
  },
  "story_visual": {
   "source_repo": "AiAddicts",

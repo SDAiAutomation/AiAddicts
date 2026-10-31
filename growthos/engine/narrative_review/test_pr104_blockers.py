@@ -27,6 +27,14 @@ from growthos.engine.narrative_review.test_review import (ACC, CALLER, ORG, PRIC
                                                           snapshot_of)
 
 
+def setUpModule():
+    """Ces tests exercent le runner (budget, isolation réseau), pas le texte du prompt : baseline synthétique, le prompt de production n'étant pas dans ce dépôt."""
+    from growthos.engine.narrative_review.harness import policy
+    cm = policy.baseline_override("synthetic")
+    cm.__enter__()
+    unittest.addModuleCleanup(cm.__exit__, None, None, None)
+
+
 def script_with(block_extra=None):
     return {"title": "La file", "blocks": [{"role": "hook", "text": "Une file grandit.", **(block_extra or {})},
                                            {"role": "point", "text": "Un homme demande pourquoi."}]}
