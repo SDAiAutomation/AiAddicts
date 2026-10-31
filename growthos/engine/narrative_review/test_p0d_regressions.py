@@ -15,7 +15,7 @@ from growthos.engine.narrative_review.p0d import profiles as pf
 from growthos.engine.narrative_review.p0d import tokenizer as tk
 from growthos.engine.narrative_review.p0d import transport as tr
 from growthos.engine.narrative_review.providers import Budget, Prices, ProviderResult
-from growthos.engine.narrative_review.test_p0d_gates import (MODEL, PROFILE, RECORD, FakeSender, completion, good_auth, open_window, request)
+from growthos.engine.narrative_review.test_p0d_gates import (MODEL, PROFILE, RECORD, FakeSender, completion, controller, good_auth, open_window, request)
 
 REQ = {"role": "generation", "system": "S" * 100, "user": "U" * 100, "max_output_tokens": 50, "timeout_s": 30}
 
@@ -95,7 +95,8 @@ class TestAtomicCallCap(unittest.TestCase):
         sender = SlowSender(delay=0, boom=TimeoutError("t"))
         t = transport(sender, max_logical_calls=2)
         out = hammer(t, 6)
-        self.assertEqual((len(sender.calls), out["failed"], out["refused"]), (2, 2, 4))      # un envoi qui échoue ne rend JAMAIS son créneau
+        self.assertEqual((len(sender.calls), out["failed"], out["refused"]), (1, 1, 5))      # un envoi qui échoue ne rend JAMAIS son créneau et arrête le transport (aucun retry)
+        self.assertEqual(t.slots_used(), 1)
 
     def test_a_failure_before_the_send_returns_the_slot(self):
         sender = SlowSender(delay=0)
@@ -571,23 +572,15 @@ class TestImmutableAuthorization(unittest.TestCase):
             PROFILE.model = "other"
 
     def test_the_network_state_is_rechecked_before_every_send_and_any_doubt_closes_the_window(self):
-        state = {"ok": True, "calls": 0}
-
-        def egress_check():
-            state["calls"] += 1
-            if not state["ok"]:
-                raise RuntimeError("broker no longer in the attested state")
-        w = au.Window()
-        w.open(au.CampaignAuthorization(good_auth(**dates())), egress_attestation_sha256="e" * 64, tokenizer_validation=RECORD, corpus_sha256=good_auth()["corpus_sha256"],
-               egress_check=egress_check)
+        ctl = controller()
         sender = FakeSender()
-        t = tr.MeteredTransport(sender, w, body_validator=lambda r, a: None)
+        t = tr.MeteredTransport(sender, open_window(**dates(), _controller=ctl), body_validator=lambda r, a: None)
         t.send(request())
-        self.assertGreaterEqual(state["calls"], 2)                                               # avant la réservation ET avant l'envoi
-        state["ok"] = False
+        self.assertGreaterEqual(ctl.calls.count("open"), 3)                                     # avant la réservation, après l'attente, et au contrôle final
+        ctl.fail = RuntimeError("broker no longer in the attested state")
         with self.assertRaises(c.ReviewError):
             t.send(request())
-        state["ok"] = True
+        ctl.fail = None
         with self.assertRaises(c.ReviewError):                                                   # fermée pour de bon : le retour à la normale ne rouvre rien
             t.send(request())
         self.assertEqual(len(sender.calls), 1)
@@ -606,7 +599,7 @@ class TestImmutableAuthorization(unittest.TestCase):
             open_window(approved_at=(now - timedelta(hours=3)).isoformat(), expires_at=(now - timedelta(hours=1)).isoformat(), prices_as_of=dates()["prices_as_of"])
         w = open_window(**dates())
         with self.assertRaises(c.ReviewError):
-            w.open(au.CampaignAuthorization(good_auth(**dates())), egress_attestation_sha256="e" * 64, tokenizer_validation=RECORD)
+            w.open(au.CampaignAuthorization(good_auth(**dates())), egress_attestation_sha256="e" * 64, tokenizer_validation=RECORD, egress_controller=controller())
 
 
 class TestNetworkWindow(unittest.TestCase):

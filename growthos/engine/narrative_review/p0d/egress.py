@@ -330,6 +330,11 @@ class Attestation:
     problems: tuple[str, ...]
     sha256: str          # empreinte canonique du plan, de l'état attendu et des règles observées : à reporter dans `egress_attestation_sha256` de l'autorisation (état « rest »)
     expected_state: str
+    plan_sha256: str = ""   # empreinte du PLAN seul (programmes, IP, fin de fenêtre) : identique en état « rest » et « open », elle lie les contrôles successifs au même plan
+
+
+def plan_sha256(plan: EgressPlan) -> str:
+    return hashlib.sha256(json.dumps(plan.__dict__, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def attest(plan: EgressPlan, state: list[dict], *, expect: str = "rest") -> Attestation:
@@ -364,7 +369,7 @@ def attest(plan: EgressPlan, state: list[dict], *, expect: str = "rest") -> Atte
         problems.append("the broker can use UDP")
     canonical = json.dumps({"plan": plan.__dict__, "expected": expect, "rules": sorted(({k: v for k, v in r.items()} for r in mine), key=lambda r: r["name"])},
                            sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return Attestation(not problems, tuple(problems), hashlib.sha256(canonical.encode("utf-8")).hexdigest(), expect)
+    return Attestation(not problems, tuple(problems), hashlib.sha256(canonical.encode("utf-8")).hexdigest(), expect, plan_sha256(plan))
 
 
 def live_attestation(plan: EgressPlan, run_powershell: Callable[[str], str], *, expect: str = "rest") -> Attestation:
@@ -391,3 +396,43 @@ def apply_step(rules: list[dict], step: tuple[str, dict]) -> list[dict]:
     if op == "create":
         return [r for r in rules if r["name"] != rule["name"]] + [rule]
     return [r for r in rules if r["name"] != rule["name"]]
+
+
+# --- Contrôleurs réseau (interface injectable de l'exécuteur) ------------------------------------------------------------------------------------
+
+class EgressController:
+    """Contrôle RÉSEAU VIVANT exigé avant toute ouverture de fenêtre et avant chaque réservation et chaque envoi.
+
+    `check(expect)` retourne une `Attestation` de l'état RÉEL (`rest` avant l'ouverture, `open` pendant la fenêtre) ou lève. Le `kind` dit ce que vaut la réponse :
+    - "os_readonly" : relecture du pare-feu via un lanceur de commandes INJECTÉ (`verify_script`, lecture seule). Ne vaut que ce que vaut ce lanceur et la machine qui l'exécute.
+    - "simulated" : contrôleur factice de test. N'est JAMAIS une preuve de coupure réseau au niveau du système d'exploitation."""
+    kind = "abstract"
+
+    def check(self, expect: str) -> Attestation:
+        raise NotImplementedError
+
+
+class OsReadOnlyEgressController(EgressController):
+    kind = "os_readonly"
+
+    def __init__(self, plan: EgressPlan, run_powershell: Callable[[str], str]):
+        self.plan, self._run = plan, run_powershell
+
+    def check(self, expect: str) -> Attestation:
+        return live_attestation(self.plan, self._run, expect=expect)
+
+
+class FakeEgressController(EgressController):
+    """Contrôleur FACTICE pour les tests : renvoie une attestation fabriquée. Ne prouve RIEN sur le réseau réel."""
+    kind = "simulated"
+
+    def __init__(self, *, rest_sha256: str, plan_sha256: str = "p" * 64, ok: bool = True, fail: Exception | None = None, wrong_plan: bool = False):
+        self.rest_sha256, self.plan_sha256, self.ok, self.fail, self.wrong_plan = rest_sha256, plan_sha256, ok, fail, wrong_plan
+        self.calls: list[str] = []
+
+    def check(self, expect: str) -> Attestation:
+        self.calls.append(expect)
+        if self.fail:
+            raise self.fail
+        sha = self.rest_sha256 if expect == "rest" else hashlib.sha256((self.rest_sha256 + expect).encode()).hexdigest()
+        return Attestation(self.ok, () if self.ok else ("simulated failure",), sha, expect, "x" * 64 if self.wrong_plan else self.plan_sha256)

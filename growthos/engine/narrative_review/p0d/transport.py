@@ -26,7 +26,7 @@ from .. import contract as c
 from ..providers import ProviderResult, finite_nonneg
 from .authorization import CampaignAuthorization, Window
 from .profiles import PROTECTED, REASONING_NAMES, BodyPolicy, profile_for, validate_body
-from .tokenizer import estimate_input_tokens, resolve, underestimated
+from .tokenizer import estimate_input_tokens, underestimated
 
 MAX_RESPONSE_BYTES = 2_000_000
 _counter_lock = threading.Lock()
@@ -158,6 +158,13 @@ def profile_body_validator(req: HttpRequest, auth: CampaignAuthorization) -> Non
 
 
 @dataclass
+class SendTicket:
+    """Preuve d'émission d'UN envoi : `emitted` passe à True juste avant l'appel de l'émetteur, jamais avant. Tant qu'il est False, il est PROUVÉ que rien n'est parti ;
+    une fois True, rien ne peut le prouver à nouveau : le coût est inconnu jusqu'à réconciliation. Posé par le transport, lu par l'exécuteur."""
+    emitted: bool = False
+
+
+@dataclass
 class MeteredTransport:
     """Une tentative par envoi, plafond d'appels ATOMIQUE.
 
@@ -188,8 +195,12 @@ class MeteredTransport:
     def _refuse(self, message: str, code: str = c.BUDGET_EXHAUSTED):
         raise c.ReviewError(code, message)
 
-    def send(self, req: HttpRequest) -> tuple[HttpResponse | None, TransportAttempt]:
-        """Un envoi, une tentative. Lève `ReviewError` (aucun appel émis) si une condition manque, `TransportError` après échec."""
+    def send(self, req: HttpRequest, ticket: SendTicket | None = None) -> tuple[HttpResponse | None, TransportAttempt]:
+        """Un envoi, une tentative. Lève `ReviewError` (aucun appel émis) si une condition manque, `TransportError` après échec.
+
+        Ordre : contrôle complet de la fenêtre -> créneau atomique -> file d'envoi -> contrôle complet -> validation du corps -> contrôle FINAL -> émission. Le contrôle final est la
+        DERNIÈRE chose faite avant l'appel de l'émetteur ; il reste un intervalle (quelques instructions) entre lui et l'appel : seule la coupure réseau au niveau du système
+        d'exploitation le couvre réellement."""
         auth = self.window.check()
         if self.body_validator is None:
             self._refuse("no body validator configured: no send")
@@ -213,7 +224,13 @@ class MeteredTransport:
                     if self.tripped:
                         self._refuse(f"transport tripped: {self.tripped}")
                 self.body_validator(req, auth)                   # corps EXACT validé immédiatement avant l'envoi
+                self.window.check()                              # contrôle FINAL : tout ce qui a pu changer pendant l'attente ou la validation (temps, profil, tarifs, tokenizer, réseau)
+                with self._lock:
+                    if self.tripped:
+                        self._refuse(f"transport tripped: {self.tripped}")
                 emitted = True                                   # à partir d'ici le créneau est consommé quoi qu'il arrive
+                if ticket is not None:
+                    ticket.emitted = True
                 started, status, error, received, resp = time.time(), None, None, 0, None
                 with measure_connects() as measured:
                     try:
@@ -233,6 +250,8 @@ class MeteredTransport:
                     self.attempts.append(attempt)
                     if extra:
                         self.tripped = self.tripped or "extra connection detected during a single send (hidden retry or redirect)"
+                    if error:   # ATOMIQUE avec l'enregistrement de la tentative : aucun envoi en file ne peut partir après un échec dont le coût est inconnu
+                        self.tripped = self.tripped or f"attempt failed ({error}): no further send"
             finally:
                 self._send_lock.release()
         except BaseException:
@@ -283,9 +302,12 @@ class ChatCompletionsProvider:
             self.transport.body_validator = profile_body_validator
 
     def __call__(self, request: dict) -> ProviderResult:
+        return self.call(request)
+
+    def call(self, request: dict, ticket: SendTicket | None = None) -> ProviderResult:
         auth = self.transport.window.check()
-        profile = profile_for(auth.raw["model"])                          # ModelUnknown = pas d'appel
-        counter = resolve(auth.raw["tokenizer_id"])                      # TokenizerRequired = pas d'appel
+        profile = self.transport.window.pinned_profile()                 # profil et compteur FIGÉS à l'ouverture, jamais re-résolus dans les registres
+        counter = self.transport.window.pinned_counter()
         estimate = estimate_input_tokens(counter, request["system"], request["user"])
         if estimate > auth.raw["max_input_tokens"]:
             raise c.ReviewError(c.INPUT_TOO_LARGE, f"prompt is estimated at {estimate} input tokens, authorised maximum is {auth.raw['max_input_tokens']}")
@@ -301,7 +323,7 @@ class ChatCompletionsProvider:
                           {"content-type": "application/json", "authorization": f"Bearer {self.api_key()}"},
                           json.dumps(body, ensure_ascii=False, allow_nan=False).encode("utf-8"), float(request["timeout_s"]))
         try:
-            resp, attempt = self.transport.send(req)
+            resp, attempt = self.transport.send(req, ticket)
         except TransportError as exc:
             attempt = exc.attempt
             return ProviderResult(text=None, usage=None, error=str(exc), latency_s=attempt.latency_s if attempt else None,

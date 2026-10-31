@@ -66,6 +66,26 @@ def resolve(tokenizer_id: str) -> TokenCounter:
         raise TokenizerRequired(tokenizer_id) from exc
 
 
+def factory_for(tokenizer_id: str) -> Callable[[], TokenCounter]:
+    """La fabrique enregistrée MAINTENANT sous cet identifiant (l'objet lui-même, pour comparer son identité plus tard)."""
+    try:
+        return _registry[tokenizer_id]
+    except KeyError as exc:
+        raise TokenizerRequired(tokenizer_id) from exc
+
+
+def identity(counter: TokenCounter) -> str:
+    """Empreinte d'IDENTITÉ de l'implémentation effectivement résolue : module et nom qualifié de la classe, `id`, `exact`, état d'instance, et code octet de `count`
+    (instructions, constantes, noms, valeurs par défaut). Détecte une substitution de classe, une instance modifiée ou une méthode `count` remplacée.
+    LIMITE : le code appelé PAR `count` (bibliothèques, fonctions globales) n'est pas empreint."""
+    cls, method = type(counter), getattr(type(counter), "count", None)
+    code = getattr(method, "__code__", None)
+    data = {"module": cls.__module__, "qualname": cls.__qualname__, "id": getattr(counter, "id", None), "exact": getattr(counter, "exact", None),
+            "state": repr(sorted(vars(counter).items())) if hasattr(counter, "__dict__") else "",
+            "code": [code.co_code.hex(), repr(code.co_consts), repr(code.co_names), repr(getattr(method, "__defaults__", None))] if code else None}
+    return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), default=repr).encode("utf-8")).hexdigest()
+
+
 def estimate_input_tokens(counter: TokenCounter, system: str, user: str, *, safety: float = 1.10) -> int:
     """ESTIMATION des jetons d'entrée d'un appel de chat : mesure du compteur + enveloppe, x marge ; jamais inférieure à l'heuristique par caractères pour un compteur non exact."""
     if not (math.isfinite(safety) and safety >= 1.0):
@@ -89,6 +109,7 @@ class ValidationRecord:
     safety: float
     ok: bool
     sha256: str
+    impl_sha256: str = ""                 # empreinte d'identité du compteur VALIDÉ (`identity`) : la validation ne vaut que pour cette implémentation
 
 
 def validate_counter(counter: TokenCounter, model: str, samples: list[tuple[str, str, int]], *, safety: float = 1.10) -> ValidationRecord:
@@ -103,13 +124,15 @@ def validate_counter(counter: TokenCounter, model: str, samples: list[tuple[str,
             continue
         worst = max(worst, reported / estimate_input_tokens(counter, system, user, safety=safety))
     ok = valid and len(samples) >= MIN_VALIDATION_SAMPLES and worst <= 1.0
-    canonical = json.dumps({"tokenizer_id": counter.id, "model": model, "samples": len(samples), "worst": round(worst, 9), "safety": safety, "ok": ok},
+    impl = identity(counter)
+    canonical = json.dumps({"tokenizer_id": counter.id, "model": model, "samples": len(samples), "worst": round(worst, 9), "safety": safety, "ok": ok, "impl": impl},
                            sort_keys=True, separators=(",", ":"))
-    return ValidationRecord(counter.id, model, len(samples), worst, safety, ok, hashlib.sha256(canonical.encode("utf-8")).hexdigest())
+    return ValidationRecord(counter.id, model, len(samples), worst, safety, ok, hashlib.sha256(canonical.encode("utf-8")).hexdigest(), impl)
 
 
-def require_validated(record: ValidationRecord | None, *, model: str, tokenizer_id: str, expected_sha256: str) -> None:
-    """Refus (aucun appel) sans enregistrement de validation valide, du bon modèle et du bon tokenizer, dont l'empreinte est celle approuvée dans l'autorisation."""
+def require_validated(record: ValidationRecord | None, *, model: str, tokenizer_id: str, expected_sha256: str, counter: TokenCounter | None = None) -> None:
+    """Refus (aucun appel) sans enregistrement de validation valide, du bon modèle et du bon tokenizer, dont l'empreinte est celle approuvée dans l'autorisation,
+    ET (si `counter` est fourni) validé pour CETTE implémentation : l'identité du compteur résolu doit être celle qui a été validée."""
     if record is None:
         raise TokenizerNotValidated("no validation record was provided")
     if not record.ok:
@@ -118,3 +141,5 @@ def require_validated(record: ValidationRecord | None, *, model: str, tokenizer_
         raise TokenizerNotValidated("the validation record is for another model or tokenizer")
     if record.sha256 != expected_sha256:
         raise TokenizerNotValidated("the validation record is not the one approved in the authorization")
+    if counter is not None and (not record.impl_sha256 or record.impl_sha256 != identity(counter)):
+        raise TokenizerNotValidated("the token counter is not the implementation that was validated (identity differs)")

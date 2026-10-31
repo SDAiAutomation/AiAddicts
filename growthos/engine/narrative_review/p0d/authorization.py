@@ -26,7 +26,8 @@ from ..providers import Prices, finite_nonneg
 from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS
 from ..providers import max_call_usd as _max_call_usd
 from .profiles import REASONING_POLICIES, ModelUnknown, profile_for
-from .tokenizer import ValidationRecord, require_validated
+from .egress import Attestation, EgressController
+from .tokenizer import ValidationRecord, factory_for, identity, require_validated
 
 MAX_WINDOW = timedelta(hours=48)
 MAX_PRICE_AGE = timedelta(days=30)
@@ -193,77 +194,161 @@ def load(path: Path, **checks) -> CampaignAuthorization:
 
 
 class Window:
-    """Fenêtre d'exécution : ouverte seulement avec une autorisation valide ET une attestation réseau reconnue ; refermée définitivement après usage.
+    """Fenêtre d'exécution : ouverte seulement avec une autorisation valide, un état réseau VIVANT vérifié, un modèle connu et un tokenizer validé ; refermée définitivement après usage.
 
-    À l'ouverture, les paramètres approuvés sont figés avec leurs empreintes (autorisation, profil du modèle, tarifs, enregistrement du tokenizer, attestation réseau).
-    `check()` les REVÉRIFIE avant chaque réservation et chaque envoi : toute mutation après ouverture ferme définitivement la fenêtre et refuse l'appel."""
+    À l'ouverture sont FIGÉS : l'autorisation (copie immuable + empreinte), le profil du modèle (objet + empreinte), les tarifs, l'attestation réseau approuvée, l'enregistrement de
+    validation du tokenizer, ET l'implémentation du tokenizer effectivement résolue (instance + fabrique du registre + empreinte d'identité).
+    Chaque vérification ci-dessous les REconfronte à l'état vivant ; la moindre différence ou incertitude ferme la fenêtre définitivement et refuse l'appel.
+    Un contrôleur réseau (`EgressController`) est OBLIGATOIRE : absence, erreur, attestation incohérente ou état inconnu = refus. L'horloge est injectable pour les tests."""
 
-    def __init__(self):
+    def __init__(self, clock: Callable[[], datetime] | None = None):
         self._auth: CampaignAuthorization | None = None
         self._closed = False
         self._frozen: dict | None = None
-        self._egress_check: Callable[[], None] | None = None
+        self._controller: EgressController | None = None
+        self._egress_kind = "none"
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
 
-    def open(self, auth: CampaignAuthorization, *, egress_attestation_sha256: str, tokenizer_validation: ValidationRecord | None, now: datetime | None = None,
-             egress_check: Callable[[], None] | None = None, **checks) -> None:
-        """Ouvre la fenêtre seulement si TOUT est établi : autorisation valide, attestation réseau approuvée, modèle CONNU (profil enregistré et cohérent avec l'autorisation),
-        tokenizer VALIDÉ (enregistrement dont l'empreinte est celle approuvée). Modèle inconnu, tokenizer non validé, tarif ou plafond incomplet : aucune ouverture, aucun appel."""
+    # --- ouverture -----------------------------------------------------------------------------------------------------------------------------
+
+    def open(self, auth: CampaignAuthorization, *, egress_attestation_sha256: str, tokenizer_validation: ValidationRecord | None, egress_controller: EgressController | None,
+             now: datetime | None = None, **checks) -> None:
+        """Ouvre la fenêtre seulement si TOUT est établi : autorisation valide à l'instant EFFECTIF, état réseau vivant « rest » attesté et conforme à l'attestation approuvée, modèle
+        CONNU (profil cohérent), tokenizer résolu ET validé POUR CETTE IMPLÉMENTATION. Sinon : aucune ouverture, aucun appel."""
         if self._closed or self._auth is not None:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "a closed or already open window cannot be (re)opened: a new authorization is required")
-        problems = validate(auth.raw, now=now, **checks)   # `now` absent = l'instant EFFECTIF de l'ouverture : une autorisation déjà expirée est refusée
+        now = now or self._clock()
+        problems = validate(auth.raw, now=now, **checks)   # une autorisation déjà expirée à l'instant effectif de l'ouverture est refusée
         if egress_attestation_sha256 != auth.raw["egress_attestation_sha256"]:
             problems.append("the OS-level egress attestation does not match the one the owner approved")
+        if egress_controller is None or not callable(getattr(egress_controller, "check", None)):
+            problems.append("a live egress controller is mandatory: without a live network check there is no window")
+        profile = counter = factory = plan_sha = None
         if not problems:
             try:
                 profile = profile_for(auth.raw["model"])
                 if (profile.reasoning_policy, profile.tokenizer_id) != (auth.raw["reasoning_policy"], auth.raw["tokenizer_id"]):
                     problems.append("the model profile (reasoning policy, tokenizer) differs from the authorization")
+                factory = factory_for(auth.raw["tokenizer_id"])
+                counter = factory()
                 require_validated(tokenizer_validation, model=auth.raw["model"], tokenizer_id=auth.raw["tokenizer_id"],
-                                  expected_sha256=auth.raw["tokenizer_validation_sha256"])
-            except c.ReviewError as exc:   # ModelUnknown, TokenizerNotValidated
+                                  expected_sha256=auth.raw["tokenizer_validation_sha256"], counter=counter)
+                attestation = self._live(egress_controller, "rest")   # AVANT toute ouverture : le courtier doit être à l'état de repos attesté, verrou présent
+                if attestation.sha256 != auth.raw["egress_attestation_sha256"]:
+                    problems.append("the live network state is not the attested rest state the owner approved")
+                plan_sha = attestation.plan_sha256
+            except c.ReviewError as exc:   # ModelUnknown, TokenizerRequired, TokenizerNotValidated, contrôle réseau
                 problems.append(exc.message)
         if problems:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "window refused: " + "; ".join(problems))
         self._frozen = {"auth": auth, "digest": auth.digest, "profile": profile, "profile_fp": profile.fingerprint(), "prices": auth.prices,
-                        "egress": egress_attestation_sha256, "tokenizer_record": tokenizer_validation.sha256}
-        self._egress_check = egress_check
+                        "egress": egress_attestation_sha256, "tokenizer_record": tokenizer_validation.sha256, "tokenizer_id": auth.raw["tokenizer_id"],
+                        "factory": factory, "counter": counter, "counter_identity": identity(counter), "counter_type": type(counter), "plan_sha": plan_sha}
+        self._controller, self._egress_kind = egress_controller, getattr(egress_controller, "kind", "unknown")
         self._auth = auth
 
-    def _integrity(self) -> None:
-        """Compare l'état vivant à ce qui a été approuvé à l'ouverture ; toute différence ou incertitude = fenêtre fermée définitivement, aucun envoi."""
-        f, problems = self._frozen, []
+    @staticmethod
+    def _live(controller, expect: str) -> Attestation:
+        """Appelle le contrôleur et refuse tout ce qui n'est pas une attestation positive, du bon état attendu : erreur, réponse d'un autre type, problèmes, état inconnu."""
         try:
-            auth = self._auth
-            if auth is not f["auth"] or auth.digest != f["digest"]:
-                problems.append("the authorization changed after the window was opened")
-            elif auth.prices != f["prices"]:
-                problems.append("the price sheet changed after the window was opened")
-            elif auth.raw["egress_attestation_sha256"] != f["egress"]:
-                problems.append("the egress attestation changed after the window was opened")
-            elif auth.raw["tokenizer_validation_sha256"] != f["tokenizer_record"]:
-                problems.append("the tokenizer validation changed after the window was opened")
-            else:
-                live = profile_for(auth.raw["model"])
-                if live is not f["profile"] or live.fingerprint() != f["profile_fp"]:
-                    problems.append("the model profile was replaced or altered after the window was opened")
-            if not problems and self._egress_check is not None:
-                self._egress_check()      # relecture de l'état réseau réel (injectée) : lève si le courtier n'est pas dans l'état attesté
-        except Exception as exc:  # noqa: BLE001 - l'incertitude ferme la fenêtre
-            problems.append(f"integrity could not be established ({type(exc).__name__})")
-        if problems:
-            self.close()
-            raise c.ReviewError(c.BUDGET_EXHAUSTED, "window closed: " + "; ".join(problems))
+            attestation = controller.check(expect)
+        except Exception as exc:  # noqa: BLE001 - une erreur de contrôle est un refus
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, f"the live network check failed ({type(exc).__name__}): refused") from exc
+        if not isinstance(attestation, Attestation) or attestation.ok is not True or attestation.problems or attestation.expected_state != expect:
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, f"the live network state is not the attested '{expect}' state: refused")
+        return attestation
 
-    def check(self, now: datetime | None = None) -> CampaignAuthorization:
-        """À appeler AVANT chaque envoi : lève si la fenêtre n'est pas ouverte, est expirée ou a été fermée."""
+    @property
+    def egress_kind(self) -> str:
+        """"os_readonly" ou "simulated" : ce que vaut le contrôle réseau. "simulated" n'est JAMAIS une preuve de coupure au niveau du système d'exploitation."""
+        return self._egress_kind
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    # --- vérifications (chacune ferme la fenêtre si elle échoue) --------------------------------------------------------------------------------
+
+    def _fail(self, message: str):
+        self.close()
+        raise c.ReviewError(c.BUDGET_EXHAUSTED, "window closed: " + message)
+
+    def _need_open(self) -> dict:
         if self._closed or self._auth is None:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "no open authorization window: provider calls are forbidden")
-        now = now or datetime.now(timezone.utc)
+        return self._frozen
+
+    def check_time(self, now: datetime | None = None) -> CampaignAuthorization:
+        self._need_open()
+        now = now or self._clock()
         if not _when(self._auth.raw["approved_at"]) <= now < _when(self._auth.raw["expires_at"]):
             self.close()
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "the authorization window has expired")
-        self._integrity()
+        return self._auth
+
+    def verify_fingerprints(self) -> None:
+        """Autorisation, tarifs, attestation approuvée, enregistrement du tokenizer et PROFIL du modèle : identiques à ce qui a été approuvé à l'ouverture."""
+        f = self._need_open()
+        try:
+            auth = self._auth
+            if auth is not f["auth"] or auth.digest != f["digest"]:
+                return self._fail("the authorization changed after the window was opened")
+            if auth.prices != f["prices"]:
+                return self._fail("the price sheet changed after the window was opened")
+            if auth.raw["egress_attestation_sha256"] != f["egress"]:
+                return self._fail("the egress attestation changed after the window was opened")
+            if auth.raw["tokenizer_validation_sha256"] != f["tokenizer_record"]:
+                return self._fail("the tokenizer validation changed after the window was opened")
+            live = profile_for(auth.raw["model"])
+            if live is not f["profile"] or live.fingerprint() != f["profile_fp"]:
+                return self._fail("the model profile was replaced or altered after the window was opened")
+        except c.ReviewError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - l'incertitude ferme la fenêtre
+            self._fail(f"integrity could not be established ({type(exc).__name__})")
+
+    def verify_tokenizer(self) -> None:
+        """L'implémentation du tokenizer résolue à l'ouverture est toujours celle du registre, et n'a pas changé (classe, état d'instance, code de `count`)."""
+        f = self._need_open()
+        try:
+            if factory_for(f["tokenizer_id"]) is not f["factory"]:
+                return self._fail("the tokenizer factory was replaced in the registry after the window was opened")
+            counter = f["counter"]
+            if type(counter) is not f["counter_type"] or identity(counter) != f["counter_identity"]:
+                return self._fail("the pinned token counter was altered after the window was opened")
+        except c.ReviewError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._fail(f"tokenizer identity could not be established ({type(exc).__name__})")
+
+    def verify_network(self) -> None:
+        """État réseau VIVANT « open » attesté, lié au même plan que celui vu à l'ouverture. Contrôleur absent, erreur, attestation incohérente ou inconnue = fenêtre fermée."""
+        f = self._need_open()
+        try:
+            if self._controller is None:
+                return self._fail("no live egress controller")
+            attestation = self._live(self._controller, "open")
+            if not f["plan_sha"] or attestation.plan_sha256 != f["plan_sha"]:
+                return self._fail("the live network attestation is bound to another plan than the one seen at opening")
+        except c.ReviewError as exc:
+            if self._closed:
+                raise
+            self._fail(exc.message)
+
+    def pinned_counter(self):
+        """Le compteur de jetons FIGÉ à l'ouverture (jamais une nouvelle résolution du registre)."""
+        return self._need_open()["counter"]
+
+    def pinned_profile(self):
+        return self._need_open()["profile"]
+
+    def check(self, now: datetime | None = None) -> CampaignAuthorization:
+        """À appeler AVANT chaque réservation et chaque envoi : temps, empreintes, tokenizer et état réseau vivant. Lève (et ferme) au moindre écart."""
+        self.check_time(now)
+        self.verify_fingerprints()
+        self.verify_tokenizer()
+        self.verify_network()
         return self._auth
 
     def close(self) -> None:
-        self._closed, self._auth, self._frozen, self._egress_check = True, None, None, None
+        self._closed, self._auth, self._frozen, self._controller = True, None, None, None

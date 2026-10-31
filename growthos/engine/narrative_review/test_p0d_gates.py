@@ -15,6 +15,7 @@ from growthos.engine.narrative_review.harness import corpus as corp
 from growthos.engine.narrative_review.harness import policy
 from growthos.engine.narrative_review.harness.simulation import simulated_critic, simulated_generator
 from growthos.engine.narrative_review.p0d import authorization as au
+from growthos.engine.narrative_review.p0d import egress as eg
 from growthos.engine.narrative_review.p0d import profiles as pf
 from growthos.engine.narrative_review.p0d import tokenizer as tk
 from growthos.engine.narrative_review.p0d import transport as tr
@@ -27,6 +28,13 @@ CORPUS_SHA = corp.load_corpus()["hashes"]["corpus_sha256"]
 BASELINE_SHA = policy.load_manifest()["standard"]["rendered_sha256"]
 EGRESS = "e" * 64
 MODEL = "model-x"
+
+
+def controller(**kw):
+    """Contrôleur réseau FACTICE (jamais une preuve de coupure OS) dont l'attestation « rest » est celle approuvée par `good_auth`."""
+    return eg.FakeEgressController(rest_sha256=EGRESS, **kw)
+
+
 PROFILE = pf.BodyPolicy(model=MODEL, max_output_param="max_tokens", reasoning_policy="not_supported_by_model", tokenizer_id=tk.HEURISTIC_ID)
 SAMPLES = [("S" * 100, "U" * 100, 90)] * 25                                      # consommation réelle (simulée) INFÉRIEURE à l'estimation : 90 <= 128
 RECORD = tk.validate_counter(tk.CharHeuristic(), MODEL, SAMPLES)
@@ -107,13 +115,13 @@ class TestAuthorization(unittest.TestCase):
         with self.assertRaises(c.ReviewError):
             w.check()                                                                    # jamais ouverte
         with self.assertRaises(c.ReviewError):
-            w.open(auth, egress_attestation_sha256="f" * 64, tokenizer_validation=RECORD, now=NOW, corpus_sha256=CORPUS_SHA)   # autre attestation
-        w.open(auth, egress_attestation_sha256=EGRESS, tokenizer_validation=RECORD, now=NOW, corpus_sha256=CORPUS_SHA)
+            w.open(auth, egress_attestation_sha256="f" * 64, tokenizer_validation=RECORD, egress_controller=controller(), now=NOW, corpus_sha256=CORPUS_SHA)   # autre attestation
+        w.open(auth, egress_attestation_sha256=EGRESS, tokenizer_validation=RECORD, egress_controller=controller(), now=NOW, corpus_sha256=CORPUS_SHA)
         self.assertEqual(w.check(NOW).campaign_id, "P0D-TEST")
         with self.assertRaises(c.ReviewError):
             w.check(NOW + timedelta(hours=13))                                           # expirée => fermée définitivement
         with self.assertRaises(c.ReviewError):
-            w.open(auth, egress_attestation_sha256=EGRESS, tokenizer_validation=RECORD, now=NOW, corpus_sha256=CORPUS_SHA)   # pas de réouverture
+            w.open(auth, egress_attestation_sha256=EGRESS, tokenizer_validation=RECORD, egress_controller=controller(), now=NOW, corpus_sha256=CORPUS_SHA)   # pas de réouverture
         self.assertEqual(len(auth.digest), 64)
 
 
@@ -135,7 +143,8 @@ def completion(text="{}", prompt=1000, completion_tokens=200, **usage_extra):
 def open_window(**auth_over):
     w = au.Window()
     record = auth_over.pop("_record", RECORD)
-    w.open(au.CampaignAuthorization(good_auth(**auth_over)), egress_attestation_sha256=EGRESS, tokenizer_validation=record, corpus_sha256=CORPUS_SHA)
+    ctl = auth_over.pop("_controller", None) or controller()
+    w.open(au.CampaignAuthorization(good_auth(**auth_over)), egress_attestation_sha256=EGRESS, tokenizer_validation=record, egress_controller=ctl, corpus_sha256=CORPUS_SHA)
     return w
 
 
@@ -357,12 +366,11 @@ class TestTokenizer(unittest.TestCase):
         self.addCleanup(pf._profiles.pop, "model-bpe", None)
         record = tk.validate_counter(tk.CharHeuristic(), "model-bpe", SAMPLES)
         record = tk.ValidationRecord("some-model-bpe", "model-bpe", record.samples, record.max_reported_over_estimate, record.safety, True, "b" * 64)
-        w = open_window(approved_at=(now - timedelta(hours=1)).isoformat(), expires_at=(now + timedelta(hours=2)).isoformat(),
+        with self.assertRaises(c.ReviewError) as ctx:                                          # le tokenizer n'est pas résolu : la fenêtre ne s'ouvre même pas
+            open_window(approved_at=(now - timedelta(hours=1)).isoformat(), expires_at=(now + timedelta(hours=2)).isoformat(),
                         prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="some-model-bpe", model="model-bpe",
                         tokenizer_validation_sha256="b" * 64, _record=record)
-        provider = tr.ChatCompletionsProvider(tr.MeteredTransport(sender, w), api_key=lambda: "k")
-        with self.assertRaises(tk.TokenizerRequired):
-            provider({"system": "S", "user": "U", "max_output_tokens": 10, "timeout_s": 30})
+        self.assertIn("no token counter registered", ctx.exception.message)
         self.assertEqual(sender.calls, [])
 
     def test_a_registered_exact_counter_is_used_and_calibration_trips_the_transport_when_it_underestimates(self):
@@ -376,7 +384,7 @@ class TestTokenizer(unittest.TestCase):
         self.addCleanup(tk._registry.pop, "tiny-test", None)
         pf.register_profile(pf.BodyPolicy(model="model-tiny", max_output_param="max_tokens", reasoning_policy="not_supported_by_model", tokenizer_id="tiny-test"))
         self.addCleanup(pf._profiles.pop, "model-tiny", None)
-        record = tk.ValidationRecord("tiny-test", "model-tiny", 25, 0.5, 1.1, True, "c" * 64)       # « validé » à une époque ; sous-estime désormais
+        record = tk.ValidationRecord("tiny-test", "model-tiny", 25, 0.5, 1.1, True, "c" * 64, tk.identity(Tiny()))   # « validé » à une époque ; sous-estime désormais
         now = datetime.now(timezone.utc)
         dates = dict(approved_at=(now - timedelta(hours=1)).isoformat(), expires_at=(now + timedelta(hours=2)).isoformat(),
                      prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="tiny-test", model="model-tiny",

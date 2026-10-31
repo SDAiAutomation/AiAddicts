@@ -10,6 +10,7 @@ import copy
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,16 +66,14 @@ class TestProductionPromptIsNotStoredHere(unittest.TestCase):
         self.assertGreater(scanned, 40)                            # le balayage a réellement couvert le paquet et les docs
         self.assertEqual(offenders, [])
 
-    def test_no_file_anywhere_under_growthos_contains_a_window_of_the_production_prompt(self):
-        """Balayage du SYSTÈME DE FICHIERS (jamais de `git ls-files`) : il vaut dans un clone, un worktree, une copie d'archive hors dépôt ou dans un dépôt parent.
+    SKIP_DIRS = {".git", ".worktrees", ".artifacts", "venv", ".venv", "node_modules", "__pycache__", "output", "dist", "build", ".mypy_cache", ".pytest_cache"}
 
-        Ancien défaut de test (relevé par le contre-audit, copie d'archive) : le balayage listait `git ls-files` ; dans une archive placée DANS un autre dépôt, git ne voit aucun fichier
-        (scanned = 0, échec) et hors de tout dépôt le test se sautait en silence. Ce n'était pas une régression du produit mais une hypothèse fausse du test (« je suis un dépôt git ») ;
-        il n'a plus aucune dépendance à git et ne peut plus être sauté : il compte les fichiers réellement lus et exige un minimum."""
-        skip_dirs = {".git", ".worktrees", ".artifacts", "venv", ".venv", "node_modules", "__pycache__", "output", "dist", "build", ".mypy_cache", ".pytest_cache"}
-        hashes, offenders, scanned = rb.load_shingles(), [], 0
+    def scan_tree(self):
+        """Balayage du SYSTÈME DE FICHIERS (jamais de `git ls-files`) : vaut dans un clone, un worktree, une copie d'archive hors dépôt ou dans un dépôt parent.
+        Retourne (fichiers lus, fichiers contenant une fenêtre du prompt de production)."""
+        hashes, offenders, scanned = rb.load_shingles(), [], set()
         for dirpath, dirnames, filenames in os.walk(GROWTHOS):
-            dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+            dirnames[:] = [d for d in dirnames if d not in self.SKIP_DIRS]
             for filename in filenames:
                 path = Path(dirpath) / filename
                 try:
@@ -83,11 +82,45 @@ class TestProductionPromptIsNotStoredHere(unittest.TestCase):
                     text = path.read_text(encoding="utf-8")
                 except (UnicodeDecodeError, OSError):
                     continue
-                scanned += 1
+                rel = path.relative_to(GROWTHOS).as_posix()
+                scanned.add(rel)
                 if path.name != rb.SHINGLES_FILE and rb.contains_shingle(text, hashes):
-                    offenders.append(path.relative_to(GROWTHOS).as_posix())
-        self.assertGreater(scanned, 100, "the scan read too few files: it would prove nothing")
+                    offenders.append(rel)
+        return scanned, offenders
+
+    def test_no_file_anywhere_under_growthos_contains_a_window_of_the_production_prompt(self):
+        """Ancien défaut de test (relevé par le contre-audit, copie d'archive) : le balayage listait `git ls-files` ; dans une archive placée DANS un autre dépôt, git ne voit aucun
+        fichier (scanned = 0, échec) et hors de tout dépôt le test se sautait en silence. Ce n'était pas une régression du produit mais une hypothèse fausse du test. Il n'a plus
+        aucune dépendance à git, ne peut plus être sauté, et exige un minimum de fichiers réellement lus."""
+        scanned, offenders = self.scan_tree()
+        self.assertGreater(len(scanned), 100, "the scan read too few files: it would prove nothing")
         self.assertEqual(offenders, [])
+
+    def test_in_a_real_git_checkout_the_scan_covers_every_tracked_text_file(self):
+        """Recoupement avec Git, exécuté dans un VRAI checkout : chaque fichier suivi (hors types binaires) est bien lu par le balayage du système de fichiers, et aucun n'est fautif.
+        Hors dépôt git (archive), ce test est sauté de façon VISIBLE ; le balayage ci-dessus, lui, tourne toujours."""
+        try:
+            top = subprocess.run(["git", "-C", str(GROWTHOS), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True, timeout=60).stdout.strip()
+            tracked = [f for f in subprocess.run(["git", "-C", str(GROWTHOS), "ls-files", "-z", "."], capture_output=True, text=True, check=True, timeout=60).stdout.split(chr(0)) if f]
+        except (OSError, subprocess.SubprocessError):
+            self.skipTest("not a git checkout (archive copy): the filesystem scan above still ran; run this test in a real checkout")
+        if not tracked or Path(top).resolve() == Path("/").resolve():
+            self.skipTest("git lists no tracked file under growthos/ (archive nested in another repository)")
+        scanned, offenders = self.scan_tree()
+        missing = []
+        for rel in tracked:
+            path = GROWTHOS / rel
+            if any(part in self.SKIP_DIRS for part in Path(rel).parts) or path.suffix.lower() in SKIP_SUFFIXES or not path.is_file() or path.stat().st_size > 1_500_000:
+                continue
+            try:
+                path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            if rel not in scanned:
+                missing.append(rel)
+        self.assertEqual(missing, [], "tracked text files the filesystem scan did not read")
+        self.assertEqual(offenders, [])
+        self.assertGreater(len(tracked), 100)
 
     def test_the_scan_does_not_depend_on_git_and_works_in_an_archive_copy_outside_any_repository(self):
         """Reproduit la copie d'archive : arbre SANS .git, en dehors de tout dépôt. Le balayage doit lire les fichiers (pas zéro, pas de saut) et trouver une fenêtre réintroduite."""

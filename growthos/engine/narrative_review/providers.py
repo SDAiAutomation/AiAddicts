@@ -178,6 +178,17 @@ class Budget:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {max_usd:.6f} USD would exceed the ceiling")
             self._reserved[label] = max_usd
 
+    def release(self, label: str) -> float:
+        """Libère une réservation dont il est PROUVÉ qu'aucun appel n'est parti (le chiffre est à la charge de l'appelant : le transport l'établit). N'agit que sur une
+        réservation en cours : un montant réglé ou non réconcilié ne se libère jamais. Retourne le montant libéré."""
+        with self._lock:
+            error = self._state_error()
+            if error:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {error}, cannot release")
+            if not isinstance(label, str) or label not in self._reserved:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, "only a pending reservation can be released")
+            return self._reserved.pop(label)
+
     def settle(self, label: str, actual_estimate_usd: float | None) -> bool:
         """Remplace la réservation par l'estimation. Estimation inconnue OU invalide : la réservation reste ENGAGÉE comme « non réconciliée »
         (jamais comptée comme 0, jamais libérée) jusqu'à `reconcile`.
