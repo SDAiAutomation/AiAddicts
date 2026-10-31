@@ -340,7 +340,9 @@ class TestOrchestrator(NetworkBlocked):
         self.assertEqual((len(calls), report["error"]["code"], report["usage"]["estimated_cost"], report["can_auto_accept"]),
                          (1, c.PROVIDER_UNAVAILABLE, None, False))
         self.assertEqual(budget.unknown_calls, 1)
-        self.assertGreater(budget.settled_usd, 0)  # la réservation est conservée : un échec possiblement payé n'est pas gratuit
+        self.assertEqual(budget.settled_usd, 0.0)
+        self.assertEqual(len(budget.unreconciled), 1)  # la réservation reste ENGAGÉE, non réconciliée : un échec possiblement payé n'est pas gratuit
+        self.assertGreater(budget.committed(), 0)
 
     def test_k10_unknown_prices_or_exhausted_budget_means_no_call(self):
         s = snapshot_of()

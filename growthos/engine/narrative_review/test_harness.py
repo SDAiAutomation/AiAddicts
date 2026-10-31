@@ -167,28 +167,47 @@ class TestRunner(NetworkBlocked):
             for forbidden in ("org-A", "acc-A", '"condition"', "blind_script_id", "evaluator", "T-1"):
                 self.assertNotIn(forbidden, request["prompt"])
 
-    def test_failures_are_logged_never_retried_and_cost_unknown_is_empty(self):
-        gen = simulated_generator(fail_on={2}, no_output_on={3}, invalid_json_on={4})
-        result = campaign(generator=gen)
-        self.assertEqual(len(gen.requests), 20)           # une tentative par case : aucun retry
-        statuses = [r["execution_status"] for r in result["rows"] if r["task"] == "generation"]
-        self.assertEqual((statuses[1], statuses[2], statuses[3]), ("provider_error", "no_output", "ok"))
+    def test_a_generation_whose_cost_cannot_be_established_stops_the_whole_campaign(self):
+        for label, kwargs, reason in (("timeout", {"fail_on": {1}}, "UNKNOWN_COST"), ("no text", {"no_output_on": {1}}, "NO_RESPONSE_TEXT")):
+            gen = simulated_generator(**kwargs)
+            result = campaign(generator=gen)
+            self.assertEqual(len(gen.requests), 1, label)         # un seul appel : on s'arrête, aucune nouvelle tentative
+            self.assertIn(reason, result["summary"]["halt_reasons"], label)
+            self.assertTrue(result["summary"]["halted"], label)
+            self.assertEqual(sum(r["error_code"] == "HALTED_RETRY_DETECTED" for r in result["rows"]), 19, label)
+            self.assertTrue(any(r["task"] == "incident" and r["error_code"] == reason for r in result["rows"]), label)
+        result = campaign(generator=simulated_generator(fail_on={1}))
         row_fail = [r for r in result["rows"] if r["execution_status"] == "provider_error"][0]
         self.assertEqual((row_fail["estimated_cost"], row_fail["observed_cost"], row_fail["http_attempts"]), ("", "", ""))
-        invalid = [r for r in result["rows"] if r["task"] == "generation" and r["technical_valid"] is False]
-        self.assertEqual(len(invalid), 1)
-        crit_rows = [r for r in result["rows"] if r["task"] == "critique"]
-        self.assertEqual(len(crit_rows), 20 - 3)          # pas de critique pour une sortie inexploitable ou absente
         self.assertEqual(result["summary"]["costs"]["observed_usd"], None)
         self.assertGreaterEqual(result["summary"]["costs"]["attempts_with_unknown_cost"], 1)
+        self.assertEqual(list(result["summary"]["unreconciled_attempts"]), ["T-1-001"])      # réservation conservée, non réconciliée
 
-    def test_critic_failure_is_one_attempt_and_visible(self):
-        crit = simulated_critic(fail_on={1}, invalid_on={2})
+    def test_a_technically_invalid_output_with_a_known_cost_does_not_stop_the_campaign_and_is_never_repaired(self):
+        gen = simulated_generator(invalid_json_on={1, 2})
+        result = campaign(generator=gen)
+        self.assertEqual(len(gen.requests), 20)           # une tentative par case : aucun retry, aucune réparation
+        invalid = [r for r in result["rows"] if r["task"] == "generation" and r["technical_valid"] is False]
+        self.assertEqual(len(invalid), 2)
+        crit_rows = [r for r in result["rows"] if r["task"] == "critique"]
+        self.assertEqual(len(crit_rows), 20 - 2)          # pas de critique pour une sortie inexploitable
+        self.assertFalse(result["summary"]["halted"])      # le coût de ces tentatives est établi : ce n'est pas une raison de s'arrêter
+
+    def test_a_critic_attempt_without_an_established_cost_stops_the_campaign(self):
+        crit = simulated_critic(fail_on={1})
+        result = campaign(critic=crit)
+        self.assertEqual(len(crit.requests), 1)
+        crit_rows = [r for r in result["rows"] if r["task"] == "critique"]
+        self.assertEqual((crit_rows[0]["error_code"], crit_rows[0]["editorial_decision"]), (c.PROVIDER_UNAVAILABLE, "review"))
+        self.assertIn("UNKNOWN_COST", result["summary"]["halt_reasons"])
+
+    def test_an_invalid_critic_response_with_a_known_cost_is_visible_and_does_not_stop_the_campaign(self):
+        crit = simulated_critic(invalid_on={1})
         result = campaign(critic=crit)
         self.assertEqual(len(crit.requests), 20)
         crit_rows = [r for r in result["rows"] if r["task"] == "critique"]
-        self.assertEqual((crit_rows[0]["error_code"], crit_rows[0]["editorial_decision"]), (c.PROVIDER_UNAVAILABLE, "review"))
-        self.assertEqual((crit_rows[1]["error_code"], crit_rows[1]["execution_status"]), (c.INVALID_RESPONSE, "invalid"))
+        self.assertEqual((crit_rows[0]["error_code"], crit_rows[0]["execution_status"]), (c.INVALID_RESPONSE, "invalid"))
+        self.assertFalse(result["summary"]["halted"])
 
     def test_unknown_prices_or_tiny_budget_means_no_paid_call(self):
         for kwargs in ({"gen_prices": None, "critic_prices": None}, {"budget": Budget(0.0001)}):

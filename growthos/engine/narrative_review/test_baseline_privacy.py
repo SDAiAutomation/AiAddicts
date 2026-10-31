@@ -10,7 +10,6 @@ import copy
 import json
 import os
 import re
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +64,46 @@ class TestProductionPromptIsNotStoredHere(unittest.TestCase):
                 offenders.append(path.relative_to(GROWTHOS).as_posix())
         self.assertGreater(scanned, 40)                            # le balayage a réellement couvert le paquet et les docs
         self.assertEqual(offenders, [])
+
+    def test_no_file_anywhere_under_growthos_contains_a_window_of_the_production_prompt(self):
+        """Balayage du SYSTÈME DE FICHIERS (jamais de `git ls-files`) : il vaut dans un clone, un worktree, une copie d'archive hors dépôt ou dans un dépôt parent.
+
+        Ancien défaut de test (relevé par le contre-audit, copie d'archive) : le balayage listait `git ls-files` ; dans une archive placée DANS un autre dépôt, git ne voit aucun fichier
+        (scanned = 0, échec) et hors de tout dépôt le test se sautait en silence. Ce n'était pas une régression du produit mais une hypothèse fausse du test (« je suis un dépôt git ») ;
+        il n'a plus aucune dépendance à git et ne peut plus être sauté : il compte les fichiers réellement lus et exige un minimum."""
+        skip_dirs = {".git", ".worktrees", ".artifacts", "venv", ".venv", "node_modules", "__pycache__", "output", "dist", "build", ".mypy_cache", ".pytest_cache"}
+        hashes, offenders, scanned = rb.load_shingles(), [], 0
+        for dirpath, dirnames, filenames in os.walk(GROWTHOS):
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+            for filename in filenames:
+                path = Path(dirpath) / filename
+                try:
+                    if path.suffix.lower() in SKIP_SUFFIXES or path.stat().st_size > 1_500_000:
+                        continue
+                    text = path.read_text(encoding="utf-8")
+                except (UnicodeDecodeError, OSError):
+                    continue
+                scanned += 1
+                if path.name != rb.SHINGLES_FILE and rb.contains_shingle(text, hashes):
+                    offenders.append(path.relative_to(GROWTHOS).as_posix())
+        self.assertGreater(scanned, 100, "the scan read too few files: it would prove nothing")
+        self.assertEqual(offenders, [])
+
+    def test_the_scan_does_not_depend_on_git_and_works_in_an_archive_copy_outside_any_repository(self):
+        """Reproduit la copie d'archive : arbre SANS .git, en dehors de tout dépôt. Le balayage doit lire les fichiers (pas zéro, pas de saut) et trouver une fenêtre réintroduite."""
+        import shutil
+        with tempfile.TemporaryDirectory() as tmp:
+            copy_root = Path(tmp) / "growthos"
+            shutil.copytree(GROWTHOS / "engine" / "narrative_review", copy_root / "engine" / "narrative_review", ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(GROWTHOS / "docs", copy_root / "docs", ignore=shutil.ignore_patterns("__pycache__"))
+            self.assertFalse((Path(tmp) / ".git").exists() or (copy_root / ".git").exists())
+            seen = [p for p in copy_root.rglob("*") if p.is_file()]
+            self.assertGreater(len(seen), 40)
+            planted = "# réintroduit\n" + PROBE
+            (copy_root / "docs" / "leak.md").write_text(planted, encoding="utf-8")
+            probe_hashes = set(rb.shingle_hashes(PROBE))
+            hits = [p.name for p in copy_root.rglob("*") if p.is_file() and p.suffix == ".md" and rb.contains_shingle(p.read_text(encoding="utf-8"), probe_hashes)]
+            self.assertEqual(hits, ["leak.md"])
 
     def test_no_scanned_file_is_the_whole_prompt(self):
         whole = self.manifest["standard"]["rendered_sha256"]
@@ -197,27 +236,6 @@ class TestProductionRebuildFromThePrivateRepository(unittest.TestCase):
         bad["standard"]["rendered_sha256"] = "0" * 64
         with self.assertRaises(policy.BaselineError):
             policy.standard_baseline(bad)
-
-    def test_the_real_prompt_is_not_in_any_file_tracked_by_git_under_growthos(self):
-        try:
-            files = subprocess.run(["git", "-C", str(GROWTHOS), "ls-files", "-z", "."], capture_output=True, text=True, check=True, timeout=60).stdout.split("\0")
-        except (OSError, subprocess.SubprocessError):
-            self.skipTest("git unavailable")
-        hashes, offenders, scanned = rb.load_shingles(), [], 0
-        for rel in filter(None, files):
-            path = GROWTHOS / rel
-            if path.suffix.lower() in SKIP_SUFFIXES or not path.is_file() or path.stat().st_size > 1_500_000:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
-                continue
-            scanned += 1
-            if path.name != rb.SHINGLES_FILE and rb.contains_shingle(text, hashes):
-                offenders.append(rel)
-        self.assertGreater(scanned, 100)
-        self.assertEqual(offenders, [])
-
 
 if __name__ == "__main__":
     unittest.main()

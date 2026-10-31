@@ -20,6 +20,8 @@ from pathlib import Path
 from .. import contract as c
 from ..harness.corpus import PILOT_IDS
 from ..providers import Prices, finite_nonneg
+from .profiles import REASONING_POLICIES, ModelUnknown, profile_for
+from .tokenizer import ValidationRecord, require_validated
 
 MAX_WINDOW = timedelta(hours=48)
 MAX_PRICE_AGE = timedelta(days=30)
@@ -27,7 +29,9 @@ MAX_LOGICAL_CALLS = 20           # 10 cases x (1 rédaction + 1 critique)
 HOST = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
 REQUIRED = ("campaign_id", "approved_by", "approved_at", "expires_at", "model", "provider_host", "endpoint_path", "currency", "ceiling_usd",
             "input_per_m", "output_per_m", "prices_as_of", "prices_source", "max_logical_calls", "strata", "topics", "max_input_tokens",
-            "max_output_tokens", "tokenizer_id", "corpus_sha256", "baseline_rendered_sha256", "egress_attestation_sha256")
+            "max_output_tokens", "tokenizer_id", "tokenizer_validation_sha256", "reasoning_policy", "corpus_sha256", "baseline_rendered_sha256",
+            "egress_attestation_sha256")
+SEPARATE_CAP_FIELDS = ("reasoning_cap_tokens", "reasoning_per_m")     # exigés si `reasoning_policy` == "separate_cap" (unité facturable distincte)
 
 
 def _when(value) -> datetime | None:
@@ -50,7 +54,8 @@ class CampaignAuthorization:
 
     @property
     def prices(self) -> Prices:
-        return Prices(self.raw["input_per_m"], self.raw["output_per_m"], self.raw["currency"], self.raw["prices_as_of"], self.raw["prices_source"])
+        return Prices(self.raw["input_per_m"], self.raw["output_per_m"], self.raw["currency"], self.raw["prices_as_of"], self.raw["prices_source"],
+                      self.raw.get("reasoning_per_m"))
 
     @property
     def digest(self) -> str:
@@ -66,7 +71,20 @@ def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = No
     problems = [f"missing field: {k}" for k in REQUIRED if raw.get(k) in (None, "", [])]
     if problems:
         return problems
-    extra = set(raw) - set(REQUIRED)
+    if raw["reasoning_policy"] not in REASONING_POLICIES:
+        problems.append(f"reasoning_policy must be one of {REASONING_POLICIES}: unbounded billable units mean no call")
+    separate = raw["reasoning_policy"] == "separate_cap"
+    for key in SEPARATE_CAP_FIELDS:   # tarifs et plafonds COMPLETS : une unité facturable sans plafond ou sans prix = aucun appel
+        if separate and raw.get(key) in (None, "", []):
+            problems.append(f"missing field: {key} (required by reasoning_policy 'separate_cap')")
+        elif not separate and key in raw:
+            problems.append(f"{key} is only allowed with reasoning_policy 'separate_cap'")
+    if separate:
+        if not finite_nonneg(raw.get("reasoning_per_m")):
+            problems.append("reasoning_per_m must be finite and non-negative")
+        if not isinstance(raw.get("reasoning_cap_tokens"), int) or isinstance(raw.get("reasoning_cap_tokens"), bool) or raw.get("reasoning_cap_tokens", 0) <= 0:
+            problems.append("reasoning_cap_tokens must be a positive integer")
+    extra = set(raw) - set(REQUIRED) - set(SEPARATE_CAP_FIELDS)
     if extra:
         problems.append(f"unexpected fields: {sorted(extra)}")
     for key in ("campaign_id", "approved_by", "model", "tokenizer_id", "prices_source", "endpoint_path"):
@@ -112,13 +130,26 @@ def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = No
             problems.append(f"{key} must be a SHA-256")
         elif expected is not None and raw[key] != expected:
             problems.append(f"{key} does not match the frozen campaign inputs")
-    if not re.fullmatch(r"[0-9a-f]{64}", str(raw["egress_attestation_sha256"])):
-        problems.append("egress_attestation_sha256 must be the SHA-256 of the OS-level egress attestation")
-    if not problems:  # le plafond doit pouvoir financer AU MOINS le premier appel au maximum
-        first = (raw["max_input_tokens"] * raw["input_per_m"] + raw["max_output_tokens"] * raw["output_per_m"]) / 1e6
-        if not math.isfinite(first) or first > raw["ceiling_usd"]:
-            problems.append(f"ceiling_usd ({raw['ceiling_usd']}) cannot even fund one call at its maximum ({first:.6f})")
+    for key in ("egress_attestation_sha256", "tokenizer_validation_sha256"):
+        if not re.fullmatch(r"[0-9a-f]{64}", str(raw[key])):
+            problems.append(f"{key} must be a SHA-256 ({'the OS-level egress attestation' if key.startswith('egress') else 'the approved tokenizer validation record'})")
+    if not problems:  # le plafond doit pouvoir financer AU MOINS le premier appel au maximum (entrée + sortie + unité de raisonnement distincte éventuelle)
+        first = max_call_usd(raw)
+        if first is None or first > raw["ceiling_usd"]:
+            problems.append(f"ceiling_usd ({raw['ceiling_usd']}) cannot even fund one call at its maximum ({first})")
     return problems
+
+
+def max_call_usd(raw: dict) -> float | None:
+    """Coût maximal d'UN appel sous TOUS les plafonds facturables de l'autorisation (entrée, sortie, et raisonnement s'il est une unité distincte). None si incomplet."""
+    try:
+        cost = raw["max_input_tokens"] * raw["input_per_m"] + raw["max_output_tokens"] * raw["output_per_m"]
+        if raw["reasoning_policy"] == "separate_cap":
+            cost += raw["reasoning_cap_tokens"] * raw["reasoning_per_m"]
+    except (KeyError, TypeError):
+        return None
+    cost /= 1e6
+    return cost if finite_nonneg(cost) and math.isfinite(cost) else None
 
 
 def load(path: Path, **checks) -> CampaignAuthorization:
@@ -136,12 +167,24 @@ class Window:
         self._auth: CampaignAuthorization | None = None
         self._closed = False
 
-    def open(self, auth: CampaignAuthorization, *, egress_attestation_sha256: str, now: datetime | None = None, **checks) -> None:
+    def open(self, auth: CampaignAuthorization, *, egress_attestation_sha256: str, tokenizer_validation: ValidationRecord | None, now: datetime | None = None,
+             **checks) -> None:
+        """Ouvre la fenêtre seulement si TOUT est établi : autorisation valide, attestation réseau approuvée, modèle CONNU (profil enregistré et cohérent avec l'autorisation),
+        tokenizer VALIDÉ (enregistrement dont l'empreinte est celle approuvée). Modèle inconnu, tokenizer non validé, tarif ou plafond incomplet : aucune ouverture, aucun appel."""
         if self._closed:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "a closed window cannot be reopened: a new authorization is required")
         problems = validate(auth.raw, now=now, **checks)
         if egress_attestation_sha256 != auth.raw["egress_attestation_sha256"]:
             problems.append("the OS-level egress attestation does not match the one the owner approved")
+        if not problems:
+            try:
+                profile = profile_for(auth.raw["model"])
+                if (profile.reasoning_policy, profile.tokenizer_id) != (auth.raw["reasoning_policy"], auth.raw["tokenizer_id"]):
+                    problems.append("the model profile (reasoning policy, tokenizer) differs from the authorization")
+                require_validated(tokenizer_validation, model=auth.raw["model"], tokenizer_id=auth.raw["tokenizer_id"],
+                                  expected_sha256=auth.raw["tokenizer_validation_sha256"])
+            except c.ReviewError as exc:   # ModelUnknown, TokenizerNotValidated
+                problems.append(exc.message)
         if problems:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "window refused: " + "; ".join(problems))
         self._auth = auth

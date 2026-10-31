@@ -24,8 +24,9 @@ from typing import Callable
 
 from .. import contract as c
 from ..providers import ProviderResult, finite_nonneg
-from .authorization import Window
-from .tokenizer import resolve, underestimated, upper_input_tokens
+from .authorization import CampaignAuthorization, Window
+from .profiles import PROTECTED, BodyPolicy, profile_for, validate_body
+from .tokenizer import estimate_input_tokens, resolve, underestimated
 
 MAX_RESPONSE_BYTES = 2_000_000
 _counter_lock = threading.Lock()
@@ -145,57 +146,116 @@ class HttpClientSender:
             conn.close()
 
 
+
+
+BodyValidator = Callable[[HttpRequest, "CampaignAuthorization"], None]
+
+
+def profile_body_validator(req: HttpRequest, auth: CampaignAuthorization) -> None:
+    """Validateur par défaut : le corps EXACT est validé contre le profil du modèle autorisé (liste explicite de paramètres). Modèle inconnu = `ModelUnknown`."""
+    validate_body(req.body, model=auth.raw["model"], max_output_tokens=auth.raw["max_output_tokens"], profile=profile_for(auth.raw["model"]))
+
+
 @dataclass
 class MeteredTransport:
+    """Une tentative par envoi, plafond d'appels ATOMIQUE.
+
+    Réservation d'un créneau (compteur sous verrou) AVANT tout envoi : N threads concurrents ne peuvent pas dépasser `max_logical_calls`, même si le fournisseur répond
+    lentement. Les envois sont sérialisés (un seul en vol) : la mesure des connexions est exacte. Un créneau est RENDU seulement si rien n'a été émis (refus de validation,
+    fenêtre expirée pendant l'attente, arrêt demandé, file d'attente expirée) ; dès que l'émetteur est appelé, il est consommé, même en cas d'exception ou de délai dépassé.
+    `body_validator` est OBLIGATOIRE : sans lui, aucun envoi."""
     sender: Sender
     window: Window
+    body_validator: BodyValidator | None = None
     max_request_bytes: int = 256_000
+    max_queue_wait_s: float = 600.0
     attempts: list[TransportAttempt] = field(default_factory=list)
     tripped: str | None = None
+    _slots: int = field(default=0, init=False, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+    _send_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+
+    def stop(self, reason: str = "stopped by the operator") -> None:
+        """Arrêt : l'envoi en cours se termine, tout envoi en attente ou futur est refusé (son créneau est rendu, rien n'est émis)."""
+        with self._lock:
+            self.tripped = self.tripped or reason
+
+    def slots_used(self) -> int:
+        with self._lock:
+            return self._slots
+
+    def _refuse(self, message: str, code: str = c.BUDGET_EXHAUSTED):
+        raise c.ReviewError(code, message)
 
     def send(self, req: HttpRequest) -> tuple[HttpResponse | None, TransportAttempt]:
-        """Un envoi, une tentative. Lève `ReviewError` (aucun appel émis) si une condition d'autorisation manque, `TransportError` après échec."""
+        """Un envoi, une tentative. Lève `ReviewError` (aucun appel émis) si une condition manque, `TransportError` après échec."""
         auth = self.window.check()
-        if self.tripped:
-            raise c.ReviewError(c.BUDGET_EXHAUSTED, f"transport tripped: {self.tripped}")
-        if len(self.attempts) >= auth.raw["max_logical_calls"]:
-            raise c.ReviewError(c.BUDGET_EXHAUSTED, "the authorised number of provider calls is exhausted")
+        if self.body_validator is None:
+            self._refuse("no body validator configured: no send")
         if req.method != "POST" or req.host != auth.raw["provider_host"] or req.path != auth.raw["endpoint_path"]:
-            raise c.ReviewError(c.BUDGET_EXHAUSTED, "request does not target the single authorised host and endpoint")
-        if len(req.body) > self.max_request_bytes or not (math.isfinite(req.timeout_s) and 0 < req.timeout_s <= 300):
-            raise c.ReviewError(c.INPUT_TOO_LARGE, "request body or timeout outside the allowed bounds")
-        started, status, error, received, resp = time.time(), None, None, 0, None
-        with measure_connects() as measured:
+            self._refuse("request does not target the single authorised host and endpoint")
+        if len(req.body) > self.max_request_bytes or not (isinstance(req.timeout_s, (int, float)) and math.isfinite(req.timeout_s) and 0 < req.timeout_s <= 300):
+            self._refuse("request body or timeout outside the allowed bounds", c.INPUT_TOO_LARGE)
+        with self._lock:  # RÉSERVATION ATOMIQUE du créneau, avant tout envoi
+            if self.tripped:
+                self._refuse(f"transport tripped: {self.tripped}")
+            if self._slots >= auth.raw["max_logical_calls"]:
+                self._refuse("the authorised number of provider calls is exhausted")
+            self._slots += 1
+        emitted = False
+        try:
+            if not self._send_lock.acquire(timeout=self.max_queue_wait_s):
+                self._refuse("the send queue timed out: nothing was sent")
             try:
-                resp = self.sender(req)
-                status, received = resp.status, len(resp.body)
-                if not 200 <= resp.status < 300:   # 3xx (redirection non suivie), 429, 5xx : échec visible, JAMAIS de nouvelle tentative
-                    error = f"http_{resp.status}"
-            except Exception as exc:  # noqa: BLE001 - toute panne d'émetteur est consignée telle quelle
-                error = type(exc).__name__
-        extra = measured.connects > 1
-        attempt = TransportAttempt(
-            attempt_no=len(self.attempts) + 1, host=req.host, path=req.path, started_at=started, latency_s=time.time() - started, status=status,
-            connects=measured.connects, http_attempts=max(1, measured.connects), bytes_sent=len(req.body), bytes_received=received,
-            request_id=(resp.headers.get("x-request-id") if resp else None), retry_after=(resp.headers.get("retry-after") if resp else None),
-            error=error, extra_connection_detected=extra)
-        self.attempts.append(attempt)
-        if extra:
-            self.tripped = "extra connection detected during a single send (hidden retry or redirect)"
+                auth = self.window.check()                       # la fenêtre a pu expirer pendant l'attente
+                with self._lock:
+                    if self.tripped:
+                        self._refuse(f"transport tripped: {self.tripped}")
+                self.body_validator(req, auth)                   # corps EXACT validé immédiatement avant l'envoi
+                emitted = True                                   # à partir d'ici le créneau est consommé quoi qu'il arrive
+                started, status, error, received, resp = time.time(), None, None, 0, None
+                with measure_connects() as measured:
+                    try:
+                        resp = self.sender(req)
+                        status, received = resp.status, len(resp.body)
+                        if not 200 <= resp.status < 300:         # 3xx (redirection non suivie), 429, 5xx : échec visible, JAMAIS de nouvelle tentative
+                            error = f"http_{resp.status}"
+                    except Exception as exc:  # noqa: BLE001 - toute panne d'émetteur est consignée telle quelle
+                        error = type(exc).__name__
+                extra = measured.connects > 1
+                with self._lock:
+                    attempt = TransportAttempt(
+                        attempt_no=len(self.attempts) + 1, host=req.host, path=req.path, started_at=started, latency_s=time.time() - started, status=status,
+                        connects=measured.connects, http_attempts=max(1, measured.connects), bytes_sent=len(req.body), bytes_received=received,
+                        request_id=(resp.headers.get("x-request-id") if resp else None), retry_after=(resp.headers.get("retry-after") if resp else None),
+                        error=error, extra_connection_detected=extra)
+                    self.attempts.append(attempt)
+                    if extra:
+                        self.tripped = self.tripped or "extra connection detected during a single send (hidden retry or redirect)"
+            finally:
+                self._send_lock.release()
+        except BaseException:
+            if not emitted:
+                with self._lock:
+                    self._slots -= 1                              # rien n'est parti : le créneau est rendu
+            raise
         if error:
             raise TransportError(error, attempt)
         return resp, attempt
 
 
 def usage_from_body(body: bytes) -> dict:
-    """Jetons et coût RENVOYÉS par le fournisseur (formes `usage.prompt_tokens/completion_tokens` ou `input_tokens/output_tokens`).
+    """Jetons, coût et fin de réponse RENVOYÉS par le fournisseur (formes `usage.prompt_tokens/completion_tokens` ou `input_tokens/output_tokens`).
 
-    Retourne {"input", "output", "reasoning", "provider_cost_usd"} ; toute valeur absente ou invalide vaut `None` (jamais 0). Les jetons de
-    raisonnement sont, chez la plupart des fournisseurs, déjà inclus dans la sortie facturée : ils sont reportés à part pour audit, pas ajoutés."""
-    out = {"input": None, "output": None, "reasoning": None, "provider_cost_usd": None}
+    Retourne {"input", "output", "reasoning", "provider_cost_usd", "finish_reason"} ; toute valeur absente ou invalide vaut `None` (jamais 0). Selon le fournisseur, les jetons de
+    raisonnement sont déjà inclus dans la sortie facturée ou facturés à part : la politique du modèle (`reasoning_policy`) tranche, ils sont ici reportés tels quels pour audit."""
+    out = {"input": None, "output": None, "reasoning": None, "provider_cost_usd": None, "finish_reason": None}
     try:
-        usage = json.loads(body.decode("utf-8")).get("usage") or {}
-    except (ValueError, AttributeError):
+        data = json.loads(body.decode("utf-8"))
+        usage = data.get("usage") or {}
+        choice = (data.get("choices") or [{}])[0]
+        out["finish_reason"] = choice.get("finish_reason") if isinstance(choice, dict) and isinstance(choice.get("finish_reason"), str) else None
+    except (ValueError, AttributeError, IndexError, TypeError):
         return out
     if not isinstance(usage, dict):
         return out
@@ -207,24 +267,36 @@ def usage_from_body(body: bytes) -> dict:
     return out
 
 
-class ChatCompletionsProvider:
-    """Fournisseur à l'interface de chat-completions, branché sur le transport instrumenté. Dépend du MODÈLE CHOISI : nom du paramètre de plafond de sortie
-    (`max_output_param`), support d'un message système, paramètres de raisonnement. Aucun défaut n'est supposé : ils viennent de l'autorisation et de l'appelant."""
+COMPLETE_FINISH_REASONS = ("stop", "end_turn")
 
-    def __init__(self, transport: MeteredTransport, *, api_key: Callable[[], str], max_output_param: str, extra_body: dict | None = None):
-        self.transport, self.api_key, self.max_output_param, self.extra_body = transport, api_key, max_output_param, extra_body or {}
+
+class ChatCompletionsProvider:
+    """Fournisseur à l'interface de chat-completions, branché sur le transport instrumenté. Tout ce qui dépend du MODÈLE vient de son PROFIL (`profiles.py`) : sans profil, aucun appel.
+
+    Le corps est construit à partir de clés FIXES (model, messages, plafond de sortie) ; `extra_body` ne peut ni remplacer une clé fixe, ni introduire un paramètre protégé ou non listé :
+    toute collision ou clé inconnue lève une erreur au lieu d'être écrasée en silence. Le corps final est ensuite validé octet par octet par le transport."""
+
+    def __init__(self, transport: MeteredTransport, *, api_key: Callable[[], str], extra_body: dict | None = None):
+        self.transport, self.api_key, self.extra_body = transport, api_key, dict(extra_body or {})
+        if self.transport.body_validator is None:
+            self.transport.body_validator = profile_body_validator
 
     def __call__(self, request: dict) -> ProviderResult:
         auth = self.transport.window.check()
+        profile = profile_for(auth.raw["model"])                          # ModelUnknown = pas d'appel
         counter = resolve(auth.raw["tokenizer_id"])                      # TokenizerRequired = pas d'appel
-        counted = upper_input_tokens(counter, request["system"], request["user"])
-        if counted > auth.raw["max_input_tokens"]:
-            raise c.ReviewError(c.INPUT_TOO_LARGE, f"prompt needs up to {counted} input tokens, authorised maximum is {auth.raw['max_input_tokens']}")
+        estimate = estimate_input_tokens(counter, request["system"], request["user"])
+        if estimate > auth.raw["max_input_tokens"]:
+            raise c.ReviewError(c.INPUT_TOO_LARGE, f"prompt is estimated at {estimate} input tokens, authorised maximum is {auth.raw['max_input_tokens']}")
         body = {"model": auth.raw["model"], "messages": [{"role": "system", "content": request["system"]}, {"role": "user", "content": request["user"]}],
-                self.max_output_param: min(request["max_output_tokens"], auth.raw["max_output_tokens"]), **self.extra_body}
+                profile.max_output_param: min(request["max_output_tokens"], auth.raw["max_output_tokens"])}
+        for key, value in self.extra_body.items():
+            if key in body or key in PROTECTED or key not in profile.allowed_extra:
+                raise c.ReviewError(c.INVALID_RESPONSE, f"extra parameter {key!r} is protected, already controlled by the campaign, or not allowlisted for this model")
+            body[key] = value
         req = HttpRequest("POST", auth.raw["provider_host"], auth.raw["endpoint_path"],
                           {"content-type": "application/json", "authorization": f"Bearer {self.api_key()}"},
-                          json.dumps(body, ensure_ascii=False).encode("utf-8"), float(request["timeout_s"]))
+                          json.dumps(body, ensure_ascii=False, allow_nan=False).encode("utf-8"), float(request["timeout_s"]))
         try:
             resp, attempt = self.transport.send(req)
         except TransportError as exc:
@@ -236,9 +308,33 @@ class ChatCompletionsProvider:
             text = json.loads(resp.body.decode("utf-8"))["choices"][0]["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError):
             text = None
-        if underestimated(counted, usage["input"]):   # le compteur sous-estime : plus aucun envoi tant qu'il n'est pas corrigé
-            self.transport.tripped = f"tokenizer {counter.id} counted {counted} but the provider reported {usage['input']} input tokens"
-        known = usage["input"] is not None and usage["output"] is not None
-        return ProviderResult(text=text if isinstance(text, str) else None, usage={"input": usage["input"], "output": usage["output"]} if known else None,
-                              error=None if isinstance(text, str) else "no text in the response", latency_s=attempt.latency_s,
-                              http_attempts=attempt.http_attempts, observed_cost_usd=usage["provider_cost_usd"])
+        incident = self._billing_incident(auth, profile, usage, estimate)
+        if incident:                                                      # le transport se déclenche : plus aucun envoi tant qu'un humain n'a pas tranché
+            self.transport.stop(incident)
+        known = usage["input"] is not None and usage["output"] is not None and not incident
+        result_usage = {"input": usage["input"], "output": usage["output"]} if known else None
+        if known and profile.reasoning_policy == "separate_cap":
+            result_usage["reasoning"] = usage["reasoning"] if usage["reasoning"] is not None else 0
+            if usage["reasoning"] is None:                                # unité facturable distincte non renvoyée : le coût n'est pas établi
+                result_usage = None
+        partial = usage["finish_reason"] not in COMPLETE_FINISH_REASONS
+        return ProviderResult(text=text if isinstance(text, str) else None, usage=result_usage,
+                              error=incident or (None if isinstance(text, str) else "no text in the response"), latency_s=attempt.latency_s,
+                              http_attempts=attempt.http_attempts, observed_cost_usd=usage["provider_cost_usd"], partial=partial)
+
+    @staticmethod
+    def _billing_incident(auth: CampaignAuthorization, profile: BodyPolicy, usage: dict, estimate: int) -> str | None:
+        """Incident de facturation visible dans la réponse : le compteur sous-estime, ou une unité facturable dépasse son plafond autorisé."""
+        if underestimated(estimate, usage["input"]):
+            return f"the provider reported {usage['input']} input tokens, above the estimate of {estimate}: the tokenizer underestimates"
+        if usage["output"] is not None and usage["output"] > auth.raw["max_output_tokens"] + (auth.raw.get("reasoning_cap_tokens", 0) if profile.reasoning_policy == "separate_cap" else 0):
+            return f"the provider reported {usage['output']} output tokens, above the authorised cap"
+        reasoning = usage["reasoning"]
+        if reasoning is not None:
+            if profile.reasoning_policy == "not_supported_by_model" and reasoning > 0:
+                return "reasoning tokens were billed although the model profile says it has none"
+            if profile.reasoning_policy == "included_in_max_output" and usage["output"] is not None and reasoning > usage["output"]:
+                return "reasoning tokens exceed the reported output tokens although they should be included in it"
+            if profile.reasoning_policy == "separate_cap" and reasoning > auth.raw["reasoning_cap_tokens"]:
+                return f"reasoning tokens ({reasoning}) exceed the authorised cap ({auth.raw['reasoning_cap_tokens']})"
+        return None

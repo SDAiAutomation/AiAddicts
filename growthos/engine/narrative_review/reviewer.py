@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from . import contract as c
 from .decision import decide
-from .providers import Budget, Prices, Provider, estimate_usd, finite_nonneg, max_call_usd, prompt_tokens_upper
+from .providers import Budget, Prices, Provider, estimate_usd, finite_nonneg, max_call_usd, prompt_tokens_estimate
 from .snapshot import READ_LIMITS
 from .validate import validate_response
 
@@ -105,9 +105,9 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
     label = f"critic:{snapshot['snapshot_id'][:12]}:{uuid.uuid4().hex[:6]}"
     prompt = build_critic_prompt(snapshot)
     no_call = _usage_block(None, prices, None, 0) | {"logical_calls": 0}
-    if prompt_tokens_upper(prompt) > MAX_INPUT_TOKENS:  # le plafond de tokens est APPLIQUÉ, pas seulement réservé
+    if prompt_tokens_estimate(prompt) > MAX_INPUT_TOKENS:  # le plafond de tokens est APPLIQUÉ, pas seulement réservé
         return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["input_too_large"]),
-                       error={"code": c.INPUT_TOO_LARGE, "message": f"prompt exceeds {MAX_INPUT_TOKENS} input tokens (upper bound)"},
+                       error={"code": c.INPUT_TOO_LARGE, "message": f"prompt exceeds {MAX_INPUT_TOKENS} input tokens (heuristic estimate)"},
                        usage=no_call, model=model, limits=limits)
     try:
         budget.reserve(label, max_call_usd(prices, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS))
@@ -134,6 +134,10 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
         limits.append("hidden_retry_detected")
     elif result.http_attempts is None:
         limits.append("provider_attempts_unverified")
+    if result.partial:   # réponse tronquée ou filtrée : ni le contenu ni le coût ne sont fiables, la revue n'est pas exploitable
+        limits.append("partial_response")
+        return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["partial_response"]),
+                       error={"code": c.PROVIDER_UNAVAILABLE, "message": "partial response (truncated or filtered)"}, usage=usage, model=model, limits=limits)
     if result.text is None:
         return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["provider_unavailable"]),
                        error={"code": c.PROVIDER_UNAVAILABLE, "message": result.error or "no text"}, usage=usage, model=model, limits=limits)

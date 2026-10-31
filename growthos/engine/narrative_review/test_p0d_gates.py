@@ -15,6 +15,7 @@ from growthos.engine.narrative_review.harness import corpus as corp
 from growthos.engine.narrative_review.harness import policy
 from growthos.engine.narrative_review.harness.simulation import simulated_critic, simulated_generator
 from growthos.engine.narrative_review.p0d import authorization as au
+from growthos.engine.narrative_review.p0d import profiles as pf
 from growthos.engine.narrative_review.p0d import tokenizer as tk
 from growthos.engine.narrative_review.p0d import transport as tr
 from growthos.engine.narrative_review.providers import Budget, Prices, ProviderResult
@@ -25,6 +26,15 @@ FIX = corp.FIXTURES / "p0d"
 CORPUS_SHA = corp.load_corpus()["hashes"]["corpus_sha256"]
 BASELINE_SHA = policy.load_manifest()["standard"]["rendered_sha256"]
 EGRESS = "e" * 64
+MODEL = "model-x"
+PROFILE = pf.BodyPolicy(model=MODEL, max_output_param="max_tokens", reasoning_policy="not_supported_by_model", tokenizer_id=tk.HEURISTIC_ID)
+SAMPLES = [("S" * 100, "U" * 100, 90)] * 25                                      # consommation réelle (simulée) INFÉRIEURE à l'estimation : 90 <= 128
+RECORD = tk.validate_counter(tk.CharHeuristic(), MODEL, SAMPLES)
+
+
+def setUpModule():
+    pf.register_profile(PROFILE)
+    unittest.addModuleCleanup(pf._profiles.pop, MODEL, None)
 
 
 def good_auth(**over):
@@ -32,7 +42,7 @@ def good_auth(**over):
            "model": "model-x", "provider_host": "api.provider-example.com", "endpoint_path": "/v1/chat/completions", "currency": "USD", "ceiling_usd": 5.0,
            "input_per_m": 1.0, "output_per_m": 4.0, "prices_as_of": "2026-11-01", "prices_source": "https://provider-example.com/pricing",
            "max_logical_calls": 20, "strata": ["standard"], "topics": sorted(corp.PILOT_IDS), "max_input_tokens": 16000, "max_output_tokens": 4000,
-           "tokenizer_id": "char-upper-bound", "corpus_sha256": CORPUS_SHA, "baseline_rendered_sha256": BASELINE_SHA, "egress_attestation_sha256": EGRESS}
+           "tokenizer_id": tk.HEURISTIC_ID, "tokenizer_validation_sha256": RECORD.sha256, "reasoning_policy": "not_supported_by_model", "corpus_sha256": CORPUS_SHA, "baseline_rendered_sha256": BASELINE_SHA, "egress_attestation_sha256": EGRESS}
     raw.update(over)
     return raw
 
@@ -97,13 +107,13 @@ class TestAuthorization(unittest.TestCase):
         with self.assertRaises(c.ReviewError):
             w.check()                                                                    # jamais ouverte
         with self.assertRaises(c.ReviewError):
-            w.open(auth, egress_attestation_sha256="f" * 64, now=NOW, corpus_sha256=CORPUS_SHA)   # autre attestation
-        w.open(auth, egress_attestation_sha256=EGRESS, now=NOW, corpus_sha256=CORPUS_SHA)
+            w.open(auth, egress_attestation_sha256="f" * 64, tokenizer_validation=RECORD, now=NOW, corpus_sha256=CORPUS_SHA)   # autre attestation
+        w.open(auth, egress_attestation_sha256=EGRESS, tokenizer_validation=RECORD, now=NOW, corpus_sha256=CORPUS_SHA)
         self.assertEqual(w.check(NOW).campaign_id, "P0D-TEST")
         with self.assertRaises(c.ReviewError):
             w.check(NOW + timedelta(hours=13))                                           # expirée => fermée définitivement
         with self.assertRaises(c.ReviewError):
-            w.open(auth, egress_attestation_sha256=EGRESS, now=NOW, corpus_sha256=CORPUS_SHA)   # pas de réouverture
+            w.open(auth, egress_attestation_sha256=EGRESS, tokenizer_validation=RECORD, now=NOW, corpus_sha256=CORPUS_SHA)   # pas de réouverture
         self.assertEqual(len(auth.digest), 64)
 
 
@@ -124,7 +134,8 @@ def completion(text="{}", prompt=1000, completion_tokens=200, **usage_extra):
 
 def open_window(**auth_over):
     w = au.Window()
-    w.open(au.CampaignAuthorization(good_auth(**auth_over)), egress_attestation_sha256=EGRESS, corpus_sha256=CORPUS_SHA)
+    record = auth_over.pop("_record", RECORD)
+    w.open(au.CampaignAuthorization(good_auth(**auth_over)), egress_attestation_sha256=EGRESS, tokenizer_validation=record, corpus_sha256=CORPUS_SHA)
     return w
 
 
@@ -143,12 +154,12 @@ class TestMeteredTransport(unittest.TestCase):
                       "prices_as_of": (now - timedelta(days=2)).date().isoformat()}
 
     def transport(self, sender, **over):
-        return tr.MeteredTransport(sender, open_window(**{**self.dates, **over}))
+        return tr.MeteredTransport(sender, open_window(**{**self.dates, **over}), body_validator=lambda req, auth: None)   # mécanique du transport : le corps est testé à part
 
     def test_no_send_without_an_open_window_and_only_to_the_one_authorised_target(self):
         sender = FakeSender()
         with self.assertRaises(c.ReviewError):
-            tr.MeteredTransport(sender, au.Window()).send(request())
+            tr.MeteredTransport(sender, au.Window(), body_validator=lambda r, a: None).send(request())
         t = self.transport(sender)
         for bad in (request(host="evil.example.com"), request(path="/other"), request(method="GET"), request(body=b"x" * 300_000), request(timeout_s=float("nan")),
                     request(timeout_s=0), request(timeout_s=999)):
@@ -291,20 +302,20 @@ class TestMeteredTransport(unittest.TestCase):
 
     def test_usage_and_cost_come_only_from_the_provider_response_and_unknown_stays_none(self):
         u = tr.usage_from_body(completion(prompt=1200, completion_tokens=300, cost=0.0123, completion_tokens_details={"reasoning_tokens": 120}))
-        self.assertEqual(u, {"input": 1200, "output": 300, "reasoning": 120, "provider_cost_usd": 0.0123})
+        self.assertEqual({k: u[k] for k in ("input", "output", "reasoning", "provider_cost_usd")}, {"input": 1200, "output": 300, "reasoning": 120, "provider_cost_usd": 0.0123})
         self.assertEqual(tr.usage_from_body(json.dumps({"usage": {"input_tokens": 5, "output_tokens": 6}}).encode())["input"], 5)
         for body in (b"not json", b"{}", b'{"usage": 3}', json.dumps({"usage": {"prompt_tokens": float("nan"), "completion_tokens": -1}}).encode()):
-            self.assertEqual(tr.usage_from_body(body), {"input": None, "output": None, "reasoning": None, "provider_cost_usd": None}, body)
+            self.assertEqual(tr.usage_from_body(body), {"input": None, "output": None, "reasoning": None, "provider_cost_usd": None, "finish_reason": None}, body)
         self.assertIsNone(tr.usage_from_body(completion())["provider_cost_usd"])            # pas de coût renvoyé => inconnu, jamais calculé
 
     def provider(self, sender, **over):
-        t = self.transport(sender, **over)
-        return tr.ChatCompletionsProvider(t, api_key=lambda: "sk-test-not-real", max_output_param="max_tokens"), t
+        t = tr.MeteredTransport(sender, open_window(**{**self.dates, **over}))          # sans validateur : le fournisseur installe celui du profil
+        return tr.ChatCompletionsProvider(t, api_key=lambda: "sk-test-not-real"), t
 
     def test_the_chat_provider_returns_measured_attempts_usage_and_observed_cost(self):
         sender = FakeSender(body=completion("hello", prompt=900, completion_tokens=150, cost=0.002))
         provider, t = self.provider(sender)
-        result = provider({"role": "generation", "system": "S", "user": "U", "max_output_tokens": 99999, "timeout_s": 30})
+        result = provider({"role": "generation", "system": "S" * 1800, "user": "U", "max_output_tokens": 99999, "timeout_s": 30})   # estimation >= 900 jetons facturés
         self.assertEqual((result.text, result.usage, result.http_attempts, result.observed_cost_usd), ("hello", {"input": 900, "output": 150}, 1, 0.002))
         body = json.loads(sender.calls[0].body)
         self.assertEqual((body["model"], body["max_tokens"]), ("model-x", 4000))           # plafond de sortie ramené à l'autorisation
@@ -330,20 +341,26 @@ class TestMeteredTransport(unittest.TestCase):
 
 class TestTokenizer(unittest.TestCase):
     def test_the_conservative_bound_and_the_overhead(self):
-        counter = tk.resolve("char-upper-bound")
+        counter = tk.resolve(tk.HEURISTIC_ID)
         self.assertEqual((counter.count("abcd"), counter.count("abc"), counter.exact), (2, 2, False))
-        self.assertEqual(tk.upper_input_tokens(counter, "a" * 100, "b" * 100), 128)           # (50 + 50 + 16) x 1,10 = 127,6 arrondi au-dessus
+        self.assertEqual(tk.estimate_input_tokens(counter, "a" * 100, "b" * 100), 128)         # (50 + 50 + 16) x 1,10 = 127,6 arrondi au-dessus
         with self.assertRaises(ValueError):
-            tk.upper_input_tokens(counter, "a", "b", safety=float("nan"))
+            tk.estimate_input_tokens(counter, "a", "b", safety=float("nan"))
 
     def test_an_unregistered_model_tokenizer_means_no_call(self):
         with self.assertRaises(tk.TokenizerRequired):
             tk.resolve("some-model-bpe")
         sender = FakeSender()
         now = datetime.now(timezone.utc)
+        # le profil du modèle déclare un tokenizer qui n'est PAS enregistré : la fenêtre s'ouvre (enregistrement valide fourni) mais l'appel est refusé
+        pf.register_profile(pf.BodyPolicy(model="model-bpe", max_output_param="max_tokens", reasoning_policy="not_supported_by_model", tokenizer_id="some-model-bpe"))
+        self.addCleanup(pf._profiles.pop, "model-bpe", None)
+        record = tk.validate_counter(tk.CharHeuristic(), "model-bpe", SAMPLES)
+        record = tk.ValidationRecord("some-model-bpe", "model-bpe", record.samples, record.max_reported_over_estimate, record.safety, True, "b" * 64)
         w = open_window(approved_at=(now - timedelta(hours=1)).isoformat(), expires_at=(now + timedelta(hours=2)).isoformat(),
-                        prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="some-model-bpe")
-        provider = tr.ChatCompletionsProvider(tr.MeteredTransport(sender, w), api_key=lambda: "k", max_output_param="max_tokens")
+                        prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="some-model-bpe", model="model-bpe",
+                        tokenizer_validation_sha256="b" * 64, _record=record)
+        provider = tr.ChatCompletionsProvider(tr.MeteredTransport(sender, w), api_key=lambda: "k")
         with self.assertRaises(tk.TokenizerRequired):
             provider({"system": "S", "user": "U", "max_output_tokens": 10, "timeout_s": 30})
         self.assertEqual(sender.calls, [])
@@ -357,15 +374,20 @@ class TestTokenizer(unittest.TestCase):
 
         tk.register(Tiny)
         self.addCleanup(tk._registry.pop, "tiny-test", None)
+        pf.register_profile(pf.BodyPolicy(model="model-tiny", max_output_param="max_tokens", reasoning_policy="not_supported_by_model", tokenizer_id="tiny-test"))
+        self.addCleanup(pf._profiles.pop, "model-tiny", None)
+        record = tk.ValidationRecord("tiny-test", "model-tiny", 25, 0.5, 1.1, True, "c" * 64)       # « validé » à une époque ; sous-estime désormais
         now = datetime.now(timezone.utc)
         dates = dict(approved_at=(now - timedelta(hours=1)).isoformat(), expires_at=(now + timedelta(hours=2)).isoformat(),
-                     prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="tiny-test")
+                     prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="tiny-test", model="model-tiny",
+                     tokenizer_validation_sha256="c" * 64, _record=record)
         sender = FakeSender(body=completion("x", prompt=5000, completion_tokens=10))        # le fournisseur facture bien plus que compté
         t = tr.MeteredTransport(sender, open_window(**dates))
-        provider = tr.ChatCompletionsProvider(t, api_key=lambda: "k", max_output_param="max_tokens")
+        provider = tr.ChatCompletionsProvider(t, api_key=lambda: "k")
         result = provider({"system": "S", "user": "U", "max_output_tokens": 10, "timeout_s": 30})
-        self.assertEqual(result.usage["input"], 5000)
-        self.assertIn("tiny-test", t.tripped)
+        self.assertIsNone(result.usage)                                                      # coût non établi : jamais présenté comme connu
+        self.assertIn("underestimates", result.error)
+        self.assertIn("underestimates", t.tripped)
         with self.assertRaises(c.ReviewError):
             provider({"system": "S", "user": "U", "max_output_tokens": 10, "timeout_s": 30})
         self.assertEqual(len(sender.calls), 1)
@@ -427,7 +449,8 @@ class TestHardCapAutoStop(unittest.TestCase):
             return ProviderResult(text=r.text, usage={"input": 50_000_000, "output": 50_000_000}, latency_s=1.0)   # bien au-delà de la réservation
         result = self.run_with(offline(expensive), budget=Budget(1000.0))
         self.assertEqual(n["n"], 1)
-        self.assertIn("COST_BOUND_BROKEN", result["summary"]["halt_reasons"])
+        self.assertIn("COST_EXCEEDED_RESERVATION", result["summary"]["halt_reasons"])   # incident explicite
+        self.assertTrue(any(i["code"] == "COST_EXCEEDED_RESERVATION" for i in result["summary"]["incidents"]))
 
     def test_the_dollar_ceiling_is_hard_and_refuses_before_the_call(self):
         gen, crit = simulated_generator(), simulated_critic()

@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 from .. import contract as c
-from ..providers import Budget, Prices, Provider, estimate_usd, finite_nonneg, max_call_usd, prompt_tokens_upper
+from ..providers import Budget, Prices, Provider, estimate_usd, finite_nonneg, max_call_usd, prompt_tokens_estimate
 from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, TIMEOUT_S, Caller, review
 from ..snapshot import FACTUALITY_TO_MODES, from_standard, from_story_visual
 from . import policy
@@ -219,10 +219,26 @@ def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget
     summary["strata"] = sorted({k["stratum"] for k in cases})
     summary["baseline_kinds"] = baseline_kinds
     summary["halt_reasons"] = sorted(set(state.get("halt_reasons", [])))
+    summary["halted"] = state["halted"]
+    summary["incidents"] = state.get("incidents", [])
+    summary["unreconciled_attempts"] = None if budget.integrity_error() else budget.unreconciled   # réservations à réconcilier explicitement (montants réservés, USD)
     summary["network"] = {"guard": "sys.addaudithook (not an OS sandbox)", "attempts_blocked": state.get("network_violations", 0)}
     if out_dir is not None:
         (out_dir / "campaign_report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"rows": journal.rows, "pairs": paired, "summary": summary}
+
+
+def _halt(state: dict, journal, base: dict, attempt_id: str, code: str, detail: str) -> None:
+    """Arrête TOUTE la campagne et consigne un incident explicite (ligne de journal + liste du rapport). Idempotent par (tentative, code)."""
+    key = (attempt_id, code)
+    if key in state.setdefault("incident_keys", set()):
+        return
+    state["incident_keys"].add(key)
+    state["halted"] = True
+    state.setdefault("halt_reasons", []).append(code)
+    state.setdefault("incidents", []).append({"attempt_id": attempt_id, "code": code, "detail": detail})
+    journal.add(_row({**base, "attempt_id": attempt_id}, task="incident", execution_status="incident", error_code=code, logical_calls=0,
+                     cost_method="not established: the reservation stays unreconciled until an explicit reconcile"))
 
 
 def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, critic, budget, gen_prices, critic_prices,
@@ -232,7 +248,7 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         journal.add(_row(base, task="generation", execution_status="not_run", error_code=HALTED, logical_calls=0, http_attempts=0))
         entry.update(status="not_run", error=HALTED)
         return
-    if prompt_tokens_upper(spec["system"] + spec["user"]) > MAX_INPUT_TOKENS:
+    if prompt_tokens_estimate(spec["system"] + spec["user"]) > MAX_INPUT_TOKENS:
         journal.add(_row(base, task="generation", execution_status="not_run", error_code=c.INPUT_TOO_LARGE, logical_calls=0, http_attempts=0))
         entry.update(status="not_run", error=c.INPUT_TOO_LARGE)
         return
@@ -249,13 +265,13 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         result = generator({"role": "generation", "system": spec["system"], "user": spec["user"],
                             "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_s": TIMEOUT_S})
     except Exception as exc:  # noqa: BLE001 - échec visible, coût inconnu, AUCUN retry
-        budget.settle(base["attempt_id"], None)
+        budget.settle(base["attempt_id"], None)   # la réservation reste engagée, NON réconciliée : une absence de réponse n'est jamais un coût nul
         journal.add(_row(base, task="generation", execution_status="provider_error", error_code=type(exc).__name__, logical_calls=1,
-                         cost_method="unknown", latency_ms=round((time.monotonic() - started) * 1000)))
+                         cost_method="unknown (reservation kept unreconciled)", latency_ms=round((time.monotonic() - started) * 1000)))
         entry.update(status="provider_error", error=type(exc).__name__)
         if violations_count() > blocked_before:
-            state["halted"] = True
             state["network_violations"] = state.get("network_violations", 0) + 1
+        _halt(state, journal, base, base["attempt_id"], "UNKNOWN_COST", f"the provider call raised {type(exc).__name__}: cost cannot be established")
         return
     if violations_count() > blocked_before:  # le fournisseur a avalé l'exception : la tentative est quand même comptée et arrête la campagne
         state["halted"] = True
@@ -263,13 +279,17 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         entry["network_attempt_blocked"] = True
     est = estimate_usd(result.usage, gen_prices)
     overrun = budget.settle(base["attempt_id"], est)
-    if overrun or budget.integrity_error() or result.http_attempts is None or result.http_attempts > 1:
-        state["halted"] = True  # retry interne, tentatives inconnues ou dépassement de réservation : la borne de coût n'est plus tenue
-        state.setdefault("halt_reasons", []).append("COST_BOUND_BROKEN")
-    if result.text is not None and est is None:
-        # Réponse reçue mais jetons/coût inconnus : la dépense ne peut plus être bornée, on s'arrête (arrêt automatique sur usage inconnu).
-        state["halted"] = True
-        state.setdefault("halt_reasons", []).append("UNKNOWN_USAGE")
+    if overrun:
+        _halt(state, journal, base, base["attempt_id"], "COST_EXCEEDED_RESERVATION", "the estimated cost exceeds what was reserved for this call")
+    if budget.integrity_error() or result.http_attempts is None or result.http_attempts > 1:
+        _halt(state, journal, base, base["attempt_id"], "COST_BOUND_BROKEN", "hidden retry, unknown attempt count or corrupted budget state")
+    # Toute tentative dont le coût ne peut pas être ÉTABLI arrête la campagne ; sa réservation reste non réconciliée (jamais 0).
+    if est is None:
+        _halt(state, journal, base, base["attempt_id"], "UNKNOWN_USAGE", "no usable token usage: cost cannot be established")
+    if result.text is None:
+        _halt(state, journal, base, base["attempt_id"], "NO_RESPONSE_TEXT", "the provider returned no text")
+    if result.partial:
+        _halt(state, journal, base, base["attempt_id"], "PARTIAL_RESPONSE", "the response is truncated or filtered: content and cost are not reliable")
     usage = result.usage or {}
     usage_cols = dict(input_tokens=usage.get("input"), output_tokens=usage.get("output"), usage_complete=bool(result.usage),
                       estimated_cost=est, observed_cost=result.observed_cost_usd if finite_nonneg(result.observed_cost_usd) else None,
@@ -316,14 +336,15 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
         entry["network_attempt_blocked"] = True
     u = report["usage"]
     state["calls"]["critique"] += u["logical_calls"]   # un refus (budget, locataire, taille) vaut 0 appel, comme dans le journal
-    answered_unverified = u["provider_attempts"] is None and report["error"] is None or "provider_attempts_unverified" in report["limits"]
-    if u["logical_calls"] and ((u["provider_attempts"] or 0) > 1 or answered_unverified or "cost_exceeded_reservation" in report["limits"]
-                               or "budget_state_corrupted" in report["limits"]):
-        state["halted"] = True  # une exception ou un timeout isolé n'arrête pas la campagne (une case consommée, sans retry)
-        state.setdefault("halt_reasons", []).append("COST_BOUND_BROKEN")
-    if u["logical_calls"] and u["estimated_cost"] is None and (report["error"] is None or report["error"]["code"] != c.PROVIDER_UNAVAILABLE):
-        state["halted"] = True   # critique répondue sans usage exploitable : dépense non bornée
-        state.setdefault("halt_reasons", []).append("UNKNOWN_USAGE")
+    if u["logical_calls"]:   # un appel de critique a réellement eu lieu
+        if "cost_exceeded_reservation" in report["limits"]:
+            _halt(state, journal, base, critic_id, "COST_EXCEEDED_RESERVATION", "the critic call cost more than its reservation")
+        if (u["provider_attempts"] or 0) > 1 or "provider_attempts_unverified" in report["limits"] or "budget_state_corrupted" in report["limits"] \
+                or (u["provider_attempts"] is None and report["error"] is None):
+            _halt(state, journal, base, critic_id, "COST_BOUND_BROKEN", "hidden retry, unknown attempt count or corrupted budget state")
+        if u["estimated_cost"] is None:   # usage inconnu, timeout, PROVIDER_UNAVAILABLE, texte absent : le coût n'est pas établi
+            _halt(state, journal, base, critic_id, "UNKNOWN_COST" if (report["error"] or {}).get("code") == c.PROVIDER_UNAVAILABLE else "UNKNOWN_USAGE",
+                  f"critic attempt without an established cost ({(report['error'] or {}).get('code') or 'no usage'})")
     journal.add(_row({**base, "attempt_id": critic_id, "model": critic_model, "prompt_version": c.PROMPT_VERSION, "prompt_hash": ""},
                      task="critique", snapshot_id=report["snapshot_id"], execution_status=report["analysis_status"],
                      error_code=(report["error"] or {}).get("code"), editorial_decision=report["decision"],

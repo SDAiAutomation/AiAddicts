@@ -21,6 +21,7 @@ class ProviderResult:
     latency_s: float | None = None
     http_attempts: int | None = 1      # déclaré par le fournisseur ; None = inconnu (le transport instrumenté le MESURE : p0d/transport.py)
     observed_cost_usd: float | None = None   # coût RENVOYÉ par le fournisseur (jamais calculé ici) ; None = non fourni
+    partial: bool = False                    # réponse tronquée ou filtrée (finish_reason != "stop") : le coût et le contenu ne sont pas fiables
 
 
 Provider = Callable[[dict], ProviderResult]  # reçoit {"role", "prompt", "max_output_tokens", "timeout_s"}
@@ -39,10 +40,13 @@ class Prices:
     currency: str = "USD"
     as_of: str = ""       # date de lecture du tarif officiel (obligatoire pour un appel réel)
     source: str = ""      # page de tarifs consultée
+    reasoning_per_m: float | None = None   # unité facturable distincte (politique de raisonnement `separate_cap`) ; None = non applicable
 
     def __post_init__(self):
         if not (finite_nonneg(self.input_per_m) and finite_nonneg(self.output_per_m)):
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "prices must be finite and non-negative")
+        if self.reasoning_per_m is not None and not finite_nonneg(self.reasoning_per_m):
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, "reasoning_per_m must be finite and non-negative when given")
         if not isinstance(self.currency, str) or not self.currency.strip():
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "prices need a currency")
 
@@ -58,15 +62,21 @@ def estimate_usd(usage: dict | None, prices: Prices | None) -> float | None:
         return None
     if not (finite_nonneg(usage.get("input")) and finite_nonneg(usage.get("output"))):
         return None
-    cost = (usage["input"] * prices.input_per_m + usage["output"] * prices.output_per_m) / 1_000_000
+    total = usage["input"] * prices.input_per_m + usage["output"] * prices.output_per_m
+    if "reasoning" in usage:   # unité facturable distincte : sans tarif ou sans valeur valide, le coût n'est PAS établi (jamais 0)
+        reasoning_price = getattr(prices, "reasoning_per_m", None)
+        if not (finite_nonneg(usage["reasoning"]) and finite_nonneg(reasoning_price)):
+            return None
+        total += usage["reasoning"] * reasoning_price
+    cost = total / 1_000_000
     return cost if finite_nonneg(cost) else None
 
 
-def prompt_tokens_upper(text: str) -> int:
-    """Majorant du nombre de jetons d'entrée : 1 jeton pour 2 caractères.
+def prompt_tokens_estimate(text: str) -> int:
+    """ESTIMATION heuristique du nombre de jetons d'entrée : 1 jeton pour 2 caractères. Ce n'est PAS un majorant garanti.
 
-    shortcut: majorant raisonnable pour le français et l'anglais, pas démontré pour tous les modèles ; à remplacer par le
-    tokenizer du modèle choisi avant tout appel réel. Un prompt au-dessus du plafond est refusé AVANT toute réservation.
+    Elle sert de garde grossière dans le harness hors ligne. Pour un appel réel, seul un tokenizer VALIDÉ pour le modèle choisi (p0d/tokenizer.py) est admis ;
+    même alors, la vraie consommation n'est connue que dans la réponse du fournisseur, et un dépassement de la réservation arrête la campagne.
     """
     return -(-len(text) // 2)
 
@@ -87,12 +97,12 @@ class Budget:
     Un état corrompu (y compris par contournement `object.__setattr__`) refuse toute réservation, donc aucun appel fournisseur, et reste
     refusé : il n'est jamais « réparé » en silence.
     """
-    __slots__ = ("_ceiling", "_reserved", "_settled", "_unknown_calls", "_overruns", "_poisoned", "_lock")
+    __slots__ = ("_ceiling", "_reserved", "_unreconciled", "_settled", "_unknown_calls", "_overruns", "_poisoned", "_lock")
 
     def __init__(self, ceiling_usd: float):
         if not finite_nonneg(ceiling_usd):
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "the budget ceiling must be finite and non-negative")
-        self._ceiling, self._reserved, self._settled = float(ceiling_usd), {}, 0.0
+        self._ceiling, self._reserved, self._unreconciled, self._settled = float(ceiling_usd), {}, {}, 0.0
         self._unknown_calls, self._overruns, self._poisoned = 0, 0, False
         self._lock = threading.Lock()
 
@@ -105,6 +115,11 @@ class Budget:
     def reserved(self) -> dict:
         return dict(self._reserved) if isinstance(self._reserved, dict) else {}   # copie : muter le résultat ne change pas le budget
 
+    @property
+    def unreconciled(self) -> dict:
+        """Tentatives dont le coût n'a pas pu être établi : le montant RÉSERVÉ y reste engagé jusqu'à `reconcile` (jamais compté comme 0)."""
+        return dict(self._unreconciled) if isinstance(self._unreconciled, dict) else {}
+
     def _state_error(self) -> str | None:
         """Message décrivant l'incohérence, ou None si l'état est sain. À appeler sous verrou."""
         if self._poisoned:
@@ -113,12 +128,15 @@ class Budget:
             return "budget ceiling is not finite and non-negative"
         if not finite_nonneg(self._settled):
             return "settled amount is not finite and non-negative"
-        if not isinstance(self._reserved, dict) or any(not isinstance(k, str) or not finite_nonneg(v) for k, v in self._reserved.items()):
-            return "a reservation is not a finite non-negative amount"
+        for held in (self._reserved, self._unreconciled):
+            if not isinstance(held, dict) or any(not isinstance(k, str) or not finite_nonneg(v) for k, v in held.items()):
+                return "a reservation is not a finite non-negative amount"
+        if set(self._reserved) & set(self._unreconciled):
+            return "a label is both reserved and unreconciled"
         for counter in (self._unknown_calls, self._overruns):
             if not isinstance(counter, int) or isinstance(counter, bool) or counter < 0:
                 return "a counter is not a non-negative integer"
-        if not finite_nonneg(self._settled + sum(self._reserved.values())):
+        if not finite_nonneg(self._settled + sum(self._reserved.values()) + sum(self._unreconciled.values())):
             return "committed total is not finite"
         return None
 
@@ -131,13 +149,15 @@ class Budget:
             error = self._state_error()
             if error:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, error)
-            return self._settled + sum(self._reserved.values())
+            return self._settled + sum(self._reserved.values()) + sum(self._unreconciled.values())
 
     def reserve(self, label: str, max_usd: float | None) -> None:
         with self._lock:
             error = self._state_error()
             if error:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {error}, no call")
+            if self._unreconciled:   # une tentative au coût inconnu bloque TOUTE nouvelle réservation jusqu'à réconciliation explicite
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: unreconciled attempt(s) {sorted(self._unreconciled)}, no new call before an explicit reconcile")
             if not isinstance(label, str) or label in self._reserved:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, "a reservation label must be a new text label")
             if not finite_nonneg(max_usd):  # None, NaN, +-inf, négatif : le coût maximal n'est pas démontrable
@@ -147,7 +167,8 @@ class Budget:
             self._reserved[label] = max_usd
 
     def settle(self, label: str, actual_estimate_usd: float | None) -> bool:
-        """Remplace la réservation par l'estimation. Estimation inconnue OU invalide : on GARDE la réservation (prudence).
+        """Remplace la réservation par l'estimation. Estimation inconnue OU invalide : la réservation reste ENGAGÉE comme « non réconciliée »
+        (jamais comptée comme 0, jamais libérée) jusqu'à `reconcile`.
 
         Ne lève jamais (appelée après l'appel fournisseur) : sur état corrompu, le budget est marqué corrompu et refusera toute réservation
         suivante ; `integrity_error()` le dit. Retourne True si l'estimation DÉPASSE la réservation (dépassement enregistré, jamais masqué).
@@ -158,7 +179,7 @@ class Budget:
                 return False
             held = self._reserved.pop(label, 0.0)
             if not finite_nonneg(actual_estimate_usd):
-                self._settled += held
+                self._unreconciled[label] = held
                 self._unknown_calls += 1
                 return False
             self._settled += actual_estimate_usd
@@ -166,3 +187,19 @@ class Budget:
                 self._overruns += 1
                 return True
             return False
+
+    def reconcile(self, label: str, actual_usd: float, *, note: str) -> None:
+        """Réconciliation EXPLICITE (par une personne, d'après la facture du fournisseur) d'une tentative au coût inconnu : le montant réel remplace la réservation.
+        `note` (obligatoire) dit d'où vient le montant. Un montant inférieur à la réservation libère la différence ; supérieur, il est enregistré comme dépassement."""
+        with self._lock:
+            error = self._state_error()
+            if error:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, error)
+            if label not in self._unreconciled:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label} is not an unreconciled attempt")
+            if not finite_nonneg(actual_usd) or not isinstance(note, str) or not note.strip():
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, "reconcile needs a finite non-negative amount and a note saying where it comes from")
+            held = self._unreconciled.pop(label)
+            self._settled += actual_usd
+            if actual_usd > held + 1e-12:
+                self._overruns += 1
