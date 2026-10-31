@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from . import contract as c
 from .decision import decide
-from .providers import Budget, Prices, Provider, estimate_usd, max_call_usd, prompt_tokens_upper
+from .providers import Budget, Prices, Provider, estimate_usd, finite_nonneg, max_call_usd, prompt_tokens_upper
 from .snapshot import READ_LIMITS
 from .validate import validate_response
 
@@ -67,9 +67,10 @@ def build_critic_prompt(snapshot: dict) -> str:
         "Données :\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
-def _usage_block(usage: dict | None, prices: Prices | None, latency, attempts) -> dict:
+def _usage_block(usage: dict | None, prices: Prices | None, latency, attempts, observed=None) -> dict:
     return {"input_tokens": None if not usage else usage.get("input"), "output_tokens": None if not usage else usage.get("output"),
-            "estimated_cost": estimate_usd(usage, prices), "observed_cost": None,   # la facture n'est connue qu'après coup
+            "estimated_cost": estimate_usd(usage, prices),
+            "observed_cost": observed if finite_nonneg(observed) else None,   # seulement si le fournisseur le RENVOIE ; sinon inconnu (jamais calculé)
             "currency": getattr(prices, "currency", None) if prices else None,
             "cost_method": "tokens x configured prices" if prices and usage else "unknown",
             "latency_s": latency, "provider_attempts": attempts, "logical_calls": 1}
@@ -120,7 +121,7 @@ def review(snapshot: dict, provider: Provider, *, caller: Caller, budget: Budget
         return _report(snapshot, status="unavailable", response=None, decision=_no_decision(["provider_unavailable"]),
                        error={"code": c.PROVIDER_UNAVAILABLE, "message": type(exc).__name__}, usage=_usage_block(None, prices, None, None),
                        model=model, limits=limits)
-    usage = _usage_block(result.usage, prices, result.latency_s, result.http_attempts)
+    usage = _usage_block(result.usage, prices, result.latency_s, result.http_attempts, result.observed_cost_usd)
     overrun = budget.settle(label, usage["estimated_cost"])
     if overrun:
         limits.append("cost_exceeded_reservation")

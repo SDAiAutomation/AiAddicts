@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 from .. import contract as c
-from ..providers import Budget, Prices, Provider, estimate_usd, max_call_usd, prompt_tokens_upper
+from ..providers import Budget, Prices, Provider, estimate_usd, finite_nonneg, max_call_usd, prompt_tokens_upper
 from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, TIMEOUT_S, Caller, review
 from ..snapshot import FACTUALITY_TO_MODES, from_standard, from_story_visual
 from . import policy
@@ -218,6 +218,7 @@ def _run_campaign(corpus: dict, *, generator: Provider, critic: Provider, budget
     summary = _summary(journal.rows, paired, state["calls"], budget, campaign_id, manifest, corpus, source_commit, state["halted"])
     summary["strata"] = sorted({k["stratum"] for k in cases})
     summary["baseline_kinds"] = baseline_kinds
+    summary["halt_reasons"] = sorted(set(state.get("halt_reasons", [])))
     summary["network"] = {"guard": "sys.addaudithook (not an OS sandbox)", "attempts_blocked": state.get("network_violations", 0)}
     if out_dir is not None:
         (out_dir / "campaign_report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -264,9 +265,15 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
     overrun = budget.settle(base["attempt_id"], est)
     if overrun or budget.integrity_error() or result.http_attempts is None or result.http_attempts > 1:
         state["halted"] = True  # retry interne, tentatives inconnues ou dépassement de réservation : la borne de coût n'est plus tenue
+        state.setdefault("halt_reasons", []).append("COST_BOUND_BROKEN")
+    if result.text is not None and est is None:
+        # Réponse reçue mais jetons/coût inconnus : la dépense ne peut plus être bornée, on s'arrête (arrêt automatique sur usage inconnu).
+        state["halted"] = True
+        state.setdefault("halt_reasons", []).append("UNKNOWN_USAGE")
     usage = result.usage or {}
     usage_cols = dict(input_tokens=usage.get("input"), output_tokens=usage.get("output"), usage_complete=bool(result.usage),
-                      estimated_cost=est, observed_cost=None, cost_method="tokens x configured prices" if est is not None else "unknown",
+                      estimated_cost=est, observed_cost=result.observed_cost_usd if finite_nonneg(result.observed_cost_usd) else None,
+                      cost_method="tokens x configured prices" if est is not None else "unknown",
                       currency=gen_prices.currency if gen_prices else None,
                       latency_ms=None if result.latency_s is None else round(result.latency_s * 1000),
                       logical_calls=1, http_attempts=result.http_attempts)
@@ -313,6 +320,10 @@ def _one_case(case, spec, view, base, entry, journal, state, corpus, generator, 
     if u["logical_calls"] and ((u["provider_attempts"] or 0) > 1 or answered_unverified or "cost_exceeded_reservation" in report["limits"]
                                or "budget_state_corrupted" in report["limits"]):
         state["halted"] = True  # une exception ou un timeout isolé n'arrête pas la campagne (une case consommée, sans retry)
+        state.setdefault("halt_reasons", []).append("COST_BOUND_BROKEN")
+    if u["logical_calls"] and u["estimated_cost"] is None and (report["error"] is None or report["error"]["code"] != c.PROVIDER_UNAVAILABLE):
+        state["halted"] = True   # critique répondue sans usage exploitable : dépense non bornée
+        state.setdefault("halt_reasons", []).append("UNKNOWN_USAGE")
     journal.add(_row({**base, "attempt_id": critic_id, "model": critic_model, "prompt_version": c.PROMPT_VERSION, "prompt_hash": ""},
                      task="critique", snapshot_id=report["snapshot_id"], execution_status=report["analysis_status"],
                      error_code=(report["error"] or {}).get("code"), editorial_decision=report["decision"],

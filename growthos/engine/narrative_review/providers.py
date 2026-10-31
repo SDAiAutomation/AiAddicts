@@ -19,7 +19,8 @@ class ProviderResult:
     usage: dict | None = None          # {"input": int, "output": int} ou None si inconnu
     error: str | None = None
     latency_s: float | None = None
-    http_attempts: int | None = 1      # déclaré par le fournisseur ; None = inconnu
+    http_attempts: int | None = 1      # déclaré par le fournisseur ; None = inconnu (le transport instrumenté le MESURE : p0d/transport.py)
+    observed_cost_usd: float | None = None   # coût RENVOYÉ par le fournisseur (jamais calculé ici) ; None = non fourni
 
 
 Provider = Callable[[dict], ProviderResult]  # reçoit {"role", "prompt", "max_output_tokens", "timeout_s"}

@@ -1,0 +1,122 @@
+{
+ "version": "narrative-source-validation:0.1",
+ "sources_sha256": "e3a16b94ece528c31b058ca77ad044d3efa81e7af0bceaa4111d9889d81077c0",
+ "status": "TEMPLATE_NOT_VERIFIED",
+ "verifier": {
+  "name": null,
+  "role": null,
+  "independent_of_authors": null,
+  "signed_on": null
+ },
+ "sources": [
+  {
+   "source_id": "S01",
+   "title": "The Discovery of Penicillin — Dunn School",
+   "url": "https://www.path.ox.ac.uk/centenary/the-discovery-of-penicillin/",
+   "accessed_at": "2026-10-30",
+   "locator": "Corps du texte : paragraphes Fleming/1928, Chain-Florey/1939 et dernière phrase sur le Nobel.",
+   "allowed_claims": "Chronologie 1928/1939/1945 ; distinction observation et travail ultérieur.",
+   "limitations": "Ne couvre ni scène privée, ni citation personnelle, ni date exacte du retour de vacances, ni nombre de vies sauvées.",
+   "checks": {
+    "page_reachable_at_accessed_url": {
+     "state": "unverified",
+     "note": null
+    },
+    "summary_is_original_not_a_copy": {
+     "state": "unverified",
+     "note": null
+    },
+    "locator_points_to_the_right_passage": {
+     "state": "unverified",
+     "note": null
+    },
+    "allowed_claims_within_what_the_page_says": {
+     "state": "unverified",
+     "note": null
+    },
+    "limitations_are_accurate": {
+     "state": "unverified",
+     "note": null
+    }
+   },
+   "claims": [
+    {
+     "claim_id": "S01-C01",
+     "summary_sentence": "Fleming observe en 1928 l'effet d'une substance produite par une moisissure sur certaines bactéries et la nomme pénicilline.",
+     "state": "unverified",
+     "page_quote": null,
+     "checked_on": null,
+     "note": null
+    },
+    {
+     "claim_id": "S01-C02",
+     "summary_sentence": "Chain et Florey commencent à travailler sur la pénicilline à Oxford en 1939.",
+     "state": "unverified",
+     "page_quote": null,
+     "checked_on": null,
+     "note": null
+    },
+    {
+     "claim_id": "S01-C03",
+     "summary_sentence": "Ils partagent avec Fleming le Nobel de physiologie ou médecine en 1945.",
+     "state": "unverified",
+     "page_quote": null,
+     "checked_on": null,
+     "note": null
+    }
+   ],
+   "decision": null
+  },
+  {
+   "source_id": "S02",
+   "title": "Our History — Dunn School",
+   "url": "https://www.path.ox.ac.uk/centenary/our-history/",
+   "accessed_at": "2026-10-30",
+   "locator": "Section consacrée au développement de la pénicilline et plaque historique.",
+   "allowed_claims": "Caractère collectif et développement ultérieur.",
+   "limitations": "Ne permet pas d'attribuer chaque geste technique à un individu ni de recréer des conversations.",
+   "checks": {
+    "page_reachable_at_accessed_url": {
+     "state": "unverified",
+     "note": null
+    },
+    "summary_is_original_not_a_copy": {
+     "state": "unverified",
+     "note": null
+    },
+    "locator_points_to_the_right_passage": {
+     "state": "unverified",
+     "note": null
+    },
+    "allowed_claims_within_what_the_page_says": {
+     "state": "unverified",
+     "note": null
+    },
+    "limitations_are_accurate": {
+     "state": "unverified",
+     "note": null
+    }
+   },
+   "claims": [
+    {
+     "claim_id": "S02-C01",
+     "summary_sentence": "Le développement de la pénicilline à Oxford est présenté comme un travail d'équipe autour de Florey, Chain, Heatley et leurs collègues.",
+     "state": "unverified",
+     "page_quote": null,
+     "checked_on": null,
+     "note": null
+    },
+    {
+     "claim_id": "S02-C02",
+     "summary_sentence": "L'histoire du traitement ne se réduit donc pas à l'observation initiale de Fleming.",
+     "state": "unverified",
+     "page_quote": null,
+     "checked_on": null,
+     "note": null
+    }
+   ],
+   "decision": null
+  }
+ ],
+ "instructions": "Open each URL yourself. For every summary sentence, copy a SHORT verbatim quote from the page (<= 300 characters) that supports it, or set the state to partially_supported / not_supported / source_unavailable. Do not rely on the summary. A source is human_verified only if every claim is verified and every check is verified. Nothing here changes the corpus: the owner reports the result in sources_bornees.json."
+}

@@ -1,0 +1,33 @@
+{
+ "campaign_id": "TODO-campaign-id",
+ "approved_by": "TODO-owner-name",
+ "approved_at": "TODO-ISO-8601-with-timezone",
+ "expires_at": "TODO-ISO-8601-with-timezone (at most 48 h after approved_at)",
+ "model": "TODO-model-chosen-by-the-owner",
+ "provider_host": "TODO-single-fully-qualified-host",
+ "endpoint_path": "TODO-/absolute/path",
+ "currency": "USD",
+ "ceiling_usd": "TODO-hard-ceiling-in-dollars",
+ "input_per_m": "TODO-from-the-official-price-page",
+ "output_per_m": "TODO-from-the-official-price-page",
+ "prices_as_of": "TODO-YYYY-MM-DD",
+ "prices_source": "TODO-https-url-of-the-official-price-page",
+ "max_logical_calls": 20,
+ "strata": [
+  "standard"
+ ],
+ "topics": [
+  "N01",
+  "N04",
+  "N05",
+  "N13",
+  "N18"
+ ],
+ "max_input_tokens": 16000,
+ "max_output_tokens": 4000,
+ "tokenizer_id": "TODO-char-upper-bound-or-a-registered-model-tokenizer",
+ "corpus_sha256": "08343b405c9db9237c0f13b97523073bb5604fc75fc972c05d4e16dd0d2297ee",
+ "baseline_rendered_sha256": "e270fe3e43ea747b9f6906ac9d7d21790f57e75272694aae8bea02318ea40082",
+ "egress_attestation_sha256": "TODO-sha256-from-p0d.egress.attest",
+ "_how_to_use": "INVALID BY DESIGN (TODO markers). Copy outside the repository, fill every field yourself, never commit the filled file."
+}
