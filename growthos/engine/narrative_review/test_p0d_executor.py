@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import tempfile
 import threading
 import time
@@ -13,7 +15,7 @@ from growthos.engine.narrative_review import contract as c
 from growthos.engine.narrative_review.p0d import authorization as au
 from growthos.engine.narrative_review.p0d import egress as eg
 from growthos.engine.narrative_review.p0d import executor as ex
-from growthos.engine.narrative_review.p0d.ledger import CampaignLedger
+from growthos.engine.narrative_review.p0d.ledger import CampaignLedger, LedgerStore
 from growthos.engine.narrative_review.p0d import profiles as pf
 from growthos.engine.narrative_review.p0d import tokenizer as tk
 from growthos.engine.narrative_review.p0d import transport as tr
@@ -54,19 +56,28 @@ class Boom(BaseException):
 
 
 class Rig:
-    """Fenêtre + transport + exécuteur, avec un point d'accroche exécuté APRÈS la validation du corps (donc après tous les contrôles, juste avant le contrôle final)."""
+    """Fenêtre + transport + exécuteur sur un journal CANONIQUE (racine de confiance + liaison de l'autorisation), avec un point d'accroche exécuté APRÈS la validation du corps.
+    `resume=<autre Rig>` : même autorisation, même racine, même journal (redémarrage ou second exécuteur) avec une fenêtre, un transport et un budget neufs."""
 
-    def __init__(self, *, sender=None, ctl=None, clock=None, hook=None, ceiling=5.0, api_key=lambda: "k", record=None, record_sha=None, path=None, ledger_cls=CampaignLedger,
+    def __init__(self, *, sender=None, ctl=None, clock=None, hook=None, ceiling_usd=5.0, api_key=lambda: "k", record=None, record_sha=None, resume=None, ledger_cls=CampaignLedger,
                  fault_hook=None, **auth_over):
         self.clock, self.ctl = clock or Clock(), ctl or controller()
         self.sender = sender or FakeSender(body=GOOD_BODY)
         self.hook = hook
         self.window = au.Window(clock=self.clock)
-        over = {**dates(self.clock), **auth_over}
-        if record_sha:
-            over["tokenizer_validation_sha256"] = record_sha
-        self.window.open(au.CampaignAuthorization(good_auth(**over)), egress_attestation_sha256=over.get("egress_attestation_sha256", EGRESS),
-                         tokenizer_validation=record or RECORD, egress_controller=self.ctl)
+        if resume is not None:
+            self.raw, self.root, self.record = dict(resume.raw), resume.root, resume.record
+        else:
+            self.root = os.path.realpath(tempfile.mkdtemp(prefix="p0d-root-"))
+            unittest.addModuleCleanup(shutil.rmtree, self.root, True)
+            over = {**dates(self.clock), "ceiling_usd": ceiling_usd, **auth_over, "ledger_root": self.root}
+            if record_sha:
+                over["tokenizer_validation_sha256"] = record_sha
+            core = good_auth(_binding=False, **over)
+            self.raw = {**core, "ledger_binding_sha256": LedgerStore(self.root).initialize(core)}
+            self.record = record or RECORD
+        self.window.open(au.CampaignAuthorization(self.raw), egress_attestation_sha256=self.raw["egress_attestation_sha256"], tokenizer_validation=self.record,
+                         egress_controller=self.ctl)
 
         def validator(req, auth):
             tr.profile_body_validator(req, auth)
@@ -74,14 +85,10 @@ class Rig:
                 self.hook()
         self.transport = tr.MeteredTransport(self.sender, self.window, body_validator=validator)
         self.provider = tr.ChatCompletionsProvider(self.transport, api_key=api_key)
-        self.budget = Budget(ceiling)
-        if path is None:
-            self.tmp = tempfile.TemporaryDirectory()
-            unittest.addModuleCleanup(self.tmp.cleanup)
-            path = Path(self.tmp.name) / "ledger.sqlite"
-        self.path = Path(path)
-        self.ledger = ledger_cls(self.path, campaign_id="P0D-TEST", ceiling_usd=ceiling, max_calls=over.get("max_logical_calls", 20))
+        self.budget = Budget(self.raw["ceiling_usd"])
+        self.ledger = LedgerStore(self.root).open(self.raw, ledger_cls=ledger_cls)
         unittest.addModuleCleanup(self.ledger.close)
+        self.path = self.ledger.path
         self.executor = ex.OfflineExecutor(self.provider, self.budget, self.ledger, fault_hook=fault_hook)
 
     def full_cost(self):
@@ -223,10 +230,14 @@ class TestSequence(unittest.TestCase):
         self.assertEqual(len(rig.budget.unreconciled), 1)
         self.assertIsNotNone(rig.executor.halted())
 
-    def test_a_call_whose_maximum_exceeds_the_ceiling_is_refused_without_a_send(self):
-        rig = Rig(ceiling=0.001)                                                                 # < 0,032 $ : pas même un appel complet
+    def test_a_call_whose_maximum_exceeds_the_remaining_ceiling_is_refused_without_a_send(self):
+        rig = Rig(ceiling_usd=0.05)                                                               # un appel complet réserve 0,032 $
+        rig.ledger.begin_attempt("earlier", 0.03)
+        rig.ledger.mark_sending("earlier")
+        rig.ledger.settle("earlier", 0.03)                                                        # 0,03 $ déjà dépensés, durablement
         result = rig.executor.execute(REQ)
-        self.assertEqual((result.status, rig.sender.calls, rig.budget.committed()), ("refused_before_send", [], 0))
+        self.assertEqual((result.status, rig.sender.calls), ("refused_before_send", []))
+        self.assertEqual(rig.budget.reserved, {})
         self.assertIsNone(rig.executor.halted())
 
 

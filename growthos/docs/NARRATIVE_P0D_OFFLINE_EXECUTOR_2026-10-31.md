@@ -100,3 +100,28 @@ Deux niveaux : une empreinte **déterministe** (lie l'enregistrement de validati
 
 Protocole d'essai du pare-feu : `NARRATIVE_P0D_ISOLATED_NETWORK_TEST_PROTOCOL_2026-10-31.md`.
 
+---
+## Mise à jour : journal canonique, cycle de vie, règlement atomique (contre-audit de 530c02a)
+
+### Journal canonique unique et racine de confiance
+- **Un journal par campagne, chemin dérivé** : `<ledger_root>/campaigns/<sha256(campaign_id)[:32]>/ledger.sqlite`. `ledger_root` est un champ de l'autorisation approuvée ; l'exécuteur ne choisit jamais le chemin (`LedgerStore.open(auth)`). L'exécuteur refuse tout journal qui n'est pas lié à l'autorisation ou qui n'est pas au chemin canonique.
+- **Lien durable** : le journal porte (`meta`) l'identifiant de campagne, l'empreinte du cœur de l'autorisation et un nonce aléatoire. L'autorisation porte `ledger_binding_sha256 = SHA-256(campagne, cœur, nonce)`. Le nonce n'existe que dans le journal d'origine : un journal absent, remplacé, copié, réinitialisé ou d'une autre autorisation ne peut pas reproduire l'empreinte. Chaque transaction et chaque lecture revérifient cette identité (remplacement en cours de route = échec sans envoi).
+- **Racine de confiance** : (1) le répertoire administré `ledger_root` (écriture réservée au compte de la campagne) ; (2) l'autorisation approuvée, qui est l'ANCRE hors répertoire. Un marqueur voisin ne suffirait pas (supprimable et recréable avec le journal) : c'est pourquoi l'ancre est dans l'autorisation.
+- **Création** : seulement `LedgerStore.initialize(cœur)`, étape du propriétaire AVANT l'approbation ; elle retourne la liaison à inscrire dans l'autorisation. `open` ne crée jamais rien (journal absent = refus, aucun fichier créé).
+- **Politique de récupération** : un journal perdu, remplacé ou réinitialisé n'est PAS reconstruit. Il faut un nouvel identifiant de campagne et une nouvelle autorisation ; les dépenses de l'ancienne campagne se reconstituent à la main depuis les factures du fournisseur.
+- **Chemins** : racine absolue, normalisée, existante et déjà canonique (ni lien symbolique, ni jonction, ni nom court, ni `..`, ni `.`, ni séparateur final) — l'alias est refusé, pas résolu ; fichier sans lien symbolique ni lien physique multiple ; clé de verrou = chemin réel normalisé (casse comprise).
+
+### Limites de la racine de confiance
+- Si le répertoire n'est pas administré (n'importe qui peut y écrire, supprimer ou restaurer), l'unicité ne peut pas être garantie ; le futur exécuteur impose ce répertoire par l'autorisation.
+- **Retour en arrière** : une ancienne copie du journal d'origine porte le bon nonce et n'est pas détectable sans ancre externe. Mitigation : répertoire protégé, sauvegardes hors de portée de l'exécuteur, état final consigné par le propriétaire.
+- Deux autorisations distinctes de même `campaign_id` dans des racines différentes sont deux campagnes aux yeux du système : l'unicité de l'identifiant entre autorisations relève du propriétaire (le magasin refuse un doublon dans une même racine).
+
+### Cycle de vie
+Après `close()` toute opération échoue (écritures, lectures, section critique). `close()` attend la fin d'une tentative en cours dans un autre thread (même verrou de campagne), refuse depuis l'intérieur d'une tentative, et n'expire pas silencieusement (`timeout` : erreur, journal toujours ouvert). Le verrou de fichier du système n'est relâché que par la dernière fermeture.
+
+### Règlement et arrêt atomiques
+`settle` inscrit le règlement ET la décision de blocage (dépassement de la réservation, ou raison d'arrêt de l'appelant) dans une seule transaction ; `mark_unreconciled` de même. Au redémarrage, tout règlement en dépassement non bloqué est bloqué (filet). Les pannes ont été testées de chaque côté du commit de chaque transition.
+
+### Profil réseau de laboratoire
+`network_profile` ∈ {`production`, `lab`} fait partie de l'autorisation, du plan et de l'attestation. Un profil `lab` exige : `campaign_id` commençant par `LAB-`, un hôte réservé `*.invalid` (jamais résoluble sur Internet), des IP privées dans un `lab_cidr` privé (≤ 256 adresses), et l'ouverture explicite `Window.open(allow_lab=True)`. Une autorisation de production refuse tout marqueur de laboratoire, un plan de production refuse les IP privées, et le profil attesté doit égaler celui de l'autorisation à l'ouverture et à chaque contrôle (sinon la fenêtre se ferme). Les règles et la propriété « bloqué par défaut » sont identiques ; rien n'est relâché.
+

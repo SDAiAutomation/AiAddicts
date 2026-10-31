@@ -34,6 +34,7 @@ RULE_PREFIX = "P0D"
 PROBE_TARGET = "192.0.2.1"        # TEST-NET-1 (RFC 5737) : adresse de documentation, aucun serveur réel ne peut répondre
 ALLOWED_PORT = 443
 STATES = ("rest", "open")
+PROFILES = ("production", "lab")
 _SPACE = {4: (0, 2**32 - 1), 6: (0, 2**128 - 1)}
 
 
@@ -45,6 +46,8 @@ class EgressPlan:
     provider_host: str        # information : le courtier se connecte aux IP ci-dessous, avec ce nom pour SNI
     provider_ips: tuple[str, ...]   # IP du fournisseur relevées par le propriétaire à l'ouverture de la fenêtre
     window_end_iso: str       # fin de fenêtre : la tâche planifiée rajoute le verrou
+    profile: str = "production"   # "production" (IP publiques) ou "lab" (laboratoire isolé : IP privées, hôte en `.invalid`) ; fait partie de l'empreinte du plan et de l'attestation
+    lab_cidr: str = ""            # profil lab seulement : le réseau privé du laboratoire (aucun NAT, aucune passerelle) qui contient les IP du fournisseur factice
 
     def validate(self) -> list[str]:
         problems = []
@@ -55,16 +58,37 @@ class EgressPlan:
                 problems.append(f"{label} must be a full Windows path to an .exe without shell metacharacters")
         if self.harness_program.lower() == self.broker_program.lower():
             problems.append("the broker must be a DEDICATED copy of the interpreter: a firewall rule on a shared path would also block or allow the harness")
+        if self.profile not in PROFILES:
+            problems.append(f"profile must be one of {PROFILES}")
         if not self.provider_ips:
             problems.append("provider_ips is empty: the broker would have no allowed destination")
+        lab_net = None
+        if self.profile == "lab":
+            try:
+                lab_net = ipaddress.ip_network(self.lab_cidr, strict=True)
+                if not (lab_net.is_private and not lab_net.is_loopback and not lab_net.is_link_local and not lab_net.is_multicast and lab_net.prefixlen >= 24):
+                    problems.append("lab_cidr must be a private network of at most 256 addresses (RFC 1918 or ULA), never loopback or link-local")
+                    lab_net = None
+            except ValueError:
+                problems.append("a lab plan needs lab_cidr, a valid private network")
+            if not str(self.provider_host).endswith(".invalid"):
+                problems.append("a lab plan can only target a reserved '.invalid' host name (it can never resolve on the Internet)")
+        else:
+            if self.lab_cidr:
+                problems.append("lab_cidr is only allowed in the lab profile")
+            if str(self.provider_host).endswith(".invalid"):
+                problems.append("a production plan cannot target a '.invalid' lab host name")
         for ip in self.provider_ips:
             try:
                 addr = ipaddress.ip_address(ip)
             except ValueError:
                 problems.append(f"invalid provider IP {ip!r}")
                 continue
-            if not addr.is_global or addr.is_multicast:
-                problems.append(f"{ip} is not a public unicast address")
+            if self.profile == "lab":
+                if lab_net is None or addr not in lab_net or addr == lab_net.network_address or addr == getattr(lab_net, "broadcast_address", None):
+                    problems.append(f"{ip} is not a usable address of the lab network {self.lab_cidr!r}")
+            elif not addr.is_global or addr.is_multicast:
+                problems.append(f"{ip} is not a public unicast address (private addresses are only allowed in the lab profile)")
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})", self.window_end_iso):
             problems.append("window_end_iso must be an ISO-8601 instant with a timezone")
         return problems
@@ -96,6 +120,8 @@ def check_consistency(plan: EgressPlan, auth_raw, *, now: datetime | None = None
             problems.append("the network window ends more than 48 h from now")
     if plan.provider_host != auth_raw.get("provider_host"):
         problems.append("the plan targets another provider host than the authorization")
+    if plan.profile != auth_raw.get("network_profile"):
+        problems.append("the plan's network profile differs from the authorization's (a lab plan can never serve a production authorization, nor the reverse)")
     return problems
 
 
@@ -348,6 +374,7 @@ class Attestation:
     problems: tuple[str, ...]
     sha256: str          # empreinte canonique du plan, de l'état attendu et des règles observées : à reporter dans `egress_attestation_sha256` de l'autorisation (état « rest »)
     expected_state: str
+    network_profile: str = ""   # profil du plan attesté ("production" ou "lab") : lié à l'autorisation à l'ouverture et à chaque contrôle
     plan_sha256: str = ""   # empreinte du PLAN seul (programmes, IP, fin de fenêtre) : identique en état « rest » et « open », elle lie les contrôles successifs au même plan
 
 
@@ -387,7 +414,7 @@ def attest(plan: EgressPlan, state: list[dict], *, expect: str = "rest") -> Atte
         problems.append("the broker can use UDP")
     canonical = json.dumps({"plan": plan.__dict__, "expected": expect, "rules": sorted(({k: v for k, v in r.items()} for r in mine), key=lambda r: r["name"])},
                            sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return Attestation(not problems, tuple(problems), hashlib.sha256(canonical.encode("utf-8")).hexdigest(), expect, plan_sha256(plan))
+    return Attestation(not problems, tuple(problems), hashlib.sha256(canonical.encode("utf-8")).hexdigest(), expect, plan.profile, plan_sha256(plan))
 
 
 def live_attestation(plan: EgressPlan, run_powershell: Callable[[str], str], *, expect: str = "rest") -> Attestation:
@@ -441,15 +468,17 @@ class OsReadOnlyEgressController(EgressController):
         problems = check_profiles(self._run(profiles_script()))     # un profil désactivé = règles inertes : jamais attesté
         if not problems:
             return attestation
-        return Attestation(False, attestation.problems + tuple(problems), attestation.sha256, attestation.expected_state, attestation.plan_sha256)
+        return Attestation(False, attestation.problems + tuple(problems), attestation.sha256, attestation.expected_state, attestation.network_profile, attestation.plan_sha256)
 
 
 class FakeEgressController(EgressController):
     """Contrôleur FACTICE pour les tests : renvoie une attestation fabriquée. Ne prouve RIEN sur le réseau réel."""
     kind = "simulated"
 
-    def __init__(self, *, rest_sha256: str, plan_sha256: str = "p" * 64, ok: bool = True, fail: Exception | None = None, wrong_plan: bool = False):
+    def __init__(self, *, rest_sha256: str, plan_sha256: str = "p" * 64, ok: bool = True, fail: Exception | None = None, wrong_plan: bool = False,
+                 network_profile: str = "production"):
         self.rest_sha256, self.plan_sha256, self.ok, self.fail, self.wrong_plan = rest_sha256, plan_sha256, ok, fail, wrong_plan
+        self.network_profile = network_profile
         self.calls: list[str] = []
 
     def check(self, expect: str) -> Attestation:
@@ -457,4 +486,4 @@ class FakeEgressController(EgressController):
         if self.fail:
             raise self.fail
         sha = self.rest_sha256 if expect == "rest" else hashlib.sha256((self.rest_sha256 + expect).encode()).hexdigest()
-        return Attestation(self.ok, () if self.ok else ("simulated failure",), sha, expect, "x" * 64 if self.wrong_plan else self.plan_sha256)
+        return Attestation(self.ok, () if self.ok else ("simulated failure",), sha, expect, self.network_profile, "x" * 64 if self.wrong_plan else self.plan_sha256)

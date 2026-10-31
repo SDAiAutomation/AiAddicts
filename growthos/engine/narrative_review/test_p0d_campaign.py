@@ -60,7 +60,7 @@ def crash_hook(point_name):
 def restart(old, **kw):
     """Le processus est mort : l'OS relâche le verrou de fichier ; un nouveau processus rouvre le même journal avec une fenêtre, un transport et un budget neufs."""
     old.ledger.close()
-    return Rig(path=old.path, **kw)
+    return Rig(resume=old, **kw)
 
 
 class TestSingleAttemptInFlight(unittest.TestCase):
@@ -98,7 +98,7 @@ class TestSingleAttemptInFlight(unittest.TestCase):
 
     def test_several_executors_on_the_same_campaign_cannot_bypass_the_guarantee(self):
         a = Rig(sender=FakeSender(body=NO_USAGE))
-        b = Rig(path=a.path, sender=FakeSender(body=GOOD_BODY))                    # autre exécuteur, autre transport, autre fenêtre, autre budget : même campagne
+        b = Rig(resume=a, sender=FakeSender(body=GOOD_BODY))                    # autre exécuteur, autre transport, autre fenêtre, autre budget : même campagne
         paused, resume = self.gate_account(a)
         results = {}
         t1 = threading.Thread(target=lambda: results.__setitem__("a", a.executor.execute(REQ)))
@@ -129,7 +129,7 @@ class TestSingleAttemptInFlight(unittest.TestCase):
                     with lock:
                         in_flight[0] -= 1
         a = Rig(sender=Probe(body=GOOD_BODY), max_logical_calls=5)
-        b = Rig(path=a.path, sender=Probe(body=GOOD_BODY), max_logical_calls=5)
+        b = Rig(resume=a, sender=Probe(body=GOOD_BODY), max_logical_calls=5)
         threads = [threading.Thread(target=(a if i % 2 else b).executor.execute, args=(REQ,)) for i in range(14)]
         for th in threads:
             th.start()
@@ -309,7 +309,7 @@ class TestCrashRecovery(unittest.TestCase):
             rig.executor.execute(REQ)
         second = restart(rig, ledger_cls=CrashLedger)
         label = second.ledger.attempts()[0]["label"]
-        second.ledger.crash_at = "reconcile_before_commit"
+        second.ledger.crash_at = "before_commit:reconcile"
         with self.assertRaises(HardCrash):
             second.executor.reconcile(label, 0.01, note="invoice")
         third = restart(second)
@@ -325,9 +325,9 @@ class TestCrashRecovery(unittest.TestCase):
         self.assertAlmostEqual(fourth.ledger.snapshot()["settled_usd"], 0.01 + 0.00049)
 
     def test_call_cap_and_ceiling_survive_a_restart(self):
-        first = Rig(max_logical_calls=2, ceiling=1.0)
+        first = Rig(max_logical_calls=2, ceiling_usd=1.0)
         self.assertEqual([first.executor.execute(REQ).status for _ in range(2)], ["completed", "completed"])
-        second = restart(first, max_logical_calls=2, ceiling=1.0)
+        second = restart(first)
         result = second.executor.execute(REQ)                                       # transport neuf : ses créneaux en mémoire sont intacts, le journal refuse
         self.assertEqual((result.status, second.sender.calls), ("refused_before_send", []))
         self.assertEqual(second.ledger.snapshot()["emitted"], 2)

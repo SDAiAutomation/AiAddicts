@@ -1,9 +1,13 @@
 """Prérequis P0-D 1/2/3/4 : autorisation de campagne, transport instrumenté, tokenizer, budget à arrêt automatique. Hors fournisseur réel ; boucle locale seulement pour le transport."""
 from __future__ import annotations
 
+import atexit
 import copy
 import http.server
 import json
+import os
+import shutil
+import tempfile
 import socketserver
 import threading
 import unittest
@@ -45,12 +49,19 @@ def setUpModule():
     unittest.addModuleCleanup(pf._profiles.pop, MODEL, None)
 
 
-def good_auth(**over):
+TRUSTED_ROOT = os.path.realpath(tempfile.mkdtemp(prefix="p0d-trusted-"))      # racine de confiance de TEST (répertoire canonique existant)
+atexit.register(shutil.rmtree, TRUSTED_ROOT, True)
+
+
+def good_auth(_binding=True, **over):
     raw = {"campaign_id": "P0D-TEST", "approved_by": "Owner", "approved_at": "2026-11-03T09:00:00+00:00", "expires_at": "2026-11-03T21:00:00+00:00",
            "model": "model-x", "provider_host": "api.provider-example.com", "endpoint_path": "/v1/chat/completions", "currency": "USD", "ceiling_usd": 5.0,
            "input_per_m": 1.0, "output_per_m": 4.0, "prices_as_of": "2026-11-01", "prices_source": "https://provider-example.com/pricing",
            "max_logical_calls": 20, "strata": ["standard"], "topics": sorted(corp.PILOT_IDS), "max_input_tokens": 16000, "max_output_tokens": 4000,
-           "tokenizer_id": tk.HEURISTIC_ID, "tokenizer_validation_sha256": RECORD.sha256, "reasoning_policy": "not_supported_by_model", "corpus_sha256": CORPUS_SHA, "baseline_rendered_sha256": BASELINE_SHA, "egress_attestation_sha256": EGRESS}
+           "tokenizer_id": tk.HEURISTIC_ID, "tokenizer_validation_sha256": RECORD.sha256, "reasoning_policy": "not_supported_by_model", "corpus_sha256": CORPUS_SHA, "baseline_rendered_sha256": BASELINE_SHA, "egress_attestation_sha256": EGRESS,
+           "network_profile": "production", "ledger_root": TRUSTED_ROOT}
+    if _binding:
+        raw["ledger_binding_sha256"] = "b" * 64        # liaison factice : seuls les tests de l'exécuteur initialisent un vrai journal
     raw.update(over)
     return raw
 

@@ -31,5 +31,8 @@
  "corpus_sha256": "08343b405c9db9237c0f13b97523073bb5604fc75fc972c05d4e16dd0d2297ee",
  "baseline_rendered_sha256": "e270fe3e43ea747b9f6906ac9d7d21790f57e75272694aae8bea02318ea40082",
  "egress_attestation_sha256": "TODO-sha256-from-p0d.egress.attest",
+ "network_profile": "production",
+ "ledger_root": "TODO-absolute-canonical-path-of-the-trusted-administered-directory",
+ "ledger_binding_sha256": "TODO-sha256-returned-by-LedgerStore.initialize",
  "_how_to_use": "INVALID BY DESIGN (TODO markers). Copy outside the repository, fill every field yourself, never commit the filled file."
 }

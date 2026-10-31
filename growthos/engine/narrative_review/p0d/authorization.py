@@ -27,6 +27,7 @@ from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS
 from ..providers import max_call_usd as _max_call_usd
 from .profiles import REASONING_POLICIES, ModelUnknown, profile_for
 from .egress import Attestation, EgressController
+from .ledger import canonical_root_problems
 from .tokenizer import ValidationRecord, factory_for, identity, require_validated, runtime_identity
 
 MAX_WINDOW = timedelta(hours=48)
@@ -36,7 +37,8 @@ HOST = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2
 REQUIRED = ("campaign_id", "approved_by", "approved_at", "expires_at", "model", "provider_host", "endpoint_path", "currency", "ceiling_usd",
             "input_per_m", "output_per_m", "prices_as_of", "prices_source", "max_logical_calls", "strata", "topics", "max_input_tokens",
             "max_output_tokens", "tokenizer_id", "tokenizer_validation_sha256", "reasoning_policy", "corpus_sha256", "baseline_rendered_sha256",
-            "egress_attestation_sha256")
+            "egress_attestation_sha256", "network_profile", "ledger_root", "ledger_binding_sha256")
+NETWORK_PROFILES = ("production", "lab")
 SEPARATE_CAP_FIELDS = ("reasoning_cap_tokens", "reasoning_per_m")     # exigés si `reasoning_policy` == "separate_cap" (unité facturable distincte)
 
 
@@ -128,6 +130,17 @@ def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = No
             problems.append(f"the window must be positive and at most {MAX_WINDOW}")
         if not approved <= now < expires:
             problems.append("the authorization is not valid at this instant (outside its window)")
+    if raw["network_profile"] not in NETWORK_PROFILES:
+        problems.append(f"network_profile must be one of {NETWORK_PROFILES}")
+    elif raw["network_profile"] == "lab":     # laboratoire : identifiant et hôte réservés, jamais joignables sur Internet
+        if not str(raw["campaign_id"]).startswith("LAB-"):
+            problems.append("a lab authorization needs a campaign_id starting with 'LAB-'")
+        if not str(raw["provider_host"]).endswith(".invalid"):
+            problems.append("a lab authorization can only target a reserved '.invalid' host name")
+    else:
+        if str(raw["campaign_id"]).startswith("LAB-") or str(raw["provider_host"]).endswith(".invalid"):
+            problems.append("a production authorization cannot carry lab markers (campaign_id 'LAB-…' or a '.invalid' host)")
+    problems += [f"ledger_root: {p}" for p in canonical_root_problems(raw["ledger_root"])]
     if not isinstance(raw["provider_host"], str) or not HOST.match(raw["provider_host"]):
         problems.append("provider_host must be one lowercase fully qualified host name (no scheme, path, port, wildcard or IP literal)")
     if not isinstance(raw["endpoint_path"], str) or not raw["endpoint_path"].startswith("/") or ".." in raw["endpoint_path"] or "?" in raw["endpoint_path"]:
@@ -161,9 +174,10 @@ def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = No
             problems.append(f"{key} must be a SHA-256")
         elif expected is not None and raw[key] != expected:
             problems.append(f"{key} does not match the frozen campaign inputs")
-    for key in ("egress_attestation_sha256", "tokenizer_validation_sha256"):
+    for key, what in (("egress_attestation_sha256", "the OS-level egress attestation"), ("tokenizer_validation_sha256", "the approved tokenizer validation record"),
+                      ("ledger_binding_sha256", "the binding of the canonical campaign ledger")):
         if not re.fullmatch(r"[0-9a-f]{64}", str(raw[key])):
-            problems.append(f"{key} must be a SHA-256 ({'the OS-level egress attestation' if key.startswith('egress') else 'the approved tokenizer validation record'})")
+            problems.append(f"{key} must be a SHA-256 ({what})")
     if not problems:  # le plafond doit pouvoir financer AU MOINS le premier appel au maximum (entrée + sortie + unité de raisonnement distincte éventuelle)
         first = max_call_usd(raw)
         if first is None or first > raw["ceiling_usd"]:
@@ -212,7 +226,7 @@ class Window:
     # --- ouverture -----------------------------------------------------------------------------------------------------------------------------
 
     def open(self, auth: CampaignAuthorization, *, egress_attestation_sha256: str, tokenizer_validation: ValidationRecord | None, egress_controller: EgressController | None,
-             now: datetime | None = None, **checks) -> None:
+             now: datetime | None = None, allow_lab: bool = False, **checks) -> None:
         """Ouvre la fenêtre seulement si TOUT est établi : autorisation valide à l'instant EFFECTIF, état réseau vivant « rest » attesté et conforme à l'attestation approuvée, modèle
         CONNU (profil cohérent), tokenizer résolu ET validé POUR CETTE IMPLÉMENTATION. Sinon : aucune ouverture, aucun appel."""
         if self._closed or self._auth is not None:
@@ -221,6 +235,8 @@ class Window:
         problems = validate(auth.raw, now=now, **checks)   # une autorisation déjà expirée à l'instant effectif de l'ouverture est refusée
         if egress_attestation_sha256 != auth.raw["egress_attestation_sha256"]:
             problems.append("the OS-level egress attestation does not match the one the owner approved")
+        if auth.raw["network_profile"] == "lab" and not allow_lab:
+            problems.append("a lab authorization is refused unless the window is explicitly opened with allow_lab=True (laboratory only, never production)")
         if egress_controller is None or not callable(getattr(egress_controller, "check", None)):
             problems.append("a live egress controller is mandatory: without a live network check there is no window")
         profile = counter = factory = plan_sha = None
@@ -237,6 +253,8 @@ class Window:
                 if attestation.sha256 != auth.raw["egress_attestation_sha256"]:
                     problems.append("the live network state is not the attested rest state the owner approved")
                 plan_sha = attestation.plan_sha256
+                if attestation.network_profile != auth.raw["network_profile"]:
+                    problems.append("the attested network profile differs from the authorization's (lab and production never mix)")
             except c.ReviewError as exc:   # ModelUnknown, TokenizerRequired, TokenizerNotValidated, contrôle réseau
                 problems.append(exc.message)
         if problems:
@@ -333,10 +351,17 @@ class Window:
             attestation = self._live(self._controller, "open")
             if not f["plan_sha"] or attestation.plan_sha256 != f["plan_sha"]:
                 return self._fail("the live network attestation is bound to another plan than the one seen at opening")
+            if attestation.network_profile != self._auth.raw["network_profile"]:
+                return self._fail("the live network attestation has another profile than the authorization (lab/production)")
         except c.ReviewError as exc:
             if self._closed:
                 raise
             self._fail(exc.message)
+
+    def authorization(self) -> CampaignAuthorization:
+        """L'autorisation figée de la fenêtre ouverte (sans vérification de temps)."""
+        self._need_open()
+        return self._auth
 
     def pinned_counter(self):
         """Le compteur de jetons FIGÉ à l'ouverture (jamais une nouvelle résolution du registre)."""

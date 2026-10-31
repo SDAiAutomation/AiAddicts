@@ -19,10 +19,25 @@ Principe : **on ne relâche aucune règle de sécurité pour faciliter l'essai.*
 ```
 
 - **Hyperviseur** : commutateur de type *Privé* (Hyper-V) ou réseau *interne sans NAT* ; aucune carte virtuelle de l'hôte dans ce commutateur ; services d'intégration « synchronisation de l'heure » désactivés pour VM-A (l'heure est pilotée à la main pour tester l'expiration).
-- **Adresses** : `<P>` est un préfixe /24 choisi par le propriétaire. **Contrainte** : `EgressPlan.validate` n'accepte que des IP publiques (globales). Le propriétaire choisit donc une adresse globale qu'aucun service qu'il utilise n'emploie ; elle ne quitte jamais le commutateur privé (témoin T0). La règle n'est pas relâchée pour le test. *Décision ouverte à faire arbitrer par Codex : un « profil laboratoire » explicite dans le plan, lié à l'attestation et refusé par toute autorisation de production. Non implémenté.*
+- **Adresses (profil laboratoire)** : `<P>` est un réseau PRIVÉ (RFC 1918) de 256 adresses au plus, par exemple `10.77.0.0/24`, qui n'existe que dans le commutateur privé. Le profil `lab` du plan (`profile="lab"`, `lab_cidr="10.77.0.0/24"`) n'accepte que ces adresses privées ; le profil `production` continue de n'accepter que des IP publiques. **Aucune règle de la production n'est relâchée** : les adresses privées ne sont acceptées que si le plan, l'autorisation ET l'attestation portent le profil `lab`.
 - **Adresses autorisées dans le plan** : `provider_ips = (<P>.20,)` uniquement. `<P>.30` (leurre) et `<P>.10` (VM-A) n'y figurent pas.
 - **Programmes** : `harness_program` = copie H, `broker_program` = copie B (copie dédiée, chemin distinct), copie T = programme **témoin** sans aucune règle.
 - **Instantané** de VM-A avant le test et après chaque scénario (retour arrière sans conséquence). Les scripts d'application sont lancés **par le propriétaire**, en administrateur, **dans la VM**, jamais sur la machine hôte.
+
+## 1 bis. Profil laboratoire, explicitement distinct de la production
+
+| Élément | Production | Laboratoire |
+|---|---|---|
+| `network_profile` (autorisation) | `production` | `lab` |
+| Identifiant de campagne | ne commence jamais par `LAB-` | commence par `LAB-` |
+| Hôte du fournisseur | jamais en `.invalid` | `*.invalid` (nom réservé, jamais résoluble sur Internet ; la connexion se fait par IP épinglée) |
+| IP du plan | publiques (globales) | privées, dans `lab_cidr` (≤ 256 adresses), ni réseau ni diffusion |
+| Ouverture de la fenêtre | normale | `Window.open(allow_lab=True)` explicite |
+| Attestation | profil `production` | profil `lab` ; l'empreinte du plan inclut le profil |
+| Contrôle à chaque envoi | profil attesté = profil de l'autorisation | idem ; tout changement ferme la fenêtre |
+
+Refus testés : autorisation de production avec marqueur de laboratoire ; autorisation `lab` sans marqueur ; plan `lab` avec IP publique ou hors du réseau privé ; plan de production avec IP privée ou `lab_cidr` ; plan `lab` servant une autorisation de production (et l'inverse) ; attestation `lab` pour une autorisation de production, même avec `allow_lab=True`.
+Le journal de campagne du laboratoire est un journal canonique ordinaire (`LedgerStore`), dans une racine de confiance de la VM, avec une campagne `LAB-…` jetable.
 
 ## 2. Témoins
 
@@ -54,6 +69,9 @@ Avant chaque scénario : `verify_script` + `profiles_script` (lecture seule), pu
 8. **S7 — Ouverture défectueuse** : désactiver une règle permanente (p. ex. `BROKER-BLOCK-OUTSIDE`) puis `open_script` : il doit **échouer avant** de retirer le verrou ; P1 échoue.
 9. **S8 — Altération** : supprimer le verrou à la main hors fenêtre, ajouter une règle d'**autorisation** pour B, passer un profil sur « Désactivé » (`profiles_script`), arrêter le service pare-feu : chaque cas doit rendre l'attestation **négative** et faire **refuser** l'exécuteur. Si l'un d'eux ne l'est pas, c'est un défaut à corriger avant toute suite.
 10. **S9 — Crash de l'exécuteur** : tuer le processus (arrêt brutal) pendant un appel contre le faux fournisseur : au redémarrage le journal bloque la campagne (tentative `sending` -> non réconciliée) ; aucun double envoi.
+
+11. **S10 — Étanchéité des profils** : présenter à l'exécuteur (a) une autorisation `production` avec le contrôleur `os_readonly` branché sur le plan `lab` ; (b) une autorisation `lab` avec un plan de production ; (c) une autorisation `lab` sans `allow_lab`. Les trois doivent être refusées **avant** toute connexion.
+12. **S11 — Journal canonique** : supprimer, remplacer par une copie, ou réinitialiser le journal de la campagne `LAB-…` entre deux exécutions ; l'exécuteur doit refuser sans aucun envoi vers le faux fournisseur (compteur de connexions de VM-B inchangé).
 
 ## 4. Critères de réussite et d'arrêt
 

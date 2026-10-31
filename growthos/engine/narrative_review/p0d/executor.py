@@ -28,6 +28,7 @@ LIMITES RÉELLES
 """
 from __future__ import annotations
 
+import os
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ from typing import Callable
 from .. import contract as c
 from ..providers import Budget, estimate_usd, max_call_usd
 from .authorization import Window
-from .ledger import CampaignLedger
+from .ledger import CampaignLedger, LedgerError, ledger_path
 from .transport import ChatCompletionsProvider, SendTicket
 
 STEPS = ("authorization", "fingerprints", "network", "tokenizer", "budget", "reservation", "final_check", "transport", "accounting")
@@ -66,6 +67,12 @@ class OfflineExecutor:
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def __post_init__(self):
+        auth = self.window.authorization()
+        expected = ledger_path(auth.raw["ledger_root"], auth.raw["campaign_id"])
+        if self.ledger.binding is None or self.ledger.binding != auth.raw["ledger_binding_sha256"] or self.ledger.campaign_id != auth.raw["campaign_id"]:
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, "the ledger is not the canonical journal bound to this authorization (use LedgerStore.open): no execution")
+        if os.path.normcase(os.path.realpath(self.ledger.path)) != os.path.normcase(os.path.realpath(expected)):
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, "the ledger is not at the canonical path derived from the trusted root of the authorization: no execution")
         snapshot = self.ledger.snapshot()                  # miroir local remis en état depuis le journal (redémarrage)
         self.budget.restore(snapshot["settled_usd"], snapshot["unreconciled"])
 
@@ -99,14 +106,24 @@ class OfflineExecutor:
 
     def execute(self, request: dict) -> ExecResult:
         label = f"call:{uuid.uuid4().hex[:10]}"
-        with self.ledger.critical_section():
+        try:
+            section = self.ledger.critical_section()
+            section.__enter__()
+        except LedgerError as exc:                         # journal fermé : aucune réservation, aucun envoi
+            return self._record(ExecResult(label, "halted", error=f"ledger unavailable: {exc.message}"))
+        try:
             return self._execute_locked(label, request)
+        finally:
+            section.__exit__(None, None, None)
 
     def _execute_locked(self, label: str, request: dict) -> ExecResult:
         steps: list[str] = []
-        halted = self.halted()
-        if halted or self.ledger.unresolved():            # décision sur la tentative précédente : une issue non résolue ou un blocage interdit toute réservation
-            return self._record(ExecResult(label, "halted", error=f"campaign blocked: {halted or 'unresolved attempt ' + str(self.ledger.unresolved())}", steps=tuple(steps)))
+        try:
+            halted, unresolved = self.halted(), self.ledger.unresolved()
+        except LedgerError as exc:                         # journal fermé, remplacé, absent ou d'une autre campagne : aucune réservation, aucun envoi
+            return self._record(ExecResult(label, "halted", error=f"ledger unavailable: {exc.message}", steps=tuple(steps)))
+        if halted or unresolved:                           # décision sur la tentative précédente : une issue non résolue ou un blocage interdit toute réservation
+            return self._record(ExecResult(label, "halted", error=f"campaign blocked: {halted or 'unresolved attempt ' + str(unresolved)}", steps=tuple(steps)))
         ticket, durable, mirrored, auth = SendTicket(), False, False, None
         try:
             window = self.window
@@ -155,19 +172,21 @@ class OfflineExecutor:
         estimate = estimate_usd(result.usage, auth.prices)
         reasons = []
         if estimate is None or result.error:
-            self.ledger.mark_unreconciled(label, "UNKNOWN_USAGE" if not result.error else "PROVIDER_ERROR_OR_INCIDENT")
+            reason = "UNKNOWN_USAGE" if not result.error else "PROVIDER_ERROR_OR_INCIDENT"
+            self.ledger.mark_unreconciled(label, reason)      # état ET blocage dans une seule transaction
             self.budget.settle(label, None)
-            reasons.append("UNKNOWN_USAGE" if not result.error else "PROVIDER_ERROR_OR_INCIDENT")
+            reasons.append(reason)
         else:
-            self.ledger.settle(label, estimate)
-            if self.budget.settle(label, estimate):
-                reasons.append("COST_EXCEEDED_RESERVATION")
+            extra = []                                         # raisons d'arrêt connues AVANT le règlement : elles partent dans la même transaction que lui
             if result.partial:
-                reasons.append("PARTIAL_RESPONSE")
+                extra.append("PARTIAL_RESPONSE")
             if result.text is None:
-                reasons.append("NO_RESPONSE_TEXT")
-        if self.provider.transport.tripped and not reasons:
-            reasons.append("TRANSPORT_TRIPPED")
+                extra.append("NO_RESPONSE_TEXT")
+            if not extra and self.provider.transport.tripped:
+                extra.append("TRANSPORT_TRIPPED")
+            overrun = self.ledger.settle(label, estimate, halt_reason=extra[0] if extra else None)   # règlement + blocage (dépassement ou raison) : UNE transaction
+            self.budget.settle(label, estimate)
+            reasons = (["COST_EXCEEDED_RESERVATION"] if overrun else []) + extra
         for reason in reasons:
             self._halt(reason, label)
         status = "completed" if not reasons else "failed_after_send"
