@@ -251,5 +251,34 @@ class TestAttestation(unittest.TestCase):
         self.assertEqual(result.sha256, attest(simulated("rest")).sha256)
 
 
+
+class TestFirewallProfiles(unittest.TestCase):
+    ON = [{"Name": n, "Enabled": "True", "DefaultOutboundAction": "Allow"} for n in ("Domain", "Private", "Public")]
+
+    def test_the_profile_script_is_read_only(self):
+        script = eg.profiles_script()
+        for forbidden in ("New-", "Remove-", "Set-", "Enable-", "Disable-", "Register-", "Start-", "netsh"):
+            self.assertNotIn(forbidden, script)
+        self.assertIn("Get-NetFirewallProfile", script)
+
+    def test_enabled_profiles_pass_and_any_disabled_or_missing_or_unreadable_profile_fails(self):
+        self.assertEqual(eg.check_profiles(json.dumps(self.ON)), [])
+        for name in ("Domain", "Private", "Public"):
+            off = [{**p, "Enabled": "False"} if p["Name"] == name else p for p in self.ON]
+            self.assertTrue(eg.check_profiles(json.dumps(off)), name)                    # un profil désactivé rend les règles inertes
+            self.assertTrue(eg.check_profiles(json.dumps([p for p in self.ON if p["Name"] != name])), name)
+        for bad in ("", "not json", "[]", "null", '[{"Name": "Domain"}]', "[1, 2]"):
+            self.assertTrue(eg.check_profiles(bad), bad)
+
+    def test_the_os_controller_never_attests_when_a_profile_is_off(self):
+        def runner(on):
+            profiles = self.ON if on else [{**p, "Enabled": "False"} if p["Name"] == "Public" else p for p in self.ON]
+            return lambda script: json.dumps(profiles) if "Get-NetFirewallProfile" in script else json.dumps(simulated("rest"))
+        self.assertTrue(eg.OsReadOnlyEgressController(PLAN, runner(True)).check("rest").ok)
+        refused = eg.OsReadOnlyEgressController(PLAN, runner(False)).check("rest")
+        self.assertFalse(refused.ok)
+        self.assertTrue(any("public" in p for p in refused.problems))
+
+
 if __name__ == "__main__":
     unittest.main()

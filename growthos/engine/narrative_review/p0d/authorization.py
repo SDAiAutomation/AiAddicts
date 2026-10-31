@@ -27,7 +27,7 @@ from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS
 from ..providers import max_call_usd as _max_call_usd
 from .profiles import REASONING_POLICIES, ModelUnknown, profile_for
 from .egress import Attestation, EgressController
-from .tokenizer import ValidationRecord, factory_for, identity, require_validated
+from .tokenizer import ValidationRecord, factory_for, identity, require_validated, runtime_identity
 
 MAX_WINDOW = timedelta(hours=48)
 MAX_PRICE_AGE = timedelta(days=30)
@@ -243,7 +243,8 @@ class Window:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "window refused: " + "; ".join(problems))
         self._frozen = {"auth": auth, "digest": auth.digest, "profile": profile, "profile_fp": profile.fingerprint(), "prices": auth.prices,
                         "egress": egress_attestation_sha256, "tokenizer_record": tokenizer_validation.sha256, "tokenizer_id": auth.raw["tokenizer_id"],
-                        "factory": factory, "counter": counter, "counter_identity": identity(counter), "counter_type": type(counter), "plan_sha": plan_sha}
+                        "factory": factory, "counter": counter, "counter_identity": identity(counter), "counter_pin": identity(counter, object_ids=True), "counter_type": type(counter),
+                        "runtime": runtime_identity(), "plan_sha": plan_sha}
         self._controller, self._egress_kind = egress_controller, getattr(egress_controller, "kind", "unknown")
         self._auth = auth
 
@@ -314,8 +315,10 @@ class Window:
             if factory_for(f["tokenizer_id"]) is not f["factory"]:
                 return self._fail("the tokenizer factory was replaced in the registry after the window was opened")
             counter = f["counter"]
-            if type(counter) is not f["counter_type"] or identity(counter) != f["counter_identity"]:
-                return self._fail("the pinned token counter was altered after the window was opened")
+            if type(counter) is not f["counter_type"] or identity(counter) != f["counter_identity"] or identity(counter, object_ids=True) != f["counter_pin"]:
+                return self._fail("the pinned token counter, or a function/constant/module it reaches, was altered or replaced after the window was opened")
+            if runtime_identity() != f["runtime"]:
+                return self._fail("the runtime environment changed after the window was opened")
         except c.ReviewError:
             raise
         except Exception as exc:  # noqa: BLE001

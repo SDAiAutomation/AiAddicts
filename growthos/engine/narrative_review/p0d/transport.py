@@ -162,6 +162,7 @@ class SendTicket:
     """Preuve d'émission d'UN envoi : `emitted` passe à True juste avant l'appel de l'émetteur, jamais avant. Tant qu'il est False, il est PROUVÉ que rien n'est parti ;
     une fois True, rien ne peut le prouver à nouveau : le coût est inconnu jusqu'à réconciliation. Posé par le transport, lu par l'exécuteur."""
     emitted: bool = False
+    before_emit: "Callable[[], None] | None" = None   # exécuté juste avant l'émetteur (journal durable `sending`) ; s'il lève, rien n'est émis
 
 
 @dataclass
@@ -228,6 +229,8 @@ class MeteredTransport:
                 with self._lock:
                     if self.tripped:
                         self._refuse(f"transport tripped: {self.tripped}")
+                if ticket is not None and ticket.before_emit is not None:
+                    ticket.before_emit()                         # marqueur durable AVANT l'émission : en cas d'échec, rien n'est parti
                 emitted = True                                   # à partir d'ici le créneau est consommé quoi qu'il arrive
                 if ticket is not None:
                     ticket.emitted = True

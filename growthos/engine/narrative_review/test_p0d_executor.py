@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 import time
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from growthos.engine.narrative_review import contract as c
 from growthos.engine.narrative_review.p0d import authorization as au
 from growthos.engine.narrative_review.p0d import egress as eg
 from growthos.engine.narrative_review.p0d import executor as ex
+from growthos.engine.narrative_review.p0d.ledger import CampaignLedger
 from growthos.engine.narrative_review.p0d import profiles as pf
 from growthos.engine.narrative_review.p0d import tokenizer as tk
 from growthos.engine.narrative_review.p0d import transport as tr
@@ -23,6 +26,7 @@ from growthos.engine.narrative_review.test_p0d_gates import (EGRESS, MODEL, PROF
 REQ = {"role": "generation", "system": "S" * 100, "user": "U" * 100, "max_output_tokens": 50, "timeout_s": 30}
 GOOD_BODY = json.dumps({"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 90, "completion_tokens": 100}}).encode()
 EXPECTED_COST = (90 * 1.0 + 100 * 4.0) / 1e6
+PROFILES_ON = json.dumps([{"Name": n, "Enabled": "True", "DefaultOutboundAction": "Allow"} for n in ("Domain", "Private", "Public")])
 FULL_STEPS = ("authorization", "fingerprints", "network", "tokenizer", "budget", "reservation", "final_check", "transport", "accounting")
 
 
@@ -52,7 +56,8 @@ class Boom(BaseException):
 class Rig:
     """Fenêtre + transport + exécuteur, avec un point d'accroche exécuté APRÈS la validation du corps (donc après tous les contrôles, juste avant le contrôle final)."""
 
-    def __init__(self, *, sender=None, ctl=None, clock=None, hook=None, ceiling=5.0, api_key=lambda: "k", record=None, record_sha=None, **auth_over):
+    def __init__(self, *, sender=None, ctl=None, clock=None, hook=None, ceiling=5.0, api_key=lambda: "k", record=None, record_sha=None, path=None, ledger_cls=CampaignLedger,
+                 fault_hook=None, **auth_over):
         self.clock, self.ctl = clock or Clock(), ctl or controller()
         self.sender = sender or FakeSender(body=GOOD_BODY)
         self.hook = hook
@@ -70,7 +75,14 @@ class Rig:
         self.transport = tr.MeteredTransport(self.sender, self.window, body_validator=validator)
         self.provider = tr.ChatCompletionsProvider(self.transport, api_key=api_key)
         self.budget = Budget(ceiling)
-        self.executor = ex.OfflineExecutor(self.provider, self.budget)
+        if path is None:
+            self.tmp = tempfile.TemporaryDirectory()
+            unittest.addModuleCleanup(self.tmp.cleanup)
+            path = Path(self.tmp.name) / "ledger.sqlite"
+        self.path = Path(path)
+        self.ledger = ledger_cls(self.path, campaign_id="P0D-TEST", ceiling_usd=ceiling, max_calls=over.get("max_logical_calls", 20))
+        unittest.addModuleCleanup(self.ledger.close)
+        self.executor = ex.OfflineExecutor(self.provider, self.budget, self.ledger, fault_hook=fault_hook)
 
     def full_cost(self):
         return max_call_usd(self.window._auth.prices, 16000, 4000)
@@ -281,7 +293,7 @@ class TestConcurrency(unittest.TestCase):
         for th in threads:
             th.join(60)
         self.assertEqual(len(rig.sender.calls), 1)                                               # seul l'envoi déjà en vol est parti
-        self.assertEqual(sum(r.status == "refused_before_send" for r in results), 5)
+        self.assertEqual(sum(r.status == "halted" for r in results), 5)                          # entrés dans la section critique après l'arrêt : aucune réservation
         self.assertEqual(rig.budget.reserved, {})
         self.assertEqual(rig.executor.execute(REQ).status, "halted")
 
@@ -441,7 +453,7 @@ class TestLiveNetworkControl(unittest.TestCase):
     def test_a_read_only_os_controller_over_simulated_firewall_output_follows_the_real_state_machine(self):
         state = {"name": "rest"}
         rest_sha = egress_attest(egress_state("rest"), expect="rest").sha256
-        ctl = eg.OsReadOnlyEgressController(EPLAN, lambda script: json.dumps(egress_state(state["name"])))
+        ctl = eg.OsReadOnlyEgressController(EPLAN, lambda script: PROFILES_ON if "Get-NetFirewallProfile" in script else json.dumps(egress_state(state["name"])))
         rig = Rig(ctl=ctl, egress_attestation_sha256=rest_sha)                                   # ouverture : état de repos attesté
         self.assertEqual(rig.window.egress_kind, "os_readonly")
         self.assertEqual(rig.executor.execute(REQ).status, "refused_before_send")                # fenêtre ouverte côté Python mais verrou encore là : état « open » non atteint
@@ -457,7 +469,7 @@ class TestLiveNetworkControl(unittest.TestCase):
         state = egress_state("open")
         rest_sha = egress_attest(egress_state("rest"), expect="rest").sha256
         current = {"state": egress_state("rest")}
-        ctl = eg.OsReadOnlyEgressController(EPLAN, lambda script: json.dumps(current["state"]))
+        ctl = eg.OsReadOnlyEgressController(EPLAN, lambda script: PROFILES_ON if "Get-NetFirewallProfile" in script else json.dumps(current["state"]))
         rig = Rig(ctl=ctl, egress_attestation_sha256=rest_sha)
         hole = {**state[0], "Name": "Some-Allow", "Action": "Allow", "Program": EPLAN.broker_program}
         current["state"] = egress_state("open") + [hole]

@@ -384,7 +384,7 @@ class TestTokenizer(unittest.TestCase):
         self.addCleanup(tk._registry.pop, "tiny-test", None)
         pf.register_profile(pf.BodyPolicy(model="model-tiny", max_output_param="max_tokens", reasoning_policy="not_supported_by_model", tokenizer_id="tiny-test"))
         self.addCleanup(pf._profiles.pop, "model-tiny", None)
-        record = tk.ValidationRecord("tiny-test", "model-tiny", 25, 0.5, 1.1, True, "c" * 64, tk.identity(Tiny()))   # « validé » à une époque ; sous-estime désormais
+        record = tk.ValidationRecord("tiny-test", "model-tiny", 25, 0.5, 1.1, True, "c" * 64, tk.identity(Tiny()), tk.runtime_identity())   # « validé » à une époque ; sous-estime désormais
         now = datetime.now(timezone.utc)
         dates = dict(approved_at=(now - timedelta(hours=1)).isoformat(), expires_at=(now + timedelta(hours=2)).isoformat(),
                      prices_as_of=(now - timedelta(days=1)).date().isoformat(), tokenizer_id="tiny-test", model="model-tiny",

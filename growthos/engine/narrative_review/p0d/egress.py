@@ -227,6 +227,24 @@ def verify_script(plan: EgressPlan) -> str:
             "ConvertTo-Json -InputObject @($mine) -Depth 4 -Compress\n")
 
 
+def profiles_script() -> str:
+    """Lecture SEULE de l'état des trois profils du pare-feu Windows. Un profil désactivé rend TOUTES les règles inertes sur ce profil : il faut le voir avant de croire à une coupure."""
+    return ("$ErrorActionPreference = 'Stop'\n"
+            "ConvertTo-Json -InputObject @(Get-NetFirewallProfile | ForEach-Object { [pscustomobject]@{ Name = [string]$_.Name; Enabled = [string]$_.Enabled; "
+            "DefaultOutboundAction = [string]$_.DefaultOutboundAction } }) -Compress\n")
+
+
+def check_profiles(json_text: str) -> list[str]:
+    """Problèmes de l'état des profils : chacun de Domain, Private, Public doit être présent et activé. Toute sortie illisible est un problème (jamais un succès)."""
+    try:
+        data = json.loads(json_text)
+        data = [data] if isinstance(data, dict) else data
+        seen = {str(item["Name"]).lower(): str(item["Enabled"]).lower() for item in data}
+    except (ValueError, KeyError, TypeError):
+        return ["the firewall profile state is unreadable: treated as not attested"]
+    return [f"the {name} firewall profile is not enabled: its rules are inert" for name in ("domain", "private", "public") if seen.get(name) != "true"]
+
+
 def probe_command(plan: EgressPlan, program_role: str) -> str:
     """Sonde EXTERNE à CPython (à lancer par le propriétaire APRÈS application des règles, à l'état AU REPOS) : tentative de connexion vers TEST-NET-1 depuis la copie dédiée du
     programme visé. Avec les règles, rien ne sort de la machine ; sans elles, le paquet part vers une adresse de documentation qu'aucun serveur ne peut atteindre."""
@@ -419,7 +437,11 @@ class OsReadOnlyEgressController(EgressController):
         self.plan, self._run = plan, run_powershell
 
     def check(self, expect: str) -> Attestation:
-        return live_attestation(self.plan, self._run, expect=expect)
+        attestation = live_attestation(self.plan, self._run, expect=expect)
+        problems = check_profiles(self._run(profiles_script()))     # un profil désactivé = règles inertes : jamais attesté
+        if not problems:
+            return attestation
+        return Attestation(False, attestation.problems + tuple(problems), attestation.sha256, attestation.expected_state, attestation.plan_sha256)
 
 
 class FakeEgressController(EgressController):

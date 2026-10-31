@@ -14,6 +14,11 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import pathlib
+import platform
+import sys
+import types
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -74,15 +79,93 @@ def factory_for(tokenizer_id: str) -> Callable[[], TokenCounter]:
         raise TokenizerRequired(tokenizer_id) from exc
 
 
-def identity(counter: TokenCounter) -> str:
-    """Empreinte d'IDENTITÉ de l'implémentation effectivement résolue : module et nom qualifié de la classe, `id`, `exact`, état d'instance, et code octet de `count`
-    (instructions, constantes, noms, valeurs par défaut). Détecte une substitution de classe, une instance modifiée ou une méthode `count` remplacée.
-    LIMITE : le code appelé PAR `count` (bibliothèques, fonctions globales) n'est pas empreint."""
+MAX_DEPTH = 4                      # profondeur de suivi des fonctions appelées depuis `count`
+_SIMPLE = (int, float, str, bytes, bool, type(None))
+
+
+def runtime_identity() -> str:
+    """Empreinte de l'ENVIRONNEMENT d'exécution : version et implémentation de Python, plateforme. Une validation de tokenizer n'a de sens que dans l'environnement où elle a été faite."""
+    data = {"version": sys.version, "implementation": platform.python_implementation(), "machine": platform.machine(), "system": platform.system()}
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _code_digest(code) -> list:
+    consts = [_code_digest(k) if isinstance(k, types.CodeType) else repr(k) for k in code.co_consts]
+    return [code.co_code.hex(), consts, list(code.co_names), list(code.co_varnames), list(code.co_freevars)]
+
+
+def _file_sha(module) -> str | None:
+    path = getattr(module, "__file__", None)
+    try:
+        if path and os.path.getsize(path) <= 5_000_000:
+            return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+    except OSError:
+        pass
+    return None
+
+
+def _names_of(code) -> set:
+    names = set(code.co_names)
+    for const in code.co_consts:
+        if isinstance(const, types.CodeType):
+            names |= _names_of(const)
+    return names
+
+
+def _walk(fn, out: dict, seen: set, depth: int, object_ids: bool) -> None:
+    """Enregistre la fonction et tout ce qu'elle atteint dans ses globales : fonctions (suivies), constantes simples, modules (version, fichier, attributs utilisés), classes."""
+    if id(fn) in seen or depth > MAX_DEPTH:
+        return
+    seen.add(id(fn))
+    code = getattr(fn, "__code__", None)
+    if code is None:
+        return
+    key = f"{getattr(fn, '__module__', '?')}.{getattr(fn, '__qualname__', '?')}"
+    out[key] = {"code": _code_digest(code), "defaults": repr(getattr(fn, "__defaults__", None)), "kwdefaults": repr(getattr(fn, "__kwdefaults__", None)),
+                "closure": [repr(cell.cell_contents) if isinstance(cell.cell_contents, _SIMPLE) else type(cell.cell_contents).__qualname__ for cell in (fn.__closure__ or ())]}
+    if object_ids:
+        out[key]["id"] = id(fn)
+    glob = getattr(fn, "__globals__", {})
+    for name in sorted(_names_of(code)):
+        if name not in glob:
+            continue
+        obj = glob[name]
+        entry: dict = {"type": type(obj).__qualname__}
+        if isinstance(obj, _SIMPLE):
+            entry["value"] = repr(obj)
+        elif isinstance(obj, types.ModuleType):
+            entry.update(version=str(getattr(obj, "__version__", "")), file=_file_sha(obj))
+            for attr in sorted(_names_of(code)):
+                member = getattr(obj, attr, None)
+                if isinstance(member, types.FunctionType):
+                    _walk(member, out, seen, depth + 1, object_ids)
+                elif isinstance(member, _SIMPLE) and attr not in glob:
+                    entry.setdefault("members", {})[attr] = repr(member)
+        elif isinstance(obj, types.FunctionType):
+            _walk(obj, out, seen, depth + 1, object_ids)
+        elif isinstance(obj, type):
+            entry["qualname"] = f"{obj.__module__}.{obj.__qualname__}"
+        if object_ids:
+            entry["id"] = id(obj)
+        out[f"{key}::global::{name}"] = entry
+
+
+def identity(counter: TokenCounter, *, object_ids: bool = False) -> str:
+    """Empreinte d'IDENTITÉ du composant de comptage : classe, `id`, `exact`, `version` déclarée, état d'instance, et pour `count` : code octet, constantes, valeurs par défaut,
+    PLUS tout ce qu'il atteint (fonctions globales suivies sur %d niveaux, constantes de module, modules importés avec leur version et l'empreinte de leur fichier).
+
+    Deux niveaux : `object_ids=False` est DÉTERMINISTE d'un processus à l'autre (c'est elle qui lie l'enregistrement de validation) ; `object_ids=True` ajoute l'identité des objets
+    du processus courant (épingle d'exécution : un objet remplacé par un autre, même identique, est détecté).
+    LIMITES : une empreinte Python n'est PAS une garantie d'intégrité. Elle ne voit pas le code natif, les attributs de classes tierces, ni un code hostile du même processus qui altérerait
+    cette fonction elle-même. Elle réduit le risque de remplacement accidentel ou simple ; le vrai cloisonnement est un environnement d'exécution contrôlé (autre processus ou autre compte).""" % MAX_DEPTH
     cls, method = type(counter), getattr(type(counter), "count", None)
-    code = getattr(method, "__code__", None)
+    reach: dict = {}
+    if isinstance(method, types.FunctionType):
+        _walk(method, reach, set(), 0, object_ids)
     data = {"module": cls.__module__, "qualname": cls.__qualname__, "id": getattr(counter, "id", None), "exact": getattr(counter, "exact", None),
-            "state": repr(sorted(vars(counter).items())) if hasattr(counter, "__dict__") else "",
-            "code": [code.co_code.hex(), repr(code.co_consts), repr(code.co_names), repr(getattr(method, "__defaults__", None))] if code else None}
+            "version": getattr(counter, "version", None), "state": repr(sorted(vars(counter).items())) if hasattr(counter, "__dict__") else "", "reach": reach}
+    if object_ids:
+        data["type_id"] = id(cls)
     return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), default=repr).encode("utf-8")).hexdigest()
 
 
@@ -110,6 +193,8 @@ class ValidationRecord:
     ok: bool
     sha256: str
     impl_sha256: str = ""                 # empreinte d'identité du compteur VALIDÉ (`identity`) : la validation ne vaut que pour cette implémentation
+    runtime_sha256: str = ""              # empreinte de l'environnement d'exécution où la validation a eu lieu (`runtime_identity`)
+    version: str = ""                     # version déclarée du tokenizer validé
 
 
 def validate_counter(counter: TokenCounter, model: str, samples: list[tuple[str, str, int]], *, safety: float = 1.10) -> ValidationRecord:
@@ -124,10 +209,10 @@ def validate_counter(counter: TokenCounter, model: str, samples: list[tuple[str,
             continue
         worst = max(worst, reported / estimate_input_tokens(counter, system, user, safety=safety))
     ok = valid and len(samples) >= MIN_VALIDATION_SAMPLES and worst <= 1.0
-    impl = identity(counter)
-    canonical = json.dumps({"tokenizer_id": counter.id, "model": model, "samples": len(samples), "worst": round(worst, 9), "safety": safety, "ok": ok, "impl": impl},
-                           sort_keys=True, separators=(",", ":"))
-    return ValidationRecord(counter.id, model, len(samples), worst, safety, ok, hashlib.sha256(canonical.encode("utf-8")).hexdigest(), impl)
+    impl, runtime, version = identity(counter), runtime_identity(), str(getattr(counter, "version", "") or "")
+    canonical = json.dumps({"tokenizer_id": counter.id, "model": model, "samples": len(samples), "worst": round(worst, 9), "safety": safety, "ok": ok, "impl": impl,
+                            "runtime": runtime, "version": version}, sort_keys=True, separators=(",", ":"))
+    return ValidationRecord(counter.id, model, len(samples), worst, safety, ok, hashlib.sha256(canonical.encode("utf-8")).hexdigest(), impl, runtime, version)
 
 
 def require_validated(record: ValidationRecord | None, *, model: str, tokenizer_id: str, expected_sha256: str, counter: TokenCounter | None = None) -> None:
@@ -143,3 +228,5 @@ def require_validated(record: ValidationRecord | None, *, model: str, tokenizer_
         raise TokenizerNotValidated("the validation record is not the one approved in the authorization")
     if counter is not None and (not record.impl_sha256 or record.impl_sha256 != identity(counter)):
         raise TokenizerNotValidated("the token counter is not the implementation that was validated (identity differs)")
+    if counter is not None and (not record.runtime_sha256 or record.runtime_sha256 != runtime_identity()):
+        raise TokenizerNotValidated("the runtime environment is not the one the tokenizer was validated in (Python version or platform differs)")

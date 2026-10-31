@@ -178,6 +178,17 @@ class Budget:
                 raise c.ReviewError(c.BUDGET_EXHAUSTED, f"{label}: {max_usd:.6f} USD would exceed the ceiling")
             self._reserved[label] = max_usd
 
+    def restore(self, settled_usd: float, unreconciled: dict) -> None:
+        """Remet en état un budget NEUF à partir du journal durable (redémarrage) : montants réglés et tentatives non réconciliées. Refusé si le budget a déjà servi."""
+        with self._lock:
+            if self._reserved or self._unreconciled or self._settled or self._poisoned:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, "only a fresh budget can be restored from the ledger")
+            if not finite_nonneg(settled_usd) or not isinstance(unreconciled, dict) or not all(isinstance(k, str) and finite_nonneg(v) for k, v in unreconciled.items()):
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, "invalid ledger state: cannot restore the budget")
+            if settled_usd + sum(unreconciled.values()) > self._ceiling + 1e-12:
+                raise c.ReviewError(c.BUDGET_EXHAUSTED, "the ledger state exceeds this budget's ceiling")
+            self._settled, self._unreconciled = float(settled_usd), dict(unreconciled)
+
     def release(self, label: str) -> float:
         """Libère une réservation dont il est PROUVÉ qu'aucun appel n'est parti (le chiffre est à la charge de l'appelant : le transport l'établit). N'agit que sur une
         réservation en cours : un montant réglé ou non réconcilié ne se libère jamais. Retourne le montant libéré."""

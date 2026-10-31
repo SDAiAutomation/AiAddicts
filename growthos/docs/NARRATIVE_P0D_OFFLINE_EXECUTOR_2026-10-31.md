@@ -48,7 +48,7 @@ Dès qu'il est vrai (réponse, erreur HTTP, délai, redirection, `BaseException`
 1. **Intervalle résiduel** : entre le contrôle final et l'appel de l'émetteur il reste quelques instructions. Une substitution à cet instant n'est pas détectable en Python pur. Seule la coupure réseau **au niveau de l'OS** (courtier bloqué par défaut, IP du fournisseur seules pendant la fenêtre) borne ce risque. Elle est proposée, pas appliquée, pas testée en conditions réelles.
 2. L'empreinte du tokenizer ne couvre pas le code appelé par `count` (bibliothèques, globales). Un remplacement dans ce code n'est pas détecté.
 3. Le coût est une **estimation** (jetons rapportés × tarifs approuvés), pas une facture.
-4. **L'état budgétaire est en mémoire** : un plantage du processus perd réservations et montants non réconciliés. Un registre durable est nécessaire avant un essai réel.
+4. ~~État budgétaire en mémoire~~ : remplacé par le journal durable (voir la mise à jour en bas de ce document).
 5. Un fournisseur qui attend le plafond de raisonnement sous une autre forme qu'un entier simple demandera un profil adapté.
 6. Les composantes facturables autres qu'entrée/sortie/raisonnement (jetons en cache, outils, images) ne sont pas modélisées : le corps est sur liste blanche et `tools` est protégé.
 
@@ -58,7 +58,45 @@ Dès qu'il est vrai (réponse, erreur HTTP, délai, redirection, `BaseException`
 2. Copie dédiée de l'interpréteur pour le courtier ; plan de pare-feu renseigné ; `install_script` appliqué **par le propriétaire** sur une machine ou VM isolée ; `verify_script` relu ; empreinte « rest » reportée dans l'autorisation.
 3. Sondes `probe_command` (cible TEST-NET-1) exécutées pour le harness et le courtier, résultats consignés ; tâche de refermeture testée à l'expiration **et** au redémarrage.
 4. Contrôleur `os_readonly` branché sur un vrai lanceur PowerShell en lecture seule (non fait) et testé contre la machine isolée.
-5. Registre durable des réservations et des montants non réconciliés (non fait).
+5. ~~Registre durable~~ : fait (`p0d/ledger.py`), à rejouer sur la machine isolée (scénario S9 du protocole).
 6. Cible de test locale : un faux fournisseur sur un hôte du réseau isolé, jamais un fournisseur public ; vérifier que tout autre hôte est bien injoignable.
 7. Validation des sources S01/S02 et recrutement de l'évaluation humaine (sans rapport avec le réseau, mais requis avant le pilote).
 8. Nouvelle revue Codex de ce SHA, puis autorisation explicite du propriétaire pour tout appel payant (non demandée ici).
+
+---
+## Mise à jour : une seule tentative en vol, journal durable, tokenizer (contre-audit de b0eb195)
+
+### Section critique de campagne
+Toute la transaction d'un appel (décision sur la tentative précédente, contrôles, réservation durable, `sending`, émission, analyse, comptabilisation ou incident, décision de bloquer ou non la suivante) se déroule dans `CampaignLedger.critical_section()`.
+Ce verrou est **propre à la campagne** (clé = fichier du journal) et partagé par toutes les instances d'exécuteur, de fenêtre et de transport du processus. Un verrou de fichier du système interdit un second **processus** propriétaire.
+Le journal ajoute la garantie durable : au plus une tentative non résolue (`reserved`, `sending`, `unreconciled`), vérifiée dans la transaction qui crée la suivante.
+
+### Journal financier durable (`p0d/ledger.py`)
+SQLite local, `BEGIN IMMEDIATE`, `synchronous=FULL`, sans service. Une ligne par tentative : étiquette unique, numéro de séquence, **réservation maximale**, **état**, montant, note, horodatages ; journal d'événements en ajout seul (ni invite, ni secret).
+`reserved` -> `sending` -> `settled` | `unreconciled` -> `reconciled`, ou `reserved` -> `released` (seule libération possible). Le marqueur `sending` est écrit **avant** l'appel de l'émetteur (échec d'écriture = rien n'est émis).
+Redémarrage : `reserved` devient `released` (prouvé non envoyé) ; `sending` devient `unreconciled` et la campagne est **bloquée** jusqu'à `reconcile` puis `clear_halt` explicites. Plafonds d'appels et monétaire tenus durablement ; une étiquette n'est jamais réutilisée.
+
+### Tokenizer et dépendances indirectes
+L'empreinte couvre maintenant ce que `count` atteint : fonctions globales (suivies sur 4 niveaux), constantes de module, modules importés (version, empreinte du fichier, fonctions utilisées), version déclarée, état d'instance.
+Deux niveaux : une empreinte **déterministe** (lie l'enregistrement de validation, valable d'un processus à l'autre) et une **épingle d'exécution** avec l'identité des objets du processus (un objet remplacé, même identique, est détecté). L'enregistrement est aussi lié à l'**environnement** (version et implémentation de Python, plateforme).
+**Ce n'est pas une garantie d'intégrité absolue** : le code natif, les attributs de classes tierces et un code hostile du même processus échappent à ce contrôle. La solution proportionnée est : tokenizer **versionné**, dépendances **figées** (environnement virtuel verrouillé, hachages vérifiés à l'installation), et comptage dans un **environnement contrôlé** (idéalement le processus du courtier, un compte distinct).
+
+### Garanties acquises (testées hors ligne)
+- Une seule tentative en vol par campagne, entre threads et entre exécuteurs du même processus ; un second processus propriétaire est refusé.
+- Réservation durable avant l'envoi ; aucune libération d'une tentative qui a atteint `sending` ; aucun double envoi ni double réservation après redémarrage ; plafonds durables.
+- Après crash avant l'émission, après le marqueur, juste après l'émission, avant la comptabilisation, pendant la réconciliation : état cohérent, campagne bloquée si l'issue est incertaine, jamais de réenvoi.
+- Remplacement d'une fonction globale, d'une constante de module ou d'une fonction de module utilisées par `count` après l'ouverture : plus aucun envoi.
+
+### Garanties conditionnelles
+- Elles supposent que tout envoi passe par ce module et que le fichier du journal n'est ni modifié ni supprimé hors module.
+- La durabilité dépend de `fsync` du système de fichiers.
+- Le blocage réseau n'est réel que si le propriétaire applique les règles proposées et que le pare-feu est actif (voir le protocole d'essai isolé).
+
+### Limites de l'environnement Python
+- Aucune empreinte Python n'est une barrière : du code du même processus peut modifier le vérificateur lui-même, `sys.modules`, ou utiliser le code natif.
+- L'intervalle de quelques instructions entre le contrôle final / `sending` et l'appel de l'émetteur n'est pas fermable en Python pur.
+- `Budget` en mémoire n'est qu'un miroir ; une instance n'y voit pas les écritures des autres : le journal décide.
+- Le coût reste une estimation.
+
+Protocole d'essai du pare-feu : `NARRATIVE_P0D_ISOLATED_NETWORK_TEST_PROTOCOL_2026-10-31.md`.
+
