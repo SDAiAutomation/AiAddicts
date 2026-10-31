@@ -35,6 +35,8 @@ PROBE_TARGET = "192.0.2.1"        # TEST-NET-1 (RFC 5737) : adresse de documenta
 ALLOWED_PORT = 443
 STATES = ("rest", "open")
 PROFILES = ("production", "lab")
+LAB_NETWORKS_V4 = tuple(ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))   # RFC 1918, et rien d'autre
+LAB_NETWORKS_V6 = (ipaddress.ip_network("fc00::/7"),)                                                          # ULA (RFC 4193), et rien d'autre
 _SPACE = {4: (0, 2**32 - 1), 6: (0, 2**128 - 1)}
 
 
@@ -66,8 +68,10 @@ class EgressPlan:
         if self.profile == "lab":
             try:
                 lab_net = ipaddress.ip_network(self.lab_cidr, strict=True)
-                if not (lab_net.is_private and not lab_net.is_loopback and not lab_net.is_link_local and not lab_net.is_multicast and lab_net.prefixlen >= 24):
-                    problems.append("lab_cidr must be a private network of at most 256 addresses (RFC 1918 or ULA), never loopback or link-local")
+                allowed = LAB_NETWORKS_V4 if lab_net.version == 4 else LAB_NETWORKS_V6
+                if not (any(lab_net.subnet_of(net) for net in allowed) and lab_net.prefixlen >= (24 if lab_net.version == 4 else 120)):
+                    problems.append("lab_cidr must be inside RFC 1918 (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) or the IPv6 ULA range fc00::/7, and hold at most 256 addresses: "
+                                    "documentation, shared-address, link-local, loopback and every other range are refused")
                     lab_net = None
             except ValueError:
                 problems.append("a lab plan needs lab_cidr, a valid private network")

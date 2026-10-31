@@ -519,9 +519,32 @@ class TestLabProfile(unittest.TestCase):
         self.assertEqual(lab_plan().validate(), [])
         bad = [dict(provider_ips=("8.8.4.4",)), dict(provider_ips=("10.78.0.20",)), dict(provider_ips=("10.77.0.0",)), dict(provider_ips=("10.77.0.255",)), dict(provider_ips=("127.0.0.1",)),
                dict(lab_cidr=""), dict(lab_cidr="8.8.8.0/24"), dict(lab_cidr="10.0.0.0/16", provider_ips=("10.0.0.20",)), dict(lab_cidr="127.0.0.0/24", provider_ips=("127.0.0.20",)),
-               dict(lab_cidr="169.254.1.0/24", provider_ips=("169.254.1.20",)), dict(provider_host="api.provider-example.com"), dict(profile="staging")]
+               dict(lab_cidr="169.254.1.0/24", provider_ips=("169.254.1.20",)), dict(provider_host="api.provider-example.com"), dict(profile="staging"),
+               dict(lab_cidr="192.0.2.0/24", provider_ips=("192.0.2.20",)),            # TEST-NET-1 (documentation) : refusé
+               dict(lab_cidr="198.51.100.0/24", provider_ips=("198.51.100.20",)),      # TEST-NET-2
+               dict(lab_cidr="203.0.113.0/24", provider_ips=("203.0.113.20",)),        # TEST-NET-3
+               dict(lab_cidr="100.64.0.0/24", provider_ips=("100.64.0.20",)),          # espace partagé (CGNAT) : privé au sens de Python, mais pas RFC 1918
+               dict(lab_cidr="198.18.0.0/24", provider_ips=("198.18.0.20",)),          # bancs d'essai (RFC 2544)
+               dict(lab_cidr="172.32.0.0/24", provider_ips=("172.32.0.20",)),          # juste hors de 172.16.0.0/12
+               dict(lab_cidr="192.169.0.0/24", provider_ips=("192.169.0.20",)),        # juste hors de 192.168.0.0/16
+               dict(lab_cidr="fe80::/120", provider_ips=("fe80::20",)),                # lien local IPv6 : pas ULA
+               dict(lab_cidr="2001:db8::/120", provider_ips=("2001:db8::20",)),        # documentation IPv6
+               dict(lab_cidr="fd00::/64", provider_ips=("fd00::20",)),                 # ULA mais trop large (> 256 adresses)
+               dict(lab_cidr="::1/128", provider_ips=("::1",))]
         for over in bad:
             self.assertTrue(lab_plan(**over).validate(), over)
+
+    def test_the_lab_profile_accepts_exactly_rfc1918_and_ula(self):
+        accepted = [("10.77.0.0/24", "10.77.0.20"), ("10.0.0.0/24", "10.0.0.5"), ("172.16.0.0/24", "172.16.0.9"), ("172.31.255.0/24", "172.31.255.9"), ("192.168.1.0/24", "192.168.1.9"),
+                    ("192.168.5.0/28", "192.168.5.3"), ("fd00::/120", "fd00::20"), ("fc00:1::/120", "fc00:1::5"), ("fdab:cd12:3456::/120", "fdab:cd12:3456::9")]
+        for cidr, ip in accepted:
+            self.assertEqual(lab_plan(lab_cidr=cidr, provider_ips=(ip,)).validate(), [], cidr)
+        refused = ["192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "100.64.0.0/24", "198.18.0.0/24", "169.254.1.0/24", "127.0.0.0/24", "224.0.0.0/24", "172.15.0.0/24",
+                   "172.32.0.0/24", "192.167.0.0/24", "192.169.0.0/24", "11.0.0.0/24", "8.8.8.0/24", "fe80::/120", "2001:db8::/120", "ff00::/120", "::1/128", "fe00::/120"]
+        for cidr in refused:
+            net = ipaddress.ip_network(cidr)
+            ip = str(net.network_address + 5) if net.num_addresses > 8 else str(net.network_address)
+            self.assertTrue(lab_plan(lab_cidr=cidr, provider_ips=(ip,)).validate(), cidr)
 
     def test_a_production_plan_refuses_private_addresses_lab_markers_and_a_lab_network(self):
         self.assertEqual(prod_plan().validate(), [])
