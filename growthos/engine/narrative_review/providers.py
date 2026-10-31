@@ -41,12 +41,16 @@ class Prices:
     as_of: str = ""       # date de lecture du tarif officiel (obligatoire pour un appel réel)
     source: str = ""      # page de tarifs consultée
     reasoning_per_m: float | None = None   # unité facturable distincte (politique de raisonnement `separate_cap`) ; None = non applicable
+    reasoning_cap_tokens: int | None = None   # plafond de cette unité : prix ET plafond vont ensemble, l'un sans l'autre = aucun appel
 
     def __post_init__(self):
         if not (finite_nonneg(self.input_per_m) and finite_nonneg(self.output_per_m)):
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "prices must be finite and non-negative")
         if self.reasoning_per_m is not None and not finite_nonneg(self.reasoning_per_m):
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "reasoning_per_m must be finite and non-negative when given")
+        cap = self.reasoning_cap_tokens
+        if (self.reasoning_per_m is None) != (cap is None) or (cap is not None and (not isinstance(cap, int) or isinstance(cap, bool) or cap <= 0)):
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, "reasoning_per_m and a positive integer reasoning_cap_tokens go together: a billable unit without a price or a cap means no call")
         if not isinstance(self.currency, str) or not self.currency.strip():
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "prices need a currency")
 
@@ -63,9 +67,9 @@ def estimate_usd(usage: dict | None, prices: Prices | None) -> float | None:
     if not (finite_nonneg(usage.get("input")) and finite_nonneg(usage.get("output"))):
         return None
     total = usage["input"] * prices.input_per_m + usage["output"] * prices.output_per_m
-    if "reasoning" in usage:   # unité facturable distincte : sans tarif ou sans valeur valide, le coût n'est PAS établi (jamais 0)
-        reasoning_price = getattr(prices, "reasoning_per_m", None)
-        if not (finite_nonneg(usage["reasoning"]) and finite_nonneg(reasoning_price)):
+    reasoning_price = getattr(prices, "reasoning_per_m", None)
+    if "reasoning" in usage or reasoning_price is not None:   # unité facturable distincte : sans tarif ou sans valeur valide (ou valeur absente), le coût n'est PAS établi (jamais 0)
+        if not (finite_nonneg(usage.get("reasoning")) and finite_nonneg(reasoning_price)):
             return None
         total += usage["reasoning"] * reasoning_price
     cost = total / 1_000_000
@@ -82,10 +86,18 @@ def prompt_tokens_estimate(text: str) -> int:
 
 
 def max_call_usd(prices: Prices | None, input_cap: int, output_cap: int) -> float | None:
-    """Coût maximal d'UN appel sous les plafonds de tokens. None (= pas d'appel) si tarif, plafond ou résultat n'est pas fini et >= 0."""
+    """Coût maximal d'UN appel : l'UNIQUE calcul de réservation (autorisation, harness, critique, futur exécuteur). Couvre entrée, sortie et, si les tarifs le déclarent, l'unité de
+    raisonnement distincte à son plafond. None (= pas d'appel) si un tarif, un plafond ou le résultat n'est pas fini et >= 0, ou si une unité a un prix sans plafond (ou l'inverse)."""
     if not _prices_ok(prices) or not (finite_nonneg(input_cap) and finite_nonneg(output_cap)):
         return None
+    price, cap = getattr(prices, "reasoning_per_m", None), getattr(prices, "reasoning_cap_tokens", None)
+    if (price is None) != (cap is None):
+        return None
     cost = (input_cap * prices.input_per_m + output_cap * prices.output_per_m) / 1_000_000
+    if price is not None:
+        if not (finite_nonneg(price) and finite_nonneg(cap)):
+            return None
+        cost += cap * price / 1_000_000
     return cost if finite_nonneg(cost) else None
 
 

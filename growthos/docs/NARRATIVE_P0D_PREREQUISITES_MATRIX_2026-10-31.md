@@ -43,3 +43,14 @@ Légende de l'état : **IMPL+TEST** = implémenté et testé hors ligne ; **PART
 ## Vérifications exécutées
 
 Voir la description de la PR #104 (commandes, SHA, résultats exacts). Rien n'a été envoyé à un fournisseur ; les tests de transport n'utilisent que la boucle locale.
+
+## Contre-audit 9575e6a (correctifs)
+
+- **Plafond de raisonnement** : le paramètre de raisonnement n'est plus un `extra_body` : il est construit depuis `reasoning_cap_tokens` de l'autorisation et le corps final doit lui être EXACTEMENT égal (sinon rien ne part). Un profil ne peut plus le déclarer comme extra.
+- **Réservation unique** : `providers.max_call_usd` (entrée + sortie + raisonnement distinct à son plafond) sert l'autorisation, le harness et le critique. Prix sans plafond (ou l'inverse) = aucun appel ; coût sans la composante de raisonnement = inconnu = arrêt. Les limites de l'autorisation doivent égaler celles du harness.
+- **Autorisation immuable** : copie profonde figée ; la fenêtre mémorise empreintes (autorisation, profil, tarifs, attestation, tokenizer) et les revérifie avant chaque réservation et chaque envoi ; toute différence ou incertitude ferme définitivement la fenêtre. Option `egress_check` pour relire l'état réseau réel (injectée).
+- **Réseau** : `check_consistency` (fin de fenêtre = expiration, non expirée, ≤ 48 h, même hôte) ; `open_script` refuse une fenêtre expirée et relit l'horloge ; profils Windows lus (`Profile`) et exigés « Any » ; une règle limitée à certains profils ne compte pas comme blocage. Rien n'est appliqué.
+- **Évaluation** : `pair_differences` n'accepte que `ValidatedScores` (issu de `validate_scores`), rejoue la validation (affectations, doublons, notes, identifiants).
+
+Limites connues : le paramètre de raisonnement est supposé être un entier de plafond (pas une structure imbriquée) ; les autres composantes facturables (jetons en cache, outils, images) ne sont pas modélisées : le corps est sur liste blanche et `tools` est protégé, donc elles ne peuvent pas être demandées.
+

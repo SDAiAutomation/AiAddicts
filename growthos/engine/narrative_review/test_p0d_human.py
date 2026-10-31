@@ -251,8 +251,10 @@ class TestBlindEvaluation(unittest.TestCase):
             rows = good()
             mutate(rows)
             with self.assertRaises(ValueError, msg=label):
-                ev.pair_differences(rows, key)
-        thin = [r for r in good() if not (r["blind_script_id"] == next(b for b, m in key["blind_to_case"].items() if m == {"topic_id": "N01", "condition": "B"}))][:]
+                ev.pair_differences(ev.ValidatedScores(rows), key)                                   # même un objet « validé » fabriqué est revérifié
+            with self.assertRaises(ValueError, msg=label):
+                ev.pair_differences(rows, key)                                                      # et une liste brute est refusée d'emblée
+        thin = ev.validate_scores([r for r in good() if not (r["blind_script_id"] == next(b for b, m in key["blind_to_case"].items() if m == {"topic_id": "N01", "condition": "B"}))], key)
         by_topic = {d["topic_id"]: d for d in ev.pair_differences(thin, key)}
         self.assertTrue(by_topic["N01"]["provisional"])
         self.assertTrue(all(v is None for v in by_topic["N01"]["differences_B_minus_A"].values()))   # manquant : jamais 0

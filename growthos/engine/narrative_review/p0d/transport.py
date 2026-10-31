@@ -25,7 +25,7 @@ from typing import Callable
 from .. import contract as c
 from ..providers import ProviderResult, finite_nonneg
 from .authorization import CampaignAuthorization, Window
-from .profiles import PROTECTED, BodyPolicy, profile_for, validate_body
+from .profiles import PROTECTED, REASONING_NAMES, BodyPolicy, profile_for, validate_body
 from .tokenizer import estimate_input_tokens, resolve, underestimated
 
 MAX_RESPONSE_BYTES = 2_000_000
@@ -153,7 +153,8 @@ BodyValidator = Callable[[HttpRequest, "CampaignAuthorization"], None]
 
 def profile_body_validator(req: HttpRequest, auth: CampaignAuthorization) -> None:
     """Validateur par défaut : le corps EXACT est validé contre le profil du modèle autorisé (liste explicite de paramètres). Modèle inconnu = `ModelUnknown`."""
-    validate_body(req.body, model=auth.raw["model"], max_output_tokens=auth.raw["max_output_tokens"], profile=profile_for(auth.raw["model"]))
+    validate_body(req.body, model=auth.raw["model"], max_output_tokens=auth.raw["max_output_tokens"], profile=profile_for(auth.raw["model"]),
+                  reasoning_cap_tokens=auth.raw.get("reasoning_cap_tokens"))
 
 
 @dataclass
@@ -290,8 +291,10 @@ class ChatCompletionsProvider:
             raise c.ReviewError(c.INPUT_TOO_LARGE, f"prompt is estimated at {estimate} input tokens, authorised maximum is {auth.raw['max_input_tokens']}")
         body = {"model": auth.raw["model"], "messages": [{"role": "system", "content": request["system"]}, {"role": "user", "content": request["user"]}],
                 profile.max_output_param: min(request["max_output_tokens"], auth.raw["max_output_tokens"])}
+        if profile.reasoning_policy == "separate_cap":                    # plafond de raisonnement : construit depuis l'autorisation, jamais depuis l'appelant
+            body[profile.reasoning_param] = auth.raw["reasoning_cap_tokens"]
         for key, value in self.extra_body.items():
-            if key in body or key in PROTECTED or key not in profile.allowed_extra:
+            if key in body or key in PROTECTED or key in REASONING_NAMES or key not in profile.allowed_extra:
                 raise c.ReviewError(c.INVALID_RESPONSE, f"extra parameter {key!r} is protected, already controlled by the campaign, or not allowlisted for this model")
             body[key] = value
         req = HttpRequest("POST", auth.raw["provider_host"], auth.raw["endpoint_path"],

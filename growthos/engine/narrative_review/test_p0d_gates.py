@@ -333,9 +333,9 @@ class TestMeteredTransport(unittest.TestCase):
 
     def test_an_oversized_prompt_is_refused_before_any_send(self):
         sender = FakeSender()
-        provider, _ = self.provider(sender, max_input_tokens=100)
+        provider, _ = self.provider(sender)
         with self.assertRaises(c.ReviewError):
-            provider({"system": "x" * 1000, "user": "u", "max_output_tokens": 10, "timeout_s": 30})
+            provider({"system": "x" * 40_000, "user": "u", "max_output_tokens": 10, "timeout_s": 30})   # estimation > 16 000 jetons
         self.assertEqual(sender.calls, [])
 
 

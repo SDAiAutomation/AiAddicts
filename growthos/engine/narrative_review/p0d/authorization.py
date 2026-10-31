@@ -13,13 +13,18 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import MappingProxyType
+from typing import Callable
 
 from .. import contract as c
 from ..harness.corpus import PILOT_IDS
 from ..providers import Prices, finite_nonneg
+from ..reviewer import MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS
+from ..providers import max_call_usd as _max_call_usd
 from .profiles import REASONING_POLICIES, ModelUnknown, profile_for
 from .tokenizer import ValidationRecord, require_validated
 
@@ -42,9 +47,30 @@ def _when(value) -> datetime | None:
     return parsed if parsed.tzinfo else None   # un instant sans fuseau est ambigu : refusé
 
 
+def _freeze(value):
+    """Copie profonde IMMUABLE : dict -> MappingProxyType, list -> tuple. Rien de ce que renvoie l'autorisation ne peut être modifié en place."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({k: _freeze(v) for k, v in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(v) for v in value)
+    return value
+
+
+def _thaw(value):
+    if isinstance(value, Mapping):
+        return {k: _thaw(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_thaw(v) for v in value]
+    return value
+
+
 @dataclass(frozen=True)
 class CampaignAuthorization:
-    raw: dict = field(repr=False)
+    """Paramètres APPROUVÉS, figés à la construction : copie profonde immuable (modifier le dictionnaire d'origine ne change rien, `auth.raw[...] = x` lève une erreur)."""
+    raw: Mapping = field(repr=False)
+
+    def __post_init__(self):
+        object.__setattr__(self, "raw", _freeze(self.raw))
 
     def __getattr__(self, name):
         try:
@@ -55,16 +81,17 @@ class CampaignAuthorization:
     @property
     def prices(self) -> Prices:
         return Prices(self.raw["input_per_m"], self.raw["output_per_m"], self.raw["currency"], self.raw["prices_as_of"], self.raw["prices_source"],
-                      self.raw.get("reasoning_per_m"))
+                      *_reasoning_unit(self.raw))
 
     @property
     def digest(self) -> str:
         """Empreinte canonique de l'autorisation : consignée dans le journal, liée à l'attestation réseau."""
-        return hashlib.sha256(json.dumps(self.raw, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+        return hashlib.sha256(json.dumps(_thaw(self.raw), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = None, baseline_rendered_sha256: str | None = None) -> list[str]:
     """Liste de TOUS les problèmes. Une valeur absente, mal typée, non finie, périmée ou incohérente est un problème, jamais une valeur par défaut."""
+    raw = _thaw(raw) if isinstance(raw, Mapping) else raw
     if not isinstance(raw, dict):
         return ["authorization must be a JSON object"]
     now = now or datetime.now(timezone.utc)
@@ -112,6 +139,9 @@ def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = No
     for key in ("max_logical_calls", "max_input_tokens", "max_output_tokens"):
         if not isinstance(raw[key], int) or isinstance(raw[key], bool) or raw[key] <= 0:
             problems.append(f"{key} must be a positive integer")
+    for key, harness_limit in (("max_input_tokens", MAX_INPUT_TOKENS), ("max_output_tokens", MAX_OUTPUT_TOKENS)):
+        if raw[key] != harness_limit:   # la réservation du harness et du critique utilise ces constantes : l'autorisation ne peut pas en annoncer d'autres
+            problems.append(f"{key} must equal the harness limit {harness_limit}: one reservation formula for authorization, harness and critic")
     if isinstance(raw["max_logical_calls"], int) and not isinstance(raw["max_logical_calls"], bool) and raw["max_logical_calls"] > MAX_LOGICAL_CALLS:
         problems.append(f"max_logical_calls cannot exceed {MAX_LOGICAL_CALLS} (10 cases x 2)")
     if raw["strata"] != ["standard"]:
@@ -143,13 +173,15 @@ def validate(raw, *, now: datetime | None = None, corpus_sha256: str | None = No
 def max_call_usd(raw: dict) -> float | None:
     """Coût maximal d'UN appel sous TOUS les plafonds facturables de l'autorisation (entrée, sortie, et raisonnement s'il est une unité distincte). None si incomplet."""
     try:
-        cost = raw["max_input_tokens"] * raw["input_per_m"] + raw["max_output_tokens"] * raw["output_per_m"]
-        if raw["reasoning_policy"] == "separate_cap":
-            cost += raw["reasoning_cap_tokens"] * raw["reasoning_per_m"]
-    except (KeyError, TypeError):
+        return _max_call_usd(Prices(raw["input_per_m"], raw["output_per_m"], raw["currency"], raw["prices_as_of"], raw["prices_source"],
+                                    *_reasoning_unit(raw)), raw["max_input_tokens"], raw["max_output_tokens"])
+    except (KeyError, TypeError, c.ReviewError):
         return None
-    cost /= 1e6
-    return cost if finite_nonneg(cost) and math.isfinite(cost) else None
+
+
+def _reasoning_unit(raw: dict) -> tuple:
+    """(prix, plafond) de l'unité de raisonnement distincte, ou (None, None) : un seul endroit pour le dire, partagé par `prices` et `max_call_usd`."""
+    return (raw.get("reasoning_per_m"), raw.get("reasoning_cap_tokens")) if raw.get("reasoning_policy") == "separate_cap" else (None, None)
 
 
 def load(path: Path, **checks) -> CampaignAuthorization:
@@ -161,19 +193,24 @@ def load(path: Path, **checks) -> CampaignAuthorization:
 
 
 class Window:
-    """Fenêtre d'exécution : ouverte seulement avec une autorisation valide ET une attestation réseau reconnue ; refermée définitivement après usage."""
+    """Fenêtre d'exécution : ouverte seulement avec une autorisation valide ET une attestation réseau reconnue ; refermée définitivement après usage.
+
+    À l'ouverture, les paramètres approuvés sont figés avec leurs empreintes (autorisation, profil du modèle, tarifs, enregistrement du tokenizer, attestation réseau).
+    `check()` les REVÉRIFIE avant chaque réservation et chaque envoi : toute mutation après ouverture ferme définitivement la fenêtre et refuse l'appel."""
 
     def __init__(self):
         self._auth: CampaignAuthorization | None = None
         self._closed = False
+        self._frozen: dict | None = None
+        self._egress_check: Callable[[], None] | None = None
 
     def open(self, auth: CampaignAuthorization, *, egress_attestation_sha256: str, tokenizer_validation: ValidationRecord | None, now: datetime | None = None,
-             **checks) -> None:
+             egress_check: Callable[[], None] | None = None, **checks) -> None:
         """Ouvre la fenêtre seulement si TOUT est établi : autorisation valide, attestation réseau approuvée, modèle CONNU (profil enregistré et cohérent avec l'autorisation),
         tokenizer VALIDÉ (enregistrement dont l'empreinte est celle approuvée). Modèle inconnu, tokenizer non validé, tarif ou plafond incomplet : aucune ouverture, aucun appel."""
-        if self._closed:
-            raise c.ReviewError(c.BUDGET_EXHAUSTED, "a closed window cannot be reopened: a new authorization is required")
-        problems = validate(auth.raw, now=now, **checks)
+        if self._closed or self._auth is not None:
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, "a closed or already open window cannot be (re)opened: a new authorization is required")
+        problems = validate(auth.raw, now=now, **checks)   # `now` absent = l'instant EFFECTIF de l'ouverture : une autorisation déjà expirée est refusée
         if egress_attestation_sha256 != auth.raw["egress_attestation_sha256"]:
             problems.append("the OS-level egress attestation does not match the one the owner approved")
         if not problems:
@@ -187,7 +224,35 @@ class Window:
                 problems.append(exc.message)
         if problems:
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "window refused: " + "; ".join(problems))
+        self._frozen = {"auth": auth, "digest": auth.digest, "profile": profile, "profile_fp": profile.fingerprint(), "prices": auth.prices,
+                        "egress": egress_attestation_sha256, "tokenizer_record": tokenizer_validation.sha256}
+        self._egress_check = egress_check
         self._auth = auth
+
+    def _integrity(self) -> None:
+        """Compare l'état vivant à ce qui a été approuvé à l'ouverture ; toute différence ou incertitude = fenêtre fermée définitivement, aucun envoi."""
+        f, problems = self._frozen, []
+        try:
+            auth = self._auth
+            if auth is not f["auth"] or auth.digest != f["digest"]:
+                problems.append("the authorization changed after the window was opened")
+            elif auth.prices != f["prices"]:
+                problems.append("the price sheet changed after the window was opened")
+            elif auth.raw["egress_attestation_sha256"] != f["egress"]:
+                problems.append("the egress attestation changed after the window was opened")
+            elif auth.raw["tokenizer_validation_sha256"] != f["tokenizer_record"]:
+                problems.append("the tokenizer validation changed after the window was opened")
+            else:
+                live = profile_for(auth.raw["model"])
+                if live is not f["profile"] or live.fingerprint() != f["profile_fp"]:
+                    problems.append("the model profile was replaced or altered after the window was opened")
+            if not problems and self._egress_check is not None:
+                self._egress_check()      # relecture de l'état réseau réel (injectée) : lève si le courtier n'est pas dans l'état attesté
+        except Exception as exc:  # noqa: BLE001 - l'incertitude ferme la fenêtre
+            problems.append(f"integrity could not be established ({type(exc).__name__})")
+        if problems:
+            self.close()
+            raise c.ReviewError(c.BUDGET_EXHAUSTED, "window closed: " + "; ".join(problems))
 
     def check(self, now: datetime | None = None) -> CampaignAuthorization:
         """À appeler AVANT chaque envoi : lève si la fenêtre n'est pas ouverte, est expirée ou a été fermée."""
@@ -197,7 +262,8 @@ class Window:
         if not _when(self._auth.raw["approved_at"]) <= now < _when(self._auth.raw["expires_at"]):
             self.close()
             raise c.ReviewError(c.BUDGET_EXHAUSTED, "the authorization window has expired")
+        self._integrity()
         return self._auth
 
     def close(self) -> None:
-        self._closed, self._auth = True, None
+        self._closed, self._auth, self._frozen, self._egress_check = True, None, None, None

@@ -4,21 +4,23 @@ from __future__ import annotations
 import ipaddress
 import json
 import random
+from datetime import datetime, timedelta, timezone
 import unittest
 
 from growthos.engine.narrative_review import contract as c
 from growthos.engine.narrative_review.p0d import egress as eg
 
+NOW = datetime(2026, 11, 3, 10, 0, tzinfo=timezone.utc)
 PLAN = eg.EgressPlan(campaign_id="P0D-TEST", harness_program=r"C:\Python311\python.exe", broker_program=r"C:\p0d\broker\python.exe",
                      provider_host="api.provider-example.com", provider_ips=("8.8.4.4", "9.9.9.9", "2001:4860:4860::8844"),
                      window_end_iso="2026-11-03T21:00:00+00:00")
-REAL_FORMAT = ('{"Name":"NETDIS-UPnPHost-Out-TCP","DisplayName":"Découverte de réseau (UPnP-Sortie)","Enabled":"False","Direction":"Outbound","Action":"Allow",'
+REAL_FORMAT = ('{"Name":"NETDIS-UPnPHost-Out-TCP","DisplayName":"Découverte de réseau (UPnP-Sortie)","Enabled":"False","Direction":"Outbound","Action":"Allow","Profile":"Any",'
                '"Program":"%SystemRoot%\\\\system32\\\\svchost.exe","RemoteAddress":["LocalSubnet"],"Protocol":"TCP","RemotePort":["2869"]}')
 
 
 def to_state(rules):
     """Règles du plan -> JSON au format RÉEL de Get-NetFirewallRule (après analyse, comme le ferait `parse_firewall_state`)."""
-    return [{"Name": r["name"], "DisplayName": r["name"], "Enabled": "True", "Direction": "Outbound", "Action": r["action"], "Program": r["program"],
+    return [{"Name": r["name"], "DisplayName": r["name"], "Enabled": "True", "Direction": "Outbound", "Action": r["action"], "Profile": "Any", "Program": r["program"],
              "RemoteAddress": r["remote"], "Protocol": r["protocol"], "RemotePort": r["port"]} for r in rules]
 
 
@@ -71,11 +73,11 @@ class TestPlanAndScripts(unittest.TestCase):
                     script(plan)
 
     def test_no_script_creates_an_allow_rule_and_only_open_removes_a_rule_and_only_the_gate(self):
-        for name, script in (("install", eg.install_script(PLAN)), ("open", eg.open_script(PLAN)), ("close", eg.close_script(PLAN))):
+        for name, script in (("install", eg.install_script(PLAN)), ("open", eg.open_script(PLAN, now=NOW)), ("close", eg.close_script(PLAN))):
             self.assertNotIn("-Action Allow", script, name)
             self.assertNotIn("Allow", script.replace("AllowDown", ""), name)
         gate = eg.gate_rule(PLAN)["name"]
-        removals = [line for line in eg.open_script(PLAN).splitlines() if "Remove-NetFirewallRule" in line]
+        removals = [line for line in eg.open_script(PLAN, now=NOW).splitlines() if "Remove-NetFirewallRule" in line]
         self.assertEqual(len(removals), 1)
         self.assertIn(gate, removals[0])                                         # le seul retrait de l'ouverture est le verrou
         for script in (eg.install_script(PLAN), eg.close_script(PLAN)):          # installation et fermeture ne retirent RIEN
@@ -89,11 +91,11 @@ class TestPlanAndScripts(unittest.TestCase):
         self.assertIn("2026-11-03T21:00:00+00:00", task)                         # et à l'expiration
         self.assertNotIn("Remove-", task)
         self.assertIn(eg.gate_rule(PLAN)["name"], task)
-        open_script = eg.open_script(PLAN)
+        open_script = eg.open_script(PLAN, now=NOW)
         self.assertLess(open_script.index("Register-ScheduledTask"), open_script.index("Remove-NetFirewallRule"))   # tâche enregistrée AVANT d'ouvrir
 
     def test_the_open_script_refuses_to_open_when_a_permanent_rule_is_missing(self):
-        script = eg.open_script(PLAN)
+        script = eg.open_script(PLAN, now=NOW)
         self.assertLess(script.index("throw"), script.index("Remove-NetFirewallRule"))
         for rule in eg.permanent_rules(PLAN):
             self.assertIn(rule["name"], script.split("Register-ScheduledTask")[0])
@@ -119,7 +121,7 @@ class TestPlanAndScripts(unittest.TestCase):
 
     def test_uninstall_is_flagged_dangerous_and_is_never_part_of_a_campaign_script(self):
         self.assertIn("DANGER", eg.uninstall_script(PLAN))
-        for script in (eg.install_script(PLAN), eg.open_script(PLAN), eg.close_script(PLAN)):
+        for script in (eg.install_script(PLAN), eg.open_script(PLAN, now=NOW), eg.close_script(PLAN)):
             self.assertNotIn(eg.uninstall_script(PLAN).splitlines()[0], script)
 
 

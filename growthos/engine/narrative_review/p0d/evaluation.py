@@ -178,7 +178,7 @@ def parse_scores(csv_text: str, key: dict) -> tuple[list[dict], list[str]]:
             problems.append(f"{where}: comprehension_code must be 0, 1 or 2 (got {code!r})")
         row["comprehension_code"] = int(code) if code in COMPREHENSION_CODES else None
         rows.append(row)
-    return rows, problems
+    return (validate_scores(rows, key) if not problems else rows), problems
 
 
 def parse_pair_votes(csv_text: str, key: dict) -> tuple[list[dict], list[str]]:
@@ -205,28 +205,53 @@ def parse_pair_votes(csv_text: str, key: dict) -> tuple[list[dict], list[str]]:
     return rows, problems
 
 
-def pair_differences(scores: list[dict], key: dict, *, min_raters: int = RATERS) -> list[dict]:
-    """Médiane par script puis différence B - A par sujet et dimension (les 60 notes ne sont pas 60 sujets indépendants).
+class ValidatedScores(tuple):
+    """Lignes de notes qui ont passé `validate_scores`. `pair_differences` refuse tout autre objet : une liste fabriquée à la main n'est jamais agrégée."""
+    __slots__ = ()
 
-    `scores` : lignes déjà validées (`parse_scores`). Les valeurs sont revalidées ICI : toute note hors 1..5 entier, tout identifiant inconnu ou doublon (auditeur, script) lève `ValueError`.
-    Moins de `min_raters` notes pour un script => paire PROVISOIRE (valeur `None`, jamais 0)."""
-    by_case = key["blind_to_case"]
-    seen = set()
-    per_script: dict[str, dict[str, list[float]]] = {}
-    for row in scores:
+
+def validate_scores(rows, key: dict) -> ValidatedScores:
+    """Toutes les vérifications AVANT toute agrégation : forme de chaque ligne, notes entières 1..5 (ou vides = manquantes), auditeur et script connus, script réellement attribué à cet
+    auditeur par l'allocation, un seul passage par (auditeur, script). La première anomalie lève `ValueError` ; rien n'est corrigé ni ignoré."""
+    if isinstance(rows, (str, bytes)) or not hasattr(rows, "__iter__"):
+        raise ValueError("invalid scores: expected a list of rows")
+    blind_of = {(m["topic_id"], m["condition"]): b for b, m in key["blind_to_case"].items()}
+    assigned: dict[str, set[str]] = {}
+    for item in key["allocation"]:
+        assigned.setdefault(item["listener"], set()).add(blind_of[(item["topic_id"], item["variant"])])
+    seen, out = set(), []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("invalid scores: every row must be an object")
         listener, script = row.get("listener_id"), row.get("blind_script_id")
-        if script not in by_case or not isinstance(listener, str) or not listener:
+        if not isinstance(listener, str) or listener not in assigned or script not in key["blind_to_case"]:
             raise ValueError(f"invalid scores: unknown listener or script ({listener!r}, {script!r})")
+        if script not in assigned[listener]:
+            raise ValueError(f"invalid scores: {listener} was not assigned {script}")
         if (listener, script) in seen:
             raise ValueError(f"invalid scores: duplicate evaluation of {script} by {listener}")
         seen.add((listener, script))
         for dim in RUBRIC:
             value = row.get(dim)
-            if value is None:
-                continue
-            if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 5:
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 5):
                 raise ValueError(f"invalid scores: {dim} must be an integer from 1 to 5 (got {value!r})")
-            per_script.setdefault(script, {}).setdefault(dim, []).append(float(value))
+        out.append(dict(row))
+    return ValidatedScores(out)
+
+
+def pair_differences(scores: ValidatedScores, key: dict, *, min_raters: int = RATERS) -> list[dict]:
+    """Médiane par script puis différence B - A par sujet et dimension (les 60 notes ne sont pas 60 sujets indépendants).
+
+    `scores` : DOIT être un `ValidatedScores` (sorti de `validate_scores` ou de `parse_scores` sans problème) ; sinon `ValueError`. La validation est rejouée ici sur les valeurs elles-mêmes.
+    Moins de `min_raters` notes pour un script => paire PROVISOIRE (valeur `None`, jamais 0)."""
+    if not isinstance(scores, ValidatedScores):
+        raise ValueError("scores must come from validate_scores() or parse_scores() without problems: unvalidated data is never aggregated")
+    by_case = key["blind_to_case"]
+    per_script: dict[str, dict[str, list[float]]] = {}
+    for row in validate_scores(list(scores), key):
+        for dim in RUBRIC:
+            if row.get(dim) is not None:
+                per_script.setdefault(row["blind_script_id"], {}).setdefault(dim, []).append(float(row[dim]))
     out = []
     for topic in sorted({v["topic_id"] for v in by_case.values()}):
         ids = {v["condition"]: k for k, v in by_case.items() if v["topic_id"] == topic}

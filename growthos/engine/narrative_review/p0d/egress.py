@@ -25,6 +25,7 @@ import ipaddress
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from .. import contract as c
@@ -67,6 +68,35 @@ class EgressPlan:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})", self.window_end_iso):
             problems.append("window_end_iso must be an ISO-8601 instant with a timezone")
         return problems
+
+
+def _instant(text: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else None
+
+
+def check_consistency(plan: EgressPlan, auth_raw, *, now: datetime | None = None) -> list[str]:
+    """Cohérence plan réseau <-> autorisation, à l'instant EFFECTIF de l'ouverture. Liste de problèmes (vide = cohérent). Tout doute doit laisser le courtier bloqué.
+
+    Fin de fenêtre du plan = expiration de l'autorisation (au même instant, fuseaux compris), pas encore atteinte, et au plus 48 h devant nous ; même hôte ; même attestation approuvée."""
+    now = now or datetime.now(timezone.utc)
+    problems = [f"plan: {p}" for p in plan.validate()]
+    end, expires = _instant(plan.window_end_iso), _instant(auth_raw.get("expires_at"))
+    if end is None or expires is None:
+        problems.append("window dates are not valid timezone-aware instants")
+    else:
+        if end != expires:
+            problems.append("the network window end differs from the authorization expiry")
+        if end <= now:
+            problems.append("the network window is already expired at the moment of opening")
+        if end - now > timedelta(hours=48):
+            problems.append("the network window ends more than 48 h from now")
+    if plan.provider_host != auth_raw.get("provider_host"):
+        problems.append("the plan targets another provider host than the authorization")
+    return problems
 
 
 def complement_ranges(allowed_ips) -> list[tuple[str, str]]:
@@ -152,13 +182,19 @@ def _close_task(plan: EgressPlan) -> str:
             f"Register-ScheduledTask -TaskName {_ps(_name(plan, 'RECLOSE'))} -Action $act -Trigger $trg -RunLevel Highest -Force | Out-Null")
 
 
-def open_script(plan: EgressPlan) -> str:
+def open_script(plan: EgressPlan, *, now: datetime | None = None) -> str:
     """Ouvre la fenêtre : (1) vérifie que TOUTES les règles permanentes existent et sont actives (sinon `throw`, rien n'est retiré), (2) enregistre la tâche de refermeture,
-    (3) retire LE SEUL verrou. En cas d'erreur à n'importe quelle étape, le verrou est encore là ou le courtier reste limité aux IP du fournisseur."""
+    (3) retire LE SEUL verrou. En cas d'erreur à n'importe quelle étape, le verrou est encore là ou le courtier reste limité aux IP du fournisseur.
+    Refuse (aucun script produit) si la fenêtre du plan est déjà expirée ; le script lui-même relit l'horloge de la machine, et vérifie profil, direction et action de chaque règle permanente."""
     _need_valid(plan)
+    end, now = _instant(plan.window_end_iso), now or datetime.now(timezone.utc)
+    if end is None or end <= now:
+        raise c.ReviewError(c.BUDGET_EXHAUSTED, "the network window is already expired: the broker stays blocked")
     names = ",".join(_ps(r["name"]) for r in permanent_rules(plan))
     return ("$ErrorActionPreference = 'Stop'\n"
-            f"foreach ($n in @({names})) {{ $r = Get-NetFirewallRule -Name $n -ErrorAction SilentlyContinue; if (-not $r -or [string]$r.Enabled -ne 'True') {{ throw \"permanent rule missing or disabled: $n\" }} }}\n"
+            f"if ([datetime]::UtcNow -ge [datetime]::Parse({_ps(end.astimezone(timezone.utc).isoformat())}).ToUniversalTime()) {{ throw 'the window is already expired: the gate stays' }}\n"
+            f"foreach ($n in @({names})) {{ $r = Get-NetFirewallRule -Name $n -ErrorAction SilentlyContinue; if (-not $r -or [string]$r.Enabled -ne 'True' -or [string]$r.Direction -ne 'Outbound' "
+            "-or [string]$r.Action -ne 'Block' -or [string]$r.Profile -ne 'Any') { throw \"permanent rule missing, disabled or not Block/Outbound/Any profile: $n\" } }\n"
             f"{_close_task(plan)}\n"
             f"Remove-NetFirewallRule -Name {_ps(gate_rule(plan)['name'])}\n"
             "Write-Output 'window OPEN: the broker can reach only the provider IPs on TCP 443; run close_script (or wait for the re-close task) to lock again'\n")
@@ -186,7 +222,7 @@ def verify_script(plan: EgressPlan) -> str:
             f"$rules = @(Get-NetFirewallRule -Name {_ps(prefix + '*')} -ErrorAction SilentlyContinue) + @($apps | Get-NetFirewallRule -ErrorAction SilentlyContinue)\n"
             "$mine = foreach ($r in ($rules | Sort-Object Name -Unique)) {\n"
             "  $a = $r | Get-NetFirewallApplicationFilter; $d = $r | Get-NetFirewallAddressFilter; $p = $r | Get-NetFirewallPortFilter\n"
-            "  [pscustomobject]@{ Name = $r.Name; DisplayName = $r.DisplayName; Enabled = [string]$r.Enabled; Direction = [string]$r.Direction; Action = [string]$r.Action;\n"
+            "  [pscustomobject]@{ Name = $r.Name; DisplayName = $r.DisplayName; Enabled = [string]$r.Enabled; Direction = [string]$r.Direction; Action = [string]$r.Action; Profile = [string]$r.Profile;\n"
             "    Program = $a.Program; RemoteAddress = @($d.RemoteAddress); Protocol = [string]$p.Protocol; RemotePort = @($p.RemotePort) } }\n"
             "ConvertTo-Json -InputObject @($mine) -Depth 4 -Compress\n")
 
@@ -229,17 +265,18 @@ def parse_firewall_state(json_text: str) -> list[dict]:
         data = [data]
     rules = []
     for item in data:
-        if not isinstance(item, dict) or not all(k in item for k in ("Name", "Enabled", "Direction", "Action", "Program", "RemoteAddress", "Protocol", "RemotePort")):
+        if not isinstance(item, dict) or not all(k in item for k in ("Name", "Enabled", "Direction", "Action", "Profile", "Program", "RemoteAddress", "Protocol", "RemotePort")):
             raise ValueError("unexpected firewall rule shape")
         listify = lambda v: [str(x) for x in (v if isinstance(v, list) else [v])]  # noqa: E731
         rules.append({"name": item["Name"], "enabled": str(item["Enabled"]).lower() == "true", "direction": str(item["Direction"]), "action": str(item["Action"]),
+                      "profile": str(item["Profile"]),
                       "program": str(item["Program"] or ""), "remote": listify(item["RemoteAddress"]), "protocol": str(item["Protocol"]), "port": listify(item["RemotePort"])})
     return rules
 
 
 def _as_state(rules: list[dict]) -> list[dict]:
     """Règles du plan (clés minuscules, `enabled` implicite) -> même forme que `parse_firewall_state`."""
-    return [{**r, "enabled": r.get("enabled", True), "direction": r.get("direction", "Outbound")} for r in rules]
+    return [{**r, "enabled": r.get("enabled", True), "direction": r.get("direction", "Outbound"), "profile": r.get("profile", "Any")} for r in rules]
 
 
 def reach(program: str, rules: list[dict], *, port: int | None = ALLOWED_PORT, protocol: str = "TCP") -> list[tuple[int, int, int]]:
@@ -248,6 +285,8 @@ def reach(program: str, rules: list[dict], *, port: int | None = ALLOWED_PORT, p
     blocked: dict[int, list[tuple[int, int]]] = {4: [], 6: []}
     for r in _as_state(rules):
         if not (r["enabled"] and r["direction"] == "Outbound" and r["action"] == "Block" and r["program"].lower() == program.lower()):
+            continue
+        if r["profile"].lower() != "any":   # une règle limitée à certains profils Windows (Domain/Private/Public) ne bloque pas les autres : elle ne compte pas comme blocage
             continue
         if r["protocol"].lower() not in ("any", protocol.lower()):
             continue
@@ -304,7 +343,8 @@ def attest(plan: EgressPlan, state: list[dict], *, expect: str = "rest") -> Atte
         got = by_name.get(name)
         if got is None:
             problems.append(f"missing rule {name}")
-        elif not (got["enabled"] and got["direction"] == "Outbound" and got["action"] == want["action"] and got["program"].lower() == want["program"].lower()
+        elif not (got["enabled"] and got["direction"] == "Outbound" and got["action"] == want["action"] and got["profile"].lower() == "any"
+                  and got["program"].lower() == want["program"].lower()
                   and sorted(x.lower() for x in got["remote"]) == sorted(x.lower() for x in want["remote"])
                   and got["protocol"].lower() == want["protocol"].lower() and sorted(got["port"]) == sorted(want["port"])):
             problems.append(f"rule {name} is disabled or differs from the plan")
@@ -314,7 +354,7 @@ def attest(plan: EgressPlan, state: list[dict], *, expect: str = "rest") -> Atte
             problems.append(f"an enabled outbound Allow rule targets a campaign program: {r['name']}")
     # Portée RÉELLE calculée sur l'état observé : le harness ne joint rien ; le courtier ne joint rien (repos) ou seulement les IP du fournisseur (ouvert)
     if reach(plan.harness_program, state, port=None, protocol="Any"):
-        problems.append("the harness program is not blocked for every remote address")
+        problems.append("the harness program is not blocked for every remote address (on every Windows profile)")
     broker = reach(plan.broker_program, state)
     if expect == "rest" and broker:
         problems.append("at rest the broker can still reach some addresses on TCP 443")
