@@ -344,6 +344,36 @@ class TestGuards(Harness):
             with self.assertRaises(PermissionError):
                 self.run_pipeline(**{key: refuse}, reserve_credit=lambda: (_ for _ in ()).throw(AssertionError("reserved")))
 
+    def test_guard_order_administrator_then_rates_then_moderation_then_credit(self):
+        order = []
+        def record(name, ok=True):
+            def port(*_):
+                order.append(name)
+                return ok
+            return port
+        # 1. a refused administrator is stopped before anything else, even when the rates are unknown (nothing about the config leaks)
+        with self.assertRaises(PermissionError):
+            self.run_pipeline(authorize=lambda: (_ for _ in ()).throw(PermissionError("no")), moderate=record("moderate"), reserve_credit=record("credit"), env={})
+        self.assertEqual(order, [])
+        # 2. an administrator with unknown rates is refused on cost BEFORE moderation and credit
+        with self.assertRaises(pipeline.PipelineError):
+            self.run_pipeline(authorize=record("authorize"), moderate=record("moderate"), reserve_credit=record("credit"), env={})
+        self.assertEqual(order, ["authorize"])
+        # 3. moderation precedes the credit reservation
+        order.clear()
+        with self.assertRaises(PermissionError):
+            self.run_pipeline(authorize=record("authorize"), moderate=lambda *_: (_ for _ in ()).throw(PermissionError("flagged")), reserve_credit=record("credit"))
+        self.assertEqual(order, ["authorize"])
+
+    def test_authorization_is_checked_before_moderation(self):
+        calls = []
+        def refuse():
+            calls.append("authorize")
+            raise PermissionError("no")
+        with self.assertRaises(PermissionError):
+            self.run_pipeline(authorize=refuse, moderate=lambda *_: calls.append("moderate"))
+        self.assertEqual(calls, ["authorize"])
+
     def test_moderation_view_exposes_narration_to_the_existing_checker(self):
         view = pipeline.moderation_view(moral_with_voice())
         self.assertEqual(len(view["blocks"]), 8)
