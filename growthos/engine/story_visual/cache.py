@@ -62,15 +62,17 @@ class PersistentCache(DiskImageCache):
     Jamais bloquant ni plus permissif : sans `asset_store.configure()` (tests, CLI) il se comporte comme `DiskImageCache` ; une erreur réseau est
     un simple échec de restauration (la scène sera régénérée, sous budget) ; toute image restaurée repasse `check_image` avant d'être acceptée."""
 
-    KINDS = {".jpg": "story_visual_image", ".mp3": "story_visual_voice", ".json": "story_visual_voice_words"}
+    # `content_assets.kind` only accepts voice / voice_words / image (CHECK): asset keys already embed `story_visual_*` and the tenant, so they
+    # never collide with Standard assets.
+    KINDS = {".jpg": "image", ".mp3": "voice", ".json": "voice_words"}
 
-    def _kind(self) -> str:
-        return self.KINDS.get(self.ext, "story_visual_asset")
+    def _kind(self) -> str | None:
+        return self.KINDS.get(self.ext)  # an extension with no allowed remote kind is simply never persisted remotely
 
     def restore(self, key: str, dest: str | Path) -> bool:
         if super().restore(key, dest):
             return True
-        if not asset_store.restore_asset(self._kind(), key, Path(dest)):
+        if self._kind() is None or not asset_store.restore_asset(self._kind(), key, Path(dest)):
             return False
         if Path(dest).is_file() and Path(dest).stat().st_size > 0:
             super().save(key, dest)  # warm the local cache too
@@ -79,4 +81,5 @@ class PersistentCache(DiskImageCache):
 
     def save(self, key: str, src: str | Path) -> None:
         super().save(key, src)
-        asset_store.save_asset(self._kind(), key, Path(src))
+        if self._kind() is not None:
+            asset_store.save_asset(self._kind(), key, Path(src))

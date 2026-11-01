@@ -1077,7 +1077,7 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
     plugs the real services (OpenAI Images, ElevenLabs, credits, moderation, publication). Local imports: the legacy path never
     loads this code."""
     from .story_visual import cache as sv_cache, orchestrator as sv_orchestrator, pipeline as sv_pipeline, voice as sv_voice
-    from .story_visual import cost as sv_cost, quota as sv_quota
+    from .story_visual import cost as sv_cost, ledger as sv_ledger, quota as sv_quota
 
     organization_id = events.organization_id_of(client, content_item_id)
     tenant_id = str(organization_id or "")
@@ -1119,6 +1119,7 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
         except Exception as exc:  # noqa: BLE001 - tracking only
             print(f"       (suivi d'avancement non mis à jour : {type(exc).__name__})")
 
+    story_budget = sv_cost.Budget.from_env()
     ports = sv_pipeline.Ports(
         image_provider=sv_orchestrator.openai_provider(),
         voice_provider=sv_voice.elevenlabs_provider(),
@@ -1129,7 +1130,8 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
         record_event=lambda name, **props: events.record(client, name, content_item_id, organization_id, **props),
         progress=report_progress,
         publish=publish,
-        budget=sv_cost.Budget.from_env(),
+        budget=story_budget,
+        ledger=sv_ledger.DurableLedger(client, content_item_id, story_budget.max_usd),
         image_cache=sv_cache.PersistentCache(root / "story_visual_cache", tenant_id),
         voice_cache=sv_cache.PersistentCache(root / "story_visual_cache", tenant_id, ".mp3"),
         consume_quota=sv_quota.SharedQuota(client, tenant_id, content_item_id, _story_visual_daily_jobs()).consume,

@@ -134,7 +134,7 @@ class TestResumeWithoutPayingTwice(Tmp):
             manifest = synth(self.tmp / "v2", self.tmp / "vc2", second)
         self.assertEqual((len(first.calls), len(second.calls)), (8, 0))
         self.assertTrue(all(m["cache_hit"] and m["words"] for m in manifest.values()))
-        self.assertTrue({"story_visual_voice", "story_visual_voice_words"} <= {kind for kind, _ in remote.files})
+        self.assertTrue({"voice", "voice_words"} <= {kind for kind, _ in remote.files})
 
 
 class FakeClient:
