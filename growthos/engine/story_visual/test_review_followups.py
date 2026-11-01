@@ -6,7 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from growthos.engine import tts
-from growthos.engine.story_visual import cost, orchestrator, pipeline, render, sample, voice
+from growthos.engine.story_visual.cost import BudgetExceeded
+from growthos.engine.story_visual import cost, ledger, orchestrator, pipeline, render, sample, voice
+from growthos.engine.story_visual.test_ledger import FakeDb, ITEM
 from growthos.engine.story_visual.test_pipeline import Harness, Tmp, VOICE
 
 needs_ffmpeg = unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg required")
@@ -49,6 +51,76 @@ class TestRefundRuleA(Harness):
         with self.assertRaisesRegex(RuntimeError, "event store down"):
             self.run_pipeline(publish=lambda v, t, r: {"video_url": "x"}, record_event=events)
         self.assertEqual(self.refunds, [])
+
+class TestRefundWhenNothingWasSpent(Harness):
+    """Règle A, cas « rien dépensé » : tout échec AVANT le premier appel payant rend le crédit, exactement une fois."""
+
+    def test_failure_right_after_the_credit_reservation_refunds_once(self):
+        def events(name, **props):
+            if name == "generation_started":
+                raise RuntimeError("event store down")
+        provider = sample.PlaceholderImageProvider()
+        with self.assertRaisesRegex(RuntimeError, "event store down"):
+            self.run_pipeline(image_provider=provider, record_event=events)
+        self.assertEqual(provider.calls, [])  # aucun appel payant n'a eu lieu
+        self.assertEqual(self.refunds, [1])
+
+    def test_refused_paid_call_before_any_provider_call_refunds_once(self):
+        led = ledger.DurableLedger(FakeDb(), ITEM, 0.01)  # plafond restant > 0 mais < coût d'une image : la retenue est refusée
+        provider = sample.PlaceholderImageProvider()
+        with self.assertRaises(BudgetExceeded):
+            self.run_pipeline(image_provider=provider, ledger=led)
+        self.assertEqual(provider.calls, [])
+        self.assertEqual(self.refunds, [1])
+
+    def test_failure_before_the_credit_reservation_never_refunds(self):
+        def refuse(script):
+            raise RuntimeError("moderation refused")
+        with self.assertRaisesRegex(RuntimeError, "moderation refused"):
+            self.run_pipeline(moderate=refuse)
+        self.assertEqual(self.refunds, [])  # le crédit n'avait pas été pris
+
+
+class TestResumeWithDurableLedger(Tmp):
+    def test_vanished_done_scene_is_resumed_without_error_and_without_double_counting_the_settled_row(self):
+        db = FakeDb()
+        plan = sample.moral_plan()
+        kw = dict(tenant_id="t", work_dir=self.tmp, expected_unit_usd=0.05, max_scene_regenerations=0, max_story_regenerations=0)
+        first_ledger = ledger.DurableLedger(db, ITEM, 10)
+        provider = sample.PlaceholderImageProvider()
+        first = orchestrator.generate_scene_images(
+            plan, provider=provider, tracker=cost.BudgetTracker(cost.Budget(max_usd=10), ledger=first_ledger), **kw)
+        rows_before = [dict(r) for r in db.rows]
+        self.assertEqual(len(rows_before), 8)
+        Path(first["s1"]["path"]).unlink()
+        # nouveau coureur, nouveau registre (mémoire vide) sur la même base durable : reprise de l'item image:s1 déjà réglé
+        tracker = cost.BudgetTracker(cost.Budget(max_usd=10), ledger=ledger.DurableLedger(db, ITEM, 10))
+        again = orchestrator.generate_scene_images(plan, provider=provider, tracker=tracker, **kw)
+        self.assertEqual(again["s1"]["status"], "done")
+        self.assertEqual(again["s1"]["generations"], 1)
+        self.assertTrue(Path(again["s1"]["path"]).is_file())
+        self.assertEqual(len(provider.calls), 9)  # une seule image refaite
+        # les 8 lignes réglées d'origine sont intactes ; la reprise ajoute UNE retenue pour l'image réellement refaite
+        self.assertEqual(db.rows[:8], rows_before)
+        self.assertEqual(len(db.rows), 9)
+        self.assertEqual(db.rows[8]["provider"], "ledger:settled:image:s1")
+        self.assertTrue(all(":reserved:" not in r["provider"] for r in db.rows))  # aucune retenue orpheline
+        self.assertEqual(tracker.holds, {})
+
+    def test_same_runner_resume_does_not_raise_on_an_already_settled_item(self):
+        db = FakeDb()
+        plan = sample.moral_plan()
+        kw = dict(tenant_id="t", work_dir=self.tmp, expected_unit_usd=0.05, max_scene_regenerations=0, max_story_regenerations=0)
+        led = ledger.DurableLedger(db, ITEM, 10)
+        provider = sample.PlaceholderImageProvider()
+        tracker = cost.BudgetTracker(cost.Budget(max_usd=10), ledger=led)
+        first = orchestrator.generate_scene_images(plan, provider=provider, tracker=tracker, **kw)
+        Path(first["s1"]["path"]).unlink()
+        again = orchestrator.generate_scene_images(plan, provider=provider, tracker=tracker, **kw)  # même tracker, même registre
+        self.assertEqual(again["s1"]["status"], "done")
+        led.settle("image:s1", 0.05)  # un règlement en double d'un item déjà réglé est sans effet et ne lève pas
+        led.settle("image:s1", None)
+        self.assertEqual(sum(1 for r in db.rows if r["provider"].endswith("image:s1")), 2)
 
 
 class TestMissingImageIsAResume(Tmp):
