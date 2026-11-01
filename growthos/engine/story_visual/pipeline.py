@@ -70,6 +70,9 @@ def quality_issues(info: dict, timeline: dict) -> list[str]:
 
 
 def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> dict:
+    # Order of the guards (the feature flag comes first, in the worker routing): administrator, plan, rates and budget, moderation,
+    # then lock, quota, credit and providers. A refused caller learns nothing about rates or plans and costs nothing.
+    ports.authorize()
     if not _SAFE.fullmatch(tenant_id or ""):
         raise PipelineError("invalid tenant id")
     plan = script.get("story_plan") if isinstance(script, dict) else None
@@ -83,7 +86,6 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
         raise PipelineError("budget refused: " + decision["message"])
     if not plan.get("voice_id") and not _default_voice(env):
         raise PipelineError("no voice configured (plan.voice_id or STORY_DEFAULT_VOICE_ID)")
-    ports.authorize()  # administrators only: checked before anything else, a refused caller costs not even a moderation call
     ports.moderate(moderation_view(plan))
 
     digest = plan_digest(plan)

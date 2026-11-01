@@ -77,7 +77,7 @@ class RealWiringRefusesANonAdministratorFirst(Harness):
 
     def test_non_administrator_is_refused_before_moderation_and_credit(self):
         self.start(visual_script(), flag="1")
-        self.stack.enter_context(patch.dict(os.environ, RATES))  # priced: the budget check passes, so the administrator check is what decides
+        # NO rates configured on purpose: the administrator check must come first, so a refused caller never even reaches the cost check
         denied = self.stack.enter_context(patch("engine.assembler.explainer_access.authorize", side_effect=explainer_access.ExplainerAccessDenied("no")))
         images = self.stack.enter_context(patch("engine.story_visual.orchestrator.openai_provider", return_value=Mock()))
         voices = self.stack.enter_context(patch("engine.story_visual.voice.elevenlabs_provider", return_value=Mock()))
