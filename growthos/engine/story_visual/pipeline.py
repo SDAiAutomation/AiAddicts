@@ -1,10 +1,21 @@
 """Pipeline récit illustré de bout en bout, à PORTS injectés (même principe que `story_animation.pipeline`).
 
-Étapes : validation -> budget (échec fermé) -> modération -> autorisation -> quota -> crédit -> images -> voix -> calage ->
-cartes -> rendu -> contrôle qualité -> publication. Un échec après la réservation REMBOURSE le crédit seulement si rien n'a été dépensé (ni coût inconnu), jamais après publication. Idempotent : un job
-déjà terminé (même locataire, même plan) renvoie son résultat sans rappeler aucun fournisseur. Les fournisseurs sont des
-ports : doublures hors ligne par défaut dans les tests, adaptateurs réels (`orchestrator.openai_provider`,
-`voice.elevenlabs_provider`) fournis par le worker uniquement derrière `STORY_VISUAL_ENABLED`.
+Étapes :
+    validation -> budget (échec fermé) -> modération -> autorisation -> quota -> crédit -> images -> voix
+    -> calage -> cartes -> rendu -> contrôle qualité -> publication.
+
+Remboursement du crédit (règle A, sans exception) :
+    - remboursé SEULEMENT si rien n'a été dépensé (total nul ET aucun coût inconnu) ;
+    - jamais après une publication réussie ;
+    - un échec de remboursement ne masque jamais l'erreur d'origine.
+
+Idempotence :
+    un job déjà terminé (même locataire, même plan) renvoie son résultat sans rappeler aucun fournisseur.
+
+Fournisseurs :
+    ce sont des ports. Doublures hors ligne par défaut dans les tests ; adaptateurs réels
+    (`orchestrator.openai_provider`, `voice.elevenlabs_provider`) fournis par le worker uniquement
+    derrière `STORY_VISUAL_ENABLED`.
 """
 from __future__ import annotations
 

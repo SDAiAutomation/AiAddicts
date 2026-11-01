@@ -8,7 +8,7 @@
 `content_format: "story_visual"` (Standard, Quiz, Story animé : comportement inchangé, test de non-régression), « visual » seulement si
 `STORY_VISUAL_ENABLED=1`, sinon `VisualDisabled` **avant** crédit ou appel fournisseur. `_run_visual` branche les services réels dans
 `story_visual.pipeline.run` (ports injectés) : administrateur plateforme seulement (comme l'animé), modération existante, crédit
-réservé puis remboursé en cas d'échec, OpenAI Images (`openai_provider`), ElevenLabs (`tts.synthesize_with_timestamps`), publication
+réservé puis remboursé selon la règle A (§2 bis), OpenAI Images (`openai_provider`), ElevenLabs (`tts.synthesize_with_timestamps`), publication
 via `_publish_video`/versions. Le planificateur LLM (`planner.openai_chat_provider`) n'est **pas** appelé par le worker : l'écriture du
 plan est une étape d'API distincte (futur écran), le worker reçoit un plan déjà validé.
 
@@ -28,6 +28,27 @@ Le `tenant_id` vient de la session, jamais du corps (champs inconnus refusés).
 Codes d'erreur : `invalid_request, invalid_plan, unknown_scene, budget_refused, quota_exceeded, regeneration_limit, disabled, forbidden, not_found`.
 `spent_by_kind` sépare `measured` / `estimated` / `unpriced` / `cache` ; `complete: false` = au moins un appel dont le coût est inconnu :
 le total est alors **sous-évalué** et ne doit pas être affiché comme un coût.
+
+## 2 bis. Remboursement du crédit (règle A) et nature des montants
+Validée par le propriétaire telle quelle, **sans exception** (y compris pour un refus fournisseur immédiat). Implémentée dans `story_visual.pipeline._execute`.
+
+| Situation à l'échec | Crédit |
+|---|---|
+| Échec avant la réservation du crédit (administrateur, plan invalide, budget, voix absente, modération, quota, plafond du registre) | jamais pris, donc rien à rembourser |
+| Échec après la réservation, **avant tout appel payant** (ex. événement de démarrage, retenue refusée par le plafond) | **remboursé, une fois** |
+| Dépense engagée (`tracker.total > 0`) **ou** au moins un appel de coût inconnu (`unpriced` : exception, délai dépassé, échec fournisseur) | **non remboursé** |
+| Vidéo déjà publiée (même si l'étape suivante échoue) | **non remboursé**, et l'erreur d'origine n'est pas masquée |
+
+Un échec de remboursement est journalisé et ne remplace jamais l'erreur d'origine. Un appel échoué est compté comme coût inconnu, jamais comme 0 $ certain.
+
+Nature des montants (`cost.MEASURED / ESTIMATED / UNPRICED / CACHED`) :
+- `measured` : usage réel renvoyé par le fournisseur x tarif configuré (ex. tokens image de la réponse OpenAI x `IMAGE_PRICE_IMAGE_OUT_PER_M`).
+- `estimated` : prix issu d'une table ou d'une formule sans mesure d'usage (ex. tarif image de la table du routeur, ElevenLabs au nombre de caractères x `ELEVENLABS_USD_PER_1K_CHARS`). C'est une **dépense comptabilisée mais approximative**, jamais présentée comme mesurée.
+- `unpriced` : appel fait ou possiblement fait, coût inconnu. 0 $ comptabilisé mais `complete: false` ; le registre durable conserve la retenue (état `uncertain`).
+- `cache` : réutilisé, 0 $.
+Le champ `estimated_usd` d'avant génération (`estimated: true`) reste distinct de `spent_usd` / `spent_by_kind` d'après génération.
+
+Reprise : une scène `done` dont le fichier a disparu est **refaite sans compter comme régénération** (ni plafond ni compteur). Comme l'image est réellement repayée, le registre durable ajoute **une** nouvelle retenue réglée pour `image:<scène>` ; les lignes déjà réglées ne sont ni modifiées ni dupliquées, aucune retenue orpheline ne reste.
 
 ## 3. Problèmes identifiés et corrigés (revue indépendante `engine-reviewer`, puis relecture)
 | # | Gravité | Problème | Correction |
