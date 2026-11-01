@@ -37,6 +37,7 @@ class ImageResult:
     cost_usd: float | None = None
     usage: dict | None = None
     error: str | None = None
+    cost_kind: str | None = None  # None : mesuré si cost_usd est connu, sinon non chiffré
 
 
 Provider = Callable[..., ImageResult]
@@ -51,7 +52,11 @@ def openai_provider() -> Provider:
             path = openai_images.generate_image(prompt, out_path, "9:16", None, model, quality)
         usage = openai_images.pop_last_usage() if path else None
         error = None if path else openai_images.pop_last_error()
-        return ImageResult(path, image_model_router.estimate_cost_or_none(model, quality, usage) if path else 0.0, usage, error)
+        if not path:
+            return ImageResult(path, 0.0, usage, error)
+        # usage réel x tarif configuré = mesuré ; sinon valeur du tableau historique (_COST_TABLE) = ESTIMÉ
+        kind = cost.MEASURED if image_model_router.cost_from_usage(usage) is not None else cost.ESTIMATED
+        return ImageResult(path, image_model_router.estimate_cost_or_none(model, quality, usage), usage, error, kind)
     return call
 
 
@@ -128,7 +133,9 @@ def _generate(plan, selection, manifest_path, tenant_id, provider, tracker, expe
         previous = manifest.get(sid) or {}
         generations, attempts = previous.get("generations", 0), previous.get("attempts", 0)
         failed_now = False
-        if sid not in force and previous.get("status") == "done" and previous.get("key") == key and out.is_file():
+        # fichier disparu d'une scène « done » inchangée : reprise (pas une régénération), ni plafond ni compteur
+        resume = sid not in force and previous.get("status") == "done" and previous.get("key") == key
+        if resume and out.is_file():
             continue  # idempotent : rien à refaire
         if sid not in force and previous.get("status") == "needs_review" and previous.get("key") == key:
             break  # épuisée : décision humaine (régénération explicite) requise ; l'épisode est bloqué, on ne paie aucune scène suivante
@@ -138,14 +145,14 @@ def _generate(plan, selection, manifest_path, tenant_id, provider, tracker, expe
             tracker.seed(f"image:{sid}", 0.0, cost.CACHED)
         else:
             # toute nouvelle image pour une scène déjà générée (régénération ou prompt modifié) est plafonnée
-            if generations >= 1:
+            if generations >= 1 and not resume:
                 if generations - 1 >= per_scene or used >= per_story:
                     raise RegenerationLimit(f"{sid}: regeneration limit reached ({per_scene} per scene, {per_story} per story)")
             if previous.get("key") != key or sid in force:
                 attempts = 0  # nouvelle demande : le compteur d'échecs repart
             item = f"image:{sid}"
             tracker.reserve(item, expected_unit_usd)
-            if generations >= 1:
+            if generations >= 1 and not resume:
                 used += 1
             attempts += 1
             try:
@@ -162,13 +169,13 @@ def _generate(plan, selection, manifest_path, tenant_id, provider, tracker, expe
                 elif result.path:
                     reason = "missing_output"
                 if result.path and reason is None:
-                    kind = cost.MEASURED if result.cost_usd is not None else cost.UNPRICED
+                    kind = (result.cost_kind or cost.MEASURED) if result.cost_usd is not None else cost.UNPRICED
                     tracker.record(item, result.cost_usd, kind)
                     if disk_cache:
                         disk_cache.save(key, out)
                     manifest[sid] = {"status": "done", "path": str(out), "key": key, "cost_usd": result.cost_usd,
                                      "cost_kind": kind, "cache_hit": False, "error": None,
-                                     "generations": generations + 1, "attempts": attempts}
+                                     "generations": generations if resume else generations + 1, "attempts": attempts}
                     store.save_manifest(manifest_path, manifest)
                     continue
                 # échec : le fournisseur peut avoir facturé des tentatives internes -> coût inconnu, jamais « 0 $ certain »

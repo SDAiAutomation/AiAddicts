@@ -1100,7 +1100,7 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
             print(f"       (historique de versions indisponible : {exc})")
         video_url = _publish_video(client, content_item_id, str(final), require_remote=True, version=version_number)
         fields = {"script": script, "video_url": video_url, "error": None, "generation_step": None, "trim_start": 0,
-                  "trim_end": None, "trim_status": None, "original_video_url": None}
+                  "trim_end": None, "trim_status": None, "original_video_url": None, **sv_pipeline.review_fields(result)}
         if version_number:
             version_id = versions.record_version(client, content_item_id, version_number, "generation", video_url,
                                                  script=script, duration_seconds=timeline["total_s"])

@@ -1,7 +1,7 @@
 """Pipeline récit illustré de bout en bout, à PORTS injectés (même principe que `story_animation.pipeline`).
 
 Étapes : validation -> budget (échec fermé) -> modération -> autorisation -> quota -> crédit -> images -> voix -> calage ->
-cartes -> rendu -> contrôle qualité -> publication. Tout échec après la réservation REMBOURSE le crédit. Idempotent : un job
+cartes -> rendu -> contrôle qualité -> publication. Un échec après la réservation REMBOURSE le crédit seulement si rien n'a été dépensé (ni coût inconnu), jamais après publication. Idempotent : un job
 déjà terminé (même locataire, même plan) renvoie son résultat sans rappeler aucun fournisseur. Les fournisseurs sont des
 ports : doublures hors ligne par défaut dans les tests, adaptateurs réels (`orchestrator.openai_provider`,
 `voice.elevenlabs_provider`) fournis par le worker uniquement derrière `STORY_VISUAL_ENABLED`.
@@ -116,7 +116,15 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
                         cost.BudgetTracker(ports.budget, ledger=ports.ledger))
 
 
+def review_fields(result: dict) -> dict:
+    """Champs de la ligne de contenu pour un clip livré : un texte illisible ne passe jamais pour « prêt » (état `quality_check` existant,
+    sans migration : un humain regarde avant publication) ; sinon `video` et drapeaux d'un run précédent effacés."""
+    flags = [f"Contrôle qualité : {issue}" for issue in (result.get("review") or [])][:8]
+    return {"status": "quality_check", "quality_flags": flags} if flags else {"status": "video", "quality_flags": []}
+
+
 def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision, tracker) -> dict:
+    published = False
     try:
         ports.record_event("generation_started", renderer="story_visual", estimated_usd=decision["total_usd"], estimated=True)
         ports.progress("images")
@@ -162,15 +170,22 @@ def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, e
                   "factuality": plan["factuality"], "sources": plan.get("sources", [])}
         if ports.publish:
             result["published"] = ports.publish(video, timeline, result)
+            published = True
         done_path.write_text(json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8")
         ports.record_event("generation_completed", renderer="story_visual", duration_s=timeline["total_s"],
                            measured_usd=report["spent_usd"], cost_complete=report["complete"])
         return result
     except BaseException:
-        try:
-            ports.refund_credit()
-        except Exception as exc:  # noqa: BLE001 - never mask the original failure
-            print(f"       (remboursement du crédit non confirmé : {type(exc).__name__})")
+        # Règle A : rembourser SEULEMENT si rien n'a été dépensé (total nul ET aucun coût inconnu), et jamais après une publication réussie.
+        if published:
+            print("       (crédit non remboursé : la vidéo est déjà publiée)")
+        elif tracker.total > 0 or tracker.has_unpriced:
+            print(f"       (crédit non remboursé : dépense engagée ${tracker.total:.4f}, coût inconnu={tracker.has_unpriced})")
+        else:
+            try:
+                ports.refund_credit()
+            except Exception as exc:  # noqa: BLE001 - never mask the original failure
+                print(f"       (remboursement du crédit non confirmé : {type(exc).__name__})")
         raise
 
 

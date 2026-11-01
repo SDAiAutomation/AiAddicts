@@ -27,6 +27,7 @@ class VoiceResult:
     words: list | None = None
     cost_usd: float | None = None
     error: str | None = None
+    cost_kind: str | None = None  # None : mesuré si cost_usd est connu, sinon non chiffré
 
 
 VoiceProvider = Callable[..., VoiceResult]
@@ -49,7 +50,8 @@ def elevenlabs_provider(env=None) -> VoiceProvider:
         except RuntimeError as exc:
             return VoiceResult(None, None, None, f"voice_error: {str(exc)[:120]}")
         rate = voice_rate_per_1k(env)
-        return VoiceResult(out_path, words, None if rate is None else len(text) / 1000 * rate)
+        # caractères x tarif configuré : aucun usage réel renvoyé par le fournisseur -> ESTIMÉ, jamais « mesuré »
+        return VoiceResult(out_path, words, None if rate is None else len(text) / 1000 * rate, cost_kind=cost.ESTIMATED)
     return call
 
 
@@ -151,7 +153,7 @@ def _synthesize(plan, folder, tenant_id, provider, tracker, voice_id, rate_per_1
                 elif result.path:
                     reason = "missing_output"
                 if result.path and reason is None:
-                    kind = cost.MEASURED if result.cost_usd is not None else cost.UNPRICED
+                    kind = (result.cost_kind or cost.MEASURED) if result.cost_usd is not None else cost.UNPRICED
                     tracker.record(item, result.cost_usd, kind)
                     if disk_cache:
                         words_path.write_text(json.dumps(result.words or []), encoding="utf-8")

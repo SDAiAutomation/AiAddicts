@@ -300,22 +300,22 @@ class TestOfflinePipeline(Harness):
         self.assertEqual(len(pb.image_provider.calls), 8)  # B ne réutilise rien de A
         self.assertTrue(str(Path(a["video"])).count("tenantA") and "tenantB" not in a["video"])
 
-    def test_failed_image_refunds_the_credit_and_the_retry_resumes(self):
+    def test_failed_image_keeps_the_credit_because_the_cost_is_unknown_and_the_retry_resumes(self):
         provider = sample.PlaceholderImageProvider()
         provider.fail_next = 1
         with self.assertRaises(pipeline.PipelineError):
             self.run_pipeline(image_provider=provider)
-        self.assertEqual(self.refunds, [1])
+        self.assertEqual(self.refunds, [])  # règle A : un appel échoué a un coût inconnu -> pas de remboursement
         result, _ = self.run_pipeline(image_provider=provider)
         self.assertEqual(len(provider.calls), 9)  # 7 déjà faites ne sont pas refaites
         self.assertTrue(Path(result["video"]).is_file())
 
-    def test_failed_voice_refunds_the_credit(self):
+    def test_failed_voice_keeps_the_credit_because_the_cost_is_unknown(self):
         voices = voice.SimulatedVoiceProvider("en")
         voices.fail_next = 1
         with self.assertRaises(pipeline.PipelineError):
             self.run_pipeline(voice_provider=voices)
-        self.assertEqual(self.refunds, [1])
+        self.assertEqual(self.refunds, [])
 
 
 class TestGuards(Harness):
