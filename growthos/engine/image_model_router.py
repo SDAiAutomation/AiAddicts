@@ -109,13 +109,24 @@ def cost_from_usage(usage: dict | None) -> float | None:
     ) / 1_000_000
 
 
-def estimate_cost(model: str, quality: str, usage: dict | None = None) -> float:
-    """Coût estimé en $ pour une image. Préfère le calcul sur les tokens
-    réels (`usage` + tarifs d'environnement) ; sinon le tableau historique ;
-    0.0 si modèle/qualité inconnus (ex. modèle facturé au token sans tarifs
-    configurés) — jamais bloquant. Les tokens restent dans le rapport, le
-    coût peut donc être recalculé après coup."""
+def estimate_cost_or_none(model: str, quality: str, usage: dict | None = None) -> float | None:
+    """Comme `estimate_cost`, mais un coût INCONNU vaut `None`, jamais 0 : un modèle facturé au token sans tarif
+    configuré (et absent du tableau historique) n'est pas gratuit, il est non chiffré. À utiliser pour tout
+    budget, plafond ou décision de dépense ; l'appelant doit refuser ou signaler `None`."""
     from_usage = cost_from_usage(usage)
     if from_usage is not None:
         return from_usage
-    return _COST_TABLE.get((model, quality), 0.0)
+    return _COST_TABLE.get((model, quality))
+
+
+def is_priced(model: str, quality: str, usage: dict | None = None) -> bool:
+    return estimate_cost_or_none(model, quality, usage) is not None
+
+
+def estimate_cost(model: str, quality: str, usage: dict | None = None) -> float:
+    """Coût estimé en $ pour une image, 0.0 si INCONNU (contrat historique conservé : `visuals` et `assembler`
+    additionnent des floats et signalent les tarifs manquants dans `missingRates`). Ce 0.0 signifie « non chiffré »,
+    PAS « gratuit » : ne jamais l'employer pour un budget — utiliser `estimate_cost_or_none`. Préfère le calcul sur les
+    tokens réels (`usage` + tarifs d'environnement) ; sinon le tableau historique."""
+    cost = estimate_cost_or_none(model, quality, usage)
+    return 0.0 if cost is None else cost

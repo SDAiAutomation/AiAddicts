@@ -1,0 +1,1005 @@
+{
+ "cases": [
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0.18",
+    "SCRIPT_PRICE_IN_PER_M": "1",
+    "SCRIPT_PRICE_OUT_PER_M": "4",
+    "STORY_IMAGE_USD_EACH": "0.08",
+    "STORY_PLAN_TOKENS_IN": "4000",
+    "STORY_PLAN_TOKENS_OUT": "3500",
+    "STORY_RENDER_USD": "0",
+    "STORY_STORAGE_USD": "0.01"
+   },
+   "images": 8,
+   "name": "moral / full",
+   "plan": "moral",
+   "rates": "full",
+   "status": "ok",
+   "total_usd": 0.7868,
+   "unpriced": [],
+   "voice_characters": 660
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0.2",
+    "SCRIPT_PRICE_IN_PER_M": "1",
+    "SCRIPT_PRICE_OUT_PER_M": "1",
+    "STORY_IMAGE_USD_EACH": "0.1",
+    "STORY_PLAN_TOKENS_IN": "10",
+    "STORY_PLAN_TOKENS_OUT": "10",
+    "STORY_RENDER_USD": "0.00004",
+    "STORY_STORAGE_USD": "0.00004"
+   },
+   "images": 8,
+   "name": "moral / tiny lines",
+   "plan": "moral",
+   "rates": "tiny lines",
+   "status": "ok",
+   "total_usd": 0.932,
+   "unpriced": [],
+   "voice_characters": 660
+  },
+  {
+   "complete": false,
+   "env": {
+    "STORY_IMAGE_USD_EACH": "0.1"
+   },
+   "images": 8,
+   "name": "moral / images only",
+   "plan": "moral",
+   "rates": "images only",
+   "status": "unpriced",
+   "total_usd": 0.8,
+   "unpriced": [
+    "script",
+    "voice_1k_chars",
+    "render",
+    "storage"
+   ],
+   "voice_characters": 660
+  },
+  {
+   "complete": false,
+   "env": {},
+   "images": 8,
+   "name": "moral / nothing",
+   "plan": "moral",
+   "rates": "nothing",
+   "status": "unpriced",
+   "total_usd": 0.0,
+   "unpriced": [
+    "script",
+    "images",
+    "voice_1k_chars",
+    "render",
+    "storage"
+   ],
+   "voice_characters": 660
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0",
+    "SCRIPT_PRICE_IN_PER_M": "0",
+    "SCRIPT_PRICE_OUT_PER_M": "0",
+    "STORY_IMAGE_USD_EACH": "0",
+    "STORY_PLAN_TOKENS_IN": "1",
+    "STORY_PLAN_TOKENS_OUT": "1",
+    "STORY_RENDER_USD": "0",
+    "STORY_STORAGE_USD": "0"
+   },
+   "images": 8,
+   "name": "moral / zero rates",
+   "plan": "moral",
+   "rates": "zero rates",
+   "status": "ok",
+   "total_usd": 0.0,
+   "unpriced": [],
+   "voice_characters": 660
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0.18",
+    "SCRIPT_PRICE_IN_PER_M": "1",
+    "SCRIPT_PRICE_OUT_PER_M": "4",
+    "STORY_IMAGE_USD_EACH": "0.08",
+    "STORY_PLAN_TOKENS_IN": "4000",
+    "STORY_PLAN_TOKENS_OUT": "3500",
+    "STORY_RENDER_USD": "0",
+    "STORY_STORAGE_USD": "0.01"
+   },
+   "images": 8,
+   "name": "factual / full",
+   "plan": "factual",
+   "rates": "full",
+   "status": "ok",
+   "total_usd": 0.8008,
+   "unpriced": [],
+   "voice_characters": 738
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0.2",
+    "SCRIPT_PRICE_IN_PER_M": "1",
+    "SCRIPT_PRICE_OUT_PER_M": "1",
+    "STORY_IMAGE_USD_EACH": "0.1",
+    "STORY_PLAN_TOKENS_IN": "10",
+    "STORY_PLAN_TOKENS_OUT": "10",
+    "STORY_RENDER_USD": "0.00004",
+    "STORY_STORAGE_USD": "0.00004"
+   },
+   "images": 8,
+   "name": "factual / tiny lines",
+   "plan": "factual",
+   "rates": "tiny lines",
+   "status": "ok",
+   "total_usd": 0.9476,
+   "unpriced": [],
+   "voice_characters": 738
+  },
+  {
+   "complete": false,
+   "env": {
+    "STORY_IMAGE_USD_EACH": "0.1"
+   },
+   "images": 8,
+   "name": "factual / images only",
+   "plan": "factual",
+   "rates": "images only",
+   "status": "unpriced",
+   "total_usd": 0.8,
+   "unpriced": [
+    "script",
+    "voice_1k_chars",
+    "render",
+    "storage"
+   ],
+   "voice_characters": 738
+  },
+  {
+   "complete": false,
+   "env": {},
+   "images": 8,
+   "name": "factual / nothing",
+   "plan": "factual",
+   "rates": "nothing",
+   "status": "unpriced",
+   "total_usd": 0.0,
+   "unpriced": [
+    "script",
+    "images",
+    "voice_1k_chars",
+    "render",
+    "storage"
+   ],
+   "voice_characters": 738
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0",
+    "SCRIPT_PRICE_IN_PER_M": "0",
+    "SCRIPT_PRICE_OUT_PER_M": "0",
+    "STORY_IMAGE_USD_EACH": "0",
+    "STORY_PLAN_TOKENS_IN": "1",
+    "STORY_PLAN_TOKENS_OUT": "1",
+    "STORY_RENDER_USD": "0",
+    "STORY_STORAGE_USD": "0"
+   },
+   "images": 8,
+   "name": "factual / zero rates",
+   "plan": "factual",
+   "rates": "zero rates",
+   "status": "ok",
+   "total_usd": 0.0,
+   "unpriced": [],
+   "voice_characters": 738
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0.18",
+    "SCRIPT_PRICE_IN_PER_M": "1",
+    "SCRIPT_PRICE_OUT_PER_M": "4",
+    "STORY_IMAGE_USD_EACH": "0.08",
+    "STORY_PLAN_TOKENS_IN": "4000",
+    "STORY_PLAN_TOKENS_OUT": "3500",
+    "STORY_RENDER_USD": "0",
+    "STORY_STORAGE_USD": "0.01"
+   },
+   "images": 8,
+   "name": "emoji narration / full",
+   "plan": "emoji narration",
+   "rates": "full",
+   "status": "ok",
+   "total_usd": 0.7809,
+   "unpriced": [],
+   "voice_characters": 627
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0.2",
+    "SCRIPT_PRICE_IN_PER_M": "1",
+    "SCRIPT_PRICE_OUT_PER_M": "1",
+    "STORY_IMAGE_USD_EACH": "0.1",
+    "STORY_PLAN_TOKENS_IN": "10",
+    "STORY_PLAN_TOKENS_OUT": "10",
+    "STORY_RENDER_USD": "0.00004",
+    "STORY_STORAGE_USD": "0.00004"
+   },
+   "images": 8,
+   "name": "emoji narration / tiny lines",
+   "plan": "emoji narration",
+   "rates": "tiny lines",
+   "status": "ok",
+   "total_usd": 0.9254,
+   "unpriced": [],
+   "voice_characters": 627
+  },
+  {
+   "complete": false,
+   "env": {
+    "STORY_IMAGE_USD_EACH": "0.1"
+   },
+   "images": 8,
+   "name": "emoji narration / images only",
+   "plan": "emoji narration",
+   "rates": "images only",
+   "status": "unpriced",
+   "total_usd": 0.8,
+   "unpriced": [
+    "script",
+    "voice_1k_chars",
+    "render",
+    "storage"
+   ],
+   "voice_characters": 627
+  },
+  {
+   "complete": false,
+   "env": {},
+   "images": 8,
+   "name": "emoji narration / nothing",
+   "plan": "emoji narration",
+   "rates": "nothing",
+   "status": "unpriced",
+   "total_usd": 0.0,
+   "unpriced": [
+    "script",
+    "images",
+    "voice_1k_chars",
+    "render",
+    "storage"
+   ],
+   "voice_characters": 627
+  },
+  {
+   "complete": true,
+   "env": {
+    "ELEVENLABS_USD_PER_1K_CHARS": "0",
+    "SCRIPT_PRICE_IN_PER_M": "0",
+    "SCRIPT_PRICE_OUT_PER_M": "0",
+    "STORY_IMAGE_USD_EACH": "0",
+    "STORY_PLAN_TOKENS_IN": "1",
+    "STORY_PLAN_TOKENS_OUT": "1",
+    "STORY_RENDER_USD": "0",
+    "STORY_STORAGE_USD": "0"
+   },
+   "images": 8,
+   "name": "emoji narration / zero rates",
+   "plan": "emoji narration",
+   "rates": "zero rates",
+   "status": "ok",
+   "total_usd": 0.0,
+   "unpriced": [],
+   "voice_characters": 627
+  }
+ ],
+ "plans": {
+  "emoji narration": {
+   "art_direction": "cinematic_story",
+   "characters": [
+    {
+     "appearance": "a slender young red fox with kind amber eyes and a white-tipped tail",
+     "clothing": "a patched teal scarf",
+     "distinctive": "the patched teal scarf, always knotted on the left",
+     "environment": "a misty autumn forest",
+     "id": "rowan",
+     "name": "Rowan",
+     "negative": "hat, backpack, human clothing",
+     "palette": "rust red, teal, cream",
+     "proportions": "long legs, slightly oversized ears, small narrow chest"
+    }
+   ],
+   "factuality": "fiction",
+   "language": "en",
+   "scenes": [
+    {
+     "beat": "hook",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 7,
+     "emotional_tone": "unease",
+     "id": "s1",
+     "image_prompt": "A slender red fox in a patched teal scarf stands in a misty clearing, many long shadows reaching toward him.",
+     "narration": "  😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀  ",
+     "on_screen_text": "He never said no.",
+     "source_ids": [],
+     "transition": "cut",
+     "visual_direction": {
+      "continuity": "opens the fable, the scarf is introduced",
+      "essentials": "Rowan, long shadows",
+      "feel": "unease",
+      "metaphor": "many hands of shadow",
+      "omit": "any text",
+      "understand": "this fox has a problem with refusal"
+     },
+     "visual_intention": "Rowan alone in a clearing, many shadows reaching for him."
+    },
+    {
+     "beat": "setup",
+     "camera": "pull_out",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "heaviness",
+     "id": "s2",
+     "image_prompt": "The red fox in the teal scarf carries a tall stack of stones, hares and crows waiting in a line behind him.",
+     "narration": "The owl asked him to carry stones. The hares asked for his evenings. The crows asked for everything else.",
+     "on_screen_text": "Yes. Yes. Yes.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "same scarf, same clearing as scene 1",
+      "essentials": "Rowan, stones, hares, crows",
+      "feel": "heaviness",
+      "metaphor": "the stack of stones",
+      "omit": "background trees",
+      "understand": "everyone asks, he gives"
+     },
+     "visual_intention": "Rowan carrying stones while hares and crows queue behind him."
+    },
+    {
+     "beat": "conflict",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "loneliness",
+     "id": "s3",
+     "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+     "narration": "His own den grew cold and empty. No one noticed, because he never said so.",
+     "on_screen_text": "No one noticed.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "Rowan absent, his scarf hung inside",
+      "essentials": "the den, the rain",
+      "feel": "loneliness",
+      "metaphor": "a den with no light",
+      "omit": "other animals",
+      "understand": "his own needs disappear"
+     },
+     "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+    },
+    {
+     "beat": "development",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "tension",
+     "id": "s4",
+     "image_prompt": "The red fox in the teal scarf buckles under his stack of stones, one stone rolling down a moonlit slope.",
+     "narration": "One night, the weight was too much. A single stone slipped, and it rolled away down the hill.",
+     "on_screen_text": "One stone slipped.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "same night after the den",
+      "essentials": "Rowan, the rolling stone",
+      "feel": "tension",
+      "metaphor": "one stone leaving the stack",
+      "omit": "crowd",
+      "understand": "the breaking point"
+     },
+     "visual_intention": "Rowan's paws trembling, a stone rolling down a moonlit slope."
+    },
+    {
+     "beat": "development",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "relief",
+     "id": "s5",
+     "image_prompt": "A wise grey owl lifts a stone with a gentle smile, the red fox in the teal scarf watching, surprised.",
+     "narration": "Nothing terrible happened. The owl simply picked up the stone and said, 'Thank you for telling us.'",
+     "on_screen_text": "Nothing terrible happened.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "the owl appeared in scene 2",
+      "essentials": "owl, Rowan, stone",
+      "feel": "relief",
+      "metaphor": "the owl's open wings",
+      "omit": "anger",
+      "understand": "refusing is survivable"
+     },
+     "visual_intention": "The owl gently lifts the stone, Rowan watching, surprised."
+    },
+    {
+     "beat": "development",
+     "camera": "pull_out",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "courage",
+     "id": "s6",
+     "image_prompt": "The red fox in the teal scarf stands upright before three hares at sunrise, scarf lifted by the wind.",
+     "narration": "The next day, Rowan said his first small no. The hares waited. The world did not end.",
+     "on_screen_text": "A small no.",
+     "source_ids": [],
+     "transition": "fade",
+     "visual_direction": {
+      "continuity": "Rowan stands taller than in scene 1",
+      "essentials": "Rowan, hares",
+      "feel": "quiet courage",
+      "metaphor": "an upright stance",
+      "omit": "stones",
+      "understand": "practice, not perfection"
+     },
+     "visual_intention": "Rowan standing upright before the hares, scarf blowing."
+    },
+    {
+     "beat": "revelation",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "insight",
+     "id": "s7",
+     "image_prompt": "The red fox in the teal scarf at the entrance of his den, warm light glowing inside.",
+     "narration": "And Rowan understood: every yes to others had been a no to himself.",
+     "on_screen_text": "Every yes is a no.",
+     "source_ids": [],
+     "transition": "fade",
+     "visual_direction": {
+      "continuity": "the den from scene 3, now lit",
+      "essentials": "Rowan, den, light",
+      "feel": "insight",
+      "metaphor": "the lit den",
+      "omit": "the crowd",
+      "understand": "yes and no are linked"
+     },
+     "visual_intention": "Rowan at the den entrance, a warm light inside."
+    },
+    {
+     "beat": "resolution",
+     "camera": "pull_out",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 7,
+     "emotional_tone": "peace",
+     "id": "s8",
+     "image_prompt": "The red fox asleep in his warm den, the teal scarf folded beside him, soft light.",
+     "narration": "A kind yes needs a free no. That is how Rowan finally came home.",
+     "on_screen_text": "A kind yes needs a free no.",
+     "source_ids": [],
+     "transition": "cut",
+     "visual_direction": {
+      "continuity": "closes inside the den",
+      "essentials": "Rowan sleeping",
+      "feel": "peace",
+      "metaphor": "sleep",
+      "omit": "moral slogans",
+      "understand": "balance is kindness"
+     },
+     "visual_intention": "Rowan asleep in his warm den, the scarf folded."
+    }
+   ],
+   "schema_version": 1,
+   "sources": [],
+   "story_id": "sample-fox-yes",
+   "story_type": "moral",
+   "target_duration_s": 60,
+   "title": "The Fox Who Always Said Yes"
+  },
+  "factual": {
+   "art_direction": "cinematic_story",
+   "characters": [
+    {
+     "appearance": "un chercheur d'âge mûr au visage fin et attentif, cheveux clairs coiffés en arrière",
+     "clothing": "blouse blanche usée, nœud papillon bordeaux",
+     "distinctive": "un nœud papillon bordeaux toujours visible",
+     "environment": "laboratoire encombré des années 1920",
+     "id": "chercheur",
+     "name": "Le chercheur",
+     "negative": "lunettes, barbe, tenue moderne",
+     "palette": "blanc cassé, bordeaux, vert-de-gris",
+     "proportions": "silhouette élancée, épaules étroites, grandes mains"
+    }
+   ],
+   "factuality": "verified",
+   "language": "fr",
+   "scenes": [
+    {
+     "beat": "hook",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fact",
+     "duration_s": 7,
+     "emotional_tone": "intrigue",
+     "id": "s1",
+     "image_prompt": "Une boîte de Petri éclairée par un rayon de fenêtre sur une paillasse encombrée, laboratoire des années 1920.",
+     "narration": "Un tas de boîtes de culture oubliées, et une moisissure qui allait changer la médecine.",
+     "on_screen_text": "Un oubli de vacances",
+     "source_ids": [
+      "nobel",
+      "wiki"
+     ],
+     "transition": "cut",
+     "visual_direction": {
+      "continuity": "ouvre le récit, la boîte reviendra à la révélation",
+      "essentials": "une boîte de Petri, une paillasse",
+      "feel": "curiosité",
+      "metaphor": "la boîte oubliée comme un trésor",
+      "omit": "tout décor décoratif",
+      "understand": "l'idée tient à un oubli"
+     },
+     "visual_intention": "Une paillasse en désordre, une boîte au centre de la lumière."
+    },
+    {
+     "beat": "setup",
+     "camera": "push_in",
+     "characters": [
+      "chercheur"
+     ],
+     "claim_kind": "fact",
+     "duration_s": 8,
+     "emotional_tone": "calme",
+     "id": "s2",
+     "image_prompt": "Le chercheur de dos entre dans un laboratoire baigné d'une lumière de fin d'été.",
+     "narration": "En septembre 1928, Alexander Fleming rentre de vacances et retrouve son laboratoire de Londres.",
+     "on_screen_text": "Septembre 1928",
+     "source_ids": [
+      "nobel",
+      "wiki"
+     ],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "présente le personnage, même tenue ensuite",
+      "essentials": "le chercheur, la porte",
+      "feel": "calme",
+      "metaphor": "la porte comme seuil",
+      "omit": "visage détaillé",
+      "understand": "le contexte : un laboratoire, un retour"
+     },
+     "visual_intention": "Le chercheur franchit la porte de son laboratoire."
+    },
+    {
+     "beat": "conflict",
+     "camera": "push_in",
+     "characters": [
+      "chercheur"
+     ],
+     "claim_kind": "fact",
+     "duration_s": 8,
+     "emotional_tone": "tension",
+     "id": "s3",
+     "image_prompt": "Le chercheur penché sur une boîte de Petri, la main suspendue au-dessus d'un évier.",
+     "narration": "Sur l'une des boîtes, une moisissure s'est installée, ce qui arrive souvent. Il aurait pu la jeter.",
+     "on_screen_text": "Il aurait pu la jeter.",
+     "source_ids": [
+      "nobel",
+      "wiki"
+     ],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "fait écho à la boîte du premier plan",
+      "essentials": "le chercheur, la boîte, l'évier",
+      "feel": "tension légère",
+      "metaphor": "la main suspendue",
+      "omit": "tout le reste",
+      "understand": "l'hésitation : jeter ou observer"
+     },
+     "visual_intention": "Le chercheur se penche sur une boîte, la main hésitante au-dessus de l'évier."
+    },
+    {
+     "beat": "development",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fact",
+     "duration_s": 7,
+     "emotional_tone": "émerveillement",
+     "id": "s4",
+     "image_prompt": "Gros plan sur une boîte de Petri : une tache verte entourée d'un halo clair, colonies à la périphérie.",
+     "narration": "Mais autour de la moisissure, les bactéries avaient disparu. Il remarque la zone claire.",
+     "on_screen_text": "Un halo sans bactéries",
+     "source_ids": [
+      "nobel",
+      "wiki"
+     ],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "gros plan de la boîte vue depuis la scène 3",
+      "essentials": "la boîte, le halo",
+      "feel": "émerveillement",
+      "metaphor": "le halo comme un cercle de protection",
+      "omit": "le visage",
+      "understand": "voir la zone sans bactéries"
+     },
+     "visual_intention": "Gros plan de la boîte : un halo clair autour de la tache verte."
+    },
+    {
+     "beat": "development",
+     "camera": "pull_out",
+     "characters": [
+      "chercheur"
+     ],
+     "claim_kind": "fact",
+     "duration_s": 8,
+     "emotional_tone": "excitation",
+     "id": "s5",
+     "image_prompt": "Le chercheur tient une boîte devant un tableau noir couvert de croquis griffonnés.",
+     "narration": "La moisissure, un Penicillium, produit quelque chose qui tue ces bactéries. Il l'appelle pénicilline.",
+     "on_screen_text": "Penicillium → pénicilline",
+     "source_ids": [
+      "nobel",
+      "wiki"
+     ],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "même chercheur, même nœud papillon",
+      "essentials": "le chercheur, le tableau",
+      "feel": "excitation contenue",
+      "metaphor": "un nom qui naît",
+      "omit": "formules illisibles",
+      "understand": "nommer la substance"
+     },
+     "visual_intention": "Le chercheur, la boîte dans les mains, face à un tableau griffonné."
+    },
+    {
+     "beat": "development",
+     "camera": "pull_out",
+     "characters": [],
+     "claim_kind": "fact",
+     "duration_s": 8,
+     "emotional_tone": "patience",
+     "id": "s6",
+     "image_prompt": "Plan large d'un long couloir de laboratoire aux portes ouvertes, silhouettes lointaines en blouse.",
+     "narration": "Il faudra encore plus de dix ans, et d'autres chercheurs, pour en faire un médicament utilisable.",
+     "on_screen_text": "Plus de dix ans, et d'autres chercheurs",
+     "source_ids": [
+      "nobel",
+      "wiki"
+     ],
+     "transition": "fade",
+     "visual_direction": {
+      "continuity": "élargit le plan après les gros plans",
+      "essentials": "un couloir, des silhouettes",
+      "feel": "patience",
+      "metaphor": "le couloir comme le temps",
+      "omit": "le chercheur lui-même",
+      "understand": "le chemin est long et collectif"
+     },
+     "visual_intention": "Un couloir de laboratoire qui s'étire, des silhouettes de chercheurs au loin."
+    },
+    {
+     "beat": "revelation",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "interpretation",
+     "duration_s": 8,
+     "emotional_tone": "émotion",
+     "id": "s7",
+     "image_prompt": "La boîte de Petri seule, posée dans un rayon de lumière chaude, fond sombre.",
+     "narration": "Découverte par hasard, oui. Mais il a fallu quelqu'un pour remarquer, et pour s'en étonner.",
+     "on_screen_text": "Remarquer, c'est déjà découvrir",
+     "source_ids": [
+      "nobel"
+     ],
+     "transition": "fade",
+     "visual_direction": {
+      "continuity": "reprend le plan d'ouverture, cadrage plus serré",
+      "essentials": "la boîte, la lumière",
+      "feel": "émotion",
+      "metaphor": "la boîte retrouvée",
+      "omit": "tout le reste",
+      "understand": "le hasard n'a servi que parce qu'on a regardé"
+     },
+     "visual_intention": "La boîte du début, désormais seule au centre d'une lumière chaude."
+    },
+    {
+     "beat": "resolution",
+     "camera": "pull_out",
+     "characters": [
+      "chercheur"
+     ],
+     "claim_kind": "interpretation",
+     "duration_s": 7,
+     "emotional_tone": "apaisement",
+     "id": "s8",
+     "image_prompt": "Le chercheur de profil devant une fenêtre lumineuse, regard calme.",
+     "narration": "À retenir : une découverte commence souvent par un détail que l'on ne jette pas.",
+     "on_screen_text": "Ne pas jeter le détail",
+     "source_ids": [
+      "nobel"
+     ],
+     "transition": "cut",
+     "visual_direction": {
+      "continuity": "clôt sur le personnage, même tenue",
+      "essentials": "le chercheur, la fenêtre",
+      "feel": "apaisement",
+      "metaphor": "la fenêtre comme ouverture",
+      "omit": "tout slogan",
+      "understand": "la leçon : s'arrêter sur l'anomalie"
+     },
+     "visual_intention": "Le chercheur de profil, regardant la lumière."
+    }
+   ],
+   "schema_version": 1,
+   "sources": [
+    {
+     "id": "nobel",
+     "title": "The Nobel Prize in Physiology or Medicine 1945 — Alexander Fleming, Facts",
+     "url": "https://www.nobelprize.org/prizes/medicine/1945/fleming/facts/"
+    },
+    {
+     "id": "wiki",
+     "title": "Penicillin — Wikipedia",
+     "url": "https://en.wikipedia.org/wiki/Penicillin"
+    }
+   ],
+   "story_id": "sample-penicillin",
+   "story_type": "true",
+   "target_duration_s": 60,
+   "title": "La moisissure oubliée"
+  },
+  "moral": {
+   "art_direction": "cinematic_story",
+   "characters": [
+    {
+     "appearance": "a slender young red fox with kind amber eyes and a white-tipped tail",
+     "clothing": "a patched teal scarf",
+     "distinctive": "the patched teal scarf, always knotted on the left",
+     "environment": "a misty autumn forest",
+     "id": "rowan",
+     "name": "Rowan",
+     "negative": "hat, backpack, human clothing",
+     "palette": "rust red, teal, cream",
+     "proportions": "long legs, slightly oversized ears, small narrow chest"
+    }
+   ],
+   "factuality": "fiction",
+   "language": "en",
+   "scenes": [
+    {
+     "beat": "hook",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 7,
+     "emotional_tone": "unease",
+     "id": "s1",
+     "image_prompt": "A slender red fox in a patched teal scarf stands in a misty clearing, many long shadows reaching toward him.",
+     "narration": "Rowan the fox had never once said no. Not to anyone. Not even to himself.",
+     "on_screen_text": "He never said no.",
+     "source_ids": [],
+     "transition": "cut",
+     "visual_direction": {
+      "continuity": "opens the fable, the scarf is introduced",
+      "essentials": "Rowan, long shadows",
+      "feel": "unease",
+      "metaphor": "many hands of shadow",
+      "omit": "any text",
+      "understand": "this fox has a problem with refusal"
+     },
+     "visual_intention": "Rowan alone in a clearing, many shadows reaching for him."
+    },
+    {
+     "beat": "setup",
+     "camera": "pull_out",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "heaviness",
+     "id": "s2",
+     "image_prompt": "The red fox in the teal scarf carries a tall stack of stones, hares and crows waiting in a line behind him.",
+     "narration": "The owl asked him to carry stones. The hares asked for his evenings. The crows asked for everything else.",
+     "on_screen_text": "Yes. Yes. Yes.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "same scarf, same clearing as scene 1",
+      "essentials": "Rowan, stones, hares, crows",
+      "feel": "heaviness",
+      "metaphor": "the stack of stones",
+      "omit": "background trees",
+      "understand": "everyone asks, he gives"
+     },
+     "visual_intention": "Rowan carrying stones while hares and crows queue behind him."
+    },
+    {
+     "beat": "conflict",
+     "camera": "push_in",
+     "characters": [],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "loneliness",
+     "id": "s3",
+     "image_prompt": "A tiny fox den in tree roots, dark and cold in the rain, a teal scarf hanging inside the entrance.",
+     "narration": "His own den grew cold and empty. No one noticed, because he never said so.",
+     "on_screen_text": "No one noticed.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "Rowan absent, his scarf hung inside",
+      "essentials": "the den, the rain",
+      "feel": "loneliness",
+      "metaphor": "a den with no light",
+      "omit": "other animals",
+      "understand": "his own needs disappear"
+     },
+     "visual_intention": "Rowan's tiny den, cold and dark, seen from outside in the rain."
+    },
+    {
+     "beat": "development",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "tension",
+     "id": "s4",
+     "image_prompt": "The red fox in the teal scarf buckles under his stack of stones, one stone rolling down a moonlit slope.",
+     "narration": "One night, the weight was too much. A single stone slipped, and it rolled away down the hill.",
+     "on_screen_text": "One stone slipped.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "same night after the den",
+      "essentials": "Rowan, the rolling stone",
+      "feel": "tension",
+      "metaphor": "one stone leaving the stack",
+      "omit": "crowd",
+      "understand": "the breaking point"
+     },
+     "visual_intention": "Rowan's paws trembling, a stone rolling down a moonlit slope."
+    },
+    {
+     "beat": "development",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "relief",
+     "id": "s5",
+     "image_prompt": "A wise grey owl lifts a stone with a gentle smile, the red fox in the teal scarf watching, surprised.",
+     "narration": "Nothing terrible happened. The owl simply picked up the stone and said, 'Thank you for telling us.'",
+     "on_screen_text": "Nothing terrible happened.",
+     "source_ids": [],
+     "transition": "crossfade",
+     "visual_direction": {
+      "continuity": "the owl appeared in scene 2",
+      "essentials": "owl, Rowan, stone",
+      "feel": "relief",
+      "metaphor": "the owl's open wings",
+      "omit": "anger",
+      "understand": "refusing is survivable"
+     },
+     "visual_intention": "The owl gently lifts the stone, Rowan watching, surprised."
+    },
+    {
+     "beat": "development",
+     "camera": "pull_out",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "courage",
+     "id": "s6",
+     "image_prompt": "The red fox in the teal scarf stands upright before three hares at sunrise, scarf lifted by the wind.",
+     "narration": "The next day, Rowan said his first small no. The hares waited. The world did not end.",
+     "on_screen_text": "A small no.",
+     "source_ids": [],
+     "transition": "fade",
+     "visual_direction": {
+      "continuity": "Rowan stands taller than in scene 1",
+      "essentials": "Rowan, hares",
+      "feel": "quiet courage",
+      "metaphor": "an upright stance",
+      "omit": "stones",
+      "understand": "practice, not perfection"
+     },
+     "visual_intention": "Rowan standing upright before the hares, scarf blowing."
+    },
+    {
+     "beat": "revelation",
+     "camera": "push_in",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 8,
+     "emotional_tone": "insight",
+     "id": "s7",
+     "image_prompt": "The red fox in the teal scarf at the entrance of his den, warm light glowing inside.",
+     "narration": "And Rowan understood: every yes to others had been a no to himself.",
+     "on_screen_text": "Every yes is a no.",
+     "source_ids": [],
+     "transition": "fade",
+     "visual_direction": {
+      "continuity": "the den from scene 3, now lit",
+      "essentials": "Rowan, den, light",
+      "feel": "insight",
+      "metaphor": "the lit den",
+      "omit": "the crowd",
+      "understand": "yes and no are linked"
+     },
+     "visual_intention": "Rowan at the den entrance, a warm light inside."
+    },
+    {
+     "beat": "resolution",
+     "camera": "pull_out",
+     "characters": [
+      "rowan"
+     ],
+     "claim_kind": "fiction",
+     "duration_s": 7,
+     "emotional_tone": "peace",
+     "id": "s8",
+     "image_prompt": "The red fox asleep in his warm den, the teal scarf folded beside him, soft light.",
+     "narration": "A kind yes needs a free no. That is how Rowan finally came home.",
+     "on_screen_text": "A kind yes needs a free no.",
+     "source_ids": [],
+     "transition": "cut",
+     "visual_direction": {
+      "continuity": "closes inside the den",
+      "essentials": "Rowan sleeping",
+      "feel": "peace",
+      "metaphor": "sleep",
+      "omit": "moral slogans",
+      "understand": "balance is kindness"
+     },
+     "visual_intention": "Rowan asleep in his warm den, the scarf folded."
+    }
+   ],
+   "schema_version": 1,
+   "sources": [],
+   "story_id": "sample-fox-yes",
+   "story_type": "moral",
+   "target_duration_s": 60,
+   "title": "The Fox Who Always Said Yes"
+  }
+ }
+}
