@@ -224,3 +224,13 @@ def finish() -> None:
         ).in_("id", ids).execute()
     except Exception as exc:
         print(f"       (last_used_at non mis à jour : {exc})")
+
+
+def restore_asset(kind: str, key: str, dest: Path) -> bool:
+    """Restaure un actif d'un `kind` donné (autre que voix/image des blocs Standard) ; inactif sans `configure()`."""
+    return _restore_file(kind, key, dest)
+
+
+def save_asset(kind: str, key: str, src: Path, estimated_cost: float | None = None, provider: str | None = None) -> bool:
+    """Conserve un actif d'un `kind` donné (3 essais, jamais bloquant) ; inactif sans `configure()`."""
+    return _save_file(kind, key, src, estimated_cost, provider)

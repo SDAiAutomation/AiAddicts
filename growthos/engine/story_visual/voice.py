@@ -121,7 +121,8 @@ def _synthesize(plan, folder, tenant_id, provider, tracker, voice_id, rate_per_1
         if previous.get("status") == "done" and previous.get("key") == key and out.is_file():
             continue
         if previous.get("status") == "needs_review" and previous.get("key") == key:
-            continue
+            break  # blocked until a human decides: no later narration is paid for
+        failed_now = False
         words_path = folder / f"voice-{sid}.words.json"
         if disk_cache and disk_cache.restore(key, out) and _restore_words(disk_cache, key, words_path):
             tracker.seed(f"voice:{sid}", 0.0, cost.CACHED)
@@ -164,7 +165,10 @@ def _synthesize(plan, folder, tenant_id, provider, tracker, voice_id, rate_per_1
             manifest[sid] = {"status": "needs_review" if attempts >= MAX_ATTEMPTS_PER_SCENE else "failed", "key": key,
                              "error": result.error or "unknown", "cost_usd": None, "cost_kind": cost.UNPRICED,
                              "cache_hit": False, "attempts": attempts}
+            failed_now = True
         store.save_manifest(manifest_path, manifest)
+        if failed_now:
+            break  # fail fast: no later narration is paid for once one scene cannot be voiced
     return manifest
 
 
@@ -174,7 +178,7 @@ def _done(path, key, duration, words, usd, kind, hit, attempts=1) -> dict:
 
 
 def _words_cache(disk_cache: cache_mod.DiskImageCache) -> cache_mod.DiskImageCache:
-    return cache_mod.DiskImageCache(disk_cache.dir.parent, disk_cache.dir.name, ".json")
+    return type(disk_cache)(disk_cache.dir.parent, disk_cache.dir.name, ".json")  # same class: a remote-backed cache stays remote-backed
 
 
 def _save_words(disk_cache, key, words_path) -> None:

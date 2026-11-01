@@ -127,10 +127,11 @@ def _generate(plan, selection, manifest_path, tenant_id, provider, tracker, expe
         out = images_dir / f"{sid}.jpg"
         previous = manifest.get(sid) or {}
         generations, attempts = previous.get("generations", 0), previous.get("attempts", 0)
+        failed_now = False
         if sid not in force and previous.get("status") == "done" and previous.get("key") == key and out.is_file():
             continue  # idempotent : rien à refaire
         if sid not in force and previous.get("status") == "needs_review" and previous.get("key") == key:
-            continue  # épuisée : décision humaine (régénération explicite) requise
+            break  # épuisée : décision humaine (régénération explicite) requise ; l'épisode est bloqué, on ne paie aucune scène suivante
         if sid not in force and disk_cache and disk_cache.restore(key, out) and check_image(out) is None:
             manifest[sid] = {"status": "done", "path": str(out), "key": key, "cost_usd": 0.0, "cost_kind": cost.CACHED,
                              "cache_hit": True, "error": None, "generations": generations, "attempts": attempts}
@@ -177,7 +178,10 @@ def _generate(plan, selection, manifest_path, tenant_id, provider, tracker, expe
             manifest[sid] = {"status": status, "path": None, "key": key, "cost_usd": None, "cost_kind": cost.UNPRICED,
                              "cache_hit": False, "error": result.error or "unknown", "generations": generations,
                              "attempts": attempts}
+            failed_now = True
         store.save_manifest(manifest_path, manifest)
+        if failed_now:
+            break  # fail fast: the episode cannot be rendered, so no later scene is paid for; a retry resumes from this one
     return manifest
 
 

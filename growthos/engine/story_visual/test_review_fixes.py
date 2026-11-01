@@ -192,8 +192,9 @@ class TestOrchestratorHardening(Tmp):
         plan = sample.moral_plan()
         for _ in range(orchestrator.MAX_ATTEMPTS_PER_SCENE + 2):
             manifest, _, _ = self.gen(plan, provider)
-        self.assertEqual({m["status"] for m in manifest.values()}, {"needs_review"})
-        self.assertEqual(len(provider.calls), 8 * orchestrator.MAX_ATTEMPTS_PER_SCENE)
+        # fail fast: the episode is blocked at the first scene, so only that scene is ever retried (and never past the cap)
+        self.assertEqual({sid: m["status"] for sid, m in manifest.items()}, {"s1": "needs_review"})
+        self.assertEqual(len(provider.calls), orchestrator.MAX_ATTEMPTS_PER_SCENE)
         # une régénération explicite relance la scène
         provider.fail_next = 0
         manifest = orchestrator.regenerate_scene(plan, "s1", tenant_id="t", work_dir=self.tmp, provider=provider,
