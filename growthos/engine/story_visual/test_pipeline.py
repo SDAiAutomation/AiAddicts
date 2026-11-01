@@ -165,6 +165,7 @@ class TestPlanner(Tmp):
         self.assertEqual((result.text, result.usage), ("{}", {"input": 7, "output": 9}))
 
 
+@unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg required (the simulated voice is an ffmpeg sine)")
 class TestVoice(Tmp):
     def synth(self, provider, tenant="t1", cache=None, tracker=None, rate=0.18, plan=None):
         return voice.synthesize_story(plan or moral_with_voice(), tenant_id=tenant, work_dir=self.tmp / "w", provider=provider,

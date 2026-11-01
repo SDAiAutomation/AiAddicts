@@ -230,6 +230,7 @@ class TestOrchestratorHardening(Tmp):
         with store.job_lock(folder):
             pass
 
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg required (the simulated voice is an ffmpeg sine)")
     def test_voice_hardening(self):
         plan = sample.moral_plan()
         plan["voice_id"] = "VoiceId12345"

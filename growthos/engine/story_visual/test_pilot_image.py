@@ -110,6 +110,7 @@ class TestPilot(unittest.TestCase):
         self.run_pilot(ENV, Args(self.tmp, go=True), NoUsage)
         self.assertEqual(json.loads(next(self.tmp.glob("pilot-*.json")).read_text())["cost"]["kind"], "UNKNOWN")
 
+    @unittest.skipIf(importlib.util.find_spec("dotenv") is None, "python-dotenv required")
     def test_env_file_is_loaded_without_printing_values(self):
         env_file = self.tmp / "x.env"
         env_file.write_text("OPENAI_API_KEY=sk-from-file\nOPENAI_IMAGE_MODEL=m\n")
