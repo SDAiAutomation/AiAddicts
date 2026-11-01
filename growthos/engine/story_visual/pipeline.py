@@ -110,7 +110,7 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
     with store.job_lock(folder):  # le verrou précède quota et crédit : une exécution refusée ne consomme rien
         try:
             done = json.loads(done_path.read_text(encoding="utf-8"))
-            if done.get("digest") == digest and done.get("caption_style") == caption_style and Path(done["video"]).is_file():
+            if done.get("digest") == digest and done.get("caption_style", captions.DEFAULT_CAPTION_STYLE) == caption_style and Path(done["video"]).is_file():
                 return {**done, "idempotent_replay": True}
         except (OSError, ValueError, KeyError):
             pass
@@ -166,12 +166,13 @@ def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, e
             overlay.compose_card(images[scene["id"]]["path"], card)
             cards.append(card)
         cues = subtitles.build_cues(timeline, voices)
-        ass = subtitles.write(cues, folder, plan["story_id"], caption_style)
+        font, fonts_dir = subtitles.brand_font()
+        ass = subtitles.write(cues, folder, plan["story_id"], caption_style, font)
         ports.progress("render")
         video = folder / f"{plan['story_id']}.mp4"
         info = render.render_story(cards, timeline, [voices[s["id"]]["path"] for s in plan["scenes"]], video, folder / "clips", fps=ports.render_fps, preset=ports.render_preset,
-                                 captions_ass=ass)
-        issues = quality_issues(info, timeline) + subtitles.issues(cues, ass, caption_style, timeline["total_s"])
+                                 captions_ass=ass, fonts_dir=fonts_dir if ass else None)
+        issues = quality_issues(info, timeline) + subtitles.issues(cues, ass, caption_style, timeline["total_s"], timeline)
         if any(i.startswith(("resolution", "video", "audio", "duration")) for i in issues):
             raise PipelineError("quality check failed: " + "; ".join(issues))
         report = _report(plan, estimate, decision, tracker, images, voices)

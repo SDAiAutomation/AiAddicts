@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -40,16 +41,28 @@ def _path(value) -> str:
     return str(path)
 
 
+_FONT_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}\.ttf")
 _ASS_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}\.ass")
 
 
-def _ass_filter(path) -> tuple[str, str]:
+def _ass_filter(path, fonts_dir=None) -> tuple[str, str]:
     """(filtre, dossier de travail). Le .ass est référencé par son NOM seul (jeu de caractères strict) et ffmpeg est lancé dans son
     dossier : aucun deux-points de lecteur Windows, antislash, apostrophe, virgule ni crochet à échapper dans le graphe de filtres, donc rien à mal échapper."""
     resolved = Path(_path(path))
     if not _ASS_NAME.fullmatch(resolved.name):
         raise RenderError("captions file name must match [A-Za-z0-9_-]+.ass")
-    return f"ass=filename={resolved.name}", str(resolved.parent)
+    flt = f"ass=filename={resolved.name}"
+    if fonts_dir is not None:  # polices du dépôt copiées à côté du .ass puis référencées en relatif (comme video.py) : aucun chemin dans le graphe
+        source = Path(fonts_dir).resolve()
+        if not source.is_dir():
+            raise RenderError("fonts directory not found")
+        local = resolved.parent / "fonts"
+        local.mkdir(exist_ok=True)
+        for font in source.glob("*.ttf"):
+            if _FONT_NAME.fullmatch(font.name):
+                shutil.copyfile(font, local / font.name)
+        flt += ":fontsdir=fonts"
+    return flt, str(resolved.parent)
 
 
 def _run(cmd: list[str], cwd: str | None = None) -> None:
@@ -97,7 +110,7 @@ def _scene_clip(card: Path, duration: float, camera: str, out: Path, fps: int, p
 
 def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str | Path], out_path: str | Path,
                  work_dir: str | Path, *, fps: int = FPS, preset: str = "veryfast",
-                 captions_ass: str | Path | None = None) -> dict:
+                 captions_ass: str | Path | None = None, fonts_dir: str | Path | None = None) -> dict:
     """`cards[i]`/`audio_files[i]` correspondent à `timeline['scenes'][i]`. Retourne la sonde du MP4 produit."""
     slots = timeline["scenes"]
     if not (len(cards) == len(audio_files) == len(slots)):
@@ -109,7 +122,7 @@ def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str 
             raise ValueError(f"scene {slot.get('id')} is shorter than {MIN_SCENE_S}s plus its transition")
     if not isinstance(fps, int) or not 8 <= fps <= 60 or preset not in PRESETS:
         raise ValueError("invalid fps or preset")
-    ass_filter, ass_dir = _ass_filter(captions_ass) if captions_ass is not None else (None, None)
+    ass_filter, ass_dir = _ass_filter(captions_ass, fonts_dir) if captions_ass is not None else (None, None)
     cards = [_path(c) for c in cards]
     audio_files = [_path(a) for a in audio_files]
     work = Path(work_dir).resolve()

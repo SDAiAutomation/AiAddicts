@@ -5,9 +5,10 @@ Aucun style maison : `captions.build_cues` / `write_ass` / `write_srt` (zone de 
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from .. import captions
+from .. import captions, quiz_motion
 
 RESOLUTION = "1080x1920"
 
@@ -29,16 +30,24 @@ def build_cues(timeline: dict, voices: dict) -> list[dict]:
     return captions.build_cues(blocks)
 
 
-def write(cues: list[dict], folder: Path, story_id: str, style: str) -> Path | None:
+def brand_font() -> tuple[str | None, Path | None]:
+    """(police, dossier de polices) comme le Standard (assembler.py) : Poppins livrée dans assets/fonts, sauf SUBTITLE_FONT ou fichiers absents."""
+    if os.environ.get("SUBTITLE_FONT") or not quiz_motion.brand_font_available():
+        return None, None
+    return quiz_motion.BRAND_FONT, quiz_motion.FONT_DIR
+
+
+def write(cues: list[dict], folder: Path, story_id: str, style: str, font: str | None = None) -> Path | None:
     """Écrit le .srt Faceloop (toujours) et `captions.ass` ; renvoie le .ass à incruster, ou None si le style est `off`."""
     captions.write_srt(cues, str(folder / f"{story_id}.srt"))
     if style == captions.CAPTIONS_OFF:
         return None
-    return Path(captions.write_ass(cues, str(folder / "captions.ass"), style, RESOLUTION))
+    return Path(captions.write_ass(cues, str(folder / "captions.ass"), style, RESOLUTION, font=font))
 
 
-def issues(cues: list[dict], ass: Path | None, style: str, total_s: float) -> list[str]:
-    """Contrôles d'après-calage (relus par un humain, pas bloquants) : .ass avec au moins un événement, au moins un cue, aucun cue hors durée."""
+def issues(cues: list[dict], ass: Path | None, style: str, total_s: float, timeline: dict | None = None) -> list[str]:
+    """Contrôles d'après-calage (relus par un humain, pas bloquants) : .ass avec au moins un événement, au moins un cue, aucun cue hors durée,
+    mots calés à l'envers, mots qui débordent de leur bloc de scène (avec `timeline`) et cues qui se chevauchent."""
     out = []
     if style != captions.CAPTIONS_OFF:
         if ass is None or not ass.is_file() or "Dialogue:" not in ass.read_text(encoding="utf-8"):
@@ -48,4 +57,17 @@ def issues(cues: list[dict], ass: Path | None, style: str, total_s: float) -> li
     late = [c["index"] for c in cues if c["start"] < 0 or c["end"] > total_s + 0.05]
     if late:
         out.append(f"captions: cue(s) {late[:5]} outside the video duration")
+    words = [w for c in cues for w in c.get("words", [])]
+    if any(w["end"] < w["start"] for w in words):
+        out.append("captions: a word ends before it starts")
+    if timeline:
+        starts = [s["audio_start"] for s in timeline["scenes"]]
+        ends = starts[1:] + [timeline["total_s"]]
+        for w in words:
+            blocks = [e for a, e in zip(starts, ends) if a <= w["start"] < e]
+            if blocks and w["end"] > blocks[0] + 0.05:
+                out.append("captions: a word overflows its scene block")
+                break
+    if any(b["start"] < a["end"] - 0.01 for a, b in zip(cues, cues[1:])):
+        out.append("captions: overlapping cues")
     return out
