@@ -1,13 +1,15 @@
 """Rendu MP4 vertical 1080x1920, H.264 + AAC, avec FFmpeg (argv en liste : aucune interpolation shell).
 
-Cartes déjà composées (`overlay.compose_card`) + audio de narration positionné sur la timeline voix d'abord
+Cartes déjà composées (`overlay.compose_card`, sans texte) + audio de narration positionné sur la timeline voix d'abord
 (`timing.schedule`). Transitions sobres : cut, fondu enchaîné, fondu par le noir ; reframing optionnel très léger.
 Chaque transition tient dans la pause de fin de scène : elle ne recouvre jamais la parole.
+Les sous-titres sont ceux de Faceloop (`captions.write_ass`) : un fichier .ass incrusté par libass, jamais un texte dessiné ici.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -15,7 +17,6 @@ W, H, FPS = 1080, 1920, 30
 TRANSITION_S = {"cut": 0.0, "crossfade": 0.3, "fade": 0.3}
 _XFADE = {"crossfade": "fade", "fade": "fadeblack"}
 ZOOM = 0.05
-TEXT_FADE_S = 0.15
 MIN_SCENE_S = 0.45
 PRESETS = ('ultrafast', 'veryfast', 'fast', 'medium')
 
@@ -39,9 +40,21 @@ def _path(value) -> str:
     return str(path)
 
 
-def _run(cmd: list[str]) -> None:
+_ASS_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}\.ass")
+
+
+def _ass_filter(path) -> tuple[str, str]:
+    """(filtre, dossier de travail). Le .ass est référencé par son NOM seul (jeu de caractères strict) et ffmpeg est lancé dans son
+    dossier : aucun deux-points de lecteur Windows, antislash, apostrophe, virgule ni crochet à échapper dans le graphe de filtres, donc rien à mal échapper."""
+    resolved = Path(_path(path))
+    if not _ASS_NAME.fullmatch(resolved.name):
+        raise RenderError("captions file name must match [A-Za-z0-9_-]+.ass")
+    return f"ass=filename={resolved.name}", str(resolved.parent)
+
+
+def _run(cmd: list[str], cwd: str | None = None) -> None:
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_timeout())
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=_timeout(), cwd=cwd)
     except subprocess.TimeoutExpired as exc:
         raise RenderError(f"{cmd[0]} timed out") from exc
     if proc.returncode != 0:
@@ -82,21 +95,9 @@ def _scene_clip(card: Path, duration: float, camera: str, out: Path, fps: int, p
           "-an", str(out)])
 
 
-def text_windows(slots: list[dict]) -> list[dict]:
-    """Fenêtres du texte par scène (secondes de la timeline) : entrée à `start`, sortie TERMINÉE avant le début du fondu d'image
-    sortant. Garantit qu'une légende a disparu avant que la suivante apparaisse (jamais deux légendes visibles ensemble)."""
-    out = []
-    for i, slot in enumerate(slots):
-        last = i == len(slots) - 1
-        t = 0.0 if last else TRANSITION_S[slot["transition"]]
-        out.append({"in_start": slot["start"], "in_end": slot["start"] + TEXT_FADE_S,
-                    "out_start": None if last else slot["end"] - t - TEXT_FADE_S, "out_end": None if last else slot["end"] - t})
-    return out
-
-
 def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str | Path], out_path: str | Path,
                  work_dir: str | Path, *, fps: int = FPS, preset: str = "veryfast",
-                 text_layers: list[str | Path | None] | None = None) -> dict:
+                 captions_ass: str | Path | None = None) -> dict:
     """`cards[i]`/`audio_files[i]` correspondent à `timeline['scenes'][i]`. Retourne la sonde du MP4 produit."""
     slots = timeline["scenes"]
     if not (len(cards) == len(audio_files) == len(slots)):
@@ -108,9 +109,7 @@ def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str 
             raise ValueError(f"scene {slot.get('id')} is shorter than {MIN_SCENE_S}s plus its transition")
     if not isinstance(fps, int) or not 8 <= fps <= 60 or preset not in PRESETS:
         raise ValueError("invalid fps or preset")
-    if text_layers is not None and len(text_layers) != len(slots):
-        raise ValueError("text_layers must have one entry (or None) per scene")
-    layers = [None if t is None else _path(t) for t in (text_layers or [None] * len(slots))]
+    ass_filter, ass_dir = _ass_filter(captions_ass) if captions_ass is not None else (None, None)
     cards = [_path(c) for c in cards]
     audio_files = [_path(a) for a in audio_files]
     work = Path(work_dir).resolve()
@@ -127,12 +126,6 @@ def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str 
         inputs += ["-i", str(clip)]
     for audio in audio_files:
         inputs += ["-i", str(audio)]
-    layer_inputs: dict[int, int] = {}
-    for i, layer in enumerate(layers):
-        if layer is not None:
-            layer_inputs[i] = len(clips) + len(audio_files) + len(layer_inputs)
-            window = slots[i]["end"] - slots[i]["start"]   # le calque n'est décodé que pendant sa scène
-            inputs += ["-loop", "1", "-framerate", str(fps), "-t", f"{window:.3f}", "-i", layer]
     n = len(clips)
     graph = [f"[{i}:v]fps={fps},settb=AVTB,setpts=PTS-STARTPTS[n{i}]" for i in range(n)]
     label, length = "[n0]", slots[0]["duration"]
@@ -144,17 +137,9 @@ def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str 
             graph.append(f"{label}[n{i}]concat=n=2:v=1:a=0{nxt}")
         length += slots[i]["duration"]
         label = nxt
-    # Texte : calque indépendant avec fondu séquencé. Il entre quand la scène est pleinement visible (fin du fondu entrant) et sort
-    # AVANT le début du fondu sortant : les légendes de deux scènes ne sont jamais visibles ensemble.
-    windows = text_windows(slots)
-    for i, k in layer_inputs.items():
-        slot = slots[i]
-        chain = f"[{k}:v]format=rgba,fade=t=in:st=0:d={TEXT_FADE_S}:alpha=1"
-        if i < n - 1:
-            chain += f",fade=t=out:st={windows[i]['out_start'] - slot['start']:.3f}:d={TEXT_FADE_S}:alpha=1"
-        graph.append(f"{chain},setpts=PTS+{slot['start']:.3f}/TB[t{i}]")
-        graph.append(f"{label}[t{i}]overlay=0:0:eof_action=pass:format=auto[vt{i}]")
-        label = f"[vt{i}]"
+    if ass_filter:  # sous-titres Faceloop, par-dessus les fondus : la timeline du .ass est celle de la vidéo finale
+        graph.append(f"{label}{ass_filter}[vsub]")
+        label = "[vsub]"
     for i, slot in enumerate(slots):
         ms = round(slot["audio_start"] * 1000)
         graph.append(f"[{n + i}:a]aresample=48000,adelay={ms}|{ms}[a{i}]")
@@ -162,5 +147,5 @@ def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str 
     _run(["ffmpeg", "-y", "-v", "error", *inputs, "-filter_complex", ";".join(graph),
           "-map", label, "-map", "[aout]", "-t", f"{timeline['total_s']:.3f}",
           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", preset, "-crf", "20", "-r", str(fps),
-          "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(Path(out_path).resolve())])
+          "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(Path(out_path).resolve())], cwd=ass_dir)
     return probe(out_path)

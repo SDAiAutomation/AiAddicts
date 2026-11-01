@@ -67,13 +67,3 @@ def check_no_overlap(timeline: dict) -> list[str]:
         previous_end = scene["audio_end"]
     return errors
 
-
-def srt(plan: dict, timeline: dict) -> str:
-    """Sous-titres optionnels : une entrée par scène (texte de narration), bornes = bornes de la parole."""
-    def stamp(t: float) -> str:
-        ms = round(t * 1000)
-        return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
-    rows = []
-    for n, (scene, slot) in enumerate(zip(plan["scenes"], timeline["scenes"]), start=1):
-        rows.append(f"{n}\n{stamp(slot['audio_start'])} --> {stamp(slot['audio_end'])}\n{scene['narration'].strip()}\n")
-    return "\n".join(rows)
