@@ -1064,12 +1064,20 @@ def _run_animated(client, content_item_id: str, script: dict, output_root: str, 
     return result
 
 
+def _story_visual_daily_jobs() -> int:
+    """Illustrated stories an organisation may start per 24 h (shared quota, in addition to the credit reservation). Default 3."""
+    try:
+        return max(0, int((os.environ.get("STORY_VISUAL_MAX_JOBS_PER_DAY") or "3").strip()))
+    except ValueError:
+        return 3
+
+
 def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_start: float) -> dict:
     """Illustrated story (flag-gated, admin beta). Stages, budget and credit rules live in `story_visual.pipeline`; this only
     plugs the real services (OpenAI Images, ElevenLabs, credits, moderation, publication). Local imports: the legacy path never
     loads this code."""
     from .story_visual import cache as sv_cache, orchestrator as sv_orchestrator, pipeline as sv_pipeline, voice as sv_voice
-    from .story_visual import cost as sv_cost
+    from .story_visual import cost as sv_cost, ledger as sv_ledger, quota as sv_quota
 
     organization_id = events.organization_id_of(client, content_item_id)
     tenant_id = str(organization_id or "")
@@ -1080,6 +1088,9 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
             explainer_access.authorize(client, content_item_id)
         except explainer_access.ExplainerAccessDenied as exc:
             raise sv_pipeline.PipelineError("Récit illustré refusé : réservé aux administrateurs de la plateforme") from exc
+        # Only an authorised administrator reaches the shared asset cache: the runner is ephemeral, so a resumed job restores the paid
+        # images and voices instead of paying them again (never blocking: without the cache the job simply regenerates under budget).
+        asset_store.configure(client, content_item_id)
 
     def publish(final: Path, timeline: dict, result: dict) -> dict:
         version_number = None
@@ -1108,6 +1119,7 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
         except Exception as exc:  # noqa: BLE001 - tracking only
             print(f"       (suivi d'avancement non mis à jour : {type(exc).__name__})")
 
+    story_budget = sv_cost.Budget.from_env()
     ports = sv_pipeline.Ports(
         image_provider=sv_orchestrator.openai_provider(),
         voice_provider=sv_voice.elevenlabs_provider(),
@@ -1118,9 +1130,11 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
         record_event=lambda name, **props: events.record(client, name, content_item_id, organization_id, **props),
         progress=report_progress,
         publish=publish,
-        budget=sv_cost.Budget.from_env(),
-        image_cache=sv_cache.DiskImageCache(root / "story_visual_cache", tenant_id),
-        voice_cache=sv_cache.DiskImageCache(root / "story_visual_cache", tenant_id, ".mp3"),
+        budget=story_budget,
+        ledger=sv_ledger.DurableLedger(client, content_item_id, story_budget.max_usd),
+        image_cache=sv_cache.PersistentCache(root / "story_visual_cache", tenant_id),
+        voice_cache=sv_cache.PersistentCache(root / "story_visual_cache", tenant_id, ".mp3"),
+        consume_quota=sv_quota.SharedQuota(client, tenant_id, content_item_id, _story_visual_daily_jobs()).consume,
     )
     stop = threading.Event()
 
@@ -1138,6 +1152,8 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
     finally:
         stop.set()
         beat.join(timeout=5)
+        asset_store.finish()
+        asset_store.reset()
     print(f"       total génération récit illustré : {time.monotonic() - t_start:.1f}s")
     return result
 

@@ -78,18 +78,49 @@ class RealWiringRefusesANonAdministratorFirst(Harness):
     def test_non_administrator_is_refused_before_moderation_and_credit(self):
         self.start(visual_script(), flag="1")
         # NO rates configured on purpose: the administrator check must come first, so a refused caller never even reaches the cost check
+        configure = self.stack.enter_context(patch("engine.assembler.asset_store.configure"))
         denied = self.stack.enter_context(patch("engine.assembler.explainer_access.authorize", side_effect=explainer_access.ExplainerAccessDenied("no")))
         images = self.stack.enter_context(patch("engine.story_visual.orchestrator.openai_provider", return_value=Mock()))
         voices = self.stack.enter_context(patch("engine.story_visual.voice.elevenlabs_provider", return_value=Mock()))
         with self.assertRaisesRegex(pipeline.PipelineError, "administrateurs"):
             assembler.run_for_content_item("item", "output")
         denied.assert_called_once()
+        configure.assert_not_called()  # a refused caller never reaches the shared asset cache
         self.moderation.assert_not_called()  # authorization first: a non-administrator costs not even a moderation call
         self.reserve.assert_not_called()
         self.refund.assert_not_called()
         for provider in (images.return_value, voices.return_value):
             provider.assert_not_called()
         self.normalize.assert_not_called()
+
+
+class WiringOfTheOperationalGuards(Harness):
+    """Administrator allowed, rates configured: the shared quota (read from the database, fail-closed) stops the job before any credit or
+    provider call, and the asset cache is configured after authorization and always released."""
+
+    def test_a_refused_quota_stops_before_credit_and_providers(self):
+        self.start(visual_script(), flag="1")
+        self.stack.enter_context(patch.dict(os.environ, RATES))
+        self.stack.enter_context(patch("engine.assembler.explainer_access.authorize"))
+        configure = self.stack.enter_context(patch("engine.assembler.asset_store.configure"))
+        reset = self.stack.enter_context(patch("engine.assembler.asset_store.reset"))
+        self.stack.enter_context(patch("engine.story_visual.quota.SharedQuota.consume", return_value=False))
+        images = self.stack.enter_context(patch("engine.story_visual.orchestrator.openai_provider", return_value=Mock()))
+        voices = self.stack.enter_context(patch("engine.story_visual.voice.elevenlabs_provider", return_value=Mock()))
+        with self.assertRaisesRegex(pipeline.PipelineError, "quota"):
+            assembler.run_for_content_item("item", "output")
+        configure.assert_called_once()
+        reset.assert_called_once()
+        self.reserve.assert_not_called()
+        for provider in (images.return_value, voices.return_value):
+            provider.assert_not_called()
+
+    def test_the_daily_limit_is_configurable_and_never_negative(self):
+        for value, expected in ((None, 3), ("", 3), ("5", 5), ("0", 0), ("-2", 0), ("x", 3)):
+            with self.subTest(value=value), patch.dict(os.environ, {} if value is None else {"STORY_VISUAL_MAX_JOBS_PER_DAY": value}):
+                if value is None:
+                    os.environ.pop("STORY_VISUAL_MAX_JOBS_PER_DAY", None)
+                self.assertEqual(assembler._story_visual_daily_jobs(), expected)
 
 
 if __name__ == "__main__":

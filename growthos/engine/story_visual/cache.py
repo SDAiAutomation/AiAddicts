@@ -53,3 +53,33 @@ class DiskImageCache:
         tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
         shutil.copyfile(src, tmp)
         os.replace(tmp, target)  # jamais d'actif tronqué resservi
+
+
+class PersistentCache(DiskImageCache):
+    """Le cache disque ET le cache d'actifs existant (`asset_store`, bucket privé `content-assets`, par content_item) : le runner du worker
+    est éphémère, donc une reprise après incident (tick des orphelins, relance) restaure les images et voix DÉJÀ PAYÉES au lieu de les repayer.
+
+    Jamais bloquant ni plus permissif : sans `asset_store.configure()` (tests, CLI) il se comporte comme `DiskImageCache` ; une erreur réseau est
+    un simple échec de restauration (la scène sera régénérée, sous budget) ; toute image restaurée repasse `check_image` avant d'être acceptée."""
+
+    # `content_assets.kind` only accepts voice / voice_words / image (CHECK): asset keys already embed `story_visual_*` and the tenant, so they
+    # never collide with Standard assets.
+    KINDS = {".jpg": "image", ".mp3": "voice", ".json": "voice_words"}
+
+    def _kind(self) -> str | None:
+        return self.KINDS.get(self.ext)  # an extension with no allowed remote kind is simply never persisted remotely
+
+    def restore(self, key: str, dest: str | Path) -> bool:
+        if super().restore(key, dest):
+            return True
+        if self._kind() is None or not asset_store.restore_asset(self._kind(), key, Path(dest)):
+            return False
+        if Path(dest).is_file() and Path(dest).stat().st_size > 0:
+            super().save(key, dest)  # warm the local cache too
+            return True
+        return False
+
+    def save(self, key: str, src: str | Path) -> None:
+        super().save(key, src)
+        if self._kind() is not None:
+            asset_store.save_asset(self._kind(), key, Path(src))

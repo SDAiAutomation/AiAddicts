@@ -159,6 +159,7 @@ class BudgetTracker:
     spent: dict = field(default_factory=dict)
     kinds: dict = field(default_factory=dict)
     holds: dict = field(default_factory=dict)
+    ledger: object | None = None  # `ledger.DurableLedger`: the CUMULATIVE spend of the episode across runs; None = this run only (tests)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
@@ -195,18 +196,27 @@ class BudgetTracker:
             held = sum(v for k, v in self.holds.items() if k != item)
             if self.total + held + expected_usd > self.budget.max_usd + 1e-9:
                 raise BudgetExceeded(f"{item}: ${self.total + held + expected_usd:.2f} would exceed the ${self.budget.max_usd:.2f} budget")
+            if self.ledger is not None:
+                self.ledger.reserve(item, float(expected_usd))  # durable, cumulative, fail-closed: raises BudgetExceeded / LedgerUnavailable
             self.holds[item] = float(expected_usd)
 
     def release(self, item: str) -> None:
+        """Cancel a hold whose call was DEFINITELY not made (never after a call that may have been billed: use `record(item, None)`)."""
         with self._lock:
             self.holds.pop(item, None)
+        if self.ledger is not None:
+            self.ledger.release(item)
 
     def record(self, item: str, actual_usd: float | None, kind: str = MEASURED) -> None:
-        """`actual_usd=None` : l'appel a eu lieu mais son coût est inconnu -> 0 $ comptabilisé, nature `unpriced`.
+        """`actual_usd=None` : l'appel a eu lieu (ou a peut-être eu lieu : timeout, exception) et son coût est inconnu. Il n'est JAMAIS compté
+        comme nul : on garde la retenue (le coût attendu) comme dépense, nature `unpriced`, et le registre durable fait de même.
         Un coût réel supérieur à la retenue est enregistré tel quel : le `reserve` suivant refusera (plafond dépassé)."""
-        if actual_usd is None or not math.isfinite(actual_usd):
-            actual_usd, kind = 0.0, UNPRICED
+        unknown = actual_usd is None or not math.isfinite(actual_usd)
         with self._lock:
-            self.holds.pop(item, None)
+            held = self.holds.pop(item, None)
+            if unknown:
+                actual_usd, kind = (held or 0.0), UNPRICED
             self.spent[item] = round(self.spent.get(item, 0.0) + max(0.0, actual_usd), 6)
             self.kinds[item] = kind
+        if self.ledger is not None:
+            self.ledger.settle(item, None if unknown else actual_usd)

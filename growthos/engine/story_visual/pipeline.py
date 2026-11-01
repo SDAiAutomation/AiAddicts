@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from .cost import BudgetExceeded
 from . import cache as cache_mod
 from . import cost, orchestrator, overlay, render, schema, store, timing, voice
 
@@ -41,6 +42,7 @@ class Ports:
     budget: cost.Budget = field(default_factory=cost.Budget)
     image_cache: cache_mod.DiskImageCache | None = None
     voice_cache: cache_mod.DiskImageCache | None = None
+    ledger: object | None = None          # `ledger.DurableLedger`: cumulative spend of the episode (None only in offline unit tests)
     render_fps: int = render.FPS          # 30 en production ; les tests hors ligne rapides abaissent fps/preset
     render_preset: str = "veryfast"
 
@@ -101,10 +103,17 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
             pass
         if not ports.consume_quota():
             raise PipelineError("job quota exceeded for this tenant")
+        if ports.ledger is not None:  # before the credit: an episode that cannot spend must not even take one
+            try:
+                remaining = ports.ledger.remaining()
+            except BudgetExceeded as exc:
+                raise PipelineError("spend ledger unavailable: " + str(exc)) from exc
+            if remaining <= 0:
+                raise PipelineError("episode spend ceiling already reached by earlier runs")
         if not ports.reserve_credit():
             raise PipelineError("credits exhausted")
         return _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision,
-                        cost.BudgetTracker(ports.budget))
+                        cost.BudgetTracker(ports.budget, ledger=ports.ledger))
 
 
 def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision, tracker) -> dict:
