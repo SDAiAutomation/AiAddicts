@@ -100,7 +100,9 @@ def mutations() -> list[tuple[str, dict]]:
                       ("backslash userinfo", "https://example.com\\@evil.com/"), ("bad port", "https://example.com:abc/x"),
                       ("port too high", "https://example.com:99999/x"), ("good port", "https://example.com:8443/x"),
                       ("query only", "https://example.com?q=1"), ("no path", "https://example.com"), ("uppercase host", "https://EXAMPLE.com/x"),
-                      ("space in url", "https://example.com/a b")):
+                      ("space in url", "https://example.com/a b"),
+                      ("nel in path", "https://example.com/ab"), ("fs in path", "https://example.com/ab"),
+                      ("bom in path", "https://example.com/a﻿b")):
         add("url " + name, f, lambda p, u=url: p["sources"][0].update(url=u))
     return cases
 
