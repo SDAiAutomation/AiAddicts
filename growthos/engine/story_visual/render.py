@@ -16,6 +16,7 @@ TRANSITION_S = {"cut": 0.0, "crossfade": 0.3, "fade": 0.3}
 _XFADE = {"crossfade": "fade", "fade": "fadeblack"}
 ZOOM = 0.05
 TEXT_FADE_S = 0.15
+MIN_SCENE_S = 0.45
 PRESETS = ('ultrafast', 'veryfast', 'fast', 'medium')
 
 
@@ -103,6 +104,8 @@ def render_story(cards: list[str | Path], timeline: dict, audio_files: list[str 
     for slot in slots:
         if slot.get("transition") not in TRANSITION_S or slot.get("camera") not in ("still", "push_in", "pull_out"):
             raise ValueError(f"invalid transition or camera for scene {slot.get('id')}")
+        if slot.get("duration", 0) < MIN_SCENE_S + TRANSITION_S[slot["transition"]]:  # garde bon marché : plan trop court pour sa transition
+            raise ValueError(f"scene {slot.get('id')} is shorter than {MIN_SCENE_S}s plus its transition")
     if not isinstance(fps, int) or not 8 <= fps <= 60 or preset not in PRESETS:
         raise ValueError("invalid fps or preset")
     if text_layers is not None and len(text_layers) != len(slots):
