@@ -344,6 +344,15 @@ class TestGuards(Harness):
             with self.assertRaises(PermissionError):
                 self.run_pipeline(**{key: refuse}, reserve_credit=lambda: (_ for _ in ()).throw(AssertionError("reserved")))
 
+    def test_authorization_is_checked_before_moderation(self):
+        calls = []
+        def refuse():
+            calls.append("authorize")
+            raise PermissionError("no")
+        with self.assertRaises(PermissionError):
+            self.run_pipeline(authorize=refuse, moderate=lambda *_: calls.append("moderate"))
+        self.assertEqual(calls, ["authorize"])
+
     def test_moderation_view_exposes_narration_to_the_existing_checker(self):
         view = pipeline.moderation_view(moral_with_voice())
         self.assertEqual(len(view["blocks"]), 8)

@@ -83,8 +83,8 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
         raise PipelineError("budget refused: " + decision["message"])
     if not plan.get("voice_id") and not _default_voice(env):
         raise PipelineError("no voice configured (plan.voice_id or STORY_DEFAULT_VOICE_ID)")
+    ports.authorize()  # administrators only: checked before anything else, a refused caller costs not even a moderation call
     ports.moderate(moderation_view(plan))
-    ports.authorize()
 
     digest = plan_digest(plan)
     folder = Path(work_dir).resolve() / tenant_id / plan["story_id"]
