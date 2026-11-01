@@ -1,0 +1,138 @@
+name: Story Visual pilot worker (TEST, manual)
+
+# Dedicated, ISOLATED worker for the Story Visual pilot. It is NOT the production worker (growthos-worker.yml, which stays untouched, never
+# receives STORY_VISUAL_ENABLED and keeps refusing illustrated stories before any credit or provider call).
+#
+# Isolation rules (all checked by tests/test_story_visual_pilot_workflow.py):
+#   - trigger: workflow_dispatch ONLY. No schedule, no push, no pull_request: a PR or a fork can never run it or read its secrets.
+#   - it runs only from growthos/mvp and only in the GitHub Environment `story-visual-pilot`. Give that environment REQUIRED REVIEWERS (the owner):
+#     the job then waits for a human approval before it starts.
+#   - it reads ONLY secrets named PILOT_* (environment-level). It never references the production secrets (SUPABASE_*, OPENAI_API_KEY, ...):
+#     an environment can also read repository secrets of the same name, so a missing test secret must never fall back to production silently.
+#   - the Supabase URL must not be the production project (refused by a guard step) and must be https.
+#   - default mode is `preflight`: offline, read-only, free (no provider call, no worker). `run` also needs the exact confirmation text AND the
+#     environment variable PILOT_WORKER_ARMED = 'true' (the owner arms it just before the pilot and disarms it after: that is the kill switch).
+#   - `run` processes AT MOST ONE job (`worker.py --once`) and only this step sets STORY_VISUAL_ENABLED. The spend is bounded by the engine:
+#     cumulative ceiling STORY_BUDGET_USD (1.00), durable ledger, atomic credit reservation, per-call reservation, fail-fast.
+#   - the repository is PUBLIC: workflow logs are public. Nothing here prints a secret (they are masked) and the pilot uses the sample fable only.
+# See growthos/docs/STORY_VISUAL_PILOT_WORKFLOW.md for the one-time GitHub setup and growthos/docs/STORY_VISUAL_PILOT_RUNBOOK_2026-11-01.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preflight (offline, free) or run (one paid pilot episode: needs the confirmation below AND PILOT_WORKER_ARMED=true)"
+        type: choice
+        options: [preflight, run]
+        default: preflight
+      confirm:
+        description: "For run only: type exactly  RUN-PAID-PILOT  to confirm the paid operation (cap 1.00 USD)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: story-visual-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    if: ${{ github.repository == 'SDAiAutomation/AiAddicts' && github.ref == 'refs/heads/growthos/mvp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: story-visual-pilot
+    defaults:
+      run:
+        working-directory: growthos
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse the production database and incomplete test secrets
+        env:
+          PILOT_SUPABASE_URL: ${{ secrets.PILOT_SUPABASE_URL }}
+          PILOT_SUPABASE_ANON_KEY: ${{ secrets.PILOT_SUPABASE_ANON_KEY }}
+          PILOT_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PILOT_SUPABASE_SERVICE_ROLE_KEY }}
+          PILOT_ADMIN_USER_IDS: ${{ secrets.PILOT_ADMIN_USER_IDS }}
+        run: |
+          for name in PILOT_SUPABASE_URL PILOT_SUPABASE_ANON_KEY PILOT_SUPABASE_SERVICE_ROLE_KEY PILOT_ADMIN_USER_IDS; do
+            if [ -z "${!name}" ]; then echo "::error::missing environment secret $name (set it in the story-visual-pilot environment, never at repository level)"; exit 1; fi
+          done
+          case "$PILOT_SUPABASE_URL" in https://*) ;; *) echo "::error::PILOT_SUPABASE_URL must be https"; exit 1 ;; esac
+          case "$PILOT_SUPABASE_URL" in *lclesqfokgetznhepgmj*) echo "::error::PILOT_SUPABASE_URL is the PRODUCTION project: refused"; exit 1 ;; esac
+          echo "Test database configured (not the production project)."
+
+      - name: Confirm the paid operation (run mode only)
+        if: ${{ inputs.mode == 'run' }}
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          ARMED: ${{ vars.PILOT_WORKER_ARMED }}
+        run: |
+          if [ "$CONFIRM" != "RUN-PAID-PILOT" ]; then echo "::error::confirmation text does not match: nothing was run"; exit 1; fi
+          if [ "$ARMED" != "true" ]; then echo "::error::PILOT_WORKER_ARMED is not 'true' in the story-visual-pilot environment: nothing was run"; exit 1; fi
+          echo "Run authorised: one pilot episode, cap 1.00 USD."
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: growthos/requirements.txt
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # Offline and read-only: no network call, no provider, no write; secrets are only tested for presence ("présente" / "absente").
+      - name: Pre-flight (offline, free)
+        env:
+          SUPABASE_URL: ${{ secrets.PILOT_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.PILOT_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PILOT_SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.PILOT_OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.PILOT_ELEVENLABS_API_KEY }}
+          ADMIN_USER_IDS: ${{ secrets.PILOT_ADMIN_USER_IDS }}
+          IMAGE_MODEL_PREMIUM: gpt-image-2.5-flare
+          IMAGE_FINAL_QUALITY: low
+          STORY_IMAGE_USD_EACH: ${{ vars.PILOT_IMAGE_USD_EACH }}
+          ELEVENLABS_USD_PER_1K_CHARS: ${{ vars.PILOT_ELEVENLABS_USD_PER_1K_CHARS }}
+          STORY_RENDER_USD: "0"
+          STORY_STORAGE_USD: "0.01"
+          SCRIPT_PRICE_IN_PER_M: "0"
+          SCRIPT_PRICE_OUT_PER_M: "0"
+          STORY_PLAN_TOKENS_IN: "0"
+          STORY_PLAN_TOKENS_OUT: "0"
+          STORY_BUDGET_USD: "1.00"
+          STORY_BUDGET_PREFERRED_USD: "0.50"
+          STORY_VISUAL_MAX_JOBS_PER_DAY: "1"
+          STORY_DEFAULT_VOICE_ID: ${{ vars.PILOT_VOICE_ID }}
+        run: python scripts/story_visual_pilot_preflight.py --max-usd 1.0
+
+      # Paid step. Only reached in `run` mode, after the confirmation and arming checks above and a READY pre-flight. One job at most.
+      - name: Run ONE pilot episode (paid, capped at 1.00 USD)
+        if: ${{ inputs.mode == 'run' }}
+        env:
+          SUPABASE_URL: ${{ secrets.PILOT_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.PILOT_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PILOT_SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.PILOT_OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.PILOT_ELEVENLABS_API_KEY }}
+          ADMIN_USER_IDS: ${{ secrets.PILOT_ADMIN_USER_IDS }}
+          STORY_VISUAL_ENABLED: "1"
+          IMAGE_MODEL_PREMIUM: gpt-image-2.5-flare
+          IMAGE_FINAL_QUALITY: low
+          STORY_IMAGE_USD_EACH: ${{ vars.PILOT_IMAGE_USD_EACH }}
+          ELEVENLABS_USD_PER_1K_CHARS: ${{ vars.PILOT_ELEVENLABS_USD_PER_1K_CHARS }}
+          STORY_RENDER_USD: "0"
+          STORY_STORAGE_USD: "0.01"
+          SCRIPT_PRICE_IN_PER_M: "0"
+          SCRIPT_PRICE_OUT_PER_M: "0"
+          STORY_PLAN_TOKENS_IN: "0"
+          STORY_PLAN_TOKENS_OUT: "0"
+          STORY_BUDGET_USD: "1.00"
+          STORY_BUDGET_PREFERRED_USD: "0.50"
+          STORY_VISUAL_MAX_JOBS_PER_DAY: "1"
+          STORY_DEFAULT_VOICE_ID: ${{ vars.PILOT_VOICE_ID }}
+        run: python worker.py --once
