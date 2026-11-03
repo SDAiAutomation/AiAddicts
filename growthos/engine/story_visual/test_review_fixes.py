@@ -307,17 +307,6 @@ class TestTimingAndRenderGuards(Tmp):
 
 
 class TestCaptionSequencing(unittest.TestCase):
-    def test_a_caption_is_gone_before_the_next_one_appears_and_before_the_image_fade_starts(self):
-        plan = sample.moral_plan()
-        timeline = timing.schedule(plan, {s["id"]: 3.5 for s in plan["scenes"]})
-        windows = render.text_windows(timeline["scenes"])
-        for i in range(len(windows) - 1):
-            t = render.TRANSITION_S[timeline["scenes"][i]["transition"]]
-            self.assertAlmostEqual(windows[i]["out_end"], timeline["scenes"][i]["end"] - t, places=6)
-            self.assertLessEqual(windows[i]["out_end"], windows[i + 1]["in_start"])      # jamais deux légendes ensemble
-            self.assertGreaterEqual(windows[i]["out_start"], windows[i]["in_end"])       # le texte reste visible entre les deux
-        self.assertIsNone(windows[-1]["out_end"])                                      # la dernière légende reste jusqu'à la fin
-
     def test_default_camera_comes_from_the_art_direction_and_the_hold_is_moderate(self):
         plan = sample.moral_plan()
         plan["scenes"][2].pop("camera")
@@ -325,67 +314,17 @@ class TestCaptionSequencing(unittest.TestCase):
         self.assertEqual(slot["camera"], "push_in")
         self.assertLessEqual(timing.FINAL_HOLD_S, 2.0)
 
-    def test_layers_separate_image_and_text(self):
-        src = Path(tempfile.mkdtemp()) / "i.jpg"
-        self.addCleanup(shutil.rmtree, src.parent, True)
-        sample.PlaceholderImageProvider()("p", str(src), model="m", quality="low")
-        report = overlay.compose_layers(src, "Une légende", "cinematic_story", src.parent / "c.jpg", src.parent / "t.png")
-        self.assertTrue(report["has_layer"])
-        with Image.open(src.parent / "t.png") as layer:
-            self.assertEqual((layer.mode, layer.size), ("RGBA", (1080, 1920)))
-            self.assertEqual(layer.getpixel((5, 5))[3], 0)         # haut du calque transparent
-            self.assertGreater(layer.getpixel((5, 1900))[3], 100)  # voile en bas
-        silent = overlay.compose_layers(src, "", "cinematic_story", src.parent / "c2.jpg", src.parent / "t2.png")
-        self.assertFalse(silent["has_layer"])
-        self.assertFalse((src.parent / "t2.png").exists())
-
-    def test_text_stays_inside_the_shorts_safe_area(self):
-        src = Path(tempfile.mkdtemp()) / "i.jpg"
-        self.addCleanup(shutil.rmtree, src.parent, True)
-        sample.PlaceholderImageProvider()("p", str(src), model="m", quality="low")
-        overlay.compose_layers(src, "Texte assez long pour passer sur plusieurs lignes dans le cadre", "editorial_knowledge",
-                               src.parent / "c.jpg", src.parent / "t.png")
-        with Image.open(src.parent / "t.png") as layer:
-            white = [(x, y) for y in range(0, 1920, 4) for x in range(0, 1080, 4) if layer.getpixel((x, y))[:3] == (255, 255, 255) and layer.getpixel((x, y))[3] == 255]
-        self.assertTrue(white)
-        self.assertLessEqual(max(x for x, _ in white), 1080 - overlay.MARGIN_RIGHT + 4)
-        self.assertLessEqual(max(y for _, y in white), 1920 - overlay.BOTTOM_SAFE + 4)
-
-
 class TestOverlayHardening(Tmp):
-    def test_one_giant_word_is_broken_to_fit(self):
-        from PIL import ImageDraw
-        font = overlay._font("Poppins-Bold", 64)
-        draw = ImageDraw.Draw(Image.new("RGB", (10, 10)))
-        lines = overlay.wrap_lines(draw, "A" * 80, font, 800)
-        self.assertGreater(len(lines), 1)
-        self.assertTrue(all(draw.textlength(l, font=font) <= 800 for l in lines))
-
     def test_oversized_or_unsupported_illustrations_are_refused(self):
         bad = self.tmp / "x.gif"
         Image.new("RGB", (10, 10)).save(bad, "GIF")
         with self.assertRaises(ValueError):
-            overlay.compose_card(bad, "t", "cinematic_story", self.tmp / "o.jpg")
+            overlay.compose_card(bad, self.tmp / "o.jpg")
         with patch.object(overlay, "MAX_INPUT_PIXELS", 50):
             ok = self.tmp / "x.jpg"
             Image.new("RGB", (100, 100)).save(ok)
             with self.assertRaises(ValueError):
-                overlay.compose_card(ok, "t", "cinematic_story", self.tmp / "o.jpg")
-
-    def test_worst_case_contrast_is_enforced_in_the_report(self):
-        # fond blanc sous un texte blanc : illisible, et le rapport le dit (ok False)
-        white = self.tmp / "w.jpg"
-        Image.new("RGB", (1080, 1920), "white").save(white)
-        with patch.dict(overlay.art_directions.DIRECTIONS["editorial_knowledge"]["typography"], {"scrim": "#FFFFFF"}):
-            report = overlay.compose_card(white, "Texte", "editorial_knowledge", self.tmp / "o.jpg")
-        self.assertFalse(report["ok"])
-        self.assertLess(report["contrast"], overlay.MIN_CONTRAST)
-
-    def test_missing_font_fails_loudly(self):
-        with patch.dict(overlay._FONTS, {"Poppins-Bold": Path("/nonexistent.ttf")}):
-            with self.assertRaises(FileNotFoundError):
-                overlay._font("Poppins-Bold", 64)
-
+                overlay.compose_card(ok, self.tmp / "o.jpg")
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
 
 Étapes :
     validation -> budget (échec fermé) -> modération -> autorisation -> quota -> crédit -> images -> voix
-    -> calage -> cartes -> rendu -> contrôle qualité -> publication.
+    -> calage -> cartes -> sous-titres Faceloop -> rendu -> contrôle qualité -> publication.
 
 Remboursement du crédit (règle A, sans exception) :
     - remboursé SEULEMENT si rien n'a été dépensé (total nul ET aucun coût inconnu) ;
@@ -28,7 +28,8 @@ from typing import Callable
 
 from .cost import BudgetExceeded
 from . import cache as cache_mod
-from . import cost, orchestrator, overlay, render, schema, store, timing, voice
+from .. import captions
+from . import cost, orchestrator, overlay, render, schema, store, subtitles, timing, voice
 
 _SAFE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
@@ -83,6 +84,7 @@ def quality_issues(info: dict, timeline: dict) -> list[str]:
 
 
 def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> dict:
+    caption_style = captions.caption_style_or_default(script.get("caption_style") if isinstance(script, dict) else None)
     # Order of the guards (the feature flag comes first, in the worker routing): administrator, plan, rates and budget, moderation,
     # then lock, quota, credit and providers. A refused caller learns nothing about rates or plans and costs nothing.
     ports.authorize()
@@ -109,7 +111,7 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
     with store.job_lock(folder):  # le verrou précède quota et crédit : une exécution refusée ne consomme rien
         try:
             done = json.loads(done_path.read_text(encoding="utf-8"))
-            if done.get("digest") == digest and Path(done["video"]).is_file():
+            if done.get("digest") == digest and done.get("caption_style", captions.DEFAULT_CAPTION_STYLE) == caption_style and Path(done["video"]).is_file():
                 return {**done, "idempotent_replay": True}
         except (OSError, ValueError, KeyError):
             pass
@@ -125,17 +127,17 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
         if not ports.reserve_credit():
             raise PipelineError("credits exhausted")
         return _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision,
-                        cost.BudgetTracker(ports.budget, ledger=ports.ledger))
+                        cost.BudgetTracker(ports.budget, ledger=ports.ledger), caption_style)
 
 
 def review_fields(result: dict) -> dict:
-    """Champs de la ligne de contenu pour un clip livré : un texte illisible ne passe jamais pour « prêt » (état `quality_check` existant,
+    """Champs de la ligne de contenu pour un clip livré : des sous-titres douteux ne passent jamais pour « prêts » (état `quality_check` existant,
     sans migration : un humain regarde avant publication) ; sinon `video` et drapeaux d'un run précédent effacés."""
     flags = [f"Contrôle qualité : {issue}" for issue in (result.get("review") or [])][:8]
     return {"status": "quality_check", "quality_flags": flags} if flags else {"status": "video", "quality_flags": []}
 
 
-def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision, tracker) -> dict:
+def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision, tracker, caption_style) -> dict:
     published = False
     try:
         ports.record_event("generation_started", renderer="story_visual", estimated_usd=decision["total_usd"], estimated=True)
@@ -164,26 +166,23 @@ def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, e
         if failed:
             raise PipelineError("image generation failed for: " + ", ".join(failed))
         ports.progress("cards")
-        cards, readability, layers = [], [], []
+        cards = []
         for scene in plan["scenes"]:
             card = folder / f"card-{scene['id']}.jpg"
-            layer = folder / f"text-{scene['id']}.png"
-            report = overlay.compose_layers(images[scene["id"]]["path"], scene["on_screen_text"], plan["art_direction"], card, layer)
-            readability.append(report)
+            overlay.compose_card(images[scene["id"]]["path"], card)
             cards.append(card)
-            layers.append(layer if report["has_layer"] else None)
+        cues = subtitles.build_cues(timeline, voices)
+        font, fonts_dir = subtitles.brand_font()
+        ass = subtitles.write(cues, folder, plan["story_id"], caption_style, font)
         ports.progress("render")
         video = folder / f"{plan['story_id']}.mp4"
         info = render.render_story(cards, timeline, [voices[s["id"]]["path"] for s in plan["scenes"]], video, folder / "clips", fps=ports.render_fps, preset=ports.render_preset,
-                                 text_layers=layers)
-        issues = quality_issues(info, timeline)
-        issues += [f"{s['id']}: text not readable (fits={r['fits']}, contrast={r['contrast']})"
-                   for s, r in zip(plan["scenes"], readability) if not r["ok"]]
+                                 captions_ass=ass, fonts_dir=fonts_dir if ass else None)
+        issues = quality_issues(info, timeline) + subtitles.issues(cues, ass, caption_style, timeline["total_s"], timeline)
         if any(i.startswith(("resolution", "video", "audio", "duration")) for i in issues):
             raise PipelineError("quality check failed: " + "; ".join(issues))
-        (folder / f"{plan['story_id']}.srt").write_text(timing.srt(plan, timeline), encoding="utf-8")
         report = _report(plan, estimate, decision, tracker, images, voices)
-        result = {"digest": digest, "video": str(video), "timeline": timeline, "cost": report, "review": issues, "needs_review": bool(issues),
+        result = {"digest": digest, "caption_style": caption_style, "video": str(video), "timeline": timeline, "cost": report, "review": issues, "needs_review": bool(issues),
                   "factuality": plan["factuality"], "sources": plan.get("sources", [])}
         if ports.publish:
             result["published"] = ports.publish(video, timeline, result)

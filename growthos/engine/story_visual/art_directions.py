@@ -1,7 +1,7 @@
 """Trois directions artistiques réutilisables. Données pures, versionnées ; consommées par le compilateur de prompt
-(`visual_direction.py`, qui s'appuie sur `engine.image_prompt_builder`) et par la composition typographique (`overlay.py`).
+(`visual_direction.py`, qui s'appuie sur `engine.image_prompt_builder`).
 
-Le texte n'est JAMAIS dessiné par le modèle d'image : la typographie est composée localement (`overlay.py`).
+Le texte n'est JAMAIS dessiné par le modèle d'image : les sous-titres sont ceux de Faceloop (`subtitles.py`, `engine/captions.py`).
 """
 from __future__ import annotations
 
@@ -35,7 +35,6 @@ DIRECTIONS: dict[str, dict] = {
             "Silhouette lisible en miniature."
         ),
         "swatches": {"background": "#F4EBDD", "ink": "#1F2A44", "accent": "#E4664A"},
-        "typography": {"font": "Poppins-Bold", "text_color": "#FFFFFF", "scrim": "#0E1626", "placement": "bottom"},
         "default_transition": "crossfade",
         "default_camera": "push_in",
     },
@@ -59,7 +58,6 @@ DIRECTIONS: dict[str, dict] = {
             "Le bas du cadre reste calme pour le texte."
         ),
         "swatches": {"background": "#16131F", "ink": "#F2E9DC", "accent": "#E0A458"},
-        "typography": {"font": "Poppins-Bold", "text_color": "#FFF8EC", "scrim": "#0B0912", "placement": "bottom"},
         "default_transition": "fade",
         "default_camera": "push_in",
     },
@@ -83,7 +81,6 @@ DIRECTIONS: dict[str, dict] = {
             "Aucune scène secondaire. Zone basse libre pour le texte."
         ),
         "swatches": {"background": "#1B3A4B", "ink": "#F6F1E9", "accent": "#F2B134"},
-        "typography": {"font": "Poppins-Bold", "text_color": "#FFFFFF", "scrim": "#0A1820", "placement": "bottom"},
         "default_transition": "crossfade",
         "default_camera": "pull_out",
     },

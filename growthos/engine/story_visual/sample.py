@@ -14,7 +14,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from . import art_directions, cost, orchestrator, overlay, render, schema, timing
+from .. import captions
+from . import art_directions, cost, orchestrator, overlay, render, schema, subtitles, timing
 from .orchestrator import ImageResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -218,14 +219,11 @@ def build_sample(plan: dict, out_dir: str | Path, tenant_id: str = "sample", *, 
     tracker = cost.BudgetTracker(cost.Budget())
     manifest = orchestrator.generate_scene_images(plan, tenant_id=tenant_id, work_dir=out / "work", provider=provider,
                                                   tracker=tracker, expected_unit_usd=0.0)
-    cards, readability, audio, layers = [], [], [], []
+    cards, audio = [], []
     for scene in plan["scenes"]:
         card = out / "work" / f"card-{scene['id']}.jpg"
-        layer = out / "work" / f"text-{scene['id']}.png"
-        report = overlay.compose_layers(manifest[scene["id"]]["path"], scene["on_screen_text"], plan["art_direction"], card, layer)
-        readability.append(report)
+        overlay.compose_card(manifest[scene["id"]]["path"], card)
         cards.append(card)
-        layers.append(layer if report["has_layer"] else None)
         tone = out / "work" / f"voice-{scene['id']}.m4a"
         _tone(tone, timing.estimate_audio_seconds(scene["narration"], plan["language"]))
         audio.append(tone)
@@ -234,8 +232,16 @@ def build_sample(plan: dict, out_dir: str | Path, tenant_id: str = "sample", *, 
     overlaps = timing.check_no_overlap(timeline)
     if overlaps:
         raise ValueError("; ".join(overlaps))
+    voices = {s["id"]: {"words": _even_words(s["narration"], measured[s["id"]])} for s in plan["scenes"]}  # la voix de substitution n'a pas de mots chronométrés
+    cues = subtitles.build_cues(timeline, voices)
+    ass = subtitles.write(cues, out, plan["story_id"], captions.DEFAULT_CAPTION_STYLE)
     video = out / f"{plan['story_id']}.mp4"
-    info = render.render_story(cards, timeline, audio, video, out / "work", fps=fps, preset=preset, text_layers=layers)
-    (out / f"{plan['story_id']}.srt").write_text(timing.srt(plan, timeline), encoding="utf-8")
-    return {"video": str(video), "probe": info, "timeline": timeline, "readability": readability,
+    info = render.render_story(cards, timeline, audio, video, out / "work", fps=fps, preset=preset, captions_ass=ass)
+    return {"video": str(video), "probe": info, "timeline": timeline, "captions": subtitles.issues(cues, ass, captions.DEFAULT_CAPTION_STYLE, timeline["total_s"]),
             "actual_cost_usd": tracker.total, "placeholder": True}
+
+
+def _even_words(text: str, seconds: float) -> list[dict]:
+    names = text.split()
+    step = seconds / max(1, len(names))
+    return [{"text": w, "start": i * step, "end": (i + 1) * step} for i, w in enumerate(names)]

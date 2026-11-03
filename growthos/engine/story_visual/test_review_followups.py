@@ -137,8 +137,8 @@ class TestMissingImageIsAResume(Tmp):
 
 
 class TestReviewStatus(unittest.TestCase):
-    def test_unreadable_text_is_delivered_as_quality_check(self):
-        fields = pipeline.review_fields({"review": ["s2: text not readable (fits=False, contrast=2.0)"]})
+    def test_doubtful_captions_are_delivered_as_quality_check(self):
+        fields = pipeline.review_fields({"review": ["captions: no cue (the voice returned no timed words)"]})
         self.assertEqual(fields["status"], "quality_check")
         self.assertEqual(len(fields["quality_flags"]), 1)
 

@@ -166,8 +166,6 @@ class TestVisualDirection(unittest.TestCase):
             spec = art_directions.get_direction(direction_id)
             self.assertTrue(bible["consigne"] and bible["palette"] and bible["composition_rules"])
             self.assertIn("pas de texte", " ".join(bible["avoid"]))
-            self.assertGreaterEqual(overlay.contrast_ratio(overlay._hex(spec["typography"]["text_color"]),
-                                                           overlay._hex(spec["typography"]["scrim"])), 7)
         with self.assertRaises(ValueError):
             art_directions.get_direction("nope")
 
@@ -454,47 +452,19 @@ class TestTiming(unittest.TestCase):
         with self.assertRaises(ValueError):
             timing.schedule(plan, audio)
 
-    def test_srt(self):
-        plan = sample.moral_plan()
-        text = timing.srt(plan, timing.schedule(plan, self.audio(plan)))
-        self.assertTrue(text.startswith("1\n00:00:00,150 --> 00:00:04,150\n"))
-        self.assertEqual(text.count("-->"), 8)
-
     def test_estimates_by_language(self):
         self.assertGreater(timing.estimate_audio_seconds("un deux trois", "fr"), 0)
         self.assertGreater(timing.estimate_audio_seconds("", "en"), 0)
 
 
 class TestOverlay(TempDirCase):
-    def test_card_is_vertical_with_readable_measured_text(self):
+    def test_card_is_vertical_and_carries_no_text_layer(self):
         from PIL import Image
         src = self.tmp / "i.jpg"
         sample.PlaceholderImageProvider()("p", str(src), model="m", quality="low")
-        for direction in schema.ART_DIRECTIONS:
-            report = overlay.compose_card(src, "Ne pas jeter le détail", direction, self.tmp / f"{direction}.jpg")
-            with Image.open(self.tmp / f"{direction}.jpg") as card:
-                self.assertEqual(card.size, (1080, 1920))
-            self.assertGreaterEqual(report["font_px"], overlay.MIN_FONT_PX)
-            self.assertGreaterEqual(report["contrast"], overlay.MIN_CONTRAST)
-            self.assertTrue(report["fits"])
-
-    def test_long_text_shrinks_but_never_below_minimum(self):
-        src = self.tmp / "i.jpg"
-        sample.PlaceholderImageProvider()("p", str(src), model="m", quality="low")
-        report = overlay.compose_card(src, " ".join(["Beaucoup"] * 14), "editorial_knowledge", self.tmp / "c.jpg")
-        self.assertGreaterEqual(report["font_px"], overlay.MIN_FONT_PX)
-
-    def test_no_text_means_no_scrim_report(self):
-        src = self.tmp / "i.jpg"
-        sample.PlaceholderImageProvider()("p", str(src), model="m", quality="low")
-        self.assertFalse(overlay.compose_card(src, "", "cinematic_story", self.tmp / "c.jpg")["text"])
-
-    def test_wrap_respects_width(self):
-        from PIL import Image, ImageDraw
-        font = overlay._font("Poppins-Bold", 64)
-        draw = ImageDraw.Draw(Image.new("RGB", (10, 10)))
-        for line in overlay.wrap_lines(draw, "Une phrase assez longue pour devoir passer à la ligne plusieurs fois", font, 800):
-            self.assertLessEqual(draw.textlength(line, font=font), 800)
+        overlay.compose_card(src, self.tmp / "card.jpg")
+        with Image.open(self.tmp / "card.jpg") as card:
+            self.assertEqual(card.size, (1080, 1920))
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg required")
@@ -511,9 +481,10 @@ class TestEndToEndRender(TempDirCase):
         self.assertEqual(probe["audio"]["codec_name"], "aac")
         self.assertAlmostEqual(probe["duration"], report["timeline"]["total_s"], delta=0.15)  # voix et image restent synchronisées
         self.assertEqual(report["actual_cost_usd"], 0.0)
-        self.assertTrue(all(r["contrast"] >= overlay.MIN_CONTRAST for r in report["readability"] if r["text"]))
+        self.assertEqual(report["captions"], [])
         self.assertEqual(timing.check_no_overlap(report["timeline"]), [])
         self.assertTrue(Path(report["video"]).with_suffix(".srt").is_file())
+        self.assertTrue((Path(report["video"]).parent / "captions.ass").is_file())
 
     def test_factual_story(self):
         self.check(sample.factual_plan(), fps=12, preset="ultrafast")

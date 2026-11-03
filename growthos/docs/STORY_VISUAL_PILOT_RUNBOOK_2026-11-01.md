@@ -85,7 +85,7 @@ interface : script d'exécution sur la machine de test (même plafond, drapeau `
 |---|---|
 | Coût réel mesuré | ≤ 0,50 $, aucune ligne `unpriced`, `complete = true` |
 | Cohérence du personnage | grille d'identité ≥ 13/16 (protocole du pilote artistique) |
-| Lisibilité mobile du texte | tous les textes lisibles (contrôle `overlay` + revue humaine) |
+| Lisibilité mobile des sous-titres | sous-titres Faceloop présents et lisibles (contrôle `subtitles.issues` + revue humaine) |
 | Synchronisation | dérive audio/vidéo ≤ 0,15 s ; aucun recouvrement de légendes |
 | Rendu | `render-checker` sans défaut bloquant ; MP4 1080×1920 H.264/AAC |
 | Fiabilité | zéro relance payante en boucle ; total du registre = dépense du rapport |
