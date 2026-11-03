@@ -226,7 +226,7 @@ class TestVoice(Tmp):
         out.write_bytes(b"x")
         with patch.object(voice.tts, "synthesize_with_timestamps", return_value=[{"text": "a", "start": 0, "end": 1}]) as call:
             ok = voice.elevenlabs_provider({"ELEVENLABS_USD_PER_1K_CHARS": "0.2"})("hello world", VOICE, str(out))
-        call.assert_called_once_with("hello world", VOICE, str(out))
+        call.assert_called_once_with("hello world", VOICE, str(out), voice_settings={"speed": voice.STORY_TTS_SPEED})
         self.assertAlmostEqual(ok.cost_usd, 11 / 1000 * 0.2)
         with patch.object(voice.tts, "synthesize_with_timestamps", side_effect=RuntimeError("HTTP 401")):
             failed = voice.elevenlabs_provider({})("t", VOICE, str(out))
@@ -328,6 +328,16 @@ class TestGuards(Harness):
             self.assertIn("budget refused", str(ctx.exception))
             self.assertEqual((images.calls, reserved), ([], []))
         self.assertEqual(self.refunds, [])
+
+    def test_short_measured_narration_is_rejected_before_paid_images(self):
+        images = sample.PlaceholderImageProvider()
+        ports = self.ports(image_provider=images)
+        short_audio = {scene["id"]: 1.0 for scene in moral_with_voice()["scenes"]}
+        with patch.object(pipeline.voice, "measured_durations", return_value=short_audio):
+            with self.assertRaisesRegex(pipeline.PipelineError, "outside the target"):
+                pipeline.run({"story_plan": moral_with_voice()}, ports, self.tmp / "short", tenant_id="t1")
+        self.assertEqual(images.calls, [])
+        self.assertEqual(self.refunds, [1])
 
     def test_invalid_plan_unsafe_tenant_and_missing_voice_fail_before_credit(self):
         reserved = lambda: (_ for _ in ()).throw(AssertionError("credit must not be reserved"))

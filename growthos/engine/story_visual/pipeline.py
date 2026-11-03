@@ -108,14 +108,6 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
 def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, estimate, decision, tracker) -> dict:
     try:
         ports.record_event("generation_started", renderer="story_visual", estimated_usd=decision["total_usd"], estimated=True)
-        ports.progress("images")
-        unit, _ = cost.image_unit_cost(env)
-        images = orchestrator.generate_scene_images(
-            plan, tenant_id=tenant_id, work_dir=work_dir, provider=ports.image_provider, tracker=tracker,
-            expected_unit_usd=unit, disk_cache=ports.image_cache)
-        failed = [sid for sid, m in images.items() if m["status"] != "done"]
-        if failed:
-            raise PipelineError("image generation failed for: " + ", ".join(failed))
         ports.progress("voice")
         voices = voice.synthesize_story(plan, tenant_id=tenant_id, work_dir=work_dir, provider=ports.voice_provider,
                                         tracker=tracker, voice_id=None if plan.get("voice_id") else _default_voice(env),
@@ -127,6 +119,19 @@ def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, e
         overlaps = timing.check_no_overlap(timeline)
         if overlaps:
             raise PipelineError("; ".join(overlaps))
+        if not timeline["within_10_percent"]:
+            raise PipelineError(
+                f"narration duration {timeline['total_s']:.1f}s is outside the target "
+                f"{timeline['target_s']}s ±10%; revise the narration before generating images"
+            )
+        ports.progress("images")
+        unit, _ = cost.image_unit_cost(env)
+        images = orchestrator.generate_scene_images(
+            plan, tenant_id=tenant_id, work_dir=work_dir, provider=ports.image_provider, tracker=tracker,
+            expected_unit_usd=unit, disk_cache=ports.image_cache)
+        failed = [sid for sid, m in images.items() if m["status"] != "done"]
+        if failed:
+            raise PipelineError("image generation failed for: " + ", ".join(failed))
         ports.progress("cards")
         cards, readability, layers = [], [], []
         for scene in plan["scenes"]:

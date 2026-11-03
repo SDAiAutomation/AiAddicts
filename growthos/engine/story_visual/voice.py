@@ -30,6 +30,7 @@ class VoiceResult:
 
 
 VoiceProvider = Callable[..., VoiceResult]
+STORY_TTS_SPEED = 0.7  # ElevenLabs' slowest supported value; calibrated to keep the pilot's 60s narration on target.
 
 
 def voice_rate_per_1k(env=None) -> float | None:
@@ -45,7 +46,9 @@ def elevenlabs_provider(env=None) -> VoiceProvider:
     """Adaptateur vers la synthèse existante. Un échec devient `VoiceResult(error=...)`, jamais une exception brute."""
     def call(text: str, voice_id: str, out_path: str) -> VoiceResult:
         try:
-            words = tts.synthesize_with_timestamps(text, voice_id, out_path)
+            words = tts.synthesize_with_timestamps(
+                text, voice_id, out_path, voice_settings={"speed": STORY_TTS_SPEED}
+            )
         except RuntimeError as exc:
             return VoiceResult(None, None, None, f"voice_error: {str(exc)[:120]}")
         rate = voice_rate_per_1k(env)
@@ -79,7 +82,8 @@ class SimulatedVoiceProvider:
 
 def voice_key(tenant_id: str, text: str, voice_id: str) -> str:
     return asset_store.make_key(kind="story_visual_voice", tenant=tenant_id, text=text.strip(), voice=voice_id,
-                                model=tts.TTS_MODEL_ID, settings=tts.TTS_VOICE_SETTINGS)
+                                model=tts.TTS_MODEL_ID,
+                                settings={**tts.TTS_VOICE_SETTINGS, "speed": STORY_TTS_SPEED})
 
 
 MAX_ATTEMPTS_PER_SCENE = 3
