@@ -92,7 +92,7 @@ def _words_from_alignment(characters: list[str], starts: list[float], ends: list
 
 
 def synthesize_with_timestamps(
-    text: str, voice_id: str, out_path: str, api_key: str | None = None
+    text: str, voice_id: str, out_path: str, api_key: str | None = None, *, voice_settings: dict | None = None
 ) -> list[dict]:
     """Comme `synthesize()`, mais utilise l'endpoint ElevenLabs qui renvoie
     aussi le timing mot par mot (alignement caractère par caractère,
@@ -116,7 +116,7 @@ def synthesize_with_timestamps(
     payload = {
         "text": text,
         "model_id": TTS_MODEL_ID,
-        "voice_settings": dict(TTS_VOICE_SETTINGS),
+        "voice_settings": {**TTS_VOICE_SETTINGS, **(voice_settings or {})},
     }
 
     last_error = "raison inconnue"

@@ -10,7 +10,7 @@ from . import art_directions
 
 WORDS_PER_SECOND = {"fr": 2.7, "en": 2.5}  # estimation AVANT synthèse, remplacée par la mesure ensuite
 MIN_PAUSE_S = 0.3         # >= plus longue transition : un fondu ne recouvre jamais la parole
-PAUSE_S = 0.35            # silence entre deux narrations : aucune superposition
+PAUSE_S = 0.45            # respiration entre deux narrations : aucune superposition
 MIN_SCENE_S = 2.5
 READ_S_PER_WORD = 0.32    # temps de lecture du texte à l'écran
 FINAL_HOLD_S = 2.0        # le dernier plan laisse le temps de retenir la leçon
