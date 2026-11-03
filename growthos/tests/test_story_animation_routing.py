@@ -88,20 +88,29 @@ class LegacyPathsNeverChange(Harness):
 class AnimatedWiringRefusesBeforeCredit(unittest.TestCase):
     """`_run_animated` with the flag ON but a worker that is not configured for Godot: refused, nothing reserved."""
 
-    def test_unconfigured_worker(self):
+    def refused(self, renderer: str, pattern: str, unset: tuple):
         with ExitStack() as stack:
-            stack.enter_context(patch.dict(os.environ, {"STORY_ANIMATION_ENABLED": "1"}))
-            os.environ.pop("GODOT_BIN", None)
-            os.environ.pop("STORY_PACK_DIR", None)
+            stack.enter_context(patch.dict(os.environ, {"STORY_ANIMATION_ENABLED": "1", "STORY_RENDERER": renderer}))
+            for name in unset:
+                os.environ.pop(name, None)
             reserve = stack.enter_context(patch("engine.assembler.repo.reserve_generation_credit", return_value=True))
             stack.enter_context(patch("engine.assembler.explainer_access.authorize"))
             stack.enter_context(patch("engine.assembler.moderation.check_script"))
             stack.enter_context(patch("engine.assembler.events.organization_id_of", return_value="org"))
             events = stack.enter_context(patch("engine.assembler.events.record"))
-            with self.assertRaisesRegex(pipeline.AnimationUnavailable, "GODOT_BIN"):
+            with self.assertRaisesRegex(pipeline.AnimationUnavailable, pattern) as ctx:
                 assembler._run_animated(Mock(), "item", animated_script(), "out", 0.0)
             reserve.assert_not_called()
             events.assert_not_called()
+        return str(ctx.exception)
+
+    def test_unconfigured_worker(self):
+        self.refused("rig_v1", "GODOT_BIN", ("GODOT_BIN", "STORY_PACK_DIR"))
+
+    def test_storyboard_without_image_key_is_refused_and_needs_no_godot(self):
+        message = self.refused("storyboard", "OPENAI_API_KEY", ("OPENAI_API_KEY", "GODOT_BIN", "STORY_PACK_DIR"))
+        self.assertNotIn("GODOT_BIN", message)
+        self.assertNotIn("STORY_PACK_DIR", message)
 
     def test_non_admin_author_is_refused_before_credit(self):
         from engine.explainer import access

@@ -6,6 +6,10 @@ Order, and why it matters for money:
   2. the credit is reserved, then every later failure (voice, render, mix, quality, publication) refunds it exactly once;
   3. once the video is published the job is a success: bookkeeping errors after that point never refund and never fail it.
 The refund itself is the existing atomic, idempotent RPC; a failing refund never hides the error that caused it.
+
+Two renderers share these rules (`Ports.renderer`): "rig_v1" (Godot puppets, `ports.render`) and "storyboard" (one
+illustrated beat every 2-4 s, see storyboard.py). For the storyboard, the upper cost of the pictures, their retries and the
+direction call is added to the estimate and checked against the story budget and a server cap BEFORE the reservation.
 """
 from __future__ import annotations
 
@@ -66,6 +70,8 @@ class Ports:
     progress: Callable[[str], None] = lambda label: None        # best-effort step label for the library page
     catalog: dict = field(default_factory=dict)
     usd_per_1k_chars: float = 0.3                               # estimate only; never an invoice
+    renderer: str = "rig_v1"                                    # "rig_v1" (Godot puppets) | "storyboard" (illustrated beats)
+    storyboard: object = None                                   # storyboard.StoryboardPorts when renderer == "storyboard"
 
 
 def _progress(ports: "Ports", label: str) -> None:
@@ -109,9 +115,15 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
     errors = contract.validate_animation_story(story, ports.catalog)
     if errors:
         raise ValueError("Animated story not renderable: " + "; ".join(errors[:5]))
-    layout = rig_v1_layout_errors(story)
-    if layout:
-        raise AnimationUnavailable("; ".join(layout))
+    storyboard = ports.renderer == "storyboard"
+    if storyboard:
+        from . import storyboard as storyboard_lib   # local: the rig path never loads the image stack
+        if ports.storyboard is None:
+            raise AnimationUnavailable("the storyboard renderer is not configured on this worker")
+    else:
+        layout = rig_v1_layout_errors(story)   # the puppets draw one character per pack; the storyboard has no such limit
+        if layout:
+            raise AnimationUnavailable("; ".join(layout))
 
     ports.authorize()
     ports.moderate(script)
@@ -125,6 +137,13 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
     estimate = ports.estimate(seconds, tts_chars)
     budget = story.get("budget") or {}
     usd = tts_chars / 1000.0 * ports.usd_per_1k_chars
+    cost_plan = None
+    if storyboard:
+        # images (+ retries) and the direction call are paid AFTER the reservation: their upper bound is checked now
+        cost_plan = storyboard_lib.plan_costs(seconds, ports.storyboard)
+        usd += cost_plan.extra_usd
+        if usd > ports.storyboard.max_usd:
+            raise BudgetExceeded(f"estimated usd {usd:.2f} is above the server cap of {ports.storyboard.max_usd}")
     for key, value, limit in (("max_tts_chars", tts_chars, budget.get("max_tts_chars")),
                               ("max_render_s", estimate.render_seconds, budget.get("max_render_s")),
                               ("max_usd", usd, budget.get("max_usd"))):
@@ -133,9 +152,14 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
 
     if not ports.reserve_credit():
         raise InsufficientCredits("crédits épuisés pour ce mois-ci")
-    ports.record_event("generation_started", renderer="rig_v1", estimated_tts_chars=tts_chars)
+    started = {"renderer": ports.renderer, "estimated_tts_chars": tts_chars}
+    if cost_plan is not None:
+        started.update(estimated_cost_usd=round(usd, 3), max_images=cost_plan.max_images,
+                       max_image_calls=cost_plan.image_calls)
+    ports.record_event("generation_started", **started)
+    stats: dict = {}
     try:
-        by_id = {c["id"]: {"voice_id": c["voice_id"], "role": RIG_ROLES[c["pack_id"]]} for c in story["characters"]}
+        by_id = {c["id"]: {"voice_id": c["voice_id"], "role": RIG_ROLES.get(c["pack_id"], c["id"])} for c in story["characters"]}
         if isinstance(story.get("narrator"), dict):
             by_id[story["narrator"]["id"]] = {"voice_id": story["narrator"]["voice_id"], "role": NARRATOR_ROLE}
         workdir = Path(workdir)
@@ -151,14 +175,23 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
             wavs.append(wav)
         schema = story.get("animation_schema_version", contract.ANIMATION_SCHEMA_VERSION)
         tl = timeline_lib.build_timeline(lines, max_total=contract.LIMITS[schema]["max_duration"])
-        tl["shots"] = shotplan.build_shot_plan(story, tl, rig_roles(story))
         tl["style"] = story.get("style_id") or STYLES[0]
-        _progress(ports, "Animation")
-        rendered = ports.render(tl, workdir / "render")
+        extra_review = []
+        if storyboard:
+            measured = [{"text": tl_line["text"], "start": tl_line["start"], "dur": tl_line["dur"],
+                         "alignment": line["alignment"], "speaker_id": shot["speaker_id"], "shot_index": i}
+                        for i, (tl_line, line, shot) in enumerate(zip(tl["lines"], lines, shots))]
+            outcome = storyboard_lib.render(story, script, tl, measured, ports.storyboard, cost_plan, workdir / "storyboard",
+                                            progress=lambda label: _progress(ports, label))
+            rendered, stats, extra_review = outcome.rendered, outcome.stats, outcome.review
+        else:
+            tl["shots"] = shotplan.build_shot_plan(story, tl, rig_roles(story))
+            _progress(ports, "Animation")
+            rendered = ports.render(tl, workdir / "render")
         _progress(ports, "Mixage audio")
         final = ports.mix(rendered, [(w, line["start"]) for w, line in zip(wavs, tl["lines"])], tl, workdir / "final.mp4")
         _progress(ports, "Contrôle qualité")
-        problems = ports.check_quality(final)
+        problems = list(ports.check_quality(final)) + list(extra_review)
         blocking = [p for p in problems if p.severity == quality_lib.BLOCKING]
         if blocking:
             raise QualityRejected("the rendered clip is unusable: " + "; ".join(p.text for p in blocking[:4]))
@@ -172,8 +205,12 @@ def run(script: dict, ports: Ports, workdir: Path) -> dict:
             print(f"       (remboursement du crédit non appliqué : {type(refund_error).__name__})")
         raise
     try:
-        ports.record_event("generation_completed", renderer="rig_v1", duration_s=tl["total"],
-                           status="quality_check" if review else "video")
+        done = {"renderer": ports.renderer, "duration_s": tl["total"], "status": "quality_check" if review else "video"}
+        if storyboard:
+            done.update(estimated_cost_usd=round(usd, 3), **{k: stats.get(k) for k in (
+                "beat_count", "image_count", "image_calls", "images_reused", "direction_source", "llm_calls",
+                "llm_cost_usd", "key_clips", "caption_style", "renderer_version", "direction_prompt_version")})
+        ports.record_event("generation_completed", **done)
     except Exception as exc:  # noqa: BLE001 - the video is delivered; never turn it into a failure
         print(f"       (événement de fin non enregistré : {type(exc).__name__})")
     return {"video_url": published.get("video_url"), "timeline_total_s": tl["total"], "needs_review": bool(review),
