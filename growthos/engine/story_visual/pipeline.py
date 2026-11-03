@@ -93,7 +93,8 @@ def run(script: dict, ports: Ports, work_dir: str | Path, *, tenant_id: str) -> 
     if errors:
         raise PipelineError("invalid story plan: " + "; ".join(errors[:5]))
     env = ports.env
-    estimate = cost.estimate_episode(plan, env)
+    # La planification a été confirmée et comptabilisée dans son propre job avant la validation humaine.
+    estimate = cost.estimate_episode(plan, env, include_planning=False)
     decision = cost.check_budget(estimate, ports.budget)
     if not decision["allowed"]:
         raise PipelineError("budget refused: " + decision["message"])

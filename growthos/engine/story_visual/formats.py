@@ -10,6 +10,8 @@ import json
 from . import schema
 from .art_directions import get_direction
 
+PLANNER_PROMPT_VERSION = "story-visual-plan-v1.1"
+
 STRATEGIES: dict[str, dict] = {
     "knowledge": {
         "factuality": ("verified", "metaphor"),
@@ -85,6 +87,7 @@ def build_planner_prompt(story_type: str, idea: str, language: str, target_durat
                     for x in (sources or []) if isinstance(x, dict) and schema.is_safe_source_url(x.get("url"))]
     sources_block = _clean(json.dumps(safe_sources, ensure_ascii=False), 6000)
     return (
+        f"Version du prompt : {PLANNER_PROMPT_VERSION}.\n"
         "Tu es directeur narratif et directeur artistique d'un récit vertical illustré (cartes + voix off).\n"
         f"Type d'histoire : {story_type}. {strategy['guidance']}\n"
         f"Langue de la narration et du texte à l'écran : {language}. Durée cible : {target_duration_s} s "

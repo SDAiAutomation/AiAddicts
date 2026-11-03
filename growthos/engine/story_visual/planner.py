@@ -1,7 +1,7 @@
 """Planificateur narratif : idée -> `story_plan` validé, via un fournisseur LLM INJECTABLE.
 
-`openai_chat_provider()` suit le motif de `engine.story_features.classify` (clé serveur `OPENAI_API_KEY`, endpoint chat,
-JSON strict, retry 429 borné) mais n'est jamais appelé par les tests. Le modèle est choisi par `STORY_PLANNER_MODEL` : sans
+`openai_chat_provider()` utilise l'API Responses avec une limite de sortie et un comptage d'entrée AVANT l'appel payant.
+Il ne relance jamais silencieusement un appel. Le modèle est choisi par `STORY_PLANNER_MODEL` : sans
 lui, le fournisseur échoue proprement (on ne devine pas un modèle payant).
 
 Ce qui vient du modèle est NON FIABLE. Le planificateur écrase donc côté serveur tout ce qui ne doit pas être décidé par lui :
@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Callable
@@ -22,7 +21,8 @@ import requests
 
 from . import cost, formats, schema
 
-CHAT_URL = "https://api.openai.com/v1/chat/completions"
+RESPONSES_URL = "https://api.openai.com/v1/responses"
+INPUT_TOKENS_URL = RESPONSES_URL + "/input_tokens"
 MAX_ATTEMPTS = 2
 _VOICE_ID = re.compile(r"[A-Za-z0-9]{8,64}")
 
@@ -32,35 +32,85 @@ class LLMResult:
     text: str | None
     usage: dict | None = None   # {"input": n, "output": n} en jetons
     error: str | None = None
+    call_made: bool = True
 
 
 LLMProvider = Callable[[str], LLMResult]
 
 
-def openai_chat_provider() -> LLMProvider:
-    """Adaptateur chat OpenAI (PAYANT). Jamais appelé hors d'un pipeline explicitement autorisé."""
+@dataclass(frozen=True)
+class PlannerPricing:
+    input_token_ceiling: int
+    max_output_tokens: int
+    input_usd_per_m: float
+    output_usd_per_m: float
+    per_call_usd: float
+    worst_case_usd: float
+
+
+def planner_pricing(env=None) -> tuple[PlannerPricing | None, list[str]]:
+    """Tarification maximale vérifiable. Aucune valeur n'est inventée : toute donnée absente bloque."""
+    env = os.environ if env is None else env
+    names = ("STORY_PLAN_INPUT_TOKEN_CEILING", "STORY_PLAN_MAX_OUTPUT_TOKENS",
+             "SCRIPT_PRICE_IN_PER_M", "SCRIPT_PRICE_OUT_PER_M")
+    missing = [name for name in names if not str(env.get(name, "")).strip()]
+    if missing:
+        return None, [f"missing {name}" for name in missing]
+    try:
+        input_ceiling = int(env[names[0]])
+        max_output = int(env[names[1]])
+        input_price = float(env[names[2]])
+        output_price = float(env[names[3]])
+    except (TypeError, ValueError):
+        return None, ["planner pricing values must be numeric"]
+    if input_ceiling <= 0 or max_output <= 0 or input_price < 0 or output_price < 0:
+        return None, ["planner token limits must be positive and prices non-negative"]
+    per_call = (input_ceiling * input_price + max_output * output_price) / 1_000_000
+    return PlannerPricing(input_ceiling, max_output, input_price, output_price, per_call,
+                          per_call * MAX_ATTEMPTS), []
+
+
+def _response_text(body: dict) -> str:
+    for item in body.get("output") or []:
+        if item.get("type") == "message":
+            for content in item.get("content") or []:
+                if content.get("type") == "output_text" and isinstance(content.get("text"), str):
+                    return content["text"]
+    raise KeyError("output_text")
+
+
+def openai_chat_provider(env=None, session=requests) -> LLMProvider:
+    """Adaptateur OpenAI (PAYANT). Un comptage gratuit précède l'unique appel Responses autorisé."""
+    env = os.environ if env is None else env
     def call(prompt: str) -> LLMResult:
-        model = os.environ.get("STORY_PLANNER_MODEL", "").strip()
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not model or not api_key:
-            return LLMResult(None, None, "planner_not_configured")
+        model = str(env.get("STORY_PLANNER_MODEL", "")).strip()
+        api_key = env.get("OPENAI_API_KEY")
+        pricing, errors = planner_pricing(env)
+        if not model or not api_key or pricing is None:
+            return LLMResult(None, None, "planner_not_configured: " + ", ".join(errors), False)
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         try:
-            for attempt in range(4):
-                resp = requests.post(CHAT_URL, headers={"Authorization": f"Bearer {api_key}"}, timeout=120, json={
-                    "model": model, "response_format": {"type": "json_object"},
-                    "messages": [{"role": "user", "content": prompt}]})
-                if resp.status_code != 429 or "insufficient_quota" in resp.text or attempt == 3:
-                    break
-                time.sleep(5 * (attempt + 1))
+            counted = session.post(INPUT_TOKENS_URL, headers=headers, timeout=30, json={"model": model, "input": prompt})
+            counted.raise_for_status()
+            input_tokens = int(counted.json()["input_tokens"])
+        except (requests.RequestException, KeyError, TypeError, ValueError):
+            return LLMResult(None, None, "input_token_count_failed", False)
+        if input_tokens > pricing.input_token_ceiling:
+            return LLMResult(None, None, "input_token_ceiling_exceeded", False)
+        try:
+            resp = session.post(RESPONSES_URL, headers=headers, timeout=120, json={
+                "model": model, "input": prompt, "max_output_tokens": pricing.max_output_tokens,
+                "store": False, "text": {"format": {"type": "json_object"}}})
             if resp.status_code == 429:
-                return LLMResult(None, None, "rate_limited")
+                return LLMResult(None, None, "rate_limited", True)
             resp.raise_for_status()
             body = resp.json()
             usage = body.get("usage") or {}
-            return LLMResult(body["choices"][0]["message"]["content"],
-                             {"input": int(usage.get("prompt_tokens") or 0), "output": int(usage.get("completion_tokens") or 0)})
-        except (requests.RequestException, KeyError, ValueError, IndexError):
-            return LLMResult(None, None, "provider_error")
+            return LLMResult(_response_text(body),
+                             {"input": int(usage.get("input_tokens") or input_tokens),
+                              "output": int(usage.get("output_tokens") or 0)}, None, True)
+        except (requests.RequestException, KeyError, ValueError, TypeError):
+            return LLMResult(None, None, "provider_error", True)
     return call
 
 
@@ -152,10 +202,12 @@ def plan_story(request: PlanRequest, llm: LLMProvider, tracker: cost.BudgetTrack
         tracker.reserve(f"plan:{attempt}", expected_call_usd)
         result = llm(prompt)
         usd = plan_cost_usd(result.usage, env) if result.usage else None
-        if result.text is not None:
+        if result.call_made:
             tracker.record(f"plan:{attempt}", usd)
             spent += usd or 0.0
             kind = cost.UNPRICED if usd is None else kind
+        else:
+            tracker.release(f"plan:{attempt}")
         if result.text is None:
             return PlanResult(None, [f"planner provider failed: {result.error or 'unknown'}"], attempt, spent, kind)
         parsed, errors = _parse_enforced(result.text, request)
