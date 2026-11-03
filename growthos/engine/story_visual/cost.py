@@ -74,7 +74,8 @@ def _line(label: str, quantity: float, unit: float | None, source: str) -> dict:
             "source": source}
 
 
-def estimate_episode(plan: dict, env: dict | None = None, *, edits_per_episode: int = 0, regenerations: int = 0) -> dict:
+def estimate_episode(plan: dict, env: dict | None = None, *, edits_per_episode: int = 0, regenerations: int = 0,
+                     include_planning: bool = True) -> dict:
     """Ventilation par poste. `regenerations` = images régénérées prévues (marge de reprise)."""
     env = os.environ if env is None else env
     scenes = plan["scenes"]
@@ -85,11 +86,15 @@ def estimate_episode(plan: dict, env: dict | None = None, *, edits_per_episode: 
     p_in, p_out = _float(env, "SCRIPT_PRICE_IN_PER_M"), _float(env, "SCRIPT_PRICE_OUT_PER_M")
     t_in, t_out = _float(env, "STORY_PLAN_TOKENS_IN"), _float(env, "STORY_PLAN_TOKENS_OUT")
     script_usd = None if None in (p_in, p_out, t_in, t_out) else (t_in * p_in + t_out * p_out) / 1_000_000
+    if not include_planning:
+        script_usd = 0.0
     render, storage = _float(env, "STORY_RENDER_USD"), _float(env, "STORY_STORAGE_USD")
     n_images = len(scenes)  # une image par scène (le prompt final dépend aussi de la direction visuelle et des personnages)
     lines = [
-        {"item": "script", "quantity": 1, "unit_usd": script_usd, "usd": None if script_usd is None else round(script_usd, 4),
-         "source": "SCRIPT_PRICE_* x STORY_PLAN_TOKENS_*" if script_usd is not None else "unpriced"},
+        {"item": "script", "quantity": 1 if include_planning else 0, "unit_usd": script_usd,
+         "usd": None if script_usd is None else round(script_usd, 4),
+         "source": ("SCRIPT_PRICE_* x STORY_PLAN_TOKENS_*" if include_planning and script_usd is not None
+                    else "unpriced" if include_planning else "planned and accounted separately")},
         {"item": "research", "quantity": 0, "unit_usd": 0.0, "usd": 0.0, "source": "no paid research in this engine (sources are supplied)"},
         _line("images", n_images + regenerations, image_unit, image_source),
         _line("image_edits", edits_per_episode, edit_unit, edit_source),

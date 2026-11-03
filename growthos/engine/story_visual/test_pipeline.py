@@ -152,17 +152,36 @@ class TestPlanner(Tmp):
 
     def test_openai_provider_without_configuration_makes_no_request(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(planner.requests, "post") as post:
-            self.assertEqual(planner.openai_chat_provider()("p").error, "planner_not_configured")
+            self.assertTrue(planner.openai_chat_provider()("p").error.startswith("planner_not_configured"))
         post.assert_not_called()
 
     def test_openai_provider_parses_usage_with_a_mocked_http_layer(self):
         class Resp:
             status_code, text = 200, ""
+            def __init__(self, body): self.body = body
             def raise_for_status(self): pass
-            def json(self): return {"choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 7, "completion_tokens": 9}}
-        with patch.dict(os.environ, {"STORY_PLANNER_MODEL": "m", "OPENAI_API_KEY": "k"}), patch.object(planner.requests, "post", return_value=Resp()):
+            def json(self): return self.body
+        env = {"STORY_PLANNER_MODEL": "m", "OPENAI_API_KEY": "k", "STORY_PLAN_INPUT_TOKEN_CEILING": "100",
+               "STORY_PLAN_MAX_OUTPUT_TOKENS": "50", "SCRIPT_PRICE_IN_PER_M": "1", "SCRIPT_PRICE_OUT_PER_M": "2"}
+        responses = [Resp({"input_tokens": 7}), Resp({"output": [{"type": "message", "content": [{"type": "output_text", "text": "{}"}]}],
+                                                     "usage": {"input_tokens": 7, "output_tokens": 9}})]
+        with patch.dict(os.environ, env, clear=True), patch.object(planner.requests, "post", side_effect=responses) as post:
             result = planner.openai_chat_provider()("p")
         self.assertEqual((result.text, result.usage), ("{}", {"input": 7, "output": 9}))
+        self.assertEqual(post.call_count, 2)  # comptage + un seul appel payant, aucune relance cachée
+
+    def test_openai_provider_blocks_oversized_input_before_paid_call(self):
+        class Resp:
+            status_code, text = 200, ""
+            def raise_for_status(self): pass
+            def json(self): return {"input_tokens": 101}
+        env = {"STORY_PLANNER_MODEL": "m", "OPENAI_API_KEY": "k", "STORY_PLAN_INPUT_TOKEN_CEILING": "100",
+               "STORY_PLAN_MAX_OUTPUT_TOKENS": "50", "SCRIPT_PRICE_IN_PER_M": "1", "SCRIPT_PRICE_OUT_PER_M": "2"}
+        with patch.object(planner.requests, "post", return_value=Resp()) as post:
+            result = planner.openai_chat_provider(env)("p")
+        self.assertEqual(result.error, "input_token_ceiling_exceeded")
+        self.assertFalse(result.call_made)
+        self.assertEqual(post.call_count, 1)
 
 
 @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg required (the simulated voice is an ffmpeg sine)")

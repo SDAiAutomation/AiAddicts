@@ -1110,7 +1110,7 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
     plugs the real services (OpenAI Images, ElevenLabs, credits, moderation, publication). Local imports: the legacy path never
     loads this code."""
     from .story_visual import cache as sv_cache, orchestrator as sv_orchestrator, pipeline as sv_pipeline, voice as sv_voice
-    from .story_visual import cost as sv_cost, ledger as sv_ledger, quota as sv_quota
+    from .story_visual import cost as sv_cost, ledger as sv_ledger, planning_job as sv_planning, quota as sv_quota
 
     organization_id = events.organization_id_of(client, content_item_id)
     tenant_id = str(organization_id or "")
@@ -1121,9 +1121,35 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
             explainer_access.authorize(client, content_item_id)
         except explainer_access.ExplainerAccessDenied as exc:
             raise sv_pipeline.PipelineError("Récit illustré refusé : réservé aux administrateurs de la plateforme") from exc
-        # Only an authorised administrator reaches the shared asset cache: the runner is ephemeral, so a resumed job restores the paid
-        # images and voices instead of paying them again (never blocking: without the cache the job simply regenerates under budget).
-        asset_store.configure(client, content_item_id)
+
+    # Première file : génération narrative uniquement. Aucun fournisseur image/voix n'est construit avant la validation humaine.
+    if not isinstance(script.get("story_plan"), dict):
+        story_budget = sv_cost.Budget.from_env()
+
+        def persist_plan(updated: dict) -> None:
+            repo.update_content_item(client, content_item_id, title=updated["story_plan"]["title"], script=updated,
+                                     status="idea", error=None, generation_step=None)
+
+        result = sv_planning.run(script, sv_planning.Ports(
+            authorize=authorize,
+            moderate=moderation.check_script,
+            reserve_credit=lambda: repo.reserve_generation_credit(client, content_item_id),
+            refund_credit=lambda: repo.refund_generation_credit(client, content_item_id),
+            persist=persist_plan,
+            record_event=lambda name, **props: events.record(client, name, content_item_id, organization_id, **props),
+            progress=lambda label: repo.update_content_item(client, content_item_id, generation_step=label),
+            env=os.environ,
+            budget=story_budget,
+            ledger=sv_ledger.DurableLedger(client, content_item_id, min(sv_planning.PILOT_MAX_USD, story_budget.max_usd)),
+        ))
+        asset_store.finish()
+        asset_store.reset()
+        return {"video_url": None, "content_item_id": content_item_id, "planning": result}
+
+    # Only an authorised administrator reaches the shared asset cache: the runner is ephemeral, so a resumed render restores the paid
+    # images and voices instead of paying them again (never blocking: without the cache the job simply regenerates under budget).
+    authorize()
+    asset_store.configure(client, content_item_id)
 
     def publish(final: Path, timeline: dict, result: dict) -> dict:
         version_number = None
