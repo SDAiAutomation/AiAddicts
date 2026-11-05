@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,6 +79,15 @@ def quality_issues(info: dict, timeline: dict) -> list[str]:
         issues.append("video must be h264 yuv420p")
     if audio.get("codec_name") != "aac":
         issues.append("audio must be aac")
+    try:
+        starts = [float(stream["start_time"]) for stream in (video, audio)]
+        ends = [start + float(stream["duration"]) for start, stream in zip(starts, (video, audio))]
+        if not all(math.isfinite(value) for value in starts + ends):
+            raise ValueError("non-finite stream timing")
+        if abs(starts[0] - starts[1]) > 0.15 or abs(ends[0] - ends[1]) > 0.15:
+            issues.append("audio/video stream timing differs by more than 0.15s")
+    except (KeyError, TypeError, ValueError):
+        issues.append("audio/video stream timing unavailable")
     if abs(info.get("duration", 0) - timeline["total_s"]) > 0.5:
         issues.append(f"duration {info.get('duration', 0):.2f}s differs from timeline {timeline['total_s']:.2f}s")
     return issues
