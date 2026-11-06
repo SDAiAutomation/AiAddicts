@@ -194,6 +194,20 @@ jobs:
           STORY_PLANNER_MODEL: ${{ vars.STORY_PLANNER_MODEL }}
           STORY_PLAN_INPUT_TOKEN_CEILING: ${{ vars.STORY_PLAN_INPUT_TOKEN_CEILING }}
           STORY_PLAN_MAX_OUTPUT_TOKENS: ${{ vars.STORY_PLAN_MAX_OUTPUT_TOKENS }}
+          # Rendu d'un récit illustré (seulement après un plan validé ET un lancement explicite depuis le site). Modèle/qualité DÉDIÉS
+          # (la combinaison dont le coût a été mesuré : ~0,0092 $ l'image) : les réglages communs aux autres styles ne changent pas.
+          STORY_VISUAL_IMAGE_MODEL: "gpt-image-2.5-flare"
+          STORY_VISUAL_IMAGE_QUALITY: "low"
+          # Prix fixe PRUDENT (mesuré : ~0,0092 $ en qualité low) : il sert aux réservations et au plafond. À RÉVISER si le modèle ou la
+          # qualité ci-dessus change (medium/high coûtent davantage et les réservations deviendraient trop basses).
+          STORY_IMAGE_USD_EACH: "0.012"
+          STORY_RENDER_USD: "0"
+          STORY_STORAGE_USD: "0.01"
+          # Plafond cumulé de l'épisode (défaut du moteur : 2 $). Valeurs identiques à celles du pilote côté site.
+          STORY_BUDGET_USD: "1"
+          STORY_BUDGET_PREFERRED_USD: "0.5"
+          # Voix par défaut : variable du dépôt (vide = le plan doit porter son voice_id, sinon le rendu est refusé).
+          STORY_DEFAULT_VOICE_ID: ${{ vars.STORY_DEFAULT_VOICE_ID }}
           # AutoEdit (expérimental) : analyse locale ffmpeg (coupures de plan +
           # pics audio), montages dans le bucket privé autoedit-results.
           AUTOEDIT_ENABLED: "true"

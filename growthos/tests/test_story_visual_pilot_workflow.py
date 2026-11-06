@@ -69,7 +69,22 @@ class TestSecretsAndIsolation(unittest.TestCase):
         for name in ("STORY_PLANNER_MODEL", "STORY_PLAN_INPUT_TOKEN_CEILING", "STORY_PLAN_MAX_OUTPUT_TOKENS"):
             self.assertRegex(PRODUCTION, rf"{name}: \$\{{\{{ vars\.{name} \}}\}}")
         self.assertNotIn("STORY_VISUAL_GENERATION_ENABLED", PRODUCTION)  # the paid generation flag is not wired here
-        self.assertNotIn("STORY_BUDGET", PRODUCTION)
+
+    def test_the_production_worker_renders_an_illustrated_story_with_the_measured_image_settings_and_a_one_dollar_cap(self):
+        """Owner decision (2026-11-06): the render uses DEDICATED image variables (the measured combination), never the shared ones that
+        every other style reads, and the episode budget is capped at 1 USD (the engine default is 2)."""
+        def value(name):
+            match = re.search(rf'^\s+{name}: "([^"]*)"', PRODUCTION, re.MULTILINE)
+            self.assertIsNotNone(match, name)
+            return match.group(1)
+        self.assertEqual((value("STORY_VISUAL_IMAGE_MODEL"), value("STORY_VISUAL_IMAGE_QUALITY")), ("gpt-image-2.5-flare", "low"))
+        self.assertGreaterEqual(float(value("STORY_IMAGE_USD_EACH")), 0.0092)  # never below the measured cost
+        self.assertEqual((value("STORY_RENDER_USD"), value("STORY_STORAGE_USD")), ("0", "0.01"))
+        self.assertLessEqual(float(value("STORY_BUDGET_USD")), 1.0)
+        self.assertLessEqual(float(value("STORY_BUDGET_PREFERRED_USD")), float(value("STORY_BUDGET_USD")))
+        self.assertRegex(PRODUCTION, r"STORY_DEFAULT_VOICE_ID: \$\{\{ vars\.STORY_DEFAULT_VOICE_ID \}\}")
+        for shared in ("IMAGE_MODEL_PREMIUM", "IMAGE_FINAL_QUALITY", "OPENAI_IMAGE_MODEL", "OPENAI_IMAGE_QUALITY"):
+            self.assertNotIn(shared, PRODUCTION)  # the other styles keep their own defaults
 
 
 class TestNothingPaidWithoutAuthorisation(unittest.TestCase):
