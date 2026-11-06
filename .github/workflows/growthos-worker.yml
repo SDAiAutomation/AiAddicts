@@ -198,6 +198,8 @@ jobs:
           # (la combinaison dont le coût a été mesuré : ~0,0092 $ l'image) : les réglages communs aux autres styles ne changent pas.
           STORY_VISUAL_IMAGE_MODEL: "gpt-image-2.5-flare"
           STORY_VISUAL_IMAGE_QUALITY: "low"
+          # Prix fixe PRUDENT (mesuré : ~0,0092 $ en qualité low) : il sert aux réservations et au plafond. À RÉVISER si le modèle ou la
+          # qualité ci-dessus change (medium/high coûtent davantage et les réservations deviendraient trop basses).
           STORY_IMAGE_USD_EACH: "0.012"
           STORY_RENDER_USD: "0"
           STORY_STORAGE_USD: "0.01"
