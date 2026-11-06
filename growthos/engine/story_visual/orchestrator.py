@@ -18,6 +18,19 @@ from . import cache as cache_mod
 from . import cost, schema, store, visual_direction
 
 _SAFE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_QUALITIES = ("low", "medium", "high", "auto")
+
+
+def image_selection() -> image_model_router.ModelSelection:
+    """Modèle et qualité des illustrations d'un récit illustré.
+
+    `STORY_VISUAL_IMAGE_MODEL` / `STORY_VISUAL_IMAGE_QUALITY` priment, pour que le coût mesuré du pilote (une combinaison précise) ne
+    dépende pas des réglages communs à toutes les vidéos du worker (`IMAGE_MODEL_PREMIUM`, `IMAGE_FINAL_QUALITY`, `OPENAI_IMAGE_*`),
+    et qu'on ne change pas ces réglages communs pour les autres styles. Vide ou qualité inconnue : repli sur le routeur, comme avant."""
+    base = image_model_router.select_model("final")
+    model = os.environ.get("STORY_VISUAL_IMAGE_MODEL", "").strip() or base.model
+    quality = os.environ.get("STORY_VISUAL_IMAGE_QUALITY", "").strip().lower()
+    return image_model_router.ModelSelection(model=model, quality=quality if quality in _QUALITIES else base.quality, purpose="final")
 
 
 class RegenerationLimit(RuntimeError):
@@ -106,7 +119,7 @@ def generate_scene_images(plan: dict, *, tenant_id: str, work_dir: str | Path, p
     errors = schema.validate_story_plan(plan)
     if errors:
         raise ValueError("invalid plan: " + "; ".join(errors[:3]))
-    selection = image_model_router.select_model("final")
+    selection = image_selection()
     manifest_path = _manifest_path(Path(work_dir), tenant_id, plan["story_id"])
     with store.job_lock(manifest_path.parent):
         return _generate(plan, selection, manifest_path, tenant_id, provider, tracker, expected_unit_usd, disk_cache, only,
