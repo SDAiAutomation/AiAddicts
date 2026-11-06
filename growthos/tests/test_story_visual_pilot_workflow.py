@@ -56,9 +56,20 @@ class TestSecretsAndIsolation(unittest.TestCase):
         self.assertLess(BODY.index("Refuse the production database"), BODY.index("Pre-flight"))
         self.assertNotIn(PROD_REF, "".join(re.findall(r"vars\.[A-Z_]+", BODY)))
 
-    def test_the_production_worker_is_untouched_and_never_sees_the_flag_or_the_test_secrets(self):
-        for text in ("STORY_VISUAL_ENABLED", "PILOT_", "story-visual-pilot"):
+    def test_the_production_worker_never_sees_the_pilot_secrets_or_environment(self):
+        for text in ("PILOT_", "story-visual-pilot"):
             self.assertNotIn(text, PRODUCTION)
+
+    def test_the_production_worker_gets_the_flag_only_from_a_repository_variable_never_hard_coded(self):
+        """Owner decision (2026-11-06): the production worker may run Story Visual PLANNING (admin only, <= 1 USD, no render without the
+        site's separate generation flag). The flag stays OFF by default: it comes from the repository variable, which is empty until the
+        owner sets it, and it is never written in the workflow. The pilot worker stays the only place that sets it to a literal."""
+        lines = [line.strip() for line in PRODUCTION.splitlines() if "STORY_VISUAL_ENABLED" in line and not line.strip().startswith("#")]
+        self.assertEqual(lines, ["STORY_VISUAL_ENABLED: ${{ vars.STORY_VISUAL_ENABLED }}"])
+        for name in ("STORY_PLANNER_MODEL", "STORY_PLAN_INPUT_TOKEN_CEILING", "STORY_PLAN_MAX_OUTPUT_TOKENS"):
+            self.assertRegex(PRODUCTION, rf"{name}: \$\{{\{{ vars\.{name} \}}\}}")
+        self.assertNotIn("STORY_VISUAL_GENERATION_ENABLED", PRODUCTION)  # the paid generation flag is not wired here
+        self.assertNotIn("STORY_BUDGET", PRODUCTION)
 
 
 class TestNothingPaidWithoutAuthorisation(unittest.TestCase):

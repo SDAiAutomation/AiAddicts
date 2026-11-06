@@ -187,6 +187,13 @@ jobs:
           ORIGINALITY_MODEL: "gpt-5-mini"
           ORIGINALITY_PRICE_IN_PER_M: "0.25"
           ORIGINALITY_PRICE_OUT_PER_M: "2"
+          # Récits illustrés (Story Studio) : PLANIFICATION narrative uniquement tant que le site n'expose pas le lancement.
+          # Variables du dépôt, vides par défaut : vide = drapeau éteint, le worker refuse un récit illustré avant tout crédit ou appel.
+          # Les valeurs doivent être IDENTIQUES à celles du site (Vercel) ; plafond de planification <= 1 $ (codé dans le moteur).
+          STORY_VISUAL_ENABLED: ${{ vars.STORY_VISUAL_ENABLED }}
+          STORY_PLANNER_MODEL: ${{ vars.STORY_PLANNER_MODEL }}
+          STORY_PLAN_INPUT_TOKEN_CEILING: ${{ vars.STORY_PLAN_INPUT_TOKEN_CEILING }}
+          STORY_PLAN_MAX_OUTPUT_TOKENS: ${{ vars.STORY_PLAN_MAX_OUTPUT_TOKENS }}
           # AutoEdit (expérimental) : analyse locale ffmpeg (coupures de plan +
           # pics audio), montages dans le bucket privé autoedit-results.
           AUTOEDIT_ENABLED: "true"
