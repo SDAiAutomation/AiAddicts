@@ -53,7 +53,7 @@ def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:
         if total_duration < MIN_REACH_DURATION_S:
             score -= 20
             flags.append(f"Vidéo très courte ({total_duration:.0f}s) : promesse probablement incomplète.")
-        elif total_duration > MAX_REACH_DURATION_S:
+        elif total_duration > MAX_REACH_DURATION_S and metrics.get("content_format") != "quiz":
             score -= 15
             flags.append(
                 f"Vidéo longue pour un objectif de portée ({total_duration:.0f}s) : "
@@ -150,7 +150,8 @@ def score_generation(metrics: dict, final_path: str) -> tuple[int, list[str]]:
 
     n_blocks = int(metrics.get("n_blocks") or 0)
     blocks_with_image = int(metrics.get("blocks_with_image") or 0)
-    if metrics.get("visuals_possible") and n_blocks and blocks_with_image < n_blocks:
+    if (metrics.get("visuals_possible") and n_blocks and blocks_with_image < n_blocks
+            and not (metrics.get("content_format") == "quiz" and metrics.get("quiz_illustrations_disabled") is True)):
         score -= 20
         missing = n_blocks - blocks_with_image
         flags.append(
