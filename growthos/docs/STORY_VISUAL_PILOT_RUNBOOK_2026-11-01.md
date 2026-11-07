@@ -31,8 +31,8 @@ configuré ; 0,30 $ / 1 000 caractères est la valeur de repli de Standard (`ass
 | Rendu / stockage | exécuteur déjà payé / 0,01 $ | 0,01 $ | 0,01 $ |
 | **Total** | | **≈ 0,30 $** | **≈ 0,38 $** |
 
-Plafond recommandé du pilote : **`STORY_BUDGET_USD = 1,00 $`** (cible 0,50 $). Il est **garanti** par le registre durable (refus avant tout appel qui
-ferait dépasser le cumul de l'épisode, y compris en relance et en concurrence). Un coût réel supérieur à la retenue peut dépasser d'au plus l'écart d'un seul appel.
+Plafond recommandé du pilote : **`STORY_BUDGET_USD = 1,00 $`** (cible 0,50 $). Le registre durable refuse avant tout appel qui
+ferait dépasser le cumul réservé de l'épisode, y compris en relance et en concurrence. Un coût réel supérieur à la retenue peut dépasser le plafond ; en concurrence, plusieurs appels déjà réservés peuvent présenter un dépassement.
 
 ## 4. Configuration du worker de TEST (aucune valeur de secret dans le dépôt)
 | Variable | Valeur pour le pilote | Remarque |
@@ -58,18 +58,22 @@ ferait dépasser le cumul de l'épisode, y compris en relance et en concurrence)
    **et** `check (kind in ('voice','voice_words','image'))` de `content_assets` (le registre de dépense en dépend), registre vide, requête du quota partagé exécutable.
 3. CI verte sur `growthos/mvp` et `master` (web) ; `render-checker` et `contract-parity` disponibles pour l'épisode.
 
-## 6. Ce qu'il reste à implémenter (non fait : le lancement n'existe pas dans l'interface)
-**Action serveur de mise en file** (web), derrière les mêmes gardes : drapeau dédié `STORY_VISUAL_GENERATION_ENABLED` (éteint) → administrateur → rôle →
-confirmation payante explicite → projet `story_visual` valide, statut `idea`/`failed`, plan sans blocage → modération → passage `queued` conditionné (anti double
-clic) → audit. Le worker principal réclame déjà un élément `queued` et route vers `_run_visual`. La réservation de crédit est faite par le moteur, après ses refus
-et avant tout appel. À livrer dans **une PR dédiée, non fusionnée**, avec tests (refus sans drapeau/admin/confirmation, double clic, statut). Alternative sans
-interface : script d'exécution sur la machine de test (même plafond, drapeau `--go` obligatoire).
+## 6. Mise en file et simulation
+Le frontend `master` possède déjà le lancement : simulation, confirmation payante, contrôle administrateur et rôle, mise en file conditionnelle et protection contre le double lancement. La planification possède sa propre file et son drapeau. Vérifier les migrations et la configuration en test avant le pilote ; ne pas reconstruire ce parcours.
+
+La fiction `moral_fox_enemy_fr` est préparée pour le pilote. Simulation sans fournisseur (0,30 $ est une hypothèse vocale, à remplacer par le tarif confirmé) :
+
+```bash
+python growthos/scripts/story_visual_local_run.py --fixture moral_fox_enemy_fr --voice-rate 0.30 --cap 1
+```
+
+Le plafond borne les réservations avant les appels, mais ne garantit pas la facture si le coût réel dépasse une retenue. Un coût inconnu exige une réconciliation humaine. Le rendu local ne valide pas la file, les permissions ni la reprise du worker.
 
 ## 7. Déroulé du jour J (après autorisation)
 1. Poser la configuration du §4 sur l'environnement de test ; relancer le pré-contrôle : PRÊT.
 2. Activer les deux drapeaux sur le test seulement. Créer le projet (simulation → script validé) puis lancer **un** épisode.
 3. Surveiller : état du job, dépense cumulée (somme des lignes `story-visual-ledger-*` du content_item), absence de relance en boucle.
-4. **Arrêt d'urgence** : retirer `STORY_VISUAL_ENABLED` (refus avant crédit) ; annuler le job ; le plafond cumulé empêche de toute façon de dépasser 1,00 $.
+4. **Arrêt d'urgence** : retirer `STORY_VISUAL_ENABLED` (refus avant crédit) ; annuler le job et réconcilier les appels déjà engagés.
 5. Désactiver les drapeaux. Conserver le MP4, le rapport de coût et le registre ; supprimer le content_item de test si besoin (cascade).
 
 ## 8. Autorisations à donner (rien n'est lancé sans elles)
@@ -78,7 +82,7 @@ interface : script d'exécution sur la machine de test (même plafond, drapeau `
    **aucun** appel au planificateur.
 3. Environnement de test, compte administrateur et clés (à poser par vous, jamais dans le dépôt).
 4. Activation des drapeaux (par un humain, test uniquement).
-5. Feu vert pour implémenter l'action de mise en file du §6 (ou choix du script).
+5. Choix explicite du parcours de test et validation des garde-fous de mise en file existants.
 
 ## 9. Critères d'acceptation du pilote (GO / NO-GO)
 | Critère | Seuil |

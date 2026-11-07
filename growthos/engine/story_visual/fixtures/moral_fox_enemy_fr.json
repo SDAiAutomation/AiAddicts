@@ -1,0 +1,242 @@
+{
+  "art_direction": "cinematic_story",
+  "characters": [
+    {
+      "appearance": "jeune renard roux au museau blanc, yeux ambrés et queue à pointe blanche",
+      "clothing": "écharpe bleu pétrole rapiécée",
+      "distinctive": "écharpe bleu pétrole nouée à gauche",
+      "environment": "forêt automnale brumeuse",
+      "id": "renard",
+      "name": "Petit renard",
+      "negative": "chapeau, sac à dos",
+      "palette": "roux, bleu pétrole, crème",
+      "proportions": "petite silhouette élancée, grandes oreilles"
+    },
+    {
+      "id": "loup",
+      "name": "Loup",
+      "appearance": "loup gris au museau argenté et aux yeux dorés",
+      "proportions": "grand corps robuste, oreille droite échancrée",
+      "clothing": "aucun vêtement",
+      "palette": "gris ardoise et argent",
+      "distinctive": "oreille droite échancrée",
+      "environment": "forêt automnale brumeuse",
+      "negative": "collier, vêtements"
+    }
+  ],
+  "factuality": "fiction",
+  "language": "fr",
+  "scenes": [
+    {
+      "beat": "hook",
+      "camera": "push_in",
+      "characters": [
+        "renard"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 7,
+      "emotional_tone": "unease",
+      "id": "s1",
+      "image_prompt": "Petit renard déposant des baies devant une tanière sombre, nuit en forêt",
+      "narration": "Chaque nuit, un petit renard déposait son repas devant la tanière de son pire ennemi.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "cut",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Petit renard déposant des baies devant une tanière sombre, nuit en forêt",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Petit renard déposant des baies devant une tanière sombre, nuit en forêt"
+      },
+      "visual_intention": "Petit renard déposant des baies devant une tanière sombre, nuit en forêt"
+    },
+    {
+      "beat": "setup",
+      "camera": "pull_out",
+      "characters": [
+        "renard",
+        "loup"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "heaviness",
+      "id": "s2",
+      "image_prompt": "Un loup gris chasse un jeune renard sous la pluie devant un terrier",
+      "narration": "La veille, un loup affamé avait chassé le renard loin de son terrier, sous la pluie.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Un loup gris chasse un jeune renard sous la pluie devant un terrier",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Un loup gris chasse un jeune renard sous la pluie devant un terrier"
+      },
+      "visual_intention": "Un loup gris chasse un jeune renard sous la pluie devant un terrier"
+    },
+    {
+      "beat": "conflict",
+      "camera": "push_in",
+      "characters": [
+        "renard",
+        "loup"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "loneliness",
+      "id": "s3",
+      "image_prompt": "Loup gris blessé au bord du sentier, jeune renard observant à distance",
+      "narration": "Pourtant, au matin, le renard trouva le loup blessé, seul au bord du sentier.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Loup gris blessé au bord du sentier, jeune renard observant à distance",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Loup gris blessé au bord du sentier, jeune renard observant à distance"
+      },
+      "visual_intention": "Loup gris blessé au bord du sentier, jeune renard observant à distance"
+    },
+    {
+      "beat": "development",
+      "camera": "push_in",
+      "characters": [
+        "renard",
+        "loup"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "tension",
+      "id": "s4",
+      "image_prompt": "Petit renard dépose des baies près du loup blessé puis s'éloigne",
+      "narration": "Il aurait pu partir. Mais il posa quelques baies près de lui, puis disparut entre les arbres.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Petit renard dépose des baies près du loup blessé puis s'éloigne",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Petit renard dépose des baies près du loup blessé puis s'éloigne"
+      },
+      "visual_intention": "Petit renard dépose des baies près du loup blessé puis s'éloigne"
+    },
+    {
+      "beat": "development",
+      "camera": "push_in",
+      "characters": [
+        "renard"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "relief",
+      "id": "s5",
+      "image_prompt": "Petit renard portant des baies dans une forêt automnale brumeuse",
+      "narration": "Les jours suivants, il revint en secret, malgré la faim qui lui serrait lui aussi le ventre.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "crossfade",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Petit renard portant des baies dans une forêt automnale brumeuse",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Petit renard portant des baies dans une forêt automnale brumeuse"
+      },
+      "visual_intention": "Petit renard portant des baies dans une forêt automnale brumeuse"
+    },
+    {
+      "beat": "development",
+      "camera": "pull_out",
+      "characters": [
+        "renard"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "courage",
+      "id": "s6",
+      "image_prompt": "Petit renard emporté par une rivière en crue près de rochers",
+      "narration": "Une nuit, le renard fut surpris par une crue. Le courant l'emporta vers les rochers.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "fade",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Petit renard emporté par une rivière en crue près de rochers",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Petit renard emporté par une rivière en crue près de rochers"
+      },
+      "visual_intention": "Petit renard emporté par une rivière en crue près de rochers"
+    },
+    {
+      "beat": "revelation",
+      "camera": "push_in",
+      "characters": [
+        "renard",
+        "loup"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 8,
+      "emotional_tone": "insight",
+      "id": "s7",
+      "image_prompt": "Loup gris sauvant le petit renard sur une rive humide",
+      "narration": "Le loup, désormais assez fort, plongea et le ramena sur la rive. Aucun des deux ne dit un mot.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "fade",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Loup gris sauvant le petit renard sur une rive humide",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Loup gris sauvant le petit renard sur une rive humide"
+      },
+      "visual_intention": "Loup gris sauvant le petit renard sur une rive humide"
+    },
+    {
+      "beat": "resolution",
+      "camera": "pull_out",
+      "characters": [
+        "renard",
+        "loup"
+      ],
+      "claim_kind": "fiction",
+      "duration_s": 7,
+      "emotional_tone": "peace",
+      "id": "s8",
+      "image_prompt": "Renard et loup partagent des baies devant la tanière dans la lumière du matin",
+      "narration": "Depuis, ils partagent leur nourriture. Parfois, la bonté ouvre un chemin là où la peur dressait un mur.",
+      "on_screen_text": "",
+      "source_ids": [],
+      "transition": "cut",
+      "visual_direction": {
+        "continuity": "Même renard roux à écharpe bleu pétrole ; même loup gris ; forêt automnale brumeuse",
+        "essentials": "Renard et loup partagent des baies devant la tanière dans la lumière du matin",
+        "feel": "émotion sobre",
+        "metaphor": "lumière dans la forêt",
+        "omit": "texte et éléments décoratifs",
+        "understand": "Renard et loup partagent des baies devant la tanière dans la lumière du matin"
+      },
+      "visual_intention": "Renard et loup partagent des baies devant la tanière dans la lumière du matin"
+    }
+  ],
+  "schema_version": 1,
+  "sources": [],
+  "story_id": "renard-ennemi",
+  "story_type": "moral",
+  "target_duration_s": 60,
+  "title": "Le petit renard qui nourrissait son ennemi"
+}
