@@ -408,6 +408,8 @@ def _generate(
         quiz_report_path.write_text(json.dumps(quiz_report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     metrics = {
+        "content_format": data.get("content_format"),
+        "quiz_illustrations_disabled": quiz_format and (data.get("quiz") or {}).get("illustrations") is False,
         "total_duration": total_duration,
         "content_goal": data.get("content_goal", "reach"),
         "n_blocks": n_blocks,

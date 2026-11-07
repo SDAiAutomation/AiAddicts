@@ -37,6 +37,22 @@ class TestScoreGeneration(unittest.TestCase):
         self.assertEqual(score, 85)
         self.assertTrue(any("objectif de portée" in f for f in flags))
 
+    def test_quiz_length_and_intentionally_disabled_illustrations(self):
+        metrics = {**NOMINAL, "content_format": "quiz", "total_duration": 130.0,
+                   "n_cues": 130, "blocks_with_image": 0, "quiz_illustrations_disabled": True}
+        self.assertEqual(quality.score_generation(metrics, _big_file()), (100, []))
+
+    def test_quiz_still_reports_unexpected_missing_illustrations(self):
+        metrics = {**NOMINAL, "content_format": "quiz", "blocks_with_image": 0}
+        score, flags = quality.score_generation(metrics, _big_file())
+        self.assertEqual(score, 80)
+        self.assertTrue(any("sans visuel" in f for f in flags))
+
+    def test_quiz_still_blocks_weak_editorial_quality(self):
+        metrics = {**NOMINAL, "content_format": "quiz", "quiz_illustrations_disabled": True,
+                   "editorial": {"score": 55, "issues": []}}
+        self.assertEqual(quality.score_generation(metrics, _big_file())[0], 65)
+
     def test_slow_hook_and_shot_are_penalised(self):
         score, flags = quality.score_generation(
             {**NOMINAL, "hook_duration": 6.0, "max_shot_duration": 8.0}, _big_file()
