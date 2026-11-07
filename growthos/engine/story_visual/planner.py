@@ -79,6 +79,11 @@ def _response_text(body: dict) -> str:
     raise KeyError("output_text")
 
 
+def _truncated(body: dict) -> bool:
+    """Réponse coupée par la limite de sortie : le JSON est alors incomplet, et relancer avec la même limite donnerait la même coupure."""
+    return body.get("status") == "incomplete" and (body.get("incomplete_details") or {}).get("reason") == "max_output_tokens"
+
+
 def openai_chat_provider(env=None, session=requests) -> LLMProvider:
     """Adaptateur OpenAI (PAYANT). Un comptage gratuit précède l'unique appel Responses autorisé."""
     env = os.environ if env is None else env
@@ -106,9 +111,12 @@ def openai_chat_provider(env=None, session=requests) -> LLMProvider:
             resp.raise_for_status()
             body = resp.json()
             usage = body.get("usage") or {}
-            return LLMResult(_response_text(body),
-                             {"input": int(usage.get("input_tokens") or input_tokens),
-                              "output": int(usage.get("output_tokens") or 0)}, None, True)
+            used = {"input": int(usage.get("input_tokens") or input_tokens), "output": int(usage.get("output_tokens") or 0)}
+            if _truncated(body):
+                # Dépense réelle conservée (usage), aucun texte partiel analysé, et `plan_story` ne relance pas : même limite, même coupure.
+                return LLMResult(None, used, f"output_truncated: the model used its {pricing.max_output_tokens} output tokens before finishing "
+                                             "(raise STORY_PLAN_MAX_OUTPUT_TOKENS on the site and the worker)", True)
+            return LLMResult(_response_text(body), used, None, True)
         except (requests.RequestException, KeyError, ValueError, TypeError):
             return LLMResult(None, None, "provider_error", True)
     return call
