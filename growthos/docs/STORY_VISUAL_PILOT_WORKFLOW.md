@@ -43,3 +43,9 @@ planificateur déclaré à 0 (aucun appel), rendu 0 $, stockage 0,01 $.
 - Le dépôt est **public** : les journaux d'Actions le sont aussi. Les secrets sont masqués et le pilote n'utilise que la fable d'exemple.
 - L'approbation et la restriction de branche sont des réglages GitHub (§ mise en place) : le fichier ne peut pas les imposer ; sans elles, le garde-fou restant est la variable d'armement et la confirmation textuelle.
 - Le worker traite la file de la **base de test** : elle ne doit contenir que l'épisode du pilote.
+
+## Narration et durée cible
+- Ordre d'exécution : **voix d'abord, images ensuite**. La durée de voix mesurée doit tenir dans la cible ±10 % ; sinon le job s'arrête (`NarrationOutOfTarget`) avant toute image payée et le **crédit est rendu** (exception à la règle « pas de remboursement après dépense »). Corriger la narration, puis relancer.
+- La voix déjà payée est dans le cache disque (`voice_cache`) ; si le cache du worker est éphémère, une relance la repaie.
+- `STORY_TTS_SPEED = 0.7` est calibré pour le pilote de 60 s ; une cible plus courte ou une langue plus lente peut sortir de ±10 %. La pause inter-scènes passe à 0,45 s.
+- La clé de cache de la voix a changé : la première reprise après cette version repaie la voix.
