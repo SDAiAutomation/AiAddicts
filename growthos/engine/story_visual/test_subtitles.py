@@ -74,6 +74,13 @@ class TestCues(unittest.TestCase):
         out = subtitles.issues(cues, None, "off", timeline["total_s"] + 5, timeline)
         self.assertTrue(any("overflow" in i for i in out), out)
 
+    def test_a_word_starting_on_a_block_boundary_up_to_rounding_is_not_an_overflow(self):
+        timeline = {"scenes": [{"audio_start": 0.15}, {"audio_start": 14.85}], "total_s": 30.0}
+        # 14.849999999999998 < 14.85 : le mot appartient au 2e bloc, pas au 1er
+        cues = [{"index": 1, "start": 14.85, "end": 15.25, "text": "His",
+                 "words": [{"text": "His", "start": 14.849999999999998, "end": 15.249999999999998}]}]
+        self.assertEqual(subtitles.issues(cues, None, "off", 30.0, timeline), [])
+
     def test_issues_flag_overlapping_cues(self):
         timeline, cues = self._cues_with(lambda v, t: None)
         cues[1] = {**cues[1], "start": cues[0]["end"] - 0.5}
