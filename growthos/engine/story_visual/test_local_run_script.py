@@ -27,7 +27,9 @@ def _forbidden(name):
 
 class LocalRunBase(unittest.TestCase):
     def setUp(self):
-        env = patch.dict(os.environ, {}, clear=True)
+        # env vidé (aucune clé fournisseur), sauf le répertoire personnel : Path.home() échoue sans lui sous Windows
+        home = {k: os.environ[k] for k in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH") if k in os.environ}
+        env = patch.dict(os.environ, home, clear=True)
         env.start()
         self.addCleanup(env.stop)
         self.tmp = tempfile.TemporaryDirectory()
