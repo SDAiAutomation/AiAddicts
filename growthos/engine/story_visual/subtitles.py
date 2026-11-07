@@ -64,7 +64,7 @@ def issues(cues: list[dict], ass: Path | None, style: str, total_s: float, timel
         starts = [s["audio_start"] for s in timeline["scenes"]]
         ends = starts[1:] + [timeline["total_s"]]
         for w in words:
-            blocks = [e for a, e in zip(starts, ends) if a <= w["start"] < e]
+            blocks = [e for a, e in zip(starts, ends) if a - 1e-6 <= w["start"] < e - 1e-6]  # tolérance : audio_start est arrondi à 3 décimales
             if blocks and w["end"] > blocks[0] + 0.05:
                 out.append("captions: a word overflows its scene block")
                 break
