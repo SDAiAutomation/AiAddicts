@@ -39,6 +39,10 @@ class PipelineError(RuntimeError):
     pass
 
 
+class NarrationOutOfTarget(PipelineError):
+    """Durée de voix mesurée hors cible ±10 % : aucune image payée, voix en cache (relance sans repayer), crédit rendu à l'utilisateur."""
+
+
 @dataclass
 class Ports:
     image_provider: orchestrator.Provider
@@ -163,7 +167,7 @@ def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, e
         if overlaps:
             raise PipelineError("; ".join(overlaps))
         if not timeline["within_10_percent"]:
-            raise PipelineError(
+            raise NarrationOutOfTarget(
                 f"narration duration {timeline['total_s']:.1f}s is outside the target "
                 f"{timeline['target_s']}s ±10%; revise the narration before generating images"
             )
@@ -201,7 +205,14 @@ def _execute(plan, ports, folder, done_path, digest, tenant_id, work_dir, env, e
         ports.record_event("generation_completed", renderer="story_visual", duration_s=timeline["total_s"],
                            measured_usd=report["spent_usd"], cost_complete=report["complete"])
         return result
-    except BaseException:
+    except BaseException as exc:
+        # Exception à la règle A : une narration hors cible ne livre rien ; la voix déjà payée reste en cache, donc le crédit est rendu.
+        if isinstance(exc, NarrationOutOfTarget):
+            try:
+                ports.refund_credit()
+            except Exception as refund_exc:  # noqa: BLE001 - never mask the original failure
+                print(f"       (remboursement du crédit non confirmé : {type(refund_exc).__name__})")
+            raise
         # Règle A : rembourser SEULEMENT si rien n'a été dépensé (total nul ET aucun coût inconnu), et jamais après une publication réussie.
         if published:
             print("       (crédit non remboursé : la vidéo est déjà publiée)")

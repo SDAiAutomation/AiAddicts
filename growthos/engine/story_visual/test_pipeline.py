@@ -358,6 +358,19 @@ class TestGuards(Harness):
         self.assertEqual(images.calls, [])
         self.assertEqual(self.refunds, [1])
 
+    def test_out_of_target_narration_refunds_even_when_the_voice_was_billed(self):
+        class BilledVoice(voice.SimulatedVoiceProvider):
+            def __call__(self, text, voice_id, out_path):
+                r = super().__call__(text, voice_id, out_path)
+                return voice.VoiceResult(r.path, r.words, 0.05) if r.path else r
+        images = sample.PlaceholderImageProvider()
+        ports = self.ports(image_provider=images, voice_provider=BilledVoice("en"))
+        short_audio = {scene["id"]: 1.0 for scene in moral_with_voice()["scenes"]}
+        with patch.object(pipeline.voice, "measured_durations", return_value=short_audio):
+            with self.assertRaises(pipeline.NarrationOutOfTarget):
+                pipeline.run({"story_plan": moral_with_voice()}, ports, self.tmp / "billed", tenant_id="t1")
+        self.assertEqual((images.calls, self.refunds), ([], [1]))
+
     def test_invalid_plan_unsafe_tenant_and_missing_voice_fail_before_credit(self):
         reserved = lambda: (_ for _ in ()).throw(AssertionError("credit must not be reserved"))
         bad = moral_with_voice()
