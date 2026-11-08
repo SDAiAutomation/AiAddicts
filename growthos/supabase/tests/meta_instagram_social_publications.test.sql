@@ -50,6 +50,9 @@ end $$;
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}', true);
 do $$ begin
   if (select count(*) from public.social_publications) <> 1 then raise exception 'membre sans acces a sa publication'; end if;
+  -- Colonnes exactes lues par les pages sous le role authenticated.
+  perform status, error_code, permalink, created_at, content_item_id, platform from public.social_publications;
+  perform account_id, status, expires_at, external_username, granted_scopes, platform from public.account_oauth_tokens;
 end $$;
 reset role;
 rollback;

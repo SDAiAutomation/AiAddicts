@@ -95,3 +95,18 @@ create policy "social_publications_member_select" on public.social_publications
 
 comment on table public.social_publications is
   'Une ligne par tentative de publication sociale. Ecriture serveur uniquement. Ne contient ni jeton ni URL signee.';
+
+create or replace function public.touch_social_updated_at()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.updated_at := now();
+  return new;
+end $$;
+revoke execute on function public.touch_social_updated_at() from public, anon, authenticated;
+
+drop trigger if exists social_publications_touch on public.social_publications;
+create trigger social_publications_touch before update on public.social_publications
+  for each row execute function public.touch_social_updated_at();
+drop trigger if exists account_oauth_tokens_touch on public.account_oauth_tokens;
+create trigger account_oauth_tokens_touch before update on public.account_oauth_tokens
+  for each row execute function public.touch_social_updated_at();
