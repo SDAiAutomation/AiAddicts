@@ -18,6 +18,7 @@ alter table public.account_oauth_tokens
   add column if not exists external_page_id text,
   add column if not exists granted_scopes text[],
   add column if not exists auth_flow text,
+  add column if not exists auth_config_id text,
   add column if not exists connected_by uuid references auth.users(id) on delete set null,
   add column if not exists updated_at timestamptz not null default now();
 
@@ -87,6 +88,8 @@ grant select (
   id, organization_id, account_id, content_item_id, platform, target_external_id, status,
   caption, external_media_id, permalink, error_code, poll_deadline, published_at, created_at, updated_at
 ) on table public.social_publications to authenticated;
+
+grant select, insert, update, delete on table public.social_publications to service_role;
 
 drop policy if exists "social_publications_member_select" on public.social_publications;
 create policy "social_publications_member_select" on public.social_publications

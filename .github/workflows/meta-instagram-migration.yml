@@ -1,0 +1,35 @@
+name: Meta Instagram migration
+
+on:
+  pull_request:
+    paths:
+      - 'growthos/supabase/migrations/*meta_instagram*.sql'
+      - 'growthos/supabase/tests/meta_instagram/**'
+      - '.github/workflows/meta-instagram-migration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  throwaway-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replay every migration and run the Instagram RLS scenario
+        working-directory: growthos/supabase/tests/meta_instagram
+        run: ./run.sh 2>&1 | tee /tmp/meta.out
+      - run: grep -q META_INSTAGRAM_SQL_OK /tmp/meta.out
