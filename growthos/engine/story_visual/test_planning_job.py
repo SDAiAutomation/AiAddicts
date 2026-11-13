@@ -56,6 +56,15 @@ class TestPlanningJob(unittest.TestCase):
         with self.assertRaises(planning_job.PlanningError):
             planning_job.run(bad, self.ports(llm)[0])
         self.assertEqual(llm.prompts, [])
+    def test_refusal_before_any_call_releases_the_queue_attempt(self):
+        llm = FakeLLM(planner.LLMResult("{}", {"input": 1, "output": 1}))
+        released = []
+        stale = script_for()
+        stale["story_planning"]["prompt_version"] = "story-visual-plan-v0"
+        with self.assertRaises(planning_job.PlanningError):
+            planning_job.run(stale, self.ports(llm, release_attempt=lambda: released.append(1))[0])
+        self.assertEqual((llm.prompts, released), ([], [1]))
+
     def test_true_story_without_sources_is_refused_before_provider(self):
         llm = FakeLLM(planner.LLMResult("{}", {"input": 1, "output": 1}))
         bad = script_for()

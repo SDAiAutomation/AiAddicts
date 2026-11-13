@@ -26,6 +26,7 @@ class Ports:
     moderate: Callable[[dict], None] = lambda script: None
     reserve_credit: Callable[[], bool] = lambda: True
     refund_credit: Callable[[], None] = lambda: None
+    release_attempt: Callable[[], None] = lambda: None  # rend la tentative de file quand aucun appel fournisseur n'est parti
     persist: Callable[[dict], None] = lambda script: None
     record_event: Callable[..., None] = lambda name, **props: None
     progress: Callable[[str], None] = lambda label: None
@@ -55,27 +56,39 @@ def _planning(script: dict) -> tuple[dict, planner.PlanRequest, float]:
     return meta, request, float(cap)
 
 
+def _release(ports: Ports) -> None:
+    try:
+        ports.release_attempt()
+    except Exception as exc:  # noqa: BLE001 - l'erreur initiale reste prioritaire
+        print(f"       (tentative de planification non rendue : {type(exc).__name__})")
+
+
 def run(script: dict, ports: Ports) -> dict:
     """Exécute au plus deux appels bornés. Aucun fournisseur n'est appelé avant tous les garde-fous."""
     ports.authorize()
     if isinstance(script.get("story_plan"), dict):
         return {"script": script, "idempotent_replay": True, "cost_usd": 0.0}
-    meta, request, confirmed_cap = _planning(script)
-    pricing, pricing_errors = planner.planner_pricing(ports.env)
-    if pricing is None:
-        raise PlanningError("planner pricing unavailable: " + "; ".join(pricing_errors))
-    if not str((ports.env or {}).get("STORY_PLANNER_MODEL", "")).strip():
-        raise PlanningError("planner model is not configured")
-    effective_cap = min(PILOT_MAX_USD, ports.budget.max_usd, confirmed_cap)
-    if pricing.worst_case_usd > effective_cap + 1e-9:
-        raise PlanningError(
-            f"planner worst case ${pricing.worst_case_usd:.4f} exceeds confirmed ${effective_cap:.4f} ceiling"
-        )
-    ports.moderate({"title": request.idea[:120], "blocks": [{"text": request.idea, "visual": request.art_direction or ""}]})
-    if ports.ledger is not None and ports.ledger.total() + pricing.worst_case_usd > effective_cap + 1e-9:
-        raise PlanningError("confirmed planning ceiling cannot cover the cumulative bounded attempts")
-    if not ports.reserve_credit():
-        raise PlanningError("credits exhausted")
+    try:
+        meta, request, confirmed_cap = _planning(script)
+        pricing, pricing_errors = planner.planner_pricing(ports.env)
+        if pricing is None:
+            raise PlanningError("planner pricing unavailable: " + "; ".join(pricing_errors))
+        if not str((ports.env or {}).get("STORY_PLANNER_MODEL", "")).strip():
+            raise PlanningError("planner model is not configured")
+        effective_cap = min(PILOT_MAX_USD, ports.budget.max_usd, confirmed_cap)
+        if pricing.worst_case_usd > effective_cap + 1e-9:
+            raise PlanningError(
+                f"planner worst case ${pricing.worst_case_usd:.4f} exceeds confirmed ${effective_cap:.4f} ceiling"
+            )
+        ports.moderate({"title": request.idea[:120], "blocks": [{"text": request.idea, "visual": request.art_direction or ""}]})
+        if ports.ledger is not None and ports.ledger.total() + pricing.worst_case_usd > effective_cap + 1e-9:
+            raise PlanningError("confirmed planning ceiling cannot cover the cumulative bounded attempts")
+        if not ports.reserve_credit():
+            raise PlanningError("credits exhausted")
+    except PlanningError:
+        # Refus avant tout appel (version, plafond, crédits) : ne consomme pas l'une des tentatives du projet.
+        _release(ports)
+        raise
 
     tracker = cost.BudgetTracker(cost.Budget(effective_cap, effective_cap), ledger=ports.ledger)
     try:
@@ -102,6 +115,7 @@ def run(script: dict, ports: Ports) -> dict:
     except Exception:
         # Un appel parti ou de coût inconnu conserve le crédit. Un refus avant appel ne consomme rien.
         if tracker.total == 0 and not tracker.has_unpriced:
+            _release(ports)
             try:
                 ports.refund_credit()
             except Exception as exc:  # noqa: BLE001 - l'erreur initiale reste prioritaire

@@ -1132,8 +1132,15 @@ def _run_visual(client, content_item_id: str, script: dict, output_root: str, t_
             repo.update_content_item(client, content_item_id, title=updated["story_plan"]["title"], script=updated,
                                      status="idea", error=None, generation_step=None)
 
+        def release_attempt() -> None:
+            # Refus avant tout appel fournisseur : la file web ne doit pas compter cet essai (limite de 2 par projet).
+            meta = dict(script.get("story_planning") or {})
+            meta["queue_attempts"] = max(0, int(meta.get("queue_attempts") or 0) - 1)
+            repo.update_content_item(client, content_item_id, script={**script, "story_planning": meta})
+
         result = sv_planning.run(script, sv_planning.Ports(
             authorize=authorize,
+            release_attempt=release_attempt,
             moderate=moderation.check_script,
             reserve_credit=lambda: repo.reserve_generation_credit(client, content_item_id),
             refund_credit=lambda: repo.refund_generation_credit(client, content_item_id),
